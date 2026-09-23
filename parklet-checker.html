@@ -2690,10 +2690,15 @@ let _fsPanel = null;
 var VIEWPORT_LAYOUT = { mode: 'three', max: null };
 window.VIEWPORT_LAYOUT = VIEWPORT_LAYOUT;
 var _VP_PANEL = { plan: 'pvPanel', section: 'csPanel', '3d': 'mvPanel' };
+var _vpSecScroll = null;
 function setViewportLayout(mode, max, opts) {
   opts = opts || {};
   if (mode !== 'max' || !_VP_PANEL[max]) { mode = 'three'; max = null; }
   var prevMax = VIEWPORT_LAYOUT.mode === 'max' ? VIEWPORT_LAYOUT.max : null;
+  // The section strip's scroll is DOM state the browser clamps when the strip fits a
+  // maximized Section: remember it on leaving three-view, put it back on restore.
+  var _sv = document.getElementById('seViewport');
+  if (_sv && !prevMax && mode === 'max') _vpSecScroll = { pre: _sv.scrollLeft };
   VIEWPORT_LAYOUT.mode = mode; VIEWPORT_LAYOUT.max = max;
   var grid = document.getElementById('viewportGrid');
   if (grid) grid.setAttribute('data-layout', mode === 'max' ? 'max-' + max : 'three');
@@ -2720,6 +2725,14 @@ function setViewportLayout(mode, max, opts) {
   // This change knows which boxes moved: size the visible viewports now (same handler the
   // ResizeObserver runs, so nothing waits a frame at the old size).
   _vpSizeAll();
+  if (_sv && _vpSecScroll) {
+    if (mode === 'max' && max === 'section') { _sv.scrollLeft = _vpSecScroll.pre; _vpSecScroll.applied = _sv.scrollLeft; }
+    else if (mode === 'three') {
+      // Restore the pre-maximize scroll unless the user scrolled the maximized strip.
+      if (_vpSecScroll.applied === undefined || _sv.scrollLeft === _vpSecScroll.applied) _sv.scrollLeft = _vpSecScroll.pre;
+      _vpSecScroll = null;
+    }
+  }
 }
 window.setViewportLayout = setViewportLayout;
 function toggleViewportMax(vp) {
@@ -2767,6 +2780,15 @@ function fitAllViewports() {
   }
 }
 window.fitAllViewports = fitAllViewports;
+// The renderer auto-frames the camera only when _3d._posTag changes (new geometry extent).
+// Record that pose as the 3D "home" the moment it appears -- called from the 3D render loop
+// (every frame) and after each rebuild, so a later orbit can never be mistaken for home.
+function _3dCaptureHome() {
+  if (typeof _3d === 'undefined' || !_3d || !_3d.camera || !_3d.controls || !_3d._posTag || _3d._homeTag === _3d._posTag) return;
+  _3d._homeTag = _3d._posTag;
+  _3d._home = { pos: _3d.camera.position.clone(), target: _3d.controls.target.clone() };
+}
+window._3dCaptureHome = _3dCaptureHome;
 // Legacy entry point (panel header buttons used to call it): same function.
 function toggleFullscreen(panelId) {
   var vp = { pvPanel: 'plan', csPanel: 'section', mvPanel: '3d' }[panelId];
@@ -8442,6 +8464,7 @@ function ensure3DReady() {
       if (_3d && _3d.controls) _3d.controls.update();
       if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
       if (typeof _3dUpdateCompass === 'function') _3dUpdateCompass();
+      if (typeof _3dCaptureHome === 'function') _3dCaptureHome();
     })();
     // Sizing is done by the single viewport ResizeObserver (_vpInitResize), which fires
     // for #threeWrap as soon as it is observed and on every later size change.
@@ -9848,12 +9871,7 @@ renderMassView = function() {
   _techEdges=[];
   if (_origRMV) _origRMV();
   if (typeof apply3DTheme==='function') apply3DTheme();
-  // Remember the renderer's auto-framed camera (it reframes only when _posTag changes) as the
-  // 3D "home" view that Fit all returns to.
-  if (_3d && _3d.camera && _3d.controls && _3d._homeTag !== _3d._posTag) {
-    _3d._homeTag = _3d._posTag;
-    _3d._home = { pos: _3d.camera.position.clone(), target: _3d.controls.target.clone() };
-  }
+  if (typeof _3dCaptureHome === 'function') _3dCaptureHome();
 };
 
 // Override switchMode — original depended on removed DOM elements (sbChecker, sbLibrary, etc.)
