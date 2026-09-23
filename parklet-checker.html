@@ -7713,7 +7713,7 @@ function fl3DInit() {
 // Returns true when fully ready, false on genuine failure (logged, no alert).
 function ensure3DReady() {
   // Step 1: Three.js scene + renderer
-  if (!window._3d || !_3d.scene || !_3d.renderer) {
+  if (!_3d || !_3d.scene || !_3d.renderer) {
     var _e3c = document.getElementById('threeWrap');
     if (!_e3c) { console.warn('[ensure3DReady] #threeWrap not in DOM'); return false; }
     var _e3w = _e3c.clientWidth || 720, _e3h = 400;
@@ -7768,7 +7768,7 @@ function ensure3DReady() {
     console.log('[ensure3DReady] Three.js scene created (' + _e3w + 'x' + _e3h + ')');
   }
   // Step 2: FL3D interaction layer
-  if (typeof FL3D === 'undefined' || !FL3D) { return !!(window._3d && _3d.scene && _3d.renderer); }
+  if (typeof FL3D === 'undefined' || !FL3D) { return !!(_3d && _3d.scene && _3d.renderer); }
   if (!FL3D._built) {
     FL3D._built = true;
     FL3D.raycaster = new THREE.Raycaster();
@@ -7816,7 +7816,7 @@ function ensure3DReady() {
     try { if (typeof createWorldGrid3D === 'function') createWorldGrid3D(); } catch(_ei) {}
     console.log('[ensure3DReady] FL3D layer ready');
   }
-  return !!(window._3d && _3d.scene && _3d.renderer && FL3D._built);
+  return !!(_3d && _3d.scene && _3d.renderer && FL3D._built);
 }
 window.ensure3DReady = ensure3DReady;
 
@@ -11579,7 +11579,7 @@ function _fdGetSectionWorld(e) {
 }
 
 function _fdGet3DWorld(e) {
-  if (!window._3d || !_3d.renderer || !_3d.camera || !_3d.scene) return { valid: false };
+  if (!_3d || !_3d.renderer || !_3d.camera || !_3d.scene) return { valid: false };
   if (typeof FL3D === 'undefined' || !FL3D || !FL3D.floor || !FL3D._built ||
       !FL3D.raycaster || !FL3D.mouse) return { valid: false };
   var cv = _3d.renderer.domElement;
@@ -11663,13 +11663,13 @@ function _fdClearSectionPreview() {
 
 // ── 3D preview mesh ───────────────────────────────────────────
 function _fdUpdate3DPreview(wx, wz) {
-  if (!window._3d || !FL3D._built) return;
+  if (!_3d || !FL3D._built) return;
   var objId = FURN_DRAG.objId;
   var factory = FL3D_FACTORY[objId];
   if (!factory) return;
   // Rebuild if object type changed
   if (FURN_DRAG.preview3DMesh && FURN_DRAG.preview3DObjId !== objId) {
-    window._3d.scene.remove(FURN_DRAG.preview3DMesh);
+    _3d.scene.remove(FURN_DRAG.preview3DMesh);
     FURN_DRAG.preview3DMesh = null;
   }
   if (!FURN_DRAG.preview3DMesh) {
@@ -11684,23 +11684,23 @@ function _fdUpdate3DPreview(wx, wz) {
     mesh.userData._isFdPreview = true;
     FURN_DRAG.preview3DMesh = mesh;
     FURN_DRAG.preview3DObjId = objId;
-    window._3d.scene.add(mesh);
+    _3d.scene.add(mesh);
   }
   FURN_DRAG.preview3DMesh.position.set(wx, FL3D.DECK_H, wz);
   requestAnimationFrame(function() {
-    if (window._3d && window._3d.renderer && window._3d.scene && window._3d.camera) {
-      window._3d.renderer.render(window._3d.scene, window._3d.camera);
+    if (_3d && _3d.renderer && _3d.scene && _3d.camera) {
+      _3d.renderer.render(_3d.scene, _3d.camera);
     }
   });
 }
 function _fdClear3DPreview() {
-  if (FURN_DRAG.preview3DMesh && window._3d) {
-    window._3d.scene.remove(FURN_DRAG.preview3DMesh);
+  if (FURN_DRAG.preview3DMesh && _3d) {
+    _3d.scene.remove(FURN_DRAG.preview3DMesh);
     FURN_DRAG.preview3DMesh = null;
     FURN_DRAG.preview3DObjId = null;
     requestAnimationFrame(function() {
-      if (window._3d && window._3d.renderer) {
-        window._3d.renderer.render(window._3d.scene, window._3d.camera);
+      if (_3d && _3d.renderer) {
+        _3d.renderer.render(_3d.scene, _3d.camera);
       }
     });
   }
@@ -11717,10 +11717,10 @@ function _fdPlaceFurniture(objId, wx, wz) {
     if (typeof _sdPlaceStreetObj === 'function') _sdPlaceStreetObj(objId, wx, wz);
     return;
   }
-  if (!window._3d && typeof renderMassView === 'function') {
+  if (!_3d && typeof renderMassView === 'function') {
     try { renderMassView(); } catch(_e) {}
   }
-  if (window._3d && window._3d.scene && typeof fl3DInit === 'function' && !FL3D._built) {
+  if (_3d && _3d.scene && typeof fl3DInit === 'function' && !FL3D._built) {
     fl3DInit();
   }
   var _origSnap = window.snapToGrid;
@@ -11759,9 +11759,9 @@ function _fdUpdateViews(e) {
     // Never init WebGL from the drag path — renderer must already be alive from
     // when the user opened the 3D tab (setCanvasView → rAF → ensure3DReady).
     if (prevView !== '3d') {
-      console.log('[3D DRAG] renderer?', !!(window._3d && _3d.renderer));
-      console.log('[3D DRAG] scene?',    !!(window._3d && _3d.scene));
-      console.log('[3D DRAG] camera?',   !!(window._3d && _3d.camera));
+      console.log('[3D DRAG] renderer?', !!(_3d && _3d.renderer));
+      console.log('[3D DRAG] scene?',    !!(_3d && _3d.scene));
+      console.log('[3D DRAG] camera?',   !!(_3d && _3d.camera));
       console.log('[3D DRAG] floor?',    !!(typeof FL3D !== 'undefined' && FL3D.floor));
       console.log('[3D DRAG] built?',    !!(typeof FL3D !== 'undefined' && FL3D._built));
     }
@@ -11894,8 +11894,8 @@ window.__debug3DDrag = function() {
     ' objId=' + FURN_DRAG.objId + ' category=' + FURN_DRAG.category +
     ' worldX=' + FURN_DRAG.worldX + ' worldZ=' + FURN_DRAG.worldZ +
     ' lastView=' + FURN_DRAG.lastView);
-  if (window._3d && window._3d.renderer) {
-    var r = window._3d.renderer.domElement.getBoundingClientRect();
+  if (_3d && _3d.renderer) {
+    var r = _3d.renderer.domElement.getBoundingClientRect();
     console.log('[3DD] canvas: l=' + r.left.toFixed(0) + ' t=' + r.top.toFixed(0) +
       ' w=' + r.width.toFixed(0) + ' h=' + r.height.toFixed(0));
   }
@@ -12121,7 +12121,7 @@ window.addEventListener('load', function() {
     tw.addEventListener('dblclick', function(e) {
       if (!FL3D || FL3D.selId === null) return;
       // Raycast to check if we hit furniture
-      if (window._3d && _3d.raycaster && _3d.camera && FL3D.placed.length) {
+      if (_3d && _3d.raycaster && _3d.camera && FL3D.placed.length) {
         var rect = e.currentTarget.getBoundingClientRect();
         var mouse = new THREE.Vector2(
           ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -12260,7 +12260,7 @@ function _sdPlaceStreetObj(objId, wx, wz) {
   // renderMassView() above has already run so we add directly to the live group.
   var _sd3DView = (typeof FURN_DRAG !== 'undefined' && FURN_DRAG.lastView === '3d');
   if (_sd3DView &&
-      window._3d && window._3d.scene &&
+      _3d && _3d.scene &&
       typeof FL3D !== 'undefined' && FL3D._built &&
       typeof FL3D_FACTORY !== 'undefined' && FL3D_FACTORY[objId] &&
       typeof _fl3DInstId !== 'undefined') {
@@ -13521,7 +13521,7 @@ function pkApplyDesignState(raw) {
 // ─── Clear all furniture ──────────────────────────────────────────
 function pkClearAllFurniture() {
   if (typeof FL3D === 'undefined' || !FL3D) return;
-  if (window._3d && _3d.scene) {
+  if (_3d && _3d.scene) {
     FL3D.placed.forEach(function(inst) {
       if (inst.mesh) { try { _3d.scene.remove(inst.mesh); } catch(_e) {} }
     });
@@ -14525,7 +14525,7 @@ PX.nameOf = function(o, layer, i) {
   return layer + '_' + String(i).padStart(3, '0');
 };
 PX.collect = function(layers) {
-  if (!window._3d || !_3d.group || !window.THREE) return [];
+  if (!_3d || !_3d.group || !window.THREE) return [];
   _3d.group.updateMatrixWorld(true);
   var out = [], idx = 0, v = new THREE.Vector3();
   _3d.group.traverse(function(o) {
@@ -14792,7 +14792,7 @@ PX.export = function() {
     Furniture: !!(document.getElementById('px3dLFurniture') || {checked:true}).checked,
     Context:   !!(document.getElementById('px3dLContext')   || {checked:false}).checked
   };
-  if (!window._3d || !_3d.group) { pkToast('Open the 3D view once so the model exists, then export.', 'error'); return; }
+  if (!_3d || !_3d.group) { pkToast('Open the 3D view once so the model exists, then export.', 'error'); return; }
   var objs = PX.collect(layers);
   if (!objs.length) { pkToast('Nothing to export — pick at least one layer.', 'error'); return; }
   var base = PX.baseName(), btn = document.getElementById('px3dBtn');
