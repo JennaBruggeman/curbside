@@ -2705,6 +2705,9 @@ function setViewportLayout(mode, max, opts) {
   if (max === '3d' && typeof _3d !== 'undefined' && !_3d && typeof ensure3DReady === 'function') {
     ensure3DReady(); if (typeof renderMassView === 'function') renderMassView();   // first-ever 3D show only
   }
+  // This change knows which boxes moved: size the visible viewports now (same handler the
+  // ResizeObserver runs, so nothing waits a frame at the old size).
+  _vpSizeAll();
 }
 window.setViewportLayout = setViewportLayout;
 function toggleViewportMax(vp) {
@@ -2712,6 +2715,29 @@ function toggleViewportMax(vp) {
   else setViewportLayout('max', vp);
 }
 window.toggleViewportMax = toggleViewportMax;
+// The single resize path for all three viewports (window resize, dock drag, maximize,
+// restore, mode switch all change these boxes). A resize is not a geometry change:
+// nothing here calls syncDesignModel or rebuilds the 3D scene.
+//   3D (#threeWrap; also shrinks when the furniture tray opens): resize3DViewport().
+//   Section (#csPanel): seRefreshLayout() re-lays out the section strip.
+//   Plan (#pvPanel): nothing -- the SVG fills its box via CSS and keeps its world window
+//     (_pvVB), so zoom/pan survive; Plan refits only on first layout or its FIT button.
+var _VP_SIZED = ['pvPanel', 'csPanel', 'threeWrap'];
+function _vpSizeViewport(el) {
+  if (!el || el.clientWidth < 1 || el.clientHeight < 1) return;   // hidden viewport: keep its state
+  if (el.id === 'threeWrap') { if (typeof resize3DViewport === 'function') resize3DViewport(); }
+  else if (el.id === 'csPanel') { if (typeof window.seRefreshLayout === 'function') window.seRefreshLayout(); }
+}
+// Every visible viewport at its current box (used by setViewportLayout for its own change).
+function _vpSizeAll() { _VP_SIZED.forEach(function(id) { _vpSizeViewport(document.getElementById(id)); }); }
+window._vpSizeAll = _vpSizeAll;
+function _vpInitResize() {
+  if (typeof ResizeObserver === 'undefined') return;
+  var ro = new ResizeObserver(function(entries) { entries.forEach(function(en) { _vpSizeViewport(en.target); }); });
+  _VP_SIZED.forEach(function(id) { var el = document.getElementById(id); if (el) ro.observe(el); });
+  window._vpResizeObserver = ro;
+}
+_vpInitResize();
 // Legacy entry point (panel header buttons used to call it): same function.
 function toggleFullscreen(panelId) {
   var vp = { pvPanel: 'plan', csPanel: 'section', mvPanel: '3d' }[panelId];
@@ -4039,7 +4065,8 @@ document.addEventListener('mouseup', function() {
       }, false);
     }
     document.addEventListener('keydown', _onKey);
-    window.addEventListener('resize', function(){ _recomputeScale(); _renderStrip(); _renderDimRow(); });
+    // Resizes reach the strip through the single viewport ResizeObserver (seRefreshLayout).
+
   }
 
   // ── Exports ────────────────────────────────────────────────────────
@@ -6888,14 +6915,14 @@ function resize3DViewport() {
   if (!_3d || !_3d.renderer || !_3d.camera) return;
   var container = document.getElementById('threeWrap');
   if (!container) return;
-  var w = container.clientWidth || 720;
-  var h = container.clientHeight;
-  if (!h || h < 10) h = Math.round(w * 0.56); // fallback aspect
-  h = Math.max(180, h);
+  // The renderer takes exactly the container's size. A hidden (display:none) viewport
+  // reports 0: leave the renderer alone; it is resized again when shown.
+  var w = container.clientWidth, h = container.clientHeight;
+  if (w < 1 || h < 1) return;
   _3d.camera.aspect = w / h;
   _3d.camera.updateProjectionMatrix();
   _3d.renderer.setSize(w, h, false);
-  if (_3d.controls && _3d.controls.update) _3d.controls.update();
+  _3d.renderer.render(_3d.scene, _3d.camera);   // one frame at the new size (no rebuild)
 }
 
 function renderMassView() {
@@ -7002,10 +7029,7 @@ if (false) { // dead block â€” see ensure3DReady() above
 )();
     // Style canvas to fill container
     _3d.renderer.domElement.style.cssText = 'display:block;width:100%!important;height:100%!important;';
-    const ro = new ResizeObserver(() => { if(typeof resize3DViewport==='function') resize3DViewport(); });
-    ro.observe(container);
-    window.addEventListener('resize', function(){ if(typeof resize3DViewport==='function') resize3DViewport(); });
-    setTimeout(function(){if(typeof resize3DViewport==='function')resize3DViewport();}, 100);
+    // (sizing: the single viewport ResizeObserver, see _vpInitResize)
   
 }
   
@@ -8377,10 +8401,8 @@ function ensure3DReady() {
       if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
       if (typeof _3dUpdateCompass === 'function') _3dUpdateCompass();
     })();
-    var _e3ro = new ResizeObserver(function() { if (typeof resize3DViewport === 'function') resize3DViewport(); });
-    _e3ro.observe(_e3c);
-    window.addEventListener('resize', function() { if (typeof resize3DViewport === 'function') resize3DViewport(); });
-    setTimeout(function() { if (typeof resize3DViewport === 'function') resize3DViewport(); }, 150);
+    // Sizing is done by the single viewport ResizeObserver (_vpInitResize), which fires
+    // for #threeWrap as soon as it is observed and on every later size change.
     console.log('[ensure3DReady] Three.js scene created (' + _e3w + 'x' + _e3h + ')');
   }
   // Step 2: FL3D interaction layer
@@ -9223,6 +9245,8 @@ function appSetMode(mode) {
   if (ex) ex.style.display = (mode === 'export') ? 'flex' : 'none';
   if (ct) ct.style.display = isCanvas ? '' : 'none';
   if (tb) tb.style.display = isCanvas ? '' : 'none';
+  // After every display change above: the grid may have been resized while hidden.
+  if (isCanvas && typeof _vpSizeAll === 'function') _vpSizeAll();
 
   // Build furniture library on first open
   if (mode === 'furniture' && typeof _flBuilt !== 'undefined' && !_flBuilt) {
