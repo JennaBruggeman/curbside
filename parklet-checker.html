@@ -1436,11 +1436,12 @@ var DESIGN_MODEL = {
 
 // â”€â”€ Canonical world coordinate system (metres) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //   x  = across street; 0 = curb/sidewalk edge; increases toward road centre
-//   z  = along street;  0 = left (west) parklet end; increases rightward
-// Plan:   SVG_X = worldToPlan(x,z).px = PK_X + z * HS
-//         SVG_Y = worldToPlan(x,z).py = PK_Y + x * pvSC
+//   z  = along street;  0 = parklet start end; increases toward the far end (N)
+// Plan:   SVG_X = worldToPlan(x,z).px = _pvPKX - z * HS   (+Z runs LEFT on the page)
+//         SVG_Y = worldToPlan(x,z).py = PK_Y   + x * pvSC (+X runs DOWN the page)
+//         i.e. Plan is a true top-down view of the right-handed 3D scene, not a mirror.
 // 3D:     mesh.position.x = x,  mesh.position.z = z   (Three.js y = height)
-// These are exact inverses via planToWorld / worldToPlan (defined near line 4179).
+// All plan<->world conversions go through worldToPlan / planToWorld / planDeltaToWorld.
 
 // Mirror one FL3D instance into DESIGN_MODEL.objects (upsert by id).
 function _dmSyncObject(inst) {
@@ -1652,8 +1653,28 @@ window.checkLandmarkConsistency = function(verbose) {
   if (typeof _pvPKY === 'number' && document.getElementById('planView')) {
     var pm = planMetrics();
     chk('Plan PK_Y: planMetrics vs renderer', pm.PK_Y, _pvPKY);
-    chk('Plan PK_X: planMetrics vs renderer', pm.PK_X, _pvPKX);
+    chk('Plan z=0 x: planMetrics vs renderer', pm.Z0X, _pvPKX);
     chk('Plan HS: planMetrics vs renderer', pm.HS, _pvHS);
+    // Orientation: Plan must be a rotation of what the 3D camera sees, never a mirror.
+    // Project an along-street pair (P1->P2) and an across-street pair (P3->P4) through
+    // worldToPlan and through the live camera (screen y down). A rotation keeps the sign
+    // of their 2D cross product; a mirror flips it. Valid while the camera is above ground.
+    var cam = (typeof _3d !== 'undefined' && _3d) ? _3d.camera : null;
+    if (cam && typeof THREE !== 'undefined') {
+      var dX = (LM.deckX0 + LM.deckX1) / 2, zMid = DM.parklet.length / 2;
+      var P = [[dX, 1], [dX, DM.parklet.length - 1], [LM.sidewalkL.x0 / 2, zMid], [LM.roadCenterX, zMid]];
+      var plan = P.map(function(p){ var q = worldToPlan(p[0], p[1]); return [q.px, q.py]; });
+      cam.updateMatrixWorld(true);
+      var view = P.map(function(p){ var v = new THREE.Vector3(p[0], 0, p[1]).project(cam); return [v.x, -v.y]; });
+      var cross = function(s) {
+        var ax = s[1][0]-s[0][0], ay = s[1][1]-s[0][1], bx = s[3][0]-s[2][0], by = s[3][1]-s[2][1];
+        return ax*by - ay*bx;
+      };
+      var cp = cross(plan), cv = cross(view);
+      if (cam.position.y > 0.01 && cp * cv < 0)
+        bad.push({ value: 'orientation: Plan is a MIRROR of the 3D view', model: Math.sign(cp), independent: Math.sign(cv) });
+      window._lastOrientationCheck = { plan: plan, view: view, planCross: cp, viewCross: cv, cameraAboveGround: cam.position.y > 0.01 };
+    }
   }
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL:');
@@ -1692,6 +1713,9 @@ function buildDesignModel() {
   }
   if (!segs || segs.length === 0) segs = _computeSegsFromGlobals();
   normalizeCanonicalModel(segs);
+  // World travel sense along Z for each travel lane (right-hand traffic, near curb on -X):
+  // near-side and one-way lanes run +Z, far-side lanes run -Z. Views draw arrows from this.
+  segs.forEach(function(s) { if (s.type === 'travel-lane') s.dirZ = s.direction === 'far' ? -1 : 1; });
   DESIGN_MODEL.site      = { availableCrossSectionWidth: TOTAL_ROAD };
   DESIGN_MODEL.crossSection = segs;
   DESIGN_MODEL.segments  = segs;
@@ -2523,12 +2547,12 @@ function _initSVGZoom(svgId, vb, baseW, baseH) {
       if (nearMH(pos.x,pos.y)>=0||nearCF(pos.x,pos.y)>=0||nearDriveway(pos.x,pos.y)>=0||nearZoneHandle(pos.x,pos.y)) return;
       // Don't start pan when clicking furniture or corner handles
       if (window.FL3D && window.FL3D.placed && window.FL3D.placed.length) {
-        const {HS:_pHS, PK_X:_pPKX, PK_Y:_pPKY, pvSC:_ppvSC} = planMetrics();
+        const {HS:_pHS, pvSC:_ppvSC} = planMetrics();
         for (var _pfi=0;_pfi<window.FL3D.placed.length;_pfi++) {
           var _pFinst = window.FL3D.placed[_pfi];
           var _pfwx = typeof _pFinst.x==='number'?_pFinst.x:0;
           var _pfwz = typeof _pFinst.z==='number'?_pFinst.z:0;
-          var _pfcx = _pPKX+_pfwz*_pHS, _pfcy = _pPKY+_pfwx*_ppvSC;
+          var _pfP = worldToPlan(_pfwx, _pfwz), _pfcx = _pfP.px, _pfcy = _pfP.py;
           var _pfdims = typeof _flGetDims==='function'?_flGetDims(_pFinst.objId):{l:1.5,d:0.5};
           var _pfhr = Math.sqrt(Math.pow(_pfdims.l*_pHS/2,2)+Math.pow(_pfdims.d*_ppvSC/2,2))+8;
           if (Math.hypot(pos.x-_pfcx,pos.y-_pfcy)<_pfhr) return;
@@ -3737,8 +3761,8 @@ document.addEventListener('mouseup', function() {
 // ── Section cut location (plan section-line position → model Z) ──────────────
 // Returns parklet-relative Z in [0, parklet length].
 function getSectionCutLocation() {
-  const _m = planMetrics(), L = _dmCurrent().parklet.length;
-  const raw = _pvSectionXM !== null ? (_pvSectionXM - _m.PK_X) / _m.HS : L / 2;
+  const L = _dmCurrent().parklet.length;
+  const raw = _pvSectionXM !== null ? planToWorld(_pvSectionXM, 0).z : L / 2;
   return Math.max(0, Math.min(L, raw));
 }
 
@@ -4406,11 +4430,29 @@ function snapToGrid(v, spacing) {
   if (!_snapEnabled || !spacing || spacing <= 0) return v;
   return Math.round(v / spacing) * spacing;
 }
+// Plan is a true top-down projection of the right-handed Three.js world: with +X
+// (toward the road) running DOWN the page, +Z (along street, N) must run LEFT.
+// _pvPKX is the SVG x of world z=0, which is the parklet rectangle's right edge.
 function worldToPlan(wx, wz) {
-  return { px: _pvPKX + wz * _pvHS, py: _pvPKY + wx * _pvSC };
+  return { px: _pvPKX - wz * _pvHS, py: _pvPKY + wx * _pvSC };
 }
 function planToWorld(px, py) {
-  return { x: (py - _pvPKY) / _pvSC, z: (px - _pvPKX) / _pvHS };
+  return { x: (py - _pvPKY) / _pvSC, z: (_pvPKX - px) / _pvHS };
+}
+// Screen-space drag delta -> world delta, via the canonical inverse (no origin term).
+function planDeltaToWorld(dpx, dpy) {
+  var a = planToWorld(0, 0), b = planToWorld(dpx, dpy);
+  return { x: b.x - a.x, z: b.z - a.z };
+}
+// SVG matrix() that places a local drawing at world (wx,wz) with rotation rot.
+// Local +x = the piece's length axis (world +Z at rot=0), drawn at pxL px per metre;
+// local +y = its depth axis (world +X at rot=0), drawn at pxD px per metre.
+// Built from worldToPlan, so it carries the mirror and the unequal H/V scales.
+function worldFrameToPlanMatrix(wx, wz, rot, pxL, pxD) {
+  var o = worldToPlan(wx, wz), s = Math.sin(rot), c = Math.cos(rot);
+  var l = worldToPlan(wx + s, wz + c), d = worldToPlan(wx + c, wz - s);
+  return 'matrix(' + [(l.px-o.px)/pxL, (l.py-o.py)/pxL, (d.px-o.px)/pxD, (d.py-o.py)/pxD, o.px, o.py]
+    .map(function(v){ return v.toFixed(4); }).join(',') + ')';
 }
 
 // ── FURNITURE CORNER HELPER ──────────────────────────────────────────────────
@@ -4496,13 +4538,13 @@ function _pvToggleMeasure() {
 
    VIEW PROJECTIONS
    ──────────────────────────────────────────────────────────────────
-   Plan     — X, Z   (top-down;  SVG Y ↔ world X,  SVG X ↔ world Z)
+   Plan     — X, Z   (true top-down projection: SVG Y = +X down, SVG X = +Z LEFT)
    Section  — X, Y   (cross-section cut at a Z depth)
    3D       — X, Y, Z (Three.js; Y = up, same metres)
 
    CACHED SVG SCALE GLOBALS  (updated by renderPlanView each frame)
    ──────────────────────────────────────────────────────────────────
-   _pvPKX  SVG x of world Z=0 (parklet start)
+   _pvPKX  SVG x of world Z=0 (parklet start = right edge of the plan rectangle)
    _pvPKY  SVG y of world X=0 (near-curb edge)
    _pvHS   px/m horizontal  (Z axis)
    _pvSC   px/m vertical    (X axis, hardcoded 20)
@@ -4511,19 +4553,11 @@ function _pvToggleMeasure() {
 var WM = (function() {
 
   // ── Canonical plan-view transforms ─────────────────────────────────────
-  function _wtp(wx, wz) {
-    // world → plan SVG coords. Delegates to module-level worldToPlan (cached globals).
-    if (typeof worldToPlan === 'function') return worldToPlan(wx, wz);
-    return { px: _pvPKX + wz * _pvHS, py: _pvPKY + wx * _pvSC };
-  }
+  function _wtp(wx, wz) { return worldToPlan(wx, wz); }
   function _ptw(px, py) {
-    // plan SVG coords → world. Returns {x, y:0, z}.
-    if (typeof planToWorld === 'function') {
-      var r = planToWorld(px, py);
-      if (!r.y) r.y = 0;
-      return r;
-    }
-    return { x: (py - _pvPKY) / _pvSC, y: 0, z: (px - _pvPKX) / _pvHS };
+    var r = planToWorld(px, py);
+    r.y = 0;
+    return r;
   }
 
   // ── Parklet world anchors ───────────────────────────────────────────────
@@ -5027,7 +5061,10 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
   const DECK_X = PK_X + Math.round(WS_M * HS);
   const DECK_W = Math.round(DECK_M * HS);
   const WS_PX = Math.round(WS_M * HS);
-  _pvPKX = PK_X; _pvPKY = PK_Y; _pvHS = HS; _pvSC = pvSC; _pvVW = VW; _pvVH = VH || 200;
+  // PK_X..PK_X+PK_W is the parklet rectangle on screen. World z=0 sits at its RIGHT edge
+  // (+Z runs left), so everything positioned in world z below goes through worldToPlan.
+  _pvPKX = PK_X + PK_W; _pvPKY = PK_Y; _pvHS = HS; _pvSC = pvSC; _pvVW = VW; _pvVH = VH || 200;
+  const _zSign = worldToPlan(0, 1).px - worldToPlan(0, 0).px > 0 ? 1 : -1; // screen sense of world +Z
   const _iTch = typeof drawingTheme!=='undefined' && drawingTheme.mode==='technical';
   const colorFor = _iTch
     ? function(st){return st==='pass'?'#505050':st==='fail'?'#1A1A1A':'#888888';}
@@ -5046,10 +5083,7 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
   const _pkShp = state.pkShape;
   const _useCS = _pkShp && _pkShp.active && _pkShp.closed && _pkShp.verts && _pkShp.verts.length >= 3;
   let _clipD = '';
-  if (_useCS) {
-    const _sX2 = PK_W / _pvDM.parklet.length, _sY2 = pvPkH / _pvDM.parklet.width;
-    _clipD = buildPlanShapePath(_pkShp, PK_X, PK_Y, _sX2, _sY2);
-  }
+  if (_useCS) _clipD = buildPlanShapePath(_pkShp);
   let _defsStr = `<defs><pattern id='hPV' patternUnits='userSpaceOnUse' width='5' height='5' patternTransform='rotate(45 0 0)'><line x1='0' y1='0' x2='0' y2='5' stroke='rgba(0,0,0,.25)' stroke-width='1.1'/></pattern>`;
   if (_clipD) _defsStr += `<clipPath id='pkSC'><path d='` + _clipD + `'/></clipPath>`;
   _defsStr += `</defs>`;
@@ -5121,29 +5155,36 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
     s += `<text x='8' y='${SW_Y+pvBufH-2}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='#4a9060'>VEG. BUFFER</text>`;
   }
   const carLnY = LN_Y + pvBikeH;
+  // Travel direction is a world fact (segment.dirZ, +1 = world +Z); the chevron's screen
+  // sense is whatever worldToPlan makes of it.
+  const _lnSegs = _pvXS.filter(function(sg){ return sg.type === 'travel-lane'; });
+  const _laneScr = function(dir) { return (_lnSegs.find(function(sg){ return sg.direction === dir; }) || {dirZ: 1}).dirZ * _zSign; };
+  const _chev = function(cx, y, sd, half, h) {
+    const tip = cx + sd * half, tail = cx - sd * half;
+    return `<line x1='${tail.toFixed(1)}' y1='${(y-h).toFixed(1)}' x2='${tip.toFixed(1)}' y2='${y.toFixed(1)}' stroke='#aaa' stroke-width='1'/>` +
+           `<line x1='${tip.toFixed(1)}' y1='${y.toFixed(1)}' x2='${tail.toFixed(1)}' y2='${(y+h).toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
+  };
+  const _glyph = function(sd) { return sd > 0 ? '→' : '←'; };
   if (ROAD_DIR === 'twoway') {
     const _tl = getTotalLanes();
     const cenFrac = LANES_A / _tl;
     const cenY = carLnY + cenFrac * pvLnH;
     const nearMidY = carLnY + cenFrac * pvLnH * 0.5;
     const farMidY = cenY + (1 - cenFrac) * pvLnH * 0.5;
-    for (let ax=120; ax<VW-60; ax+=160) {
-      s += `<line x1='${ax}' y1='${(nearMidY-8).toFixed(1)}' x2='${(ax+20).toFixed(1)}' y2='${nearMidY.toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
-      s += `<line x1='${(ax+20).toFixed(1)}' y1='${nearMidY.toFixed(1)}' x2='${ax}' y2='${(nearMidY+8).toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
-      s += `<line x1='${(ax+20).toFixed(1)}' y1='${(farMidY-8).toFixed(1)}' x2='${ax}' y2='${farMidY.toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
-      s += `<line x1='${ax}' y1='${farMidY.toFixed(1)}' x2='${(ax+20).toFixed(1)}' y2='${(farMidY+8).toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
+    const sdN = _laneScr('near'), sdF = _laneScr('far');
+    for (let ax=130; ax<VW-50; ax+=160) {
+      s += _chev(ax, nearMidY, sdN, 10, 8);
+      s += _chev(ax, farMidY, sdF, 10, 8);
     }
     s += `<line x1='0' y1='${(cenY-1.5).toFixed(1)}' x2='${VW}' y2='${(cenY-1.5).toFixed(1)}' stroke='#e8c040' stroke-width='1.8'/>`;
     s += `<line x1='0' y1='${(cenY+1.5).toFixed(1)}' x2='${VW}' y2='${(cenY+1.5).toFixed(1)}' stroke='#e8c040' stroke-width='1.8'/>`;
-    s += `<text x='8' y='${(cenY-4).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${LANES_A > 1 ? `→ \xd7${LANES_A} LANES` : '→ TRAVEL LANE'}</text>`;
-    s += `<text x='8' y='${ROAD_BOTTOM-6}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${LANES_B > 1 ? `← \xd7${LANES_B} LANES` : '← TRAVEL LANE'}</text>`;
+    s += `<text x='8' y='${(cenY-4).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${LANES_A > 1 ? `${_glyph(sdN)} \xd7${LANES_A} LANES` : `${_glyph(sdN)} TRAVEL LANE`}</text>`;
+    s += `<text x='8' y='${ROAD_BOTTOM-6}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${LANES_B > 1 ? `${_glyph(sdF)} \xd7${LANES_B} LANES` : `${_glyph(sdF)} TRAVEL LANE`}</text>`;
   } else {
     const arrowMidY = carLnY + pvLnH * 0.5;
-    for (let ax=120; ax<VW-60; ax+=160) {
-      s += `<line x1='${ax}' y1='${(arrowMidY-10).toFixed(1)}' x2='${(ax+24).toFixed(1)}' y2='${arrowMidY.toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
-      s += `<line x1='${(ax+24).toFixed(1)}' y1='${arrowMidY.toFixed(1)}' x2='${ax}' y2='${(arrowMidY+10).toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
-    }
-    s += `<text x='8' y='${ROAD_BOTTOM-6}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${getTotalLanes() > 1 ? `TRAVEL LANE \xd7${getTotalLanes()}` : 'TRAVEL LANE'}</text>`;
+    const sdW = _laneScr('fwd');
+    for (let ax=132; ax<VW-50; ax+=160) s += _chev(ax, arrowMidY, sdW, 12, 10);
+    s += `<text x='8' y='${ROAD_BOTTOM-6}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${getTotalLanes() > 1 ? `${_glyph(sdW)} TRAVEL LANE \xd7${getTotalLanes()}` : `${_glyph(sdW)} TRAVEL LANE`}</text>`;
   }
   
 // Parking lane flanks  
@@ -5214,11 +5255,12 @@ const C03_REQ = 6;
     var _gS = _gridSpacing, _gMaj = 1.0;
     // Derive world bounds from current viewBox (supports pan/zoom)
     var _vbX0 = _pvVB.x, _vbY0 = _pvVB.y, _vbX1 = _pvVB.x + _pvVB.w, _vbY1 = _pvVB.y + _pvVB.h;
-    // Along-street (Z) grid lines: SVG vertical, world Z = (svgX - PK_X) / HS
-    var _gzMin = Math.floor((_vbX0 - PK_X) / (HS * _gS)) * _gS;
-    var _gzMax = Math.ceil((_vbX1 - PK_X) / (HS * _gS)) * _gS;
+    // Along-street (Z) grid lines: SVG vertical; world-Z range of the viewBox via planToWorld
+    var _gzA = planToWorld(_vbX0, 0).z, _gzB = planToWorld(_vbX1, 0).z;
+    var _gzMin = Math.floor(Math.min(_gzA, _gzB) / _gS) * _gS;
+    var _gzMax = Math.ceil(Math.max(_gzA, _gzB) / _gS) * _gS;
     for (var _gz = _gzMin; _gz <= _gzMax + _gS * 0.5; _gz = Math.round((_gz + _gS) * 1e6) / 1e6) {
-      var _gpx = (PK_X + _gz * HS).toFixed(1);
+      var _gpx = worldToPlan(0, _gz).px.toFixed(1);
       var _gMajZ = Math.abs(Math.round(_gz / _gMaj) * _gMaj - _gz) < _gS * 0.01;
       s += `<line x1='${_gpx}' y1='${_vbY0.toFixed(1)}' x2='${_gpx}' y2='${_vbY1.toFixed(1)}' stroke='${_gMajZ?"rgba(0,0,0,.20)":"rgba(0,0,0,.10)"}' stroke-width='${_gMajZ?0.5:0.25}'/>`;
     }
@@ -5232,14 +5274,15 @@ const C03_REQ = 6;
     }
   }
   // -- World origin marker (CAD-style): X/Z axes at world (0,0)
-  { var _oX = PK_X, _oY = PK_Y;
+  { var _oP = worldToPlan(0, 0), _oX = _oP.px, _oY = _oP.py;
     var _oVis = _oX >= _pvVB.x - 40 && _oX <= _pvVB.x + _pvVB.w + 40
              && _oY >= _pvVB.y - 40 && _oY <= _pvVB.y + _pvVB.h + 40;
     if (_oVis) {
       var _oL = Math.min(38, HS * 1.2);
+      var _oZ = worldToPlan(0, _oL * 0.55 / HS), _oXa = worldToPlan(_oL * 0.35 / pvSC, 0);
       s += "<circle cx='" + _oX.toFixed(1) + "' cy='" + _oY.toFixed(1) + "' r='1.5' fill='#0696D7' opacity='0.3'/>";
-      s += "<line x1='" + _oX.toFixed(1) + "' y1='" + _oY.toFixed(1) + "' x2='" + (PK_X+_oL*0.55).toFixed(1) + "' y2='" + _oY.toFixed(1) + "' stroke='#0696D7' stroke-width='0.7' opacity='0.2'/>";
-      s += "<line x1='" + _oX.toFixed(1) + "' y1='" + _oY.toFixed(1) + "' x2='" + _oX.toFixed(1) + "' y2='" + (PK_Y+_oL*0.35).toFixed(1) + "' stroke='#c03030' stroke-width='0.7' opacity='0.2'/>";
+      s += "<line x1='" + _oX.toFixed(1) + "' y1='" + _oY.toFixed(1) + "' x2='" + _oZ.px.toFixed(1) + "' y2='" + _oZ.py.toFixed(1) + "' stroke='#0696D7' stroke-width='0.7' opacity='0.2'/>";
+      s += "<line x1='" + _oX.toFixed(1) + "' y1='" + _oY.toFixed(1) + "' x2='" + _oXa.px.toFixed(1) + "' y2='" + _oXa.py.toFixed(1) + "' stroke='#c03030' stroke-width='0.7' opacity='0.2'/>";
     }
   }
   // User-placed furniture from DESIGN_MODEL.objects (canonical source).
@@ -5259,13 +5302,14 @@ const C03_REQ = 6;
         if (typeof _flGetDims === 'function') { var _fd = _flGetDims(inst.objId); _fl_l = _fd.l; _fl_d = _fd.d; }
         else if (inst.mesh && inst.mesh.userData) { _fl_l = inst.mesh.userData.l || 1.5; _fl_d = inst.mesh.userData.d || 0.5; }
         var _fw = Math.max(4, _fl_l * HS), _fh = Math.max(3, _fl_d * pvSC);
-        var _fcx = PK_X + _iz * HS, _fcy = PK_Y + _iw * pvSC;
-        // Sign is positive: SVG-x=world-Z, SVG-y=world-X makes CCW-world = CW-SVG.
+        var _fcP = worldToPlan(_iw, _iz), _fcx = _fcP.px, _fcy = _fcP.py;
         var _frot = _iury * 180 / Math.PI;
         var _fFill = _iSel ? 'rgba(6,150,215,.45)' : 'rgba(160,110,60,.42)';
         var _fStr = _iSel ? '#0696D7' : '#6a3c14';
         var _fsw = _iSel ? 1.5 : 0.8;
-        s += `<g transform='translate(${_fcx.toFixed(1)},${_fcy.toFixed(1)}) rotate(${_frot.toFixed(1)})' class='pv-furn' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
+        // Placement + rotation + handedness all come from worldToPlan (not a hand-picked rotate sign).
+        var _fMtx = worldFrameToPlanMatrix(_iw, _iz, _iury, _fw / _fl_l, _fh / _fl_d);
+        s += `<g transform='${_fMtx}' class='pv-furn' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
         var _planFn = (typeof FL2D_PLAN !== 'undefined' && FL2D_PLAN[inst.objId]) ? FL2D_PLAN[inst.objId] : (typeof FL2D_PLAN !== 'undefined' ? FL2D_PLAN['_default'] : null);
         if (_planFn) {
           s += _planFn(_fw, _fh, _frot, _iSel, _fFill, _fStr, _fsw);
@@ -5279,8 +5323,7 @@ const C03_REQ = 6;
           try {
             var _fCorners = getFurnitureCorners(inst);
             _fCorners.forEach(function(c, ci) {
-              var hx = PK_X + c.wz * HS;
-              var hy = PK_Y + c.wx * pvSC;
+              var _hP = worldToPlan(c.wx, c.wz), hx = _hP.px, hy = _hP.py;
               s += `<rect x='${(hx-4).toFixed(1)}' y='${(hy-4).toFixed(1)}' width='8' height='8' fill='#fff' stroke='#0696D7' stroke-width='1.5' rx='1' class='pv-furn-corner' data-cornidx='${ci}' data-instid='${inst.id}' style='cursor:crosshair'/>`;
             });
             // Center handle
@@ -5291,8 +5334,9 @@ const C03_REQ = 6;
             try {
               var _iury3 = typeof inst.userRotation === 'number' ? inst.userRotation : 0;
               var _axL = Math.max(18, _fl_l/2 * HS), _axD = Math.max(14, _fl_d/2 * pvSC);
-              var _lax = _fcx + Math.cos(_iury3)*_axL, _lay = _fcy + Math.sin(_iury3)*_axL;
-              var _dax = _fcx - Math.sin(_iury3)*_axD, _day = _fcy + Math.cos(_iury3)*_axD;
+              var _lP = worldToPlan(_iw + Math.sin(_iury3)*_axL/HS, _iz + Math.cos(_iury3)*_axL/HS);
+              var _dP = worldToPlan(_iw + Math.cos(_iury3)*_axD/pvSC, _iz - Math.sin(_iury3)*_axD/pvSC);
+              var _lax = _lP.px, _lay = _lP.py, _dax = _dP.px, _day = _dP.py;
               s += "<line x1='" + _fcx.toFixed(1) + "' y1='" + _fcy.toFixed(1) + "' x2='" + _lax.toFixed(1) + "' y2='" + _lay.toFixed(1) + "' stroke='#0696D7' stroke-width='2' stroke-linecap='round' opacity='0.9'/>";
               s += "<text x='" + (_lax+3).toFixed(1) + "' y='" + (_lay+4).toFixed(1) + "' font-size='7.5' fill='#0696D7' font-weight='700'>Z</text>";
               s += "<line x1='" + _fcx.toFixed(1) + "' y1='" + _fcy.toFixed(1) + "' x2='" + _dax.toFixed(1) + "' y2='" + _day.toFixed(1) + "' stroke='#c03030' stroke-width='2' stroke-linecap='round' opacity='0.9'/>";
@@ -5307,10 +5351,10 @@ const C03_REQ = 6;
     // Alignment guides (rendered over furniture)
     _alignGuides.forEach(function(g) {
       if (g.type === 'X') {
-        var gy = PK_Y + g.value * pvSC;
+        var gy = worldToPlan(g.value, 0).py;
         s += `<line x1='0' y1='${gy.toFixed(1)}' x2='${VW}' y2='${gy.toFixed(1)}' stroke='#0696D7' stroke-width='0.5' stroke-dasharray='4,3' opacity='0.8'/>`;
       } else {
-        var gx2 = PK_X + g.value * HS;
+        var gx2 = worldToPlan(0, g.value).px;
         s += `<line x1='${gx2.toFixed(1)}' y1='0' x2='${gx2.toFixed(1)}' y2='${VH}' stroke='#0696D7' stroke-width='0.5' stroke-dasharray='4,3' opacity='0.8'/>`;
       }
     });
@@ -5318,16 +5362,16 @@ const C03_REQ = 6;
     if (_pvDragDistances && window.FL3D && window.FL3D.selId !== null) {
       var _dSelInst = window.FL3D.placed.find(function(i) { return i.id === window.FL3D.selId; });
       if (_dSelInst) {
-        var dcx = PK_X + _dSelInst.z * HS;
-        var dcy = PK_Y + _dSelInst.x * pvSC;
-        s += `<line x1='${PK_X}' y1='${dcy.toFixed(1)}' x2='${(dcx-10).toFixed(1)}' y2='${dcy.toFixed(1)}' stroke='rgba(6,150,215,0.6)' stroke-width='0.5' stroke-dasharray='3,2'/>`;
-        s += `<text x='${((PK_X+dcx)/2).toFixed(1)}' y='${(dcy-3).toFixed(1)}' text-anchor='middle' font-family='Courier New,monospace' font-size='6' fill='#0696D7'>${_pvDragDistances.left.toFixed(2)} m</text>`;
+        // Along-street distance from the parklet start (world z=0) to the piece centre.
+        var _dcP = worldToPlan(_dSelInst.x, _dSelInst.z), dcx = _dcP.px, dcy = _dcP.py;
+        var _dz0 = worldToPlan(_dSelInst.x, 0).px, _dEnd = dcx + (_dz0 > dcx ? 10 : -10);
+        s += `<line x1='${_dz0.toFixed(1)}' y1='${dcy.toFixed(1)}' x2='${_dEnd.toFixed(1)}' y2='${dcy.toFixed(1)}' stroke='rgba(6,150,215,0.6)' stroke-width='0.5' stroke-dasharray='3,2'/>`;
+        s += `<text x='${((_dz0+dcx)/2).toFixed(1)}' y='${(dcy-3).toFixed(1)}' text-anchor='middle' font-family='Courier New,monospace' font-size='6' fill='#0696D7'>${_pvDragDistances.front.toFixed(2)} m</text>`;
       }
     }
     // Snap marker with type label and coordinates
     if (_pvActiveSnap) {
-      var smx = PK_X + _pvActiveSnap.wz * HS;
-      var smy = PK_Y + _pvActiveSnap.wx * pvSC;
+      var _smP = worldToPlan(_pvActiveSnap.wx, _pvActiveSnap.wz), smx = _smP.px, smy = _smP.py;
       var _smCol = _pvActiveSnap.type==='parklet' ? '#c03030' : (_pvActiveSnap.type==='grid' ? '#0696D7' : '#e68a00');
       s += `<circle cx='${smx.toFixed(1)}' cy='${smy.toFixed(1)}' r='7' fill='none' stroke='${_smCol}' stroke-width='1.8'/>`;
       s += `<line x1='${(smx-11).toFixed(1)}' y1='${smy.toFixed(1)}' x2='${(smx+11).toFixed(1)}' y2='${smy.toFixed(1)}' stroke='${_smCol}' stroke-width='1'/>`;
@@ -5342,12 +5386,10 @@ const C03_REQ = 6;
   }
   // Measure tool rendering
   if (_pvMeasureMode && _pvMeasureP1) {
-    var mp1x = PK_X + _pvMeasureP1.wz * HS;
-    var mp1y = PK_Y + _pvMeasureP1.wx * pvSC;
+    var _mp1 = worldToPlan(_pvMeasureP1.wx, _pvMeasureP1.wz), mp1x = _mp1.px, mp1y = _mp1.py;
     s += `<circle cx='${mp1x.toFixed(1)}' cy='${mp1y.toFixed(1)}' r='3' fill='#FF6B00' stroke='#fff' stroke-width='1'/>`;
     if (_pvMeasureP2) {
-      var mp2x = PK_X + _pvMeasureP2.wz * HS;
-      var mp2y = PK_Y + _pvMeasureP2.wx * pvSC;
+      var _mp2 = worldToPlan(_pvMeasureP2.wx, _pvMeasureP2.wz), mp2x = _mp2.px, mp2y = _mp2.py;
       var mdX = _pvMeasureP2.wx - _pvMeasureP1.wx;
       var mdZ = _pvMeasureP2.wz - _pvMeasureP1.wz;
       var mdist = Math.sqrt(mdX*mdX + mdZ*mdZ);
@@ -5378,13 +5420,13 @@ const dvFts = state[`driveways`] || [];
   const c6St = getCriterionStatus(criteria.find(c=>c.id===`c6`));
   const c6Col = colorFor(c6St), c6Lt = lightFor(c6St);
   dvFts.forEach(function(dv) {
-    const dvXpx = PK_X + dv.xM * HS;
+    const dvXpx = worldToPlan(0, dv.xM).px;
     const dvY = CURB_Y;
     const dist = dv.xM < 0 ? -dv.xM : dv.xM > PARKLET_M ? dv.xM - PARKLET_M : 0;
     const pOk = dist >= 1.5 - 0.001;
     const col = pOk ? `#2d6a4f` : `#c03030`;
     const lt  = pOk ? `#eef6f0` : `#fdf0f0`;
-    const nearEnd = dv.xM < PARKLET_M / 2 ? PK_X : PK_X + PK_W;
+    const nearEnd = worldToPlan(0, dv.xM < PARKLET_M / 2 ? 0 : PARKLET_M).px;
     if (dist > 0.05 && Math.abs(dvXpx - nearEnd) > 10) {
       const bX0 = Math.min(dvXpx, nearEnd), bX1 = Math.max(dvXpx, nearEnd);
       const dmCX = (bX0 + bX1) / 2, dimY2 = dvY + 14;
@@ -5404,14 +5446,14 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   const curbFts = state[`curb_features`] || [];
   curbFts.forEach(function(cf) {
     const def = cfDefs[cf.type]; if (!def) return;
-    const cfX = PK_X + cf.xM * HS;
+    const cfX = worldToPlan(0, cf.xM).px;
     const _cfYM = (cf.yM !== undefined) ? cf.yM : (CF_DEFAULT_YM[cf.type] || -0.76);
     const cfY = CURB_Y + _cfYM * pvSC;
     const dist = cf.xM < 0 ? -cf.xM : cf.xM > PARKLET_M ? cf.xM - PARKLET_M : 0;
     const pOk = dist >= def.req - 0.001;
     const col = pOk ? `#2d6a4f` : `#c03030`;
     const lt  = pOk ? `#eef6f0` : `#fdf0f0`;
-    const nearEnd = cf.xM < PARKLET_M / 2 ? PK_X : PK_X + PK_W;
+    const nearEnd = worldToPlan(0, cf.xM < PARKLET_M / 2 ? 0 : PARKLET_M).px;
     const bX0 = Math.min(cfX, nearEnd), bX1 = Math.max(cfX, nearEnd);
     // Setback dim line at curb face level (clearances measured along street from curb)
     if (dist > 0.05 && bX1 - bX0 > 10) {
@@ -5575,7 +5617,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
 // Interactive manholes (C09)
 const manholes = state['manholes'] || [];
   manholes.forEach(mh => {
-    const mhX = PK_X + mh.xM * HS, mhY = mh.yF * VH;
+    const mhX = worldToPlan(0, mh.xM).px, mhY = mh.yF * VH;
     const dx = Math.max(0, PK_X - mhX, mhX - (PK_X + PK_W));
     const dy = Math.max(0, PK_Y - mhY, mhY - (PK_Y + pvPkH));
     const distM = Math.sqrt(dx * dx + dy * dy) / HS;
@@ -5614,7 +5656,10 @@ const manholes = state['manholes'] || [];
   }
   // ── Section A-A line (Ching convention) ─────────────────────────────────
   if (_pvSectionOn) {
-    const _sXpx = (_pvSectionXM !== null) ? _pvSectionXM : (PK_X + PK_W / 2);
+    const _sXpx = (_pvSectionXM !== null) ? _pvSectionXM : worldToPlan(0, PARKLET_M / 2).px;
+    // Section A-A is drawn with +X to the right and +Y up, i.e. it looks toward world -Z.
+    // The arrows point that way on screen, whatever worldToPlan makes of -Z.
+    const _sd = -_zSign;
     // Full drawing height — from top of near building to bottom of opposite building
     const _slTop = -CTX_TOP;
     const _slBot = OPP_BOTTOM;
@@ -5628,49 +5673,34 @@ const manholes = state['manholes'] || [];
     const _slFS = (8.5 * pvZS).toFixed(1);
     // Vertical dashed cutting-plane line — full drawing height
     s += `<line x1='${_sXpx.toFixed(1)}' y1='${_slTop}' x2='${_sXpx.toFixed(1)}' y2='${_slBot}' stroke='#111' stroke-width='${_slSW}' stroke-dasharray='${_slDA}' data-pvsl='vl'/>`;
-    // Arrow at top (near building edge, pointing RIGHT →)
-    s += `<polygon points='${(_sXpx+_aL).toFixed(1)},${_slArrTop} ${_sXpx.toFixed(1)},${(_slArrTop-_aW).toFixed(1)} ${_sXpx.toFixed(1)},${(_slArrTop+_aW).toFixed(1)}' fill='#111'/>`;
-    // Arrow at bottom (far road edge, pointing RIGHT →)
-    s += `<polygon points='${(_sXpx+_aL).toFixed(1)},${_slArrBot} ${_sXpx.toFixed(1)},${(_slArrBot-_aW).toFixed(1)} ${_sXpx.toFixed(1)},${(_slArrBot+_aW).toFixed(1)}' fill='#111'/>`;
-    // 'A' labels at each arrowhead
-    s += `<text x='${(_sXpx+_aL+2*pvZS).toFixed(1)}' y='${(_slArrTop+3*pvZS).toFixed(1)}' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_slFS}' font-weight='700' fill='#111'>A</text>`;
-    s += `<text x='${(_sXpx+_aL+2*pvZS).toFixed(1)}' y='${(_slArrBot - 8.5*pvZS - 3).toFixed(1)}' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_slFS}' font-weight='700' fill='#111'>A</text>`;
+    // Viewing-direction arrows at the near-building edge and the far road edge
+    s += `<polygon points='${(_sXpx+_sd*_aL).toFixed(1)},${_slArrTop} ${_sXpx.toFixed(1)},${(_slArrTop-_aW).toFixed(1)} ${_sXpx.toFixed(1)},${(_slArrTop+_aW).toFixed(1)}' fill='#111'/>`;
+    s += `<polygon points='${(_sXpx+_sd*_aL).toFixed(1)},${_slArrBot} ${_sXpx.toFixed(1)},${(_slArrBot-_aW).toFixed(1)} ${_sXpx.toFixed(1)},${(_slArrBot+_aW).toFixed(1)}' fill='#111'/>`;
+    // 'A' labels just past each arrowhead
+    const _slLX = _sXpx + _sd * (_aL + 2*pvZS), _slAnc = _sd > 0 ? 'start' : 'end';
+    s += `<text x='${_slLX.toFixed(1)}' y='${(_slArrTop+3*pvZS).toFixed(1)}' text-anchor='${_slAnc}' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_slFS}' font-weight='700' fill='#111'>A</text>`;
+    s += `<text x='${_slLX.toFixed(1)}' y='${(_slArrBot - 8.5*pvZS - 3).toFixed(1)}' text-anchor='${_slAnc}' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_slFS}' font-weight='700' fill='#111'>A</text>`;
     // Transparent hit area for drag
     s += `<rect x='${(_sXpx-10*pvZS).toFixed(1)}' y='${_slTop}' width='${(20*pvZS).toFixed(1)}' height='${_slBot-_slTop}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event)' data-pvsl='hit'/>`;
   }
 
-  // North compass rose â€” N = along-street far end (+Z world) = rightward in Plan.
-  // Placed in top-right corner, above the curb, outside the road cross-section.
+  // North compass rose. N is world +Z (along-street far end); its screen direction is
+  // taken from worldToPlan, so it points LEFT in this true top-down projection.
+  // Placed in the top-right corner, above the near building.
   (function() {
-    var _cR = 11, _cX = VW - _cR - 6, _cY = -CTX_TOP + _cR + 10;
+    var _cR = 11, _cX = VW - _cR - 20, _cY = -CTX_TOP + _cR + 10;
+    var _n0 = worldToPlan(0, 0), _n1 = worldToPlan(0, 1);
+    var _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
+    _nx /= _nm; _ny /= _nm;
+    var _pt = function(k) { return (_cX + _nx * k).toFixed(1) + ',' + (_cY + _ny * k).toFixed(1); };
+    var _px = -_ny, _py = _nx;
     s += "<g opacity='0.88' style='pointer-events:none'>";
-    // Background disc
     s += "<circle cx='" + _cX + "' cy='" + _cY + "' r='" + _cR + "' fill='rgba(255,255,255,0.18)' stroke='rgba(120,120,120,0.55)' stroke-width='0.6'/>";
-    // S tick (grey, pointing left)
-    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX - _cR + 2) + "' y2='" + _cY + "' stroke='rgba(140,140,140,0.7)' stroke-width='1.2'/>";
-    // N arrow body (red, pointing right = +Z = North)
-    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX + _cR - 4) + "' y2='" + _cY + "' stroke='#c03030' stroke-width='2'/>";
-    // N arrowhead polygon
-    s += "<polygon points='" + (_cX + _cR - 1) + "," + _cY + " " + (_cX + _cR - 5) + "," + (_cY - 2.5) + " " + (_cX + _cR - 5) + "," + (_cY + 2.5) + "' fill='#c03030'/>";
-    // N label (right of disc)
-    s += "<text x='" + (_cX + _cR + 5) + "' y='" + (_cY + 3) + "' font-size='7.5' fill='#c03030' font-weight='700' font-family='Helvetica Neue,Arial,sans-serif'>N</text>";
-    s += "</g>";
-  })();
-  // North compass rose â€” N = along-street far end (+Z world) = rightward in Plan.
-  // Placed in top-right corner, above the curb, outside the road cross-section.
-  (function() {
-    var _cR = 11, _cX = VW - _cR - 6, _cY = -CTX_TOP + _cR + 10;
-    s += "<g opacity='0.88' style='pointer-events:none'>";
-    // Background disc
-    s += "<circle cx='" + _cX + "' cy='" + _cY + "' r='" + _cR + "' fill='rgba(255,255,255,0.18)' stroke='rgba(120,120,120,0.55)' stroke-width='0.6'/>";
-    // S tick (grey, pointing left)
-    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX - _cR + 2) + "' y2='" + _cY + "' stroke='rgba(140,140,140,0.7)' stroke-width='1.2'/>";
-    // N arrow body (red, pointing right = +Z = North)
-    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX + _cR - 4) + "' y2='" + _cY + "' stroke='#c03030' stroke-width='2'/>";
-    // N arrowhead polygon
-    s += "<polygon points='" + (_cX + _cR - 1) + "," + _cY + " " + (_cX + _cR - 5) + "," + (_cY - 2.5) + " " + (_cX + _cR - 5) + "," + (_cY + 2.5) + "' fill='#c03030'/>";
-    // N label (right of disc)
-    s += "<text x='" + (_cX + _cR + 5) + "' y='" + (_cY + 3) + "' font-size='7.5' fill='#c03030' font-weight='700' font-family='Helvetica Neue,Arial,sans-serif'>N</text>";
+    // S tail (grey) and N body (red)
+    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX - _nx*(_cR-2)).toFixed(1) + "' y2='" + (_cY - _ny*(_cR-2)).toFixed(1) + "' stroke='rgba(140,140,140,0.7)' stroke-width='1.2'/>";
+    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX + _nx*(_cR-4)).toFixed(1) + "' y2='" + (_cY + _ny*(_cR-4)).toFixed(1) + "' stroke='#c03030' stroke-width='2'/>";
+    s += "<polygon points='" + _pt(_cR - 1) + " " + (_cX + _nx*(_cR-5) + _px*2.5).toFixed(1) + "," + (_cY + _ny*(_cR-5) + _py*2.5).toFixed(1) + " " + (_cX + _nx*(_cR-5) - _px*2.5).toFixed(1) + "," + (_cY + _ny*(_cR-5) - _py*2.5).toFixed(1) + "' fill='#c03030'/>";
+    s += "<text x='" + (_cX + _nx*(_cR+7)).toFixed(1) + "' y='" + (_cY + _ny*(_cR+7) + 3).toFixed(1) + "' text-anchor='middle' font-size='7.5' fill='#c03030' font-weight='700' font-family='Helvetica Neue,Arial,sans-serif'>N</text>";
     s += "</g>";
   })();
     s = DS.restylePlan(s, { vb: _pvVB });
@@ -5758,7 +5788,10 @@ function planMetrics() {
   const SW_Y = 18, CURB_Y = SW_Y + SW_H;
   const PK_Y = CURB_Y;
   const PK_H = Math.max(24, Math.round(_LM.deckW * pvSC2));
-  return {HS, PK_X, PK_W, PK_Y, PK_H, CONTEXT_M, CURB_Y, pvSC: pvSC2, SW_H, SW_Y};
+  // PK_X..PK_X+PK_W = parklet rectangle on screen; Z0X = SVG x of world z=0 (its right edge).
+  // Positions in world z must go through worldToPlan/planToWorld, not PK_X + z*HS.
+  const Z0X = PK_X + PK_W;
+  return {HS, PK_X, PK_W, Z0X, PK_Y, PK_H, CONTEXT_M, CURB_Y, pvSC: pvSC2, SW_H, SW_Y};
 }
 
 function zoneMetrics() {
@@ -5782,8 +5815,7 @@ function planSVGCoords(e) {
 }
 
 function nearMH(px, py) {
-  const {HS, PK_X} = planMetrics();
-  return (state['manholes'] || []).findIndex(mh => Math.hypot(px - (PK_X + mh.xM * HS), py - mh.yF * _planVH) < 14);
+  return (state['manholes'] || []).findIndex(mh => Math.hypot(px - worldToPlan(0, mh.xM).px, py - mh.yF * _planVH) < 14);
 }
 
 function initSectionInteraction() {
@@ -5819,8 +5851,7 @@ function planMD(e) {
   const pos = planSVGCoords(e);
   // ── Measure mode click ────────────────────────────────────────────────
   if (_pvMeasureMode) {
-    var mwx = (pos.y - _pvPKY) / _pvSC;
-    var mwz = (pos.x - _pvPKX) / _pvHS;
+    var _mw = planToWorld(pos.x, pos.y), mwx = _mw.x, mwz = _mw.z;
     if (!_pvMeasureP1 || _pvMeasureP2) {
       // Start new measurement
       _pvMeasureP1 = {wx: mwx, wz: mwz};
@@ -5838,10 +5869,8 @@ function planMD(e) {
     if (_cSelInst) {
       try {
         var _cCorners = getFurnitureCorners(_cSelInst);
-        var {HS: _cHS, PK_X: _cPKX, PK_Y: _cPKY, pvSC: _cpvSC} = planMetrics();
         for (var _ci = 0; _ci < _cCorners.length; _ci++) {
-          var _chx = _cPKX + _cCorners[_ci].wz * _cHS;
-          var _chy = _cPKY + _cCorners[_ci].wx * _cpvSC;
+          var _chP = worldToPlan(_cCorners[_ci].wx, _cCorners[_ci].wz), _chx = _chP.px, _chy = _chP.py;
           if (Math.hypot(pos.x - _chx, pos.y - _chy) < 10) {
             _pvFurnCornerDragging = {instId: _cSelInst.id, cornerIdx: _ci, initX: _cSelInst.x, initZ: _cSelInst.z, startClientX: e.clientX, startClientY: e.clientY, localL: _cCorners[_ci].localL, localD: _cCorners[_ci].localD};
             e.preventDefault();
@@ -5854,17 +5883,18 @@ function planMD(e) {
   }
   // ── Furniture drag ────────────────────────────────────────────────────
   if (window.FL3D && window.FL3D.placed && window.FL3D.placed.length) {
-    const {HS, PK_X, PK_Y, pvSC} = planMetrics();
+    const {HS, pvSC} = planMetrics();
+    const _grabW = planToWorld(pos.x, pos.y);
     for (var _fi = window.FL3D.placed.length - 1; _fi >= 0; _fi--) {
       const _fInst = window.FL3D.placed[_fi];
       const _fwx = typeof _fInst.x === 'number' ? _fInst.x : 0;
       const _fwz = typeof _fInst.z === 'number' ? _fInst.z : 0;
-      const _fcx = PK_X + _fwz * HS, _fcy = PK_Y + _fwx * pvSC;
+      const _fcP = worldToPlan(_fwx, _fwz), _fcx = _fcP.px, _fcy = _fcP.py;
       const _fdims = typeof _flGetDims === 'function' ? _flGetDims(_fInst.objId) : {l:1.5, d:0.5};
       const _fhr = Math.sqrt(Math.pow(_fdims.l * HS / 2, 2) + Math.pow(_fdims.d * pvSC / 2, 2)) + 5;
       if (Math.hypot(pos.x - _fcx, pos.y - _fcy) < _fhr) {
         _pvFurnDragging = {instId: _fInst.id, startWx: _fwx, startWz: _fwz,
-          grabOffX: (pos.y - PK_Y) / pvSC - _fwx, grabOffZ: (pos.x - PK_X) / HS - _fwz,
+          grabOffX: _grabW.x - _fwx, grabOffZ: _grabW.z - _fwz,
           startClientX: e.clientX, startClientY: e.clientY};
         if (typeof fl3DSelect === 'function') fl3DSelect(_fInst.id);
         e.preventDefault();
@@ -5929,8 +5959,9 @@ function planMM(e) {
     const _cdsy = (e.clientY - _pvFurnCornerDragging.startClientY) / sy;
     if (Math.abs(_cdsx) > 2 || Math.abs(_cdsy) > 2) _planMoved = true;
     // Cursor world pos
-    var _cnewWz = _pvFurnCornerDragging.initZ + _cdsx / _pvHS;
-    var _cnewWx = _pvFurnCornerDragging.initX + _cdsy / _pvSC;
+    var _cdW = planDeltaToWorld(_cdsx, _cdsy);
+    var _cnewWz = _pvFurnCornerDragging.initZ + _cdW.z;
+    var _cnewWx = _pvFurnCornerDragging.initX + _cdW.x;
     // Compute rotated corner offset
     var _cfdi = window.FL3D.placed.find(function(i){return i.id===_pvFurnCornerDragging.instId;});
     if (_cfdi) {
@@ -5959,8 +5990,9 @@ function planMM(e) {
     // Grab-point world pos = initial grab pos + cursor movement delta
     var _grabWx = _pvFurnDragging.startWx + (_pvFurnDragging.grabOffX || 0);
     var _grabWz = _pvFurnDragging.startWz + (_pvFurnDragging.grabOffZ || 0);
-    var _curWx = _grabWx + dsy / _pvSC;
-    var _curWz = _grabWz + dsx / _pvHS;
+    var _dW = planDeltaToWorld(dsx, dsy);
+    var _curWx = _grabWx + _dW.x;
+    var _curWz = _grabWz + _dW.z;
     // Snap the grab point against all geometry (edges + corners + grid)
     var _snap = (typeof solveSnap === 'function') ? solveSnap(_curWx, _curWz, {tolerance:0.3}) : null;
     var _ancWx = _snap ? _snap.wx : _curWx;
@@ -6000,8 +6032,7 @@ function planMM(e) {
     const dx = (e.clientX - _planDragClientX) / sx;
     const dy = (e.clientY - _planDragClientY) / sy;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) _planMoved = true;
-    const {HS} = planMetrics();
-    var _mhRawX = _planDragMhX0 + dx / HS;
+    var _mhRawX = _planDragMhX0 + planDeltaToWorld(dx, 0).z;
     var _mhSnapX = (typeof snapToGrid === 'function' && _snapEnabled) ? snapToGrid(_mhRawX, _gridSpacing) : _mhRawX;
     const mhs = [...(state['manholes'] || [])];
     mhs[_planDragging] = {...mhs[_planDragging], xM: _mhSnapX, yF: Math.max(0, Math.min(1, _planDragMhYF0 + dy / _planVH))};
@@ -6015,8 +6046,8 @@ function planMM(e) {
     const dx = (e.clientX - _curbDragClientX) / sx;
     const dy = (e.clientY - _curbDragClientY) / sy;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) _planMoved = true;
-    const {HS, pvSC, SW_H} = planMetrics();
-    var _cfRawX = _curbDragX0 + dx / HS;
+    const {pvSC, SW_H} = planMetrics();
+    var _cfRawX = _curbDragX0 + planDeltaToWorld(dx, 0).z;
     var _cfSnapX = (typeof snapToGrid === 'function' && _snapEnabled) ? snapToGrid(_cfRawX, _gridSpacing) : _cfRawX;
     const newYM = Math.max(-(SW_H / pvSC), Math.min(-0.05, _curbDragY0 + dy / pvSC));
     const fts = [...(state[`curb_features`] || [])];
@@ -6030,8 +6061,7 @@ function planMM(e) {
   if (_drivewayDragging >= 0) {
     const dx = (e.clientX - _drivewayDragClientX) / sx;
     if (Math.abs(dx) > 2) _planMoved = true;
-    const {HS} = planMetrics();
-    var _dvRawX = _drivewayDragValX0 + dx / HS;
+    var _dvRawX = _drivewayDragValX0 + planDeltaToWorld(dx, 0).z;
     var _dvSnapX = (typeof snapToGrid === 'function' && _snapEnabled) ? snapToGrid(_dvRawX, _gridSpacing) : _dvRawX;
     const dvs = [...(state[`driveways`] || [])];
     dvs[_drivewayDragging] = {...dvs[_drivewayDragging], xM: _dvSnapX};
@@ -6073,9 +6103,7 @@ function planMM(e) {
   var _inPlace = (typeof _planPlacing!=='undefined'&&_planPlacing)||(typeof _curbPlacing!=='undefined'&&_curbPlacing)||(typeof _c06Placing!=='undefined'&&_c06Placing)||(typeof _planMode!=='undefined'&&_planMode==='furniture');
   if (_inPlace && _snapEnabled) {
     var _hpos = planSVGCoords(e);
-    var _hm = planMetrics();
-    var _hwx = (_hpos.y - _hm.PK_Y) / _hm.pvSC;
-    var _hwz = (_hpos.x - _hm.PK_X) / _hm.HS;
+    var _hw = planToWorld(_hpos.x, _hpos.y), _hwx = _hw.x, _hwz = _hw.z;
     var _hsnap = findBestSnap(_hwx, _hwz, collectSnapTargets(), 0.35);
     _pvActiveSnap = _hsnap;
     if (typeof WM !== 'undefined') { WM.setHUDCursor(_hwx, _hwz); WM.setHUDSnap(_hsnap); }
@@ -6141,7 +6169,7 @@ function planCM(e) {
 function planClick(e) {
   if (_planMoved) { _planMoved = false; return; }
   const pos = planSVGCoords(e);
-  const {HS, PK_X} = planMetrics();
+  const _posZ = planToWorld(pos.x, pos.y).z;
   if (!_planPlacing && !_curbPlacing && !_c06Placing) {
     var _si = nearMH(pos.x, pos.y);
     if (_si >= 0) { _pvShowSiteCoord('mh', _si); return; }
@@ -6155,19 +6183,19 @@ function planClick(e) {
   var _snXM = function(raw) { return (typeof snapToGrid==='function'&&_snapEnabled) ? snapToGrid(raw,_gridSpacing) : raw; };
   if (_planPlacing) {
     if (nearMH(pos.x, pos.y) >= 0) return;
-    state['manholes'] = [...(state['manholes'] || []), {id: Date.now(), xM: _snXM((pos.x - PK_X) / HS), yF: pos.y / Math.max(1, _planVH)}];
+    state['manholes'] = [...(state['manholes'] || []), {id: Date.now(), xM: _snXM(_posZ), yF: pos.y / Math.max(1, _planVH)}];
     updateManholeCrit();
     renderPlanView();
     renderMassView();
   } else if (_curbPlacing) {
     if (nearCF(pos.x, pos.y) >= 0) return;
-    state[`curb_features`] = [...(state[`curb_features`] || []), {id: Date.now(), type: _curbPlacing, xM: _snXM((pos.x - PK_X) / HS), yM: CF_DEFAULT_YM[_curbPlacing] || -0.76}];
+    state[`curb_features`] = [...(state[`curb_features`] || []), {id: Date.now(), type: _curbPlacing, xM: _snXM(_posZ), yM: CF_DEFAULT_YM[_curbPlacing] || -0.76}];
     updateCurbFeatureDists();
     renderPlanView();
     renderMassView();
   } else if (_c06Placing) {
     if (nearDriveway(pos.x, pos.y) >= 0) return;
-    state[`driveways`] = [...(state[`driveways`] || []), {id: Date.now(), xM: _snXM((pos.x - PK_X) / HS)}];
+    state[`driveways`] = [...(state[`driveways`] || []), {id: Date.now(), xM: _snXM(_posZ)}];
     updateDrivewayDist();
     renderPlanView();
     try { if (typeof renderMassView === 'function') renderMassView(); } catch(e_) {}
@@ -6254,11 +6282,11 @@ function _pvApplySiteCoord() {
 }
 
 function nearCF(px, py) {
-  const {HS, PK_X, CURB_Y, pvSC} = planMetrics();
+  const {CURB_Y, pvSC} = planMetrics();
   const fts = state[`curb_features`] || [];
   for (let i = 0; i < fts.length; i++) {
     const cf = fts[i];
-    const cfX = PK_X + cf.xM * HS;
+    const cfX = worldToPlan(0, cf.xM).px;
     const cfYM = (cf.yM !== undefined) ? cf.yM : (CF_DEFAULT_YM[cf.type] || -0.76);
     const cfY = CURB_Y + cfYM * pvSC;
     if (Math.hypot(px - cfX, py - cfY) < 14) return i;
@@ -6267,10 +6295,10 @@ function nearCF(px, py) {
 }
 
 function nearDriveway(px, py) {
-  const {HS, PK_X, CURB_Y} = planMetrics();
+  const {CURB_Y} = planMetrics();
   const dvs = state[`driveways`] || [];
   for (let i = 0; i < dvs.length; i++) {
-    const dvX = PK_X + dvs[i].xM * HS;
+    const dvX = worldToPlan(0, dvs[i].xM).px;
     if (Math.hypot(px - dvX, py - CURB_Y) < 14) return i;
   }
   return -1;
@@ -6424,7 +6452,7 @@ function updateManholeCrit() {
   const {HS, PK_X, PK_W, PK_Y, PK_H} = planMetrics();
   let min = Infinity;
   for (const mh of mhs) {
-    const mhX = PK_X + mh.xM * HS, mhY = mh.yF * 215;
+    const mhX = worldToPlan(0, mh.xM).px, mhY = mh.yF * 215;
     const dx = Math.max(0, PK_X - mhX, mhX - (PK_X + PK_W));
     const dy = Math.max(0, PK_Y - mhY, mhY - (PK_Y + PK_H));
     min = Math.min(min, Math.sqrt(dx * dx + dy * dy) / HS);
@@ -7209,10 +7237,13 @@ function buildSketchPath(shape, ox, oy, sc) {
   return d;
 }
 
-function buildPlanShapePath(shape, originX, originY, scaleX, scaleY) {
+// Plan outline of the custom deck. Sketch vertex (x, y) is world (z = x, x = y), and arc
+// control points are built in world space exactly as the 3D extrusion builds them, then
+// every point is projected through worldToPlan -- so Plan and 3D show the same shape.
+function buildPlanShapePath(shape) {
   if (!shape.verts || shape.verts.length < 2) return '';
   const n = shape.verts.length;
-  const tp = v => ({px: originX + v.x*scaleX, py: originY + v.y*scaleY});
+  const tp = v => worldToPlan(v.y, v.x);
   const p0 = tp(shape.verts[0]);
   let d = 'M ' + p0.px.toFixed(1) + ' ' + p0.py.toFixed(1);
   for (let i = 0; i < n; i++) {
@@ -7222,10 +7253,9 @@ function buildPlanShapePath(shape, originX, originY, scaleX, scaleY) {
     if (!seg.arc || Math.abs(seg.sag||0) < 0.001) {
       d += ' L ' + p2.px.toFixed(1) + ' ' + p2.py.toFixed(1);
     } else {
-      const p1 = tp(v1);
-      const cmx=(p1.px+p2.px)/2, cmy=(p1.py+p2.py)/2;
-      const dx=p2.px-p1.px, dy=p2.py-p1.py, ln=Math.sqrt(dx*dx+dy*dy)||1;
-      d += ' Q ' + (cmx+(-dy/ln)*(seg.sag*scaleX)).toFixed(1) + ' ' + (cmy+(dx/ln)*(seg.sag*scaleY)).toFixed(1) + ' ' + p2.px.toFixed(1) + ' ' + p2.py.toFixed(1);
+      const dx = v2.x - v1.x, dy = v2.y - v1.y, ln = Math.sqrt(dx*dx + dy*dy) || 1;
+      const cp = worldToPlan((v1.y + v2.y) / 2 + (dx / ln) * seg.sag, (v1.x + v2.x) / 2 - (dy / ln) * seg.sag);
+      d += ' Q ' + cp.px.toFixed(1) + ' ' + cp.py.toFixed(1) + ' ' + p2.px.toFixed(1) + ' ' + p2.py.toFixed(1);
     }
   }
   d += ' Z';
@@ -9319,8 +9349,7 @@ function pvHandleClick(e) {
       var inst=FL3D.placed[i]; if (!inst.mesh) continue;
       var _hx = typeof inst.x === 'number' ? inst.x : (inst.mesh ? inst.mesh.position.x : 0);
       var _hz = typeof inst.z === 'number' ? inst.z : (inst.mesh ? inst.mesh.position.z : 0);
-      var fx = PK_X + _hz * HS;    // along-street (z) â†’ SVG horizontal  (matches renderer line 5036)
-      var fz = PK_Y + _hx * pvSC;  // across-street (x) â†’ SVG vertical   (matches renderer line 5036)
+      var _hP = worldToPlan(_hx, _hz), fx = _hP.px, fz = _hP.py;
       var ud=inst.mesh ? (inst.mesh.userData||{}) : {};
       var fw=((ud.l||ud.w||1)*HS)/2+6, fd=((ud.d||0.5)*pvSC)/2+6;
       if (x>=fx-fw&&x<=fx+fw&&y>=fz-fd&&y<=fz+fd){setSelection('furniture',inst.id,inst);return;}
@@ -11792,11 +11821,8 @@ function _fdGetPlanWorld(e) {
       sp.y < m.PK_Y || sp.y > m.PK_Y + m.PK_H) {
     return { valid: false };
   }
-  // SVG-X (horizontal) = parklet length → world Z
-  // SVG-Y (vertical)   = parklet width  → world X
-  var wz = (sp.x - m.PK_X) / m.HS;
-  var wx = (sp.y - m.PK_Y) / m.pvSC;
-  return { valid: true, wx: wx, wz: wz };
+  var w = planToWorld(sp.x, sp.y);
+  return { valid: true, wx: w.x, wz: w.z };
 }
 
 function _fdGetSectionWorld(e) {
@@ -11843,8 +11869,7 @@ function _fdUpdatePlanPreview(wx, wz, snap) {
   }
   var m = (typeof planMetrics === 'function') ? planMetrics() : null;
   if (!m) { grp.innerHTML = ''; return; }
-  var cx = m.PK_X + wz * m.HS;      // SVG X = parklet-length axis
-  var cy = m.PK_Y + wx * m.pvSC;    // SVG Y = parklet-width axis
+  var _cP = worldToPlan(wx, wz), cx = _cP.px, cy = _cP.py;
   var dims = (typeof _flGetDims === 'function') ? _flGetDims(FURN_DRAG.objId) : { l: 1.5, d: 0.5 };
   var pw = dims.l * m.HS;
   var ph = dims.d * m.pvSC;
@@ -12282,8 +12307,7 @@ function isPlanCanvasEmpty(pos) {
   if (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) {
     for (var i = 0; i < FL3D.placed.length; i++) {
       var inst = FL3D.placed[i];
-      var cx = m.PK_X + (inst.z || 0) * m.HS;
-      var cy = m.PK_Y + (inst.x || 0) * m.pvSC;
+      var _cP = worldToPlan(inst.x || 0, inst.z || 0), cx = _cP.px, cy = _cP.py;
       var dims = (typeof _flGetDims === 'function') ? _flGetDims(inst.objId) : {l:1.5, d:0.6};
       var hr = Math.sqrt(Math.pow(dims.l * m.HS / 2, 2) + Math.pow(dims.d * m.pvSC / 2, 2)) + 6;
       if (Math.hypot(pos.x - cx, pos.y - cy) < hr) return false;
@@ -12444,7 +12468,8 @@ function _sdGetPlanWorld(e) {
       return {valid: false};
     }
   }
-  return {valid: true, wx: (sp.y - m.PK_Y) / m.pvSC, wz: (sp.x - m.PK_X) / m.HS, svgX: sp.x, svgY: sp.y};
+  var w = planToWorld(sp.x, sp.y);
+  return {valid: true, wx: w.x, wz: w.z, svgX: sp.x, svgY: sp.y};
 }
 
 // ─── Part 2: Street drag entry point ─────────────────────────────
@@ -12466,7 +12491,7 @@ function _sdPlaceStreetObj(objId, wx, wz) {
   if (!sobj) return;
 
   var m = (typeof planMetrics === 'function') ? planMetrics() : null;
-  // xM = position along parklet length (wz already = (svgX-PK_X)/HS)
+  // xM = position along parklet length = world z (from planToWorld in _sdGetPlanWorld)
   var xM = wz;
   var snap = 0.25; // 250mm grid snap
   xM = Math.round(xM / snap) * snap;
@@ -12475,7 +12500,7 @@ function _sdPlaceStreetObj(objId, wx, wz) {
   var _sdStateId = Date.now() + Math.random();
 
   if (sobj.stateKey === 'manholes') {
-    var svgY = m ? (m.PK_Y + wx * m.pvSC) : (wx * 50 + 50);
+    var svgY = worldToPlan(wx, 0).py;
     var planH = (typeof _planVH !== 'undefined' && _planVH > 0) ? _planVH : 215;
     var yF = svgY / planH;
     yF = Math.max(0.01, Math.min(0.99, yF));
