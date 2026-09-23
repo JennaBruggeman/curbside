@@ -16912,5 +16912,78 @@ AXE.clear = function() {
   }
   AXE.group = null; AXE.agents = []; AXE.built = null;
 };
+
+// ── Axonometric camera ─────────────────────────────────────────────────────────────────────
+// A second, orthographic camera; the interactive perspective camera is never read or moved.
+// 'iso'  : plan rotated 45 deg, elevation atan(1/sqrt 2) = 35.264 deg (true isometric), from
+//          the road side, so the buildings sit behind the parklet.
+// '3060' : 30/60 plan oblique -- the plan true to shape, rotated 30 deg on the sheet, verticals
+//          drawn vertical at full height (a shear on the projection matrix).
+// Framing: DESIGN_MODEL.landmarks sceneMinX..sceneMaxX across, the deck z range plus a
+// margin along, 0..3.5 m up; fitted to the output aspect with a 4% margin.
+AXE.CAMERAS = { iso: 'Isometric (45° / 35.26°)', '3060': '30/60 plan oblique' };
+AXE.frameBox = function() {
+  var LM = DESIGN_MODEL.landmarks, L = DESIGN_MODEL.parklet.length, m = 3;
+  return { x0: LM.sceneMinX, x1: LM.sceneMaxX, y0: 0, y1: 3.5, z0: -m, z1: L + m };
+};
+AXE.camera = function(preset, aspect) {
+  var b = AXE.frameBox(), c = new THREE.Vector3((b.x0 + b.x1) / 2, 0, (b.z0 + b.z1) / 2), D = 150, sh = 0;
+  var cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
+  if (preset === '3060') {
+    var a = 30 * Math.PI / 180;
+    cam.position.set(c.x, D, c.z);
+    cam.up.set(-Math.cos(a), 0, -Math.sin(a));          // sheet-up = toward the buildings, turned 30 deg
+    sh = 1;                                            // heights drawn at full length, straight up the sheet
+  } else {
+    var az = 45 * Math.PI / 180, el = Math.atan(1 / Math.SQRT2);
+    cam.position.set(c.x + D * Math.cos(el) * Math.cos(az), D * Math.sin(el), c.z - D * Math.cos(el) * Math.sin(az));
+    cam.up.set(0, 1, 0);
+  }
+  cam.lookAt(c);
+  cam.updateMatrixWorld(true);
+  // Extents of the frame box in (sheared) view space, then fit to the aspect.
+  var lo = [Infinity, Infinity], hi = [-Infinity, -Infinity], v = new THREE.Vector3();
+  [b.x0, b.x1].forEach(function(x) { [b.y0, b.y1].forEach(function(y) { [b.z0, b.z1].forEach(function(z) {
+    v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse);
+    var vy = v.y + sh * (v.z + D);
+    lo[0] = Math.min(lo[0], v.x); hi[0] = Math.max(hi[0], v.x); lo[1] = Math.min(lo[1], vy); hi[1] = Math.max(hi[1], vy);
+  }); }); });
+  var w = (hi[0] - lo[0]) * 1.04, h = (hi[1] - lo[1]) * 1.04, cx = (lo[0] + hi[0]) / 2, cy = (lo[1] + hi[1]) / 2;
+  if (w / h < aspect) w = h * aspect; else h = w / aspect;
+  cam.left = cx - w / 2; cam.right = cx + w / 2; cam.top = cy + h / 2; cam.bottom = cy - h / 2;
+  cam.updateProjectionMatrix();
+  if (sh) {
+    // view-space shear y' = y + sh * (z + D): a point's height above the ground moves it up the sheet
+    var S = new THREE.Matrix4().set(1, 0, 0, 0, 0, 1, sh, sh * D, 0, 0, 1, 0, 0, 0, 0, 1);
+    cam.projectionMatrix.multiply(S);
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+  }
+  cam.userData.axePreset = preset;
+  return cam;
+};
+// The export renders offscreen: its own WebGL renderer and canvas at the output size, so the
+// viewport renderer (size, pixel ratio) and the interactive camera are never touched.
+AXE.renderer = function(W, H) {
+  if (!AXE._r) {
+    var cv = document.createElement('canvas');
+    cv.id = 'axeCanvas';
+    cv.style.cssText = 'position:fixed;left:-20000px;top:0;width:2px;height:2px;pointer-events:none;';
+    document.body.appendChild(cv);
+    AXE._r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
+    AXE._r.shadowMap.enabled = true;
+    AXE._r.shadowMap.type = THREE.PCFSoftShadowMap;
+    AXE._r.setPixelRatio(1);
+  }
+  AXE._r.setSize(W, H, false);
+  return AXE._r;
+};
+// One frame at time t: agents placed, fog off (an axon has none), rendered, fog restored.
+AXE.draw = function(renderer, cam, t) {
+  AXE.setTime(t);
+  var fog = _3d.scene.fog;
+  _3d.scene.fog = null;
+  renderer.render(_3d.scene, cam);
+  _3d.scene.fog = fog;
+};
 </script>
 </body></html>
