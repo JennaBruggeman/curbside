@@ -6872,16 +6872,15 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
  return mesh;
   
 }
-  function mplane(x0,z0, x1,z1, y, col, rough=0.95) {
+  function mplane(x0,z0, x1,z1, y, col) {
     const geom = new THREE.PlaneGeometry(x1-x0, z1-z0);
-    const mat  = new THREE.MeshStandardMaterial({
- color:col, roughness:rough 
-}
-);
+    // Ground surfaces are flat colour: unlit and unfogged, so the rendered pixel is exactly the
+    // palette colour the caller passes (DS.segColor3D, re-read on every renderMassView).
+    const mat  = new THREE.MeshBasicMaterial({ color: col, fog: false });
     const mesh = new THREE.Mesh(geom, mat);
     mesh.rotation.x = -Math.PI/2;
     mesh.position.set((x0+x1)/2,y,(z0+z1)/2);
-    mesh.receiveShadow = true;
+    mesh.userData.flatGround = true;   // _3dApplyTechnical leaves these materials alone
     mesh.userData.expLayer = _expLayer;
  g.add(mesh);
  return mesh;
@@ -9575,7 +9574,9 @@ function setDrawingTheme(mode) {
   if (typeof window.seRefreshLayout === 'function') window.seRefreshLayout();
   if (typeof renderPlanView==='function') renderPlanView();
   if (typeof renderCrossSection==='function') renderCrossSection();
-  if (_3d) apply3DTheme();
+  // Rebuild 3D so ground planes re-read the palette for the new style (renderMassView's
+  // wrapper then applies the 3D theme to the lit objects).
+  if (_3d && typeof renderMassView === 'function') renderMassView();
 }
 
 var _techEdges = [];
@@ -9591,6 +9592,7 @@ function _3dApplyTechnical() {
   _techEdges=[];
   _3d.group.traverse(function(obj) {
     if (!obj.isMesh||obj._techDone) return;
+    if (obj.userData && obj.userData.flatGround) return;   // already drawn in the technical palette
     obj._techDone = true; obj._techOrig = obj.material;
     var origC = 0xD8D7D4;
     if (obj.material&&obj.material.color) {
