@@ -1736,6 +1736,31 @@ window.checkLandmarkConsistency = function(verbose) {
     });
   }
   window._lastSegmentCheck = segRows;
+  // Manholes: stored in metres (yM, xM). The drawn Plan centre must equal worldToPlan(yM, xM)
+  // within 0.5 px, and the 3D cover must sit at world (yM, xM) within 0.01 m.
+  var mhRows = [], mh3d = {};
+  if (typeof _3d !== 'undefined' && _3d && _3d.group)
+    _3d.group.traverse(function(o){ if (o.userData && o.userData.mh !== undefined) mh3d[o.userData.mh] = o; });
+  (state['manholes'] || []).forEach(function(mh) {
+    if (typeof mh.yM !== 'number' || 'yF' in mh) { bad.push({ value: 'manhole ' + mh.id + ' not stored in metres', model: 'yM', independent: JSON.stringify(mh) }); return; }
+    var want = worldToPlan(mh.yM, mh.xM), row = { id: mh.id, xM: mh.xM, yM: mh.yM };
+    var c = planSvg && planSvg.querySelector("circle[data-mh='" + mh.id + "']");
+    if (c) {
+      row.planPx = [+c.getAttribute('cx'), +c.getAttribute('cy')];
+      if (Math.hypot(row.planPx[0] - want.px, row.planPx[1] - want.py) > 0.5)
+        bad.push({ value: 'manhole ' + mh.id + ' Plan position', model: want.px.toFixed(2) + ',' + want.py.toFixed(2), independent: row.planPx.join(',') });
+    } else if (planSvg && planSvg.childElementCount) bad.push({ value: 'Plan draws no manhole ' + mh.id, model: 'present', independent: 'missing' });
+    var m3 = mh3d[mh.id];
+    if (m3) {
+      var p3 = m3.getWorldPosition(new THREE.Vector3()), gi = _3d.group.worldToLocal(p3.clone());
+      row.view3d = [gi.x, gi.z];
+      if (Math.abs(gi.x - mh.yM) > 0.01 || Math.abs(gi.z - mh.xM) > 0.01)
+        bad.push({ value: 'manhole ' + mh.id + ' 3D position', model: mh.yM + ',' + mh.xM, independent: gi.x.toFixed(3) + ',' + gi.z.toFixed(3) });
+    }
+    mhRows.push(row);
+  });
+  window._lastManholeCheck = mhRows;
+  window._lastConsistencyIssues = bad;
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL: ' +
       bad.map(function(b){ return b.value; }).join('; '));
@@ -3942,7 +3967,7 @@ function getSectionObjectsAt(cutWorldZ) {
   (_st.manholes || []).forEach(function(mh) {
     if (typeof mh.xM !== 'number') return;
     if (Math.abs(mh.xM - cutWorldZ) <= 0.47 + TOL)
-      result.manholes.push({ xM: mh.xM, yF: typeof mh.yF === 'number' ? mh.yF : 0.38 });
+      result.manholes.push({ xM: mh.xM, yM: mh.yM });
   });
   return result;
 }
@@ -4265,7 +4290,7 @@ function renderCrossSection() {
     s += `<rect x='${(_hX-3).toFixed(1)}' y='${GY-8}' width='6' height='8' fill='#ccc' stroke='#444' stroke-width='0.8'/>`;
   }
   _secObj.manholes.forEach(function(mh) {
-    const _mX = XBL + (XLN - XBL) * mh.yF;
+    const _mX = _x3D(mh.yM);
     s += `<rect x='${(_mX-9).toFixed(1)}' y='${GY-3}' width='18' height='4' fill='#888' stroke='#333' stroke-width='0.8' rx='1'/>`;
     s += `<line x1='${(_mX-7).toFixed(1)}' y1='${GY}' x2='${(_mX+7).toFixed(1)}' y2='${GY}' stroke='#444' stroke-width='0.6'/>`;
   });
@@ -4679,12 +4704,9 @@ var WM = (function() {
   }
 
   // ── Site-object canonical transforms (adapters for legacy state shapes) ──
-  // Manholes: {xM = along Z, yF = fraction of PK_H → world X = yF * parkletWidth}
+  // Manholes: {xM = along Z, yM = cross-street X in metres}
   function _getMH(mh) {
-    var W = _dmCurrent().parklet.width;
-    var xCross = typeof mh.xCross === 'number' ? mh.xCross
-               : (typeof mh.yF    === 'number' ? mh.yF * W : W * 0.5);
-    return { position: { x: xCross, y: 0, z: mh.xM || 0 }, rotation: { x:0, y:0, z:0 } };
+    return { position: { x: mh.yM, y: 0, z: mh.xM || 0 }, rotation: { x:0, y:0, z:0 } };
   }
   // Curb features: {type, xM = along Z, yM = cross-street X in metres}
   function _getCF(cf) {
@@ -5708,15 +5730,13 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
 // Interactive manholes (C09)
 const manholes = state['manholes'] || [];
   manholes.forEach(mh => {
-    const mhX = worldToPlan(0, mh.xM).px, mhY = mh.yF * VH;
-    const dx = Math.max(0, PK_X - mhX, mhX - (PK_X + PK_W));
-    const dy = Math.max(0, PK_Y - mhY, mhY - (PK_Y + pvPkH));
-    const distM = Math.sqrt(dx * dx + dy * dy) / HS;
+    const _mhP = worldToPlan(mh.yM, mh.xM), mhX = _mhP.px, mhY = _mhP.py;
+    const distM = manholeClearance(mh);
     const ok = distM >= 0.999;
     const mc = ok ? '#2d6a4f' : '#b5272b', ml = ok ? '#d4eddf' : '#fce8e8';
-    const mhR = Math.round(0.47 * pvSC) * pvZS, mhCR = Math.round(0.305 * pvSC) * pvZS; // WW1: outer 939.8mm, opening 609.6mm
-    s += '<circle cx=\'' + mhX.toFixed(1) + '\' cy=\'' + mhY.toFixed(1) + '\' r=\'' + HS.toFixed(1) + '\' fill=\'' + ml + '\' fill-opacity=\'0.35\' stroke=\'' + mc + '\' stroke-width=\'' + (1.2*pvZS).toFixed(2) + '\' stroke-dasharray=\'' + (4*pvZS).toFixed(1) + ',' + (3*pvZS).toFixed(1) + '\'/>';
-    s += '<circle cx=\'' + mhX.toFixed(1) + '\' cy=\'' + mhY.toFixed(1) + '\' r=\'' + mhR.toFixed(1) + '\' fill=\'#8a8a8a\' stroke=\'#444\' stroke-width=\'' + (1.5*pvZS).toFixed(2) + '\'/>';
+    const mhR = MANHOLE_R_M * pvSC, mhCR = 0.3048 * pvSC; // WW1: outer 939.8mm, opening 609.6mm
+    s += '<circle cx=\'' + mhX.toFixed(2) + '\' cy=\'' + mhY.toFixed(2) + '\' r=\'' + HS.toFixed(1) + '\' fill=\'' + ml + '\' fill-opacity=\'0.35\' stroke=\'' + mc + '\' stroke-width=\'' + (1.2*pvZS).toFixed(2) + '\' stroke-dasharray=\'' + (4*pvZS).toFixed(1) + ',' + (3*pvZS).toFixed(1) + '\'/>';
+    s += '<circle cx=\'' + mhX.toFixed(2) + '\' cy=\'' + mhY.toFixed(2) + '\' r=\'' + mhR.toFixed(2) + '\' fill=\'#8a8a8a\' stroke=\'#444\' stroke-width=\'' + (1.5*pvZS).toFixed(2) + '\' data-mh=\'' + mh.id + '\'/>';
     s += '<line x1=\'' + (mhX-mhCR).toFixed(1) + '\' y1=\'' + mhY.toFixed(1) + '\' x2=\'' + (mhX+mhCR).toFixed(1) + '\' y2=\'' + mhY.toFixed(1) + '\' stroke=\'#fff\' stroke-width=\'' + (1.2*pvZS).toFixed(2) + '\'/>';
     s += '<line x1=\'' + mhX.toFixed(1) + '\' y1=\'' + (mhY-mhCR).toFixed(1) + '\' x2=\'' + mhX.toFixed(1) + '\' y2=\'' + (mhY+mhCR).toFixed(1) + '\' stroke=\'#fff\' stroke-width=\'' + (1.2*pvZS).toFixed(2) + '\'/>';
     s += '<text x=\'' + mhX.toFixed(1) + '\' y=\'' + (mhY-mhR-pvDFS*0.6).toFixed(1) + '\' text-anchor=\'middle\' font-family=\'Helvetica Neue,Arial,sans-serif\' font-size=\'' + pvDFS.toFixed(1) + '\' fill=\'' + mc + '\' font-weight=\'600\'>' + distM.toFixed(2) + ' m</text>';
@@ -5853,7 +5873,7 @@ function _pvSecDown(e) {
 let _planPlacing = false;
 let _planDragging = -1;
 let _planDragClientX = 0, _planDragClientY = 0;
-let _planDragMhX0 = 0, _planDragMhYF0 = 0;
+let _planDragMhX0 = 0, _planDragMhYM0 = 0;
 let _planMoved = false;
 let _curbPlacing = ``;
 let _curbDragging = -1;
@@ -5871,6 +5891,48 @@ let _pvFurnDragging = null; // {instId, startWx, startWz, startClientX, startCli
 const CF_DEFAULT_YM = {H: -0.75, P: -0.76, S: -1.00};
 // Updated by renderPlanView so nearMH and placement use the live VH
 let _planVH = 215;
+
+// Manholes: {id, xM, yM} in metres -- xM = world z (along street), yM = world x (across).
+// WW1 frame: 939.8 mm outer diameter.
+const MANHOLE_R_M = 0.4699;
+// Clear distance (m) from a manhole centre to the parklet footprint (C09).
+function manholeClearance(mh) {
+  const DM = _dmCurrent(), L = DM.parklet.length, LM = DM.landmarks;
+  const dz = Math.max(0, -mh.xM, mh.xM - L);
+  const dx = Math.max(0, LM.deckX0 - mh.yM, mh.yM - LM.deckX1);
+  return Math.hypot(dx, dz);
+}
+// Legacy migration, run once per load: old saves stored yF, a fraction of the old Plan's
+// pixel height (py = yF * VH with the old rounded/clamped band heights). Rebuild that old
+// layout from the loaded design's widths, find the band the pixel fell in, and keep the same
+// relative position across that band in metres. This is the only place the old pixel layout
+// exists; yF is deleted afterwards.
+function _migrateManholeYF(list) {
+  if (!Array.isArray(list)) return [];
+  const segs = _computeSegsFromGlobals();
+  const w = function(pred){ return segs.filter(pred).reduce(function(a, s){ return a + s.width; }, 0); };
+  const sw = w(function(s){ return s.type === 'sidewalk'; }), pk = w(function(s){ return s.type === 'parklet'; });
+  const bike = w(function(s){ return s.type === 'bike-lane' || s.type === 'buf-pk' || s.type === 'buf-bl'; });
+  const car = w(function(s){ return s.type === 'travel-lane'; });
+  const SC = 20, swH = Math.max(20, Math.round(sw * SC)), pkH = Math.max(24, Math.round(pk * SC));
+  const bkH = bike > 0.05 ? Math.max(12, Math.round(bike * SC)) : 0, lnH = Math.max(30, Math.round(car * SC));
+  const py = [18, 18 + swH, 18 + swH + pkH, 18 + swH + pkH + bkH, 18 + swH + pkH + bkH + lnH];
+  const wx = [-sw, 0, pk, pk + bike, pk + bike + car];
+  return list.map(function(m) {
+    const out = Object.assign({}, m);
+    if (typeof m.yM !== 'number' && typeof m.yF === 'number') {
+      const p = m.yF * py[4];
+      let x = p <= py[0] ? wx[0] - (py[0] - p) / SC : wx[4] + (p - py[4]) / SC;
+      for (let i = 0; i < 4; i++) {
+        if (p > py[i] && p <= py[i + 1]) { x = wx[i] + (p - py[i]) / (py[i + 1] - py[i]) * (wx[i + 1] - wx[i]); break; }
+      }
+      out.yM = +x.toFixed(4);
+    }
+    if (typeof out.yM !== 'number') out.yM = _dmCurrent().landmarks.roadCenterX;
+    delete out.yF;
+    return out;
+  });
+}
 
 // Read-only view of the model for interaction handlers (mousemove etc.): reuses the
 // model the last render built instead of rebuilding it on every event.
@@ -5915,7 +5977,7 @@ function planSVGCoords(e) {
 }
 
 function nearMH(px, py) {
-  return (state['manholes'] || []).findIndex(mh => Math.hypot(px - worldToPlan(0, mh.xM).px, py - mh.yF * _planVH) < 14);
+  return (state['manholes'] || []).findIndex(mh => { const p = worldToPlan(mh.yM, mh.xM); return Math.hypot(px - p.px, py - p.py) < 14; });
 }
 
 function initSectionInteraction() {
@@ -6008,7 +6070,7 @@ function planMD(e) {
   if (idx >= 0) {
     _planDragging = idx;
     _planDragMhX0 = state['manholes'][idx].xM;
-    _planDragMhYF0 = state['manholes'][idx].yF;
+    _planDragMhYM0 = state['manholes'][idx].yM;
     _planDragClientX = e.clientX;
     _planDragClientY = e.clientY;
     e.preventDefault();
@@ -6132,10 +6194,10 @@ function planMM(e) {
     const dx = (e.clientX - _planDragClientX) / sx;
     const dy = (e.clientY - _planDragClientY) / sy;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) _planMoved = true;
-    var _mhRawX = _planDragMhX0 + planDeltaToWorld(dx, 0).z;
+    var _mhRawX = _planDragMhX0 + planDeltaToWorld(dx, 0).z, _mhRawY = _planDragMhYM0 + planDeltaToWorld(0, dy).x;
     var _mhSnapX = (typeof snapToGrid === 'function' && _snapEnabled) ? snapToGrid(_mhRawX, _gridSpacing) : _mhRawX;
     const mhs = [...(state['manholes'] || [])];
-    mhs[_planDragging] = {...mhs[_planDragging], xM: _mhSnapX, yF: Math.max(0, Math.min(1, _planDragMhYF0 + dy / _planVH))};
+    mhs[_planDragging] = {...mhs[_planDragging], xM: _mhSnapX, yM: Math.max(_dmCurrent().landmarks.sidewalkL.x0, Math.min(_dmCurrent().landmarks.sidewalkR.x1, _mhRawY))};
     state['manholes'] = mhs;
     updateManholeCrit();
     renderPlanView();
@@ -6283,7 +6345,7 @@ function planClick(e) {
   var _snXM = function(raw) { return (typeof snapToGrid==='function'&&_snapEnabled) ? snapToGrid(raw,_gridSpacing) : raw; };
   if (_planPlacing) {
     if (nearMH(pos.x, pos.y) >= 0) return;
-    state['manholes'] = [...(state['manholes'] || []), {id: Date.now(), xM: _snXM(_posZ), yF: pos.y / Math.max(1, _planVH)}];
+    state['manholes'] = [...(state['manholes'] || []), {id: Date.now(), xM: _snXM(_posZ), yM: planToWorld(pos.x, pos.y).x}];
     updateManholeCrit();
     renderPlanView();
     renderMassView();
@@ -6336,7 +6398,7 @@ function _pvShowSiteCoord(type, idx) {
   var _typeNames = {H:'Hydrant', P:'Utility Pole', S:'Signal Ctrl'};
   if (type === 'mh') {
     var mh = (state['manholes'] || [])[idx]; if (!mh) { _pvHideSiteCoord(); return; }
-    label = 'Manhole'; xVal = mh.xM.toFixed(2);
+    label = 'Manhole'; xVal = mh.xM.toFixed(2); yVal = mh.yM.toFixed(2);
   } else if (type === 'cf') {
     var cf = (state['curb_features'] || [])[idx]; if (!cf) { _pvHideSiteCoord(); return; }
     label = _typeNames[cf.type] || cf.type; xVal = cf.xM.toFixed(2);
@@ -6367,7 +6429,8 @@ function _pvApplySiteCoord() {
   var xV = parseFloat(xIn.value); if (isNaN(xV)) return;
   var t = _siteSelected.type, i = _siteSelected.idx;
   if (t === 'mh') {
-    var mhs = (state['manholes']||[]).slice(); if(i<mhs.length){mhs[i]={...mhs[i],xM:xV};state['manholes']=mhs;}
+    var yVm = yIn ? parseFloat(yIn.value) : NaN;
+    var mhs = (state['manholes']||[]).slice(); if(i<mhs.length){mhs[i]={...mhs[i],xM:xV};if(!isNaN(yVm))mhs[i].yM=yVm;state['manholes']=mhs;}
     updateManholeCrit(); renderPlanView(); renderMassView();
   } else if (t === 'cf') {
     var yV = yIn ? parseFloat(yIn.value) : NaN;
@@ -6549,14 +6612,7 @@ function updateCurbFeatureDists() {
 function updateManholeCrit() {
   const mhs = state['manholes'] || [];
   if (!mhs.length) { saveSettings(); return; }
-  const {HS, PK_X, PK_W, PK_Y, PK_H} = planMetrics();
-  let min = Infinity;
-  for (const mh of mhs) {
-    const mhX = worldToPlan(0, mh.xM).px, mhY = mh.yF * 215;
-    const dx = Math.max(0, PK_X - mhX, mhX - (PK_X + PK_W));
-    const dy = Math.max(0, PK_Y - mhY, mhY - (PK_Y + PK_H));
-    min = Math.min(min, Math.sqrt(dx * dx + dy * dy) / HS);
-  }
+  const min = Math.min.apply(null, mhs.map(manholeClearance));
   const dist = min.toFixed(2);
   state['manhole_dist'] = dist;
   const el = document.getElementById('manhole_dist');
@@ -7016,28 +7072,19 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     });
   }
 
-  // Manholes in 3D — radius matches plan SVG symbol (r=8px at HS px/m)
+  // Manholes in 3D at their stored world position (yM across, xM along), WW1 outer radius.
   const mhs3d = state['manholes'] || [];
   if (mhs3d.length > 0) {
-    const HS_PLAN = 760 / Math.max(34, L + 14);
-    const MH_R = 8 / HS_PLAN;
-    // Plan Y positions use pvSC=20 px/m scale — PK_Y and pvPkH computed proportionally
-    const P_SWY = 18, P_CRB = 54, P_LNY = 110, P_RDB = 160, P_VH = 215;
-    const planYtoX = function(py) {
-      if (py <= P_SWY) return XSWL;
-      if (py <= P_CRB) return XSWL + (py - P_SWY) / (P_CRB - P_SWY) * SW;
-      if (py <= P_LNY) return XCL  + (py - P_CRB) / (P_LNY - P_CRB) * PW;
-      if (py <= P_RDB) return PW   + (py - P_LNY) / (P_RDB - P_LNY) * LW;
-      return XCR + (py - P_RDB) / (P_VH - P_RDB) * SW;
-    };
+    const MH_R = MANHOLE_R_M;
     mhs3d.forEach(function(mh) {
       const mhZ = mh.xM;
-      const mhX = planYtoX(mh.yF * P_VH);
+      const mhX = mh.yM;
       const geomC = new THREE.CylinderGeometry(MH_R, MH_R, 0.04, 20);
       const matC  = new THREE.MeshStandardMaterial({color: 0x888888, roughness: 0.7, metalness: 0.3});
       const meshC = new THREE.Mesh(geomC, matC);
       meshC.position.set(mhX, 0.02, mhZ);
       meshC.receiveShadow = true;
+      meshC.userData.mh = mh.id;
       g.add(meshC);
       const matD = new THREE.MeshStandardMaterial({color: 0xcccccc, roughness: 0.55});
       [[MH_R * 1.5, 0.045, 0.07], [0.07, 0.045, MH_R * 1.5]].forEach(function(dim) {
@@ -7208,10 +7255,12 @@ if (s['__roadWidth']) {
       
 }
       if (c.inputId) handleInput(c.id, c.inputId, state[c.inputId] || '');
-    
+
 }
 );
-  
+    // Site geometry is restored above, so legacy yF manholes can be converted now.
+    state['manholes'] = _migrateManholeYF(state['manholes']);
+
 }
 
 }
@@ -12562,12 +12611,8 @@ function _sdPlaceStreetObj(objId, wx, wz) {
   var _sdStateId = Date.now() + Math.random();
 
   if (sobj.stateKey === 'manholes') {
-    var svgY = worldToPlan(wx, 0).py;
-    var planH = (typeof _planVH !== 'undefined' && _planVH > 0) ? _planVH : 215;
-    var yF = svgY / planH;
-    yF = Math.max(0.01, Math.min(0.99, yF));
     if (!state['manholes']) state['manholes'] = [];
-    state['manholes'].push({id: _sdStateId, xM: xM, yF: yF});
+    state['manholes'].push({id: _sdStateId, xM: xM, yM: +wx.toFixed(3)});
     if (typeof updateManholeCrit === 'function') updateManholeCrit();
     if (typeof renderPlanView === 'function') { try { renderPlanView(); } catch(_e) {} }
     if (typeof renderMassView === 'function') { try { renderMassView(); } catch(_e) {} }
@@ -13797,7 +13842,8 @@ function pkApplyDesignState(raw) {
   // Site objects
   if (data.siteObjects) {
     if (typeof state !== 'undefined') {
-      state['manholes']      = data.siteObjects.manholes      || [];
+      // Site globals were applied above, so legacy yF manholes convert against this design.
+      state['manholes']      = _migrateManholeYF(data.siteObjects.manholes || []);
       state['curb_features'] = data.siteObjects.curb_features || [];
       state['driveways']     = data.siteObjects.driveways     || [];
       state['pkShape']       = data.siteObjects.pkShape       || null;
@@ -15292,7 +15338,7 @@ AX.system = function() {
 'COORDINATES',
 '- Street runs along Z (0 = north/start of parklet, parkletLength = south/end; north is -Z, east is +X). X runs across the street: curb at x=0, parklet occupies 0..parkletWidth, then bike lane / buffer / travel lanes.',
 '- Furniture: x = distance from curb across the deck (0..parkletWidth), z = distance along the deck (0..parkletLength), rotationDeg about vertical. Keep pieces inside the deck with ~0.3 m clear of edges and at least a 1.5 m clear path (Manual G19).',
-'- Site objects: hydrants (H), poles (P), signal boxes (S), driveways and manholes are placed by xM = position along the street in the same Z axis; the parklet spans 0..parkletLength. Manholes also take yF = fraction across the road 0..1.',
+'- Site objects: hydrants (H), poles (P), signal boxes (S), driveways and manholes are placed by xM = position along the street in the same Z axis; the parklet spans 0..parkletLength. Manholes also take yM = metres across the street (world x: 0 = near curb, the parklet spans 0..parkletWidth, the road runs to the far curb; negative = sidewalk).',
 '',
 'FIELDS you may set with set_site (units m unless noted):',
 'totalRoad (curb-to-centreline width incl. parking lane), sidewalkW, numLanes (int), roadDir ("oneway"|"twoway"), lanesA, lanesB (int, twoway), parkletWidth, parkletLength, bikeLane ("none"|"protected"), bikeLaneW, bufferEnabled (bool), bufferW, bufPKType/bufBLType ("none"|"raised"|"planters"|"trees"), bufPKW, bufBLW.',
@@ -15321,7 +15367,7 @@ AX.tools = [{
         side: { type: 'string', enum: ['L','R'] }, buildings: { type: 'array' },
         objId: { type: 'string' }, x: { type: 'number' }, z: { type: 'number' }, rotationDeg: { type: 'number' },
         index: { type: 'integer' }, all: { type: 'boolean' },
-        kind: { type: 'string', enum: ['hydrant','pole','signal_box','manhole','driveway'] }, xM: { type: 'number' }, yF: { type: 'number' },
+        kind: { type: 'string', enum: ['hydrant','pole','signal_box','manhole','driveway'] }, xM: { type: 'number' }, yM: { type: 'number' },
         verts: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } } } }
       }, required: ['op'] } }
     },
@@ -15368,7 +15414,7 @@ AX.apply = function(changes) {
         case 'add_site_object': {
           var k = AX.KINDS[c.kind]; if (!k) throw new Error('unknown kind ' + c.kind); var xm = num(c.xM); if (xm === null) throw new Error(c.kind + ' needs xM');
           var arr = snap.siteObjects[k[0]] = snap.siteObjects[k[0]] || [], obj = { id: Date.now() + Math.random(), xM: xm };
-          if (k[0] === 'curb_features') { obj.type = k[1]; obj.yM = -0.75; } if (k[0] === 'manholes') obj.yF = Math.min(0.99, Math.max(0.01, num(c.yF) === null ? 0.5 : num(c.yF)));
+          if (k[0] === 'curb_features') { obj.type = k[1]; obj.yM = -0.75; } if (k[0] === 'manholes') { var _mlm = _dmCurrent().landmarks; obj.yM = Math.min(_mlm.sidewalkR.x1, Math.max(_mlm.sidewalkL.x0, num(c.yM) === null ? _mlm.roadCenterX : num(c.yM))); }
           arr.push(obj); applied.push('added ' + c.kind + ' at ' + xm.toFixed(2) + ' m'); break; }
         case 'remove_site_object': {
           var k2 = AX.KINDS[c.kind]; if (!k2) throw new Error('unknown kind ' + c.kind); var a2 = snap.siteObjects[k2[0]] || [];
