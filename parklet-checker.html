@@ -1561,6 +1561,62 @@ window.debugObjectCoordinates = function() {
   return rows;
 };
 
+// â”€â”€ debugLandmarks: verify DESIGN_MODEL.landmarks and project key world points â”€â”€â”€â”€â”€â”€â”€
+// through the 3D camera (view x projection matrix NDC check). Call in browser console.
+window.debugLandmarks = function() {
+  if (typeof DESIGN_MODEL === 'undefined' || !DESIGN_MODEL.landmarks) {
+    console.warn('[debugLandmarks] No landmarks yet. Call buildDesignModel() first.');
+    return;
+  }
+  var LM = DESIGN_MODEL.landmarks;
+  var L  = (typeof DESIGN_MODEL.parklet !== 'undefined') ? DESIGN_MODEL.parklet.length : 10;
+  console.log('[debugLandmarks] Cross-street X landmarks (m):');
+  console.table({
+    'bldgL.outerFace': { x: LM.buildingL.outerFaceX },
+    'bldgL.innerFace': { x: LM.buildingL.innerFaceX },
+    'sidewalkL.x0 (XSWL)': { x: LM.sidewalkL.x0 },
+    'roadLeft (XCL)':  { x: LM.roadLeft },
+    'deckX0':          { x: LM.deckX0 },
+    'deckX1':          { x: LM.deckX1 },
+    'roadCenter':      { x: LM.roadCenterX },
+    'roadRight (XCR)': { x: LM.roadRight },
+    'sidewalkR.x1 (XSWR)': { x: LM.sidewalkR.x1 },
+    'bldgR.innerFace': { x: LM.buildingR.innerFaceX },
+    'bldgR.outerFace': { x: LM.buildingR.outerFaceX }
+  });
+  if (typeof _3d === 'undefined' || !_3d || !_3d.camera || typeof THREE === 'undefined') {
+    console.log('[debugLandmarks] 3D not live -- skipping NDC check.'); return;
+  }
+  var cam = _3d.camera;
+  cam.updateMatrixWorld(true);
+  var vp = new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+  var e = vp.elements;
+  function _ndc(wx, wy, wz) {
+    var rx=e[0]*wx+e[4]*wy+e[8]*wz+e[12];
+    var ry=e[1]*wx+e[5]*wy+e[9]*wz+e[13];
+    var rw=e[3]*wx+e[7]*wy+e[11]*wz+e[15];
+    var nx=rx/rw, ny=ry/rw;
+    return { ndcX: nx.toFixed(3), ndcY: ny.toFixed(3),
+             inFrame: (Math.abs(nx)<=1.05 && Math.abs(ny)<=1.05) ? 'YES' : 'NO' };
+  }
+  var h = LM.buildingL.height * 0.5;
+  var rows = [
+    Object.assign({ pt: 'bldgL.back' }, _ndc(LM.buildingL.outerFaceX, h, L*0.5)),
+    Object.assign({ pt: 'bldgL.face' }, _ndc(LM.buildingL.innerFaceX, h, L*0.5)),
+    Object.assign({ pt: 'bldgR.face' }, _ndc(LM.buildingR.innerFaceX, h, L*0.5)),
+    Object.assign({ pt: 'bldgR.back' }, _ndc(LM.buildingR.outerFaceX, h, L*0.5)),
+    Object.assign({ pt: 'deck.SW' },    _ndc(LM.deckX0, 0, 0)),
+    Object.assign({ pt: 'deck.NW' },    _ndc(LM.deckX0, 0, L)),
+    Object.assign({ pt: 'deck.NE' },    _ndc(LM.deckX1, 0, L)),
+    Object.assign({ pt: 'deck.SE' },    _ndc(LM.deckX1, 0, 0))
+  ];
+  console.table(rows);
+  var out = rows.filter(function(r){ return r.inFrame !== 'YES'; });
+  if (out.length) console.warn('[debugLandmarks] ' + out.length + ' point(s) outside frustum: ' +
+    out.map(function(r){ return r.pt; }).join(', '));
+  else console.log('[debugLandmarks] All 8 key points are within the camera frustum.');
+};
+
 // Build (or rebuild) DESIGN_MODEL from the canonical source.
 // CANONICAL SOURCE: window.seGetSegs() â€” the section editor's _segs array.
 // _segs is what the user directly edits; all three views are projections of it.
@@ -1604,6 +1660,49 @@ function buildDesignModel() {
     var _flIds = window.FL3D.placed.map(function(i){ return i.id; });
     DESIGN_MODEL.objects = DESIGN_MODEL.objects.filter(function(o){ return _flIds.indexOf(o.id) >= 0; });
   }
+  // Compute cross-street landmark positions once so renderMassView / renderPlanView
+  // can read them without rediscovering SW, bufW, and building depths independently.
+  (function() {
+    var _lmSW   = (typeof SW !== 'undefined') ? SW : 3.0;
+    var _lmBufW = (typeof designBufferEnabled !== 'undefined' && designBufferEnabled &&
+                   typeof designBufferW !== 'undefined') ? designBufferW : 0;
+    var _lmXCL  = 0;
+    var _lmXCR  = (DESIGN_MODEL.crossSection && DESIGN_MODEL.crossSection.length > 0)
+      ? (function() {
+          var rs = DESIGN_MODEL.crossSection.filter(function(s){ return s.type !== 'sidewalk'; });
+          return rs.length > 0 ? rs[rs.length - 1].x1 : DESIGN_MODEL.totalRoad;
+        })()
+      : DESIGN_MODEL.totalRoad;
+    var _lmXSWL  = -_lmSW;
+    var _lmXSWR  = _lmXCR + _lmSW;
+    var _lmLBld  = (typeof BLDG_L !== 'undefined' && BLDG_L && BLDG_L.buildings) ? BLDG_L.buildings : [];
+    var _lmRBld  = (typeof BLDG_R !== 'undefined' && BLDG_R && BLDG_R.buildings) ? BLDG_R.buildings : [];
+    var _lmLMaxD = _lmLBld.reduce(function(m,b){ return Math.max(m,(b.setback||0)+(b.depth||4)); }, 2);
+    var _lmRMaxD = _lmRBld.reduce(function(m,b){ return Math.max(m,(b.setback||0)+(b.depth||4)); }, 2);
+    var _lmLMaxH = _lmLBld.reduce(function(m,b){ return Math.max(m,b.height||8); }, 8);
+    var _lmRMaxH = _lmRBld.reduce(function(m,b){ return Math.max(m,b.height||8); }, 8);
+    var _lmLFaceX = _lmXSWL - _lmBufW;
+    var _lmRFaceX = _lmXSWR;
+    var _lmPkSeg  = DESIGN_MODEL.crossSection &&
+      DESIGN_MODEL.crossSection.find(function(s){ return s.type === 'parklet'; });
+    DESIGN_MODEL.landmarks = {
+      sidewalkW:   _lmSW,
+      bufferW:     _lmBufW,
+      roadLeft:    _lmXCL,
+      roadRight:   _lmXCR,
+      roadCenterX: (_lmXCL + _lmXCR) / 2,
+      sidewalkL:   { x0: _lmXSWL,   x1: _lmXCL },
+      sidewalkR:   { x0: _lmXCR,    x1: _lmXSWR },
+      bufferL:     { x0: _lmLFaceX, x1: _lmXSWL },
+      bufferR:     { x0: _lmXSWR,   x1: _lmXSWR + _lmBufW },
+      buildingL:   { innerFaceX: _lmLFaceX, outerFaceX: _lmLFaceX - _lmLMaxD, depth: _lmLMaxD, height: _lmLMaxH },
+      buildingR:   { innerFaceX: _lmRFaceX, outerFaceX: _lmRFaceX + _lmRMaxD, depth: _lmRMaxD, height: _lmRMaxH },
+      deckX0:      _lmPkSeg ? _lmPkSeg.x0 : 0,
+      deckX1:      _lmPkSeg ? _lmPkSeg.x1 : DESIGN_MODEL.parklet.width,
+      sceneMinX:   _lmLFaceX - _lmLMaxD - 1,
+      sceneMaxX:   _lmRFaceX + _lmRMaxD + 1
+    };
+  })();
   return DESIGN_MODEL;
 }
 
@@ -6354,7 +6453,7 @@ if (false) { // dead block â€” see ensure3DReady() above
     _3d.scene.background = new THREE.Color(DS.t().bg3d);
     _3d.scene.fog = DS.mode()==='technical' ? null : new THREE.Fog(DS.t().bg3d, 40, 80);
     _3d.camera = new THREE.PerspectiveCamera(42, W / H, 0.05, 200);
-    _3d.camera.position.set(-11, 14, 10); // behind typical near building; overridden by posTag block
+    _3d.camera.position.set(-11, 14, -8); // oblique 3/4: south of scene start; overridden by posTag block
     _3d.renderer = new THREE.WebGLRenderer({
  antialias: true
 }
@@ -6465,12 +6564,14 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
  return mesh;
   
 }
-  // Scene layout (X = cross-street, Y = up, Z = along-street)
+  // Scene layout: X positions come from DESIGN_MODEL.landmarks (computed once in buildDesignModel).
+  // Fallbacks retain the old local derivation so rendering still works during first-call setup.
   const PAD = 5.0;
-  const XCL = 0;
-  const XCR = _roadS.length > 0 ? _roadS[_roadS.length-1].x1 : TOTAL_ROAD;
-  const XSWL = -SW;
-  const XSWR = XCR + SW;
+  const _LM  = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL && DESIGN_MODEL.landmarks) ? DESIGN_MODEL.landmarks : null;
+  const XCL  = _LM ? _LM.roadLeft     : 0;
+  const XCR  = _LM ? _LM.roadRight    : (_roadS.length > 0 ? _roadS[_roadS.length-1].x1 : TOTAL_ROAD);
+  const XSWL = _LM ? _LM.sidewalkL.x0 : -SW;
+  const XSWR = _LM ? _LM.sidewalkR.x1 : (XCR + SW);
   const ZS = -PAD, ZE = L + PAD;
 
   // Helper: render one side's buildings (free position via zOffset + length)
@@ -6773,23 +6874,24 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     });
   }
 
-  // Camera: positioned on the building/sidewalk side, looking across the street.
-  // This makes Z increase left-to-right on screen (South=left, North=right),
-  // which matches the Plan view orientation so furniture positions feel consistent.
+  // Camera: oblique 3/4 view â€” near-building side + south of scene start,
+  // looking NE into the corridor so the deck's long axis recedes into depth.
+  // Framed via _LM.buildingL.outerFaceX (back wall of near building).
   const cz = L / 2, roadCX = (XCL + XCR) / 2;
   _3d.controls.target.set(roadCX, 0.5, cz);
-  const _sceneW = bufW + SW + PW + LW + Math.max(rMaxSD, 2);
   const _posTag = [Math.round(PW*10), Math.round(LW*10), Math.round(SW*10), Math.round(L*10), Math.round(bld*10), Math.round(bufW*10)].join();
   if (!_3d.hasPositioned || _3d._posTag !== _posTag) {
     _3d._posTag = _posTag;
     _3d.hasPositioned = true;
-    // Camera on building side, far enough behind the near building to see it fully.
-    // camX must be < XSWL - bufW - lMaxSD (the leftmost face of near-side buildings).
-    // Add 2 m clearance so the near building is visible, not clipped.
+    // X: behind near building back wall + 2 m clearance so it is fully visible.
+    // Z: south of ZS to see the near end of the deck.
+    // H: tall enough to clear buildings and see deck surfaces.
+    const _lmBX = _LM ? _LM.buildingL.outerFaceX : (XSWL - (bufW || 0) - lMaxSD);
     const _camClear = Math.max(2.0, SW * 0.5);
-    const camX = XSWL - (bufW || 0) - lMaxSD - _camClear;
-    const camH = Math.max(L * 0.65, Math.abs(camX - roadCX) * 0.85);
-    _3d.camera.position.set(camX, camH, cz);
+    const camX = _lmBX - _camClear;
+    const camZ = ZS - Math.max(L * 0.2, 2.5);
+    const camH = Math.max(L * 0.8, Math.abs(camX - roadCX) * 0.9, 10);
+    _3d.camera.position.set(camX, camH, camZ);
   }
   const slopePct = parseFloat(state['slope']) || 0;
   _3d.group.rotation.x = -Math.atan(slopePct / 100);
@@ -7766,7 +7868,7 @@ function ensure3DReady() {
     _3d.scene.fog = (typeof DS !== 'undefined' && DS.mode() === 'technical')
       ? null : new THREE.Fog(_e3bg, 40, 80);
     _3d.camera = new THREE.PerspectiveCamera(42, _e3w / _e3h, 0.05, 200);
-    _3d.camera.position.set(-11, 14, 10); // behind typical near building; overridden by posTag block
+    _3d.camera.position.set(-11, 14, -8); // oblique 3/4: south of scene start; overridden by posTag block
     try {
       _3d.renderer = new THREE.WebGLRenderer({ antialias: true });
     } catch (_we) {
