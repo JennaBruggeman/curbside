@@ -1,0 +1,121 @@
+# Parklet Checker — Session Handoff
+
+## Project file
+`C:\Users\bangp\Desktop\UBC\Fall_2026\ARCH 540 AI\New folder\parklet-checker.html`
+~785 KB single-file HTML app. All CSS, JS, and HTML are inline — no build step, no dependencies except the Supabase CDN loaded at runtime.
+
+## How to run it
+Open with VS Code Live Server (Ritwick Dey extension, already installed and enabled).
+Right-click `parklet-checker.html` in the VS Code Explorer → **Open with Live Server**.
+URL: `http://127.0.0.1:5500/parklet-checker.html`
+Do NOT open as a `file://` URL — Supabase network requests will fail.
+
+## Supabase project
+- Project ID: `hkfvcbbpbtnxyvwlawva`
+- URL: `https://hkfvcbbpbtnxyvwlawva.supabase.co`
+- Anon key: already embedded in the HTML (~line 12606)
+- SQL schema: already applied (profiles + designs tables, RLS policies, triggers)
+
+## What has been built (Refactors 1–8)
+
+| # | What |
+|---|------|
+| R1 | CAD drawing system — Plan, Section, 3D views |
+| R2 | Site configuration panel |
+| R3 | Compliance checker (Vancouver Parklet Manual v1.0) |
+| R4 | Furniture library — 50 objects (Vestre + mmcité Kupé) |
+| R5 | Drag-and-drop furniture placement in Plan/Section/3D |
+| R6 | Dockable panels, resizable layout |
+| R7 | Double-click deselect; Street Component Asset Library (manhole, hydrant, pole, controller — dimensions from City of Vancouver Standard Detail Drawings only) |
+| R8 | Supabase auth + cloud design persistence: sign in/up, autosave, design browser, local migration |
+| R9 | 3D model export — Rhino .3dm (native, via rhino3dm.js), Revit IFC4, SketchUp Collada .dae, STL, OBJ+MTL, DXF |
+| R10 | Conversational design assistant — chat panel that edits the design via Claude tool-use |
+| R11 | Drawing style layer — Technical vs Schematic graphic languages for plan, Section A–A strip and 3D (per `Section_Graphic_Style_References.pdf`) |
+| R12 | **Bugfix**: Section A–A edits (sliders, drag-resize, add/remove bike lane or buffers) were not propagating to the Plan or 3D views |
+| R13 | **Bugfix**: dead startup code silently hid the Section/3D panels ~400ms after load; camera didn't re-frame on bike-lane/buffer size changes |
+
+## Supabase auth features (R8)
+- Sign In / Create Account modal (top-right of topbar)
+- Autosave: debounced 1000ms after any change, save chip shows Saving/Saved/Error
+- Design browser: list all designs, open/rename/duplicate/delete
+- Local migration: on first sign-in, offers to import any existing localStorage design to cloud
+- Schema version 1; `pkSerialize()` / `pkApplyDesignState()` are the sole persistence layer
+
+## 3D export (R9)
+- Code: `<script>` block at the end of the file, header `REFACTOR 9`. Everything lives on a global `PX` object.
+- UI: sidebar Export section → "3D Model" group (`#px3dGroup`): layer checkboxes (Parklet / Furniture / Street context), format `<select id="px3dFmt">`, button `#px3dBtn` → `PX.export()`.
+- Pipeline: `PX.collect(layers)` traverses `_3d.group`, bakes `matrixWorld`, converts Y-up→Z-up `(x,y,z)→(x,-z,y)`, skips helpers (names starting `__`, `_isFdPreview`), returns `[{name, layer, color:[r,g,b], pos:Float64Array}]` in metres. Each writer (`writeOBJ/STL/DAE/DXF/IFC/3DM`) consumes that list; `PX.weld()` dedupes vertices per object for indexed formats.
+- Layers: `renderMassView` now has `let _expLayer` — `mbox`/`mplane` stamp `mesh.userData.expLayer`; it is set to `'Parklet'` before the deck section and back to `'Context'` before "Right curb". Furniture is detected by `userData.flInstId / fl3dInstId / fl3d` on any ancestor. Anything untagged is `Context`.
+- Rhino: `rhino3dm@8` is lazy-loaded from jsDelivr on first .3dm export (`PX.RHINO3DM_URL`). Uses `Mesh.faces().addTriFace`, layer table with colours, `ObjectAttributes.objectColor`, `settings().modelUnitSystem = Meters`, `toByteArray()`.
+- IFC4: IfcProject→Site→Building→Storey, each object an `IfcBuildingElementProxy` with `IfcTriangulatedFaceSet` + `IfcSurfaceStyle`; ObjectType = layer name. Validated with IfcOpenShell.
+- Tested headlessly in Node against three@0.128.0 + rhino3dm (all 6 formats round-trip). Not yet opened in the real apps — worth a smoke test in Rhino / Revit / SketchUp.
+- Filenames: `<project-slug>-3d-YYYYMMDD.<ext>`; OBJ triggers two downloads (.obj then .mtl, 400 ms apart — Chrome may ask to allow multiple downloads).
+- Note: .skp / .rvt are proprietary and cannot be written in-browser; the interchange formats above are what those apps import.
+
+## Bugfix: section edits not propagating (R12)
+**Root cause:** `_seToGlobals()` (inside the Section-editor IIFE, ~line 2292) wrote `window.designBikeLane = …`, `window.SIDEWALK_W = …`, etc. But every one of those globals — `designBikeLane`, `designBikeLaneW`, `designParkletWidth`, `bufPKType`, `bufPKW`, `bufBLType`, `bufBLW`, `SIDEWALK_W`, `NUM_LANES`, `ROAD_DIR`, `LANES_A`, `LANES_B` — is declared with a top-level `let` inside the same inline `<script>` block (around line 1337–1413). A top-level `let`/`const` does **not** become a `window` property, so `window.X = …` created a disconnected phantom property while the real lexical binding — the one `renderPlanView`, `renderMassView`, `getBikeLaneD()`, `pkSerialize()`, and the design assistant all read by bare identifier — never changed. Dragging a slider or adding/resizing a bike lane in the Section strip updated the strip itself (it reads its own `_segs` array) but silently failed to reach anything else. The two-way lane-count branch had a second instance of the same bug (`typeof window.ROAD_DIR !== 'undefined' && window.ROAD_DIR === 'twoway'` was always false since `window.ROAD_DIR` was never set anywhere), so two-way lane counts never wrote back either.
+
+**Fix:** `_seToGlobals()` now assigns the bare identifiers directly (`designBikeLane = …`, `SIDEWALK_W = …`, etc.) and the two-way check reads the real `ROAD_DIR`. Confirmed the `_seToGlobals`/`_seAdd`/`_seResize`/`_trigger` functions all close over the *same* script block as the `let` declarations (verified by byte-offset script-tag matching), so bare reassignment is safe and correctly mutates the shared state — no `window.` needed anywhere in this app for these globals.
+
+**Verification:** reproduced the exact symptom headlessly against the previous file (bike lane added + resized in the section → `designBikeLane` stayed `'none'`, `getBikeLaneD()` returned `0`, plan SVG had no bike-lane band) and confirmed the fixed file closes the loop (`designBikeLane` → `'painted'`, `getBikeLaneD()` → `2.2`, plan SVG picks up the band). Script-block syntax check passes (14/14).
+
+**Not yet re-verified live:** the 3D view itself (`renderMassView`) needs THREE.js in a real browser to actually rebuild geometry — headlessly it short-circuits (`if (!window.THREE) return;`), so confirm in-browser that resizing a bike lane in the section now visibly updates the 3D scene, not just the math functions it depends on.
+
+## Bugfix: 3D panel silently hidden + camera not reframing (R13)
+Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebuild is correct end-to-end with real three.js (see repro below) — but two more real issues surfaced while chasing "plan updates, 3D doesn't":
+
+1. **Dead startup override.** `window.addEventListener('load', ...)` (near the bottom of the file, "STARTUP DEFAULTS") called `setCanvasView('plan')` 400ms after every page load. None of the three drawing panels (`csPanel`/`pvPanel`/`mvPanel`) have `display:none` in their markup, and the "All" pill has `class="vpill active"` by default — so the intended default is all three panels visible. This leftover call silently overrode that ~0.4s after load, hiding the Section and 3D panels no matter what the UI showed. If a user was on "All" (the apparent default) and never explicitly clicked a view pill again, the 3D panel was invisible the whole time — which looks exactly like "my change isn't showing up," because nothing was showing at all. **Fixed:** removed the `setCanvasView('plan')` call; only `pvSetupClicks()` still runs on load. Confirmed headlessly that all three panels stay visible and "All" stays the active pill 600ms after load.
+2. **Camera didn't re-frame on lane/buffer changes.** `renderMassView`'s camera-reposition guard (`_posTag`) only watched parklet width, lane width, sidewalk width and parklet length — not bike-lane depth (`bld`) or buffer width (`bufW`). Adding or resizing a bike lane moved the orbit *target* (always updated) but never the camera *position*, so a section that was framed tightly around a narrower street could leave new geometry outside the visible frustum, or just make the change hard to notice. **Fixed:** `bld` and `bufW` (rounded) are now part of `_posTag`, so the camera re-frames whenever the bike lane or buffers change size.
+
+**Verification:** re-ran the same real-three.js reproduction from R12 (add bike lane → resize to 2.2 m via the actual internal `_seAdd`/`_seResize`/`_seToGlobals`/`_trigger` call path) against the doubly-fixed file — mesh count goes 56 → 82, the 2.2 m bike-lane plane is present, confirmed again after an explicit second `renderMassView()` call. Separately confirmed via a fresh headless page load that `csPanel`/`pvPanel`/`mvPanel` all stay visible with "All" marked active 600ms in — the previous file failed this check (panels collapsed to Plan-only).
+
+**Still not verified in a real browser:** the WebGL canvas itself, and whether the camera reframe reads as a smooth transition or a jump cut (OrbitControls has no built-in tween, so a "hasPositioned" tag change causing a big position jump might feel abrupt — worth a look, not a data bug).
+
+## Drawing style layer (R11)
+- `var DS = {...}` sits immediately before `function renderPlanView()`. `DS.tokens.technical / .schematic` hold paper, ink, mids, band tones, deck/plant/bike colours, lineweights (`wCut/wProf/wHair`) and 3D bg/edge colours. `DS.mode()` reads `drawingTheme.mode`; `DS.t()` returns the active token set.
+- **Plan**: `DS.restylePlan(s, {vb})` is a deterministic string remap run right before `svg.innerHTML = …` in `renderPlanView`. It maps the generator's hard-coded fills/strokes/label styles to the mode palette (grid → near-invisible, hatch pitch/weight per mode, band labels lighter, parklet outline 1.6, deck plank lines) and, in schematic, appends a `feTurbulence` paper-grain overlay sized to the viewBox. The context-band block was rewritten to draw a **façade wall poche** (0.3 m, solid) at each building face, respecting setbacks. `svg.style.background` is set to the paper token so the dimension strip matches. Scale bar moved to the plan's top-right (`_svgAppendSB`, `isPlan` branch) and lightened.
+- **Section A–A strip**: `_renderArchSVG` (inside the Streetmix editor IIFE) was rewritten. Same geometry constants and signature; now draws: cut wall poche, sidewalk slab with joints, curb profile with radius, deck on sleepers, road-side edge planter with plants, 0.9 m railing (cut post + beyond posts), bench with backrest + seated figure, pedestrian on sidewalks ≥1.4 m, end-on vehicle in travel/parking lanes ≥2.2 m, cyclist in bike lanes, tree in planting segments, delineator post in buffers, hatched subgrade with fade. Figures are cm-unit templates inside `transform="translate scale"` so they zoom with `SECTION_PX_PER_M`. Technical = outline figures/grayscale; schematic = filled grey-blue figures, warm paper, grain filter. Segment label CSS in `_renderStrip` lightened for schematic.
+- **3D**: `_3dApplyTechnical / _3dApplySchematic` and the scene init read `DS.tokens.*.bg3d / edge3d`; deck 0xD6AE74 and planter 0xA9C29A match the 2D palette; technical edge overlay skips PlaneGeometry (ground) so only built elements get ink lines.
+- Buffer segments are variant-aware: `trees` → tree on soil; `planters` → raised planter box with tufts; `raised` → 150 mm curb block; `painted` → delineator post. `_seRenderObjects` (trees/bollards/cut furniture at the section line) keeps its geometry but its palette is remapped by `DS.restyleSectionObjects(sv)` before insertion.
+- Verified headlessly (jsdom + resvg) for plan and strip in both modes, default and a rich config (two-way, protected bike lane + both buffers, building setback, hydrant/pole/driveway/manhole). See `previews/`. Not opened in a real browser here — check the 3D view and the strip's HTML labels live. The old static `#crossSection` SVG (hidden, `seStaticWrap`) was left as-is.
+- `_seRenderObjects` (trees/bollards/cut furniture at the section line) is now remapped through `DS.restyleSectionObjects(sv)` right before insertion. Buffer segments honour their `variant`: `trees` → tree, `planters` → planter box, `raised` → 150 mm curb block, `painted` → delineator post. Status tints (bike-lane fail `#fdd0d0`, buffer pass `#d0ead8`, centreline yellow) are softened per mode in `restylePlan`.
+- Tested configurations: default (one-way, no bike lane) and rich (two-way, protected bike lane with planter + raised buffers, 0.6 m building setback, hydrant/pole/driveway/manhole). Renders in `previews/`.
+- Ideas: human-figure variants; north arrow + title block for the plan; print/PDF export could pick "technical" automatically.
+
+## Design assistant (R10)
+- Code: `<style>` + `#axPanel` markup + `<script>` block at the very end of the file, header `REFACTOR 10`. Global `AX` object. Toggle button `#axToggleBtn` ("✦ Assistant") in the canvas toolbar next to the view pills.
+- Loop: `AX.send()` → `AX.call(history)` with `system = AX.system()` (rules + coordinate conventions + field whitelist + furniture catalogue from `FL_OBJ` + `JSON.stringify(AX.snapshot())`) and one tool `apply_design_changes` → on `tool_use`, `AX.apply(changes)` validates each op, mutates a `pkSerialize()` snapshot, calls `pkApplyDesignState(snap)` (+ `pkScheduleSave()` if signed in) → sends `tool_result` with `{applied, rejected, travelLaneWidth, requiredLaneWidth, lanePasses, overallVerdict, failingCriteria}` → model's final text. Max 3 rounds per message.
+- Ops: `set_site` (whitelist + ranges in `AX.SITE_FIELDS`, clamps numbers, validates enums), `set_project`, `set_compliance` (keys must already exist in the compliance block), `set_buildings`, `add/move/remove_furniture` (objId or name; clamped inside the deck), `add/remove_site_object` (hydrant/pole/signal_box → `curb_features` with type H/P/S; manhole; driveway), `set_deck_shape` / `reset_deck_shape` (writes `pkShape`). Anything unknown is rejected with a message the model sees.
+- Undo: `AX.undoSnap` holds the pre-change snapshot; each "Applied:" line has an Undo button. Only one level.
+- Backend config in `localStorage['px_ax_cfg_v1']` = `{apiKey, model, proxy}` (gear icon in the panel). Direct mode calls `api.anthropic.com` with `anthropic-dangerous-direct-browser-access: true` — acceptable for a personal Live Server page, NOT for anything shared. Proxy mode posts the same body to `cfg.proxy`; a ready Supabase Edge Function is in `supabase/functions/parklet-assistant/index.ts`.
+- Default model string is `claude-sonnet-4-5` and is editable in settings; if the API returns "model not found", change it there.
+- `AX.apply()` was unit-tested headlessly (valid / clamped / rejected ops, undo). The live API loop has not been run here — first real test needs a key.
+- Ideas: multi-level undo; show a diff preview before applying; stream responses; let the assistant read the Parklet Manual PDF text for citations; per-user rate limit in the proxy.
+
+## Scripting approach
+All changes are applied via PowerShell scripts in the scratchpad directory:
+`C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
+
+Key pattern:
+```powershell
+function RF($p) { [System.IO.File]::ReadAllText($p) -replace "`r`n","`n" }
+$html = RF $src
+$html = $html.Replace($old, $new)
+[System.IO.File]::WriteAllText($src, $html, [System.Text.Encoding]::UTF8)
+```
+
+## Known limitations
+- 3D export: meshes only (no NURBS/solids), no textures, no per-object IFC property sets beyond name/type. Custom-shape deck exports as extrusion mesh; `LineSegments` edge overlays are skipped.
+- No OAuth (email/password only)
+- No thumbnail generation (stub returns null)
+- No offline save queue (last cloud save is restored on reload)
+- Single-tab only (no conflict detection if same design open in two tabs)
+
+## Style system
+- Dark charcoal sidebar, `#c03030` red accent (`var(--acc)`)
+- Font: DM Sans
+- CSS variables: `--panel-bg`, `--border-c`, `--text-hi`, `--text-lo`, `--text-mu`, `--bg`, `--nav-bg`
+
+## To continue in a new session
+Tell Claude: "I want to continue working on parklet-checker.html" and mention this file.
+Claude's memory system already has full context on the project, standards sources, furniture library, and style system.
