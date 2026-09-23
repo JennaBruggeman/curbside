@@ -2072,15 +2072,21 @@ function bufMinW(loc, type) {
   return loc === 'pk' ? 0.8 : 0.4; // raised: parklet-side 0.8m, traffic-side 0.4m
 }
 function bufMaxW(type) { return type === 'trees' ? 3.0 : 1.5; }
+// Every input that changes the roadway left for travel lanes, which lane is 'rightmost', or the
+// route (the LANE_ENVELOPE row) goes through here: slider limits, then the one update path --
+// syncDesignModel resyncs the Section editor from the globals, which re-runs the lane normaliser
+// against LANE_ENVELOPE, rebuilds the model, renders all views and runs the envelope check.
+function onLaneEnvelopeInput() {
+  updateWidthSliderMax();
+  clampParkletWidth();
+  saveSettings();
+  syncDesignModel('sidebar');
+}
 function onRoadWidthChange() {
   const v = parseFloat(document.getElementById('roadWidth').value);
   if (isNaN(v) || v < 3.5) return;
   TOTAL_ROAD = v;
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 
 }
 function onSidewalkWidthChange() {
@@ -2098,11 +2104,7 @@ function onLaneCountChange() {
   const v = parseInt(document.getElementById('laneCount').value, 10);
   if (isNaN(v) || v < 1 || v > 6) return;
   NUM_LANES = v;
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function onRoadDirChange(dir) {
   ROAD_DIR = dir;
@@ -2113,31 +2115,19 @@ function onRoadDirChange(dir) {
   const twF = document.getElementById('laneTwoWayField');
   if (owF) owF.style.display = dir === 'oneway' ? '' : 'none';
   if (twF) twF.style.display = dir === 'twoway' ? '' : 'none';
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function onLanesAChange() {
   const v = parseInt(document.getElementById('lanesA').value, 10);
   if (isNaN(v) || v < 1 || v > 4) return;
   LANES_A = v;
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function onLanesBChange() {
   const v = parseInt(document.getElementById('lanesB').value, 10);
   if (isNaN(v) || v < 1 || v > 4) return;
   LANES_B = v;
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function renderBldgControls() {
   const sec = document.getElementById('contextSection');
@@ -2482,16 +2472,13 @@ function onRouteTypeToggle(val) {
   const sel = document.getElementById('route_type');
   if (sel) sel.value = val;
   handleInput('c2', 'route_type', val);
-  updateWidthSliderMax();
-  clampParkletWidth();
-
+  onLaneEnvelopeInput();   // the route picks the LANE_ENVELOPE row: re-fit the lanes like any other lane input
 }
 function onWidthSlider(val) {
   designParkletWidth = parseFloat(val);
   document.getElementById('widthReadout').textContent = designParkletWidth.toFixed(3) + ' m';
   updateMinRoadNote();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function onLengthSlider(val) {
   designParkletLength = parseFloat(val);
@@ -2525,12 +2512,8 @@ function onBikeLaneType(type) {
       }
     }
   }
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
   updateBikeBufUI();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function onBikeLaneWidth(val) {
   const v = parseFloat(val);
@@ -2539,11 +2522,7 @@ function onBikeLaneWidth(val) {
   const sl = document.getElementById('bikeLaneSlider');
   if (sl && designBikeLaneW !== v) sl.value = designBikeLaneW;
   document.getElementById('bikeLaneReadout').textContent = designBikeLaneW.toFixed(2) + ' m';
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function onBufferToggle(enabled) {
   designBufferEnabled = enabled;
@@ -2552,18 +2531,12 @@ function onBufferToggle(enabled) {
   if (btns[1]) btns[1].className = 'seg-btn' + (enabled?' active':'');
   const field = document.getElementById('bufferWidthField');
   if (field) field.style.display = enabled ? '' : 'none';
-  saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
+  onLaneEnvelopeInput();
 }
 function onBufferWidth(val) {
   designBufferW = Math.max(0.6, parseFloat(val));
   document.getElementById('bufferReadout').textContent = designBufferW.toFixed(2) + ' m';
-  saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
+  onLaneEnvelopeInput();
 }
 function updateBikeBufUI() {
   const hasBike = designBikeLane !== 'none';
@@ -2605,11 +2578,7 @@ function onBufType(loc, type) {
   if (loc === 'PK') bufPKType = type; else bufBLType = type;
   updateBufWidthUI(loc);
   syncBufBtns(loc, type);
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function onBufWidth(loc, val) {
   const type = loc === 'PK' ? bufPKType : bufBLType;
@@ -2620,11 +2589,7 @@ function onBufWidth(loc, val) {
   if (sl && clamped !== parseFloat(val)) sl.value = clamped;
   const ro = document.getElementById('buf' + loc + 'Readout');
   if (ro) ro.textContent = clamped.toFixed(2) + ' m';
-  updateWidthSliderMax();
-  clampParkletWidth();
-  saveSettings();
-  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
-  syncDesignModel('sidebar');
+  onLaneEnvelopeInput();
 }
 function autoSolveWidth() {
   const maxW = parseFloat((TOTAL_ROAD - getBikeLaneD() - getReqLane() * getTotalLanes()).toFixed(3));
