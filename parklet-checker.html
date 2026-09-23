@@ -1681,6 +1681,45 @@ window.checkLandmarkConsistency = function(verbose) {
       window._lastOrientationCheck = { plan: plan, view: view, planCross: cp, viewCross: cv, cameraAboveGround: cam.position.y > 0.01 };
     }
   }
+  // Buildings: read back what each renderer actually drew -- the Plan <rect data-bldg>
+  // through planToWorld, the 3D mass mesh (userData.bldg) through its world bounds --
+  // and compare z0 / z1 / faceX / backX with the model footprint (tolerance 0.01 m).
+  var planSvg = document.getElementById('planView'), rows = [];
+  var meshes = {};
+  if (typeof _3d !== 'undefined' && _3d && _3d.group && typeof THREE !== 'undefined')
+    _3d.group.traverse(function(o){ if (o.userData && o.userData.bldg) meshes[o.userData.bldg] = o; });
+  ['L', 'R'].forEach(function(side) {
+    DM.buildings[side].forEach(function(b, i) {
+      var f = b.footprint, id = side + i;
+      if (!f.visible) return;
+      var near = side === 'L';   // near side: face is the larger x; opposite side: the smaller
+      var row = { building: id, model: [f.z0, f.z1, f.faceX, f.backX] };
+      var r = planSvg && planSvg.querySelector("rect[data-bldg='" + id + "']");
+      if (planSvg && planSvg.childElementCount) {
+        if (!r) bad.push({ value: 'Plan draws no rect for building ' + id, model: 'visible', independent: 'missing' });
+        else {
+          var x = +r.getAttribute('x'), y = +r.getAttribute('y'), w = +r.getAttribute('width'), h = +r.getAttribute('height');
+          var a = planToWorld(x, y), c = planToWorld(x + w, y + h);
+          row.plan = [Math.min(a.z, c.z), Math.max(a.z, c.z), near ? Math.max(a.x, c.x) : Math.min(a.x, c.x), near ? Math.min(a.x, c.x) : Math.max(a.x, c.x)];
+        }
+      }
+      if (meshes[id]) {
+        var bb = new THREE.Box3().setFromObject(meshes[id]);
+        row.view3d = [bb.min.z, bb.max.z, near ? bb.max.x : bb.min.x, near ? bb.min.x : bb.max.x];
+      } else if (Object.keys(meshes).length) {
+        bad.push({ value: '3D draws no mass for building ' + id, model: 'visible', independent: 'missing' });
+      }
+      ['plan', 'view3d'].forEach(function(k) {
+        if (!row[k]) return;
+        ['z0', 'z1', 'faceX', 'backX'].forEach(function(n, j) {
+          if (Math.abs(row[k][j] - row.model[j]) > 0.01)
+            bad.push({ value: 'building ' + id + ' ' + n + ' (' + k + ')', model: row.model[j], independent: row[k][j] });
+        });
+      });
+      rows.push(row);
+    });
+  });
+  window._lastBuildingCheck = rows;
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL:');
     console.table(bad);
@@ -1766,13 +1805,30 @@ function buildDesignModel() {
     function _lmSbOfDeepest(list) {
       return list.reduce(function(m,b){ var t=(b.setback||0)+(b.depth||4); return t>m.d?{d:t,sb:b.setback||0}:m; }, {d:-1,sb:0}).sb;
     }
-    // Per-building copies so renderers never touch BLDG_L / BLDG_R directly.
-    DESIGN_MODEL.buildings = {
-      L: _lmLBld.map(function(b){ return Object.assign({}, b); }),
-      R: _lmRBld.map(function(b){ return Object.assign({}, b); })
-    };
     var _lmLFaceX = _lmXSWL - _lmBufW;
     var _lmRFaceX = _lmXSWR;
+    // Along-street extent of the rendered street scene (5 m past each parklet end); a
+    // building with no zOffset/length spans exactly this.
+    var _lmZ0 = -5, _lmZ1 = DESIGN_MODEL.parklet.length + 5;
+    // Per-building copies with their resolved world footprint, so Plan and 3D draw
+    // each building from the same numbers and never touch BLDG_L / BLDG_R directly.
+    //   frontageX = property line (building side of sidewalk + buffer)
+    //   faceX     = building face = frontage moved back by the setback
+    //   backX     = rear wall = face moved back by depth;  z0..z1 = along-street span
+    function _lmFootprint(b, isLeft, frontageX) {
+      var sb  = b.setback !== undefined ? b.setback : 0;
+      var dp  = typeof b.depth === 'number' ? b.depth : 4;
+      var z0  = b.zOffset !== undefined ? b.zOffset : _lmZ0;
+      var len = b.length  !== undefined ? b.length  : (_lmZ1 - _lmZ0);
+      var s   = isLeft ? -1 : 1, faceX = frontageX + s * sb;
+      return Object.assign({}, b, { footprint: {
+        z0: z0, z1: z0 + len, frontageX: frontageX, faceX: faceX, backX: faceX + s * dp,
+        setback: sb, depth: dp, visible: len >= 0.1 && dp >= 0.1 } });
+    }
+    DESIGN_MODEL.buildings = {
+      L: _lmLBld.map(function(b){ return _lmFootprint(b, true,  _lmLFaceX); }),
+      R: _lmRBld.map(function(b){ return _lmFootprint(b, false, _lmRFaceX); })
+    };
     var _lmPkSeg  = DESIGN_MODEL.crossSection &&
       DESIGN_MODEL.crossSection.find(function(s){ return s.type === 'parklet'; });
     DESIGN_MODEL.landmarks = {
@@ -1791,7 +1847,9 @@ function buildDesignModel() {
       deckX1:      _lmPkSeg ? _lmPkSeg.x1 : DESIGN_MODEL.parklet.width,
       deckW:       _lmPkSeg ? _lmPkSeg.width : DESIGN_MODEL.parklet.width,
       sceneMinX:   _lmLFaceX - _lmLMaxD - 1,
-      sceneMaxX:   _lmRFaceX + _lmRMaxD + 1
+      sceneMaxX:   _lmRFaceX + _lmRMaxD + 1,
+      sceneMinZ:   _lmZ0,
+      sceneMaxZ:   _lmZ1
     };
   })();
   return DESIGN_MODEL;
@@ -1813,7 +1871,11 @@ function syncDesignModel(reason) {
   if (typeof renderCrossSection === 'function') { try { renderCrossSection(); } catch(e){} }
   if (typeof request3DRebuild   === 'function') { request3DRebuild(reason || 'geometry'); }
   else if (typeof renderMassView === 'function'){ try { renderMassView();    } catch(e){} }
-  try { window.checkLandmarkConsistency(false); } catch(e) { console.warn('[checkLandmarkConsistency] threw:', e); }
+  // The check compares what Plan and 3D drew, so it must run after the 3D rebuild;
+  // request3DRebuild defers that to the next frame and runs the check itself.
+  if (typeof request3DRebuild !== 'function') {
+    try { window.checkLandmarkConsistency(false); } catch(e) { console.warn('[checkLandmarkConsistency] threw:', e); }
+  }
 }
 window.syncDesignModel = syncDesignModel;
 
@@ -5058,10 +5120,6 @@ function renderPlanView() {
   const ROAD_BOTTOM = LN_Y + pvLnH + pvBikeH;
   const VH = ROAD_BOTTOM;
   _planVH = VH;
-  const CTX_TOP = Math.max(30, Math.round(_pvLM.buildingL.depth * pvSC));
-  const OPP_SW_H = Math.max(22, Math.round(_pvLM.sidewalkW * pvSC));
-  const OPP_BH = Math.max(20, Math.round(_pvLM.buildingR.depth * pvSC));
-  const OPP_BOTTOM = VH + 5 + OPP_SW_H + OPP_BH;
   const PARKLET_M = _pvDM.parklet.length;
   const WS_M = 1.1;
  
@@ -5077,6 +5135,15 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
   // (+Z runs left), so everything positioned in world z below goes through worldToPlan.
   _pvPKX = PK_X + PK_W; _pvPKY = PK_Y; _pvHS = HS; _pvSC = pvSC; _pvVW = VW; _pvVH = VH || 200;
   const _zSign = worldToPlan(0, 1).px - worldToPlan(0, 0).px > 0 ? 1 : -1; // screen sense of world +Z
+  // Street context beyond the curbs, placed from the model through worldToPlan.
+  const _pvFaceNY = worldToPlan(_pvLM.buildingL.innerFaceX, 0).py;   // near frontage line
+  const _pvBackNY = worldToPlan(_pvLM.buildingL.outerFaceX, 0).py;   // deepest near rear wall
+  const _pvOppSW0 = worldToPlan(_pvLM.sidewalkR.x0, 0).py;           // opposite curb face
+  const _pvOppSW1 = worldToPlan(_pvLM.sidewalkR.x1, 0).py;           // opposite sidewalk back
+  const _pvFaceOY = worldToPlan(_pvLM.buildingR.innerFaceX, 0).py;   // opposite frontage line
+  const _pvBackOY = worldToPlan(_pvLM.buildingR.outerFaceX, 0).py;   // deepest opposite rear wall
+  const CTX_TOP = Math.max(30, Math.ceil(-_pvBackNY) + 18);           // viewBox headroom above near buildings
+  const OPP_BOTTOM = Math.max(_pvOppSW1, _pvBackOY) + 6;
   const _iTch = typeof drawingTheme!=='undefined' && drawingTheme.mode==='technical';
   const colorFor = _iTch
     ? function(st){return st==='pass'?'#505050':st==='fail'?'#1A1A1A':'#888888';}
@@ -5157,14 +5224,15 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
       });
     }
   }
-  // Vegetated buffer band at top of sidewalk zone (building side, outside clear passage)
-  const pvBufH = designBufferEnabled ? Math.max(10, Math.min(20, designBufferW * 14)) : 0;
-  if (pvBufH > 0) {
-    s += `<rect x='0' y='${SW_Y}' width='${VW}' height='${pvBufH}' fill='#d8f0dc'/>`;
+  // Vegetated buffer strip between the sidewalk and the building frontage (landmarks.bufferL,
+  // the same strip 3D draws), placed through worldToPlan.
+  if (_pvLM.bufferW > 0.05) {
+    const _bfY0 = worldToPlan(_pvLM.bufferL.x0, 0).py, _bfY1 = worldToPlan(_pvLM.bufferL.x1, 0).py, _bfH = _bfY1 - _bfY0;
+    s += `<rect x='0' y='${_bfY0.toFixed(2)}' width='${VW}' height='${_bfH.toFixed(2)}' fill='#d8f0dc'/>`;
     for (let bx=20; bx<VW-16; bx+=24) {
-      s += `<circle cx='${bx}' cy='${SW_Y+pvBufH/2}' r='3' fill='rgba(74,144,96,.3)'/>`;
+      s += `<circle cx='${bx}' cy='${(_bfY0+_bfH/2).toFixed(1)}' r='3' fill='rgba(74,144,96,.3)'/>`;
     }
-    s += `<text x='8' y='${SW_Y+pvBufH-2}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='#4a9060'>VEG. BUFFER</text>`;
+    s += `<text x='8' y='${(_bfY1-2).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='#4a9060'>VEG. BUFFER</text>`;
   }
   const carLnY = LN_Y + pvBikeH;
   // Travel direction is a world fact (segment.dirZ, +1 = world +Z); the chevron's screen
@@ -5582,7 +5650,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     pvSeg(_bnd[0], _bnd[_bnd.length-1]);
     _rmItems.forEach(d => pvRLbl(d.y1,d.y2,d.val,d.lbl));
     // Opposite sidewalk (separate short chain)
-    const _oy1=VH+5, _oy2=VH+5+OPP_SW_H;
+    const _oy1=_pvOppSW0, _oy2=_pvOppSW1;
     [_oy1,_oy2].forEach(y => { pvExt(y); pvTk(y); });
     pvSeg(_oy1,_oy2);
     pvRLbl(_oy1,_oy2,`${_pvLM.sidewalkW.toFixed(2)} m`,'OPP SW');
@@ -5600,14 +5668,14 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       s += `<text x='${_lx2.toFixed(1)}' y='${(my-pvDFV*0.3).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_vFS}' fill='#333'>${val}</text>`;
       if(lbl && span >= pvDFV*2) s += `<text x='${_lx2.toFixed(1)}' y='${(my+pvDFL*0.55).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_lFS}' letter-spacing='.08em' fill='#777'>${lbl}</text>`;
     };
-    // Near building depth: -CTX_TOP to 0
+    // Near building depth (setback + depth of the deepest near building): rear wall to frontage
     const _nBldD = _pvLM.buildingL.depth.toFixed(2);
-    pvExt2(-CTX_TOP); pvTk2(-CTX_TOP);
-    pvExt2(0); pvTk2(0);
-    pvSeg2(-CTX_TOP, 0);
-    pvRLbl2(-CTX_TOP, 0, `${_nBldD} m`, 'NEAR BLDG');
-    // Opposite building depth: OPP_Y0+5+OPP_SW_H to OPP_BOTTOM
-    const _oBldY1 = VH+5+OPP_SW_H, _oBldY2 = OPP_BOTTOM;
+    pvExt2(_pvBackNY); pvTk2(_pvBackNY);
+    pvExt2(_pvFaceNY); pvTk2(_pvFaceNY);
+    pvSeg2(_pvBackNY, _pvFaceNY);
+    pvRLbl2(_pvBackNY, _pvFaceNY, `${_nBldD} m`, 'NEAR BLDG');
+    // Opposite building depth: frontage to rear wall of the deepest opposite building
+    const _oBldY1 = _pvFaceOY, _oBldY2 = _pvBackOY;
     const _oBldD = _pvLM.buildingR.depth.toFixed(2);
     pvExt2(_oBldY1); pvTk2(_oBldY1);
     pvExt2(_oBldY2); pvTk2(_oBldY2);
@@ -5645,26 +5713,36 @@ const manholes = state['manholes'] || [];
   });
 
   // ── Plan view context: building depth above + opposite side below ─────────
-  // Building interior above sidewalk — pale interior, façade wall drawn as cut poche
-  const OPP_Y0 = VH;
+  // One rect per building in DESIGN_MODEL.buildings.L/.R at its footprint (z span,
+  // setback, depth) -- the same numbers 3D's renderSide() draws. Areas without a building
+  // stay neutral paper. Building bodies are tagged data-bldg='L0'... for the consistency check.
   { const _T = DS.t(), _tech = DS.mode()==='technical';
-    const _wallT = Math.max(2.5, 0.3 * pvSC);
-    const _nSb = _pvLM.buildingL.setback * pvSC, _oSb = _pvLM.buildingR.setback * pvSC;
-    const _faceN = SW_Y - _nSb;
-    s += `<rect x='0' y='${-CTX_TOP}' width='${VW}' height='${CTX_TOP + SW_Y}' fill='${_tech?'#FFFFFF':'#F2EEE6'}'/>`;
-    if (_nSb > 0.5) s += `<rect x='0' y='${_faceN.toFixed(1)}' width='${VW}' height='${_nSb.toFixed(1)}' fill='${_T.sidewalk}' opacity='0.6'/>`;
-    s += `<rect x='0' y='${-CTX_TOP}' width='${VW}' height='${(CTX_TOP + _faceN).toFixed(1)}' fill='url(#hPV)' opacity='${_tech?0.35:0.5}'/>`;
-    s += `<rect x='0' y='${(_faceN - _wallT).toFixed(1)}' width='${VW}' height='${_wallT.toFixed(1)}' fill='${_tech?'#1A1A1A':'#6F6A66'}'/>`;
-    s += `<text x='8' y='${-CTX_TOP+12}' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' font-weight='${_tech?400:500}' letter-spacing='.12em' fill='${_T.label}'>BUILDING INTERIOR</text>`;
-    s += `<rect x='0' y='${OPP_Y0}' width='${VW}' height='5' fill='${_tech?'#4A4846':'#B9B3A8'}'/>`;
-    s += `<rect x='0' y='${OPP_Y0+5}' width='${VW}' height='${OPP_SW_H}' fill='${_T.sidewalk}'/>`;
-    s += `<text x='8' y='${OPP_Y0+5+Math.round(OPP_SW_H/2)+3}' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' font-weight='${_tech?400:500}' letter-spacing='.12em' fill='${_T.label}'>OPPOSITE SIDEWALK</text>`;
-    const _faceO = OPP_Y0 + 5 + OPP_SW_H + _oSb;
-    s += `<rect x='0' y='${OPP_Y0+5+OPP_SW_H}' width='${VW}' height='${OPP_BH}' fill='${_tech?'#FFFFFF':'#F2EEE6'}'/>`;
-    if (_oSb > 0.5) s += `<rect x='0' y='${OPP_Y0+5+OPP_SW_H}' width='${VW}' height='${_oSb.toFixed(1)}' fill='${_T.sidewalk}' opacity='0.6'/>`;
-    s += `<rect x='0' y='${_faceO.toFixed(1)}' width='${VW}' height='${Math.max(0, OPP_Y0+5+OPP_SW_H+OPP_BH - _faceO).toFixed(1)}' fill='url(#hPV)' opacity='${_tech?0.35:0.5}'/>`;
-    s += `<rect x='0' y='${_faceO.toFixed(1)}' width='${VW}' height='${_wallT.toFixed(1)}' fill='${_tech?'#1A1A1A':'#6F6A66'}'/>`;
-    s += `<text x='8' y='${OPP_Y0+5+OPP_SW_H+Math.round(OPP_BH/2)+3}' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' font-weight='${_tech?400:500}' letter-spacing='.12em' fill='${_T.label}'>OPPOSITE BUILDING</text>`;
+    const WALL_M = 0.3;   // façade wall poche thickness, metres
+    const _lbl = `font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' font-weight='${_tech?400:500}' letter-spacing='.12em' fill='${_T.label}'`;
+    const _box = function(xa, xb, z0, z1) {           // world box -> SVG rect via worldToPlan
+      const a = worldToPlan(xa, z0), b = worldToPlan(xb, z1);
+      return { x: Math.min(a.px, b.px), y: Math.min(a.py, b.py), w: Math.abs(b.px - a.px), h: Math.abs(b.py - a.py) };
+    };
+    const _rect = (q, attrs) => `<rect x='${q.x.toFixed(2)}' y='${q.y.toFixed(2)}' width='${q.w.toFixed(2)}' height='${q.h.toFixed(2)}' ${attrs}/>`;
+    const _drawSide = function(list, side, label) {
+      list.forEach(function(b, i) {
+        const f = b.footprint;
+        if (!f.visible) return;
+        const body = _box(f.faceX, f.backX, f.z0, f.z1), inward = f.backX > f.faceX ? 1 : -1;
+        s += _rect(body, `fill='${_tech?'#FFFFFF':'#F2EEE6'}' data-bldg='${side}${i}'`);
+        s += _rect(body, `fill='url(#hPV)' opacity='${_tech?0.35:0.5}'`);
+        if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${_T.sidewalk}' opacity='0.6'`);
+        s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${_tech?'#1A1A1A':'#6F6A66'}'`);
+        const lx = Math.max(body.x, _pvVB.x) + 5;
+        if (body.x + body.w - lx > 70) s += `<text x='${lx.toFixed(1)}' y='${(body.y + body.h/2 + 3).toFixed(1)}' ${_lbl}>${label}</text>`;
+      });
+    };
+    _drawSide(_pvDM.buildings.L, 'L', 'BUILDING INTERIOR');
+    // Opposite sidewalk (continuous street element) and curb face, then opposite buildings
+    s += `<rect x='0' y='${_pvOppSW0.toFixed(2)}' width='${VW}' height='${(_pvOppSW1 - _pvOppSW0).toFixed(2)}' fill='${_T.sidewalk}'/>`;
+    s += `<line x1='0' y1='${_pvOppSW0.toFixed(2)}' x2='${VW}' y2='${_pvOppSW0.toFixed(2)}' stroke='${_tech?'#4A4846':'#B9B3A8'}' stroke-width='2'/>`;
+    s += `<text x='8' y='${((_pvOppSW0 + _pvOppSW1)/2 + 3).toFixed(1)}' ${_lbl}>OPPOSITE SIDEWALK</text>`;
+    _drawSide(_pvDM.buildings.R, 'R', 'OPPOSITE BUILDING');
   }
   // ── Section A-A line (Ching convention) ─────────────────────────────────
   if (_pvSectionOn) {
@@ -6665,31 +6743,24 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   
 }
   // Scene layout: X positions come from DESIGN_MODEL.landmarks (computed once in buildDesignModel).
-  const PAD = 5.0;
   const XCL  = _LM.roadLeft;
   const XCR  = _LM.roadRight;
   const XSWL = _LM.sidewalkL.x0;
   const XSWR = _LM.sidewalkR.x1;
-  const ZS = -PAD, ZE = L + PAD;
+  const ZS = _LM.sceneMinZ, ZE = _LM.sceneMaxZ;
 
-  // Helper: render one side's buildings (free position via zOffset + length)
-  const renderSide = function(buildings, sideEdgeX, isLeft) {
-    buildings.forEach(function(b) {
-      const sb = b.setback !== undefined ? b.setback : 0;
-      const z0 = b.zOffset !== undefined ? b.zOffset : ZS;
-      const bLen = b.length !== undefined ? b.length : (ZE - ZS);
-      const z1 = z0 + bLen;
-      if (bLen < 0.1) return;
-      if (sb > 0.05) {
-        const sx0 = isLeft ? sideEdgeX - sb : sideEdgeX;
-        const sx1 = isLeft ? sideEdgeX : sideEdgeX + sb;
-        mplane(sx0, z0, sx1, z1, 0.002, 0xb8b4a8, 0.98);
+  // Helper: render one side's buildings from their model footprints (same numbers Plan uses).
+  // The building mass is tagged userData.bldg = 'L0', 'R1', ... for checkLandmarkConsistency.
+  const renderSide = function(buildings, side) {
+    buildings.forEach(function(b, i) {
+      const f = b.footprint;
+      if (!f.visible) return;
+      if (f.setback > 0.05) {
+        mplane(Math.min(f.frontageX, f.faceX), f.z0, Math.max(f.frontageX, f.faceX), f.z1, 0.002, 0xb8b4a8, 0.98);
       }
-      const x0 = isLeft ? sideEdgeX - sb - b.depth : sideEdgeX + sb;
-      const x1 = isLeft ? sideEdgeX - sb : sideEdgeX + sb + b.depth;
-      if (x1 - x0 < 0.1) return;
-      mbox(x0, 0, z0, x1, b.height, z1, 0xf2f0ec, 0.9);
-      mbox(x0, 0, z0, x1, 0.5, z1, 0xe0ddd6, 0.95);
+      const x0 = Math.min(f.faceX, f.backX), x1 = Math.max(f.faceX, f.backX);
+      mbox(x0, 0, f.z0, x1, b.height, f.z1, 0xf2f0ec, 0.9).userData.bldg = side + i;
+      mbox(x0, 0, f.z0, x1, 0.5, f.z1, 0xe0ddd6, 0.95);
     });
   };
 
@@ -6699,20 +6770,16 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   const gndX0 = _LM.sceneMinX;
   const gndX1 = _LM.sceneMaxX;
   let gndZ0 = ZS - 1, gndZ1 = ZE + 1;
-  [_dm3d.buildings.L, _dm3d.buildings.R].forEach(function(blist) {
-    blist.forEach(function(b) {
-      const bz0 = b.zOffset !== undefined ? b.zOffset : ZS;
-      const bz1 = bz0 + (b.length !== undefined ? b.length : ZE - ZS);
-      gndZ0 = Math.min(gndZ0, bz0 - 1);
-      gndZ1 = Math.max(gndZ1, bz1 + 1);
-    });
+  _dm3d.buildings.L.concat(_dm3d.buildings.R).forEach(function(b) {
+    gndZ0 = Math.min(gndZ0, b.footprint.z0 - 1);
+    gndZ1 = Math.max(gndZ1, b.footprint.z1 + 1);
   });
 
   // Ground plane
   mplane(gndX0, gndZ0, gndX1, gndZ1, -0.005, 0xe0ddd6, 0.98);
 
   // Left buildings (face at XSWL - bufW, outside sidewalk)
-  renderSide(_dm3d.buildings.L, _LM.buildingL.innerFaceX, true);
+  renderSide(_dm3d.buildings.L, 'L');
 
   // Vegetated buffer strip (between building face and sidewalk)
   if (bufW > 0.05) {
@@ -6909,7 +6976,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   mplane(XCR + 0.08, ZS, XSWR, ZE, 0.001, 0xd4d0c8, 0.97);
 
   // Right buildings
-  renderSide(_dm3d.buildings.R, _LM.buildingR.innerFaceX, false);
+  renderSide(_dm3d.buildings.R, 'R');
 
   // Curb features in 3D (H/P/S — at left curb, Z = feature.xM)
   const cf3d = state[`curb_features`] || [];
@@ -15397,6 +15464,7 @@ function request3DRebuild(reason) {
       try {
         renderMassView();
         _r3DLastRebuildTs = Date.now();
+        if (typeof window.checkLandmarkConsistency === 'function') window.checkLandmarkConsistency(false);
       } catch(e) {
         console.error('[3D SYNC] renderMassView failed', e);
       }
