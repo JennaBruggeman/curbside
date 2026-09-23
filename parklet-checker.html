@@ -1723,18 +1723,35 @@ window.checkLandmarkConsistency = function(verbose) {
   window._lastBuildingCheck = rows;
   // Cross-section bands: every segment's Plan band (<rect data-seg>) read back through
   // planToWorld must span exactly its model x0..x1 (tolerance 0.01 m).
-  var segRows = [];
-  if (planSvg && planSvg.childElementCount) {
-    DM.crossSection.forEach(function(sg) {
+  // The same segments must each have exactly one tagged 3D ground plane over x0..x1.
+  var segRows = [], seg3d = {};
+  if (typeof _3d !== 'undefined' && _3d && _3d.group)
+    _3d.group.traverse(function(o){ if (o.userData && o.userData.seg) (seg3d[o.userData.seg] = seg3d[o.userData.seg] || []).push(o); });
+  var have3d = Object.keys(seg3d).length > 0;
+  DM.crossSection.forEach(function(sg) {
+    var row = { seg: sg.id, type: sg.type, model: [sg.x0, sg.x1] };
+    if (planSvg && planSvg.childElementCount) {
       var r = planSvg.querySelector("rect[data-seg='" + sg.id + "']");
-      if (!r) { bad.push({ value: 'Plan draws no band for segment ' + sg.id + ' (' + sg.type + ')', model: [sg.x0, sg.x1], independent: 'missing' }); return; }
-      var y = +r.getAttribute('y'), h = +r.getAttribute('height');
-      var x0 = planToWorld(0, y).x, x1 = planToWorld(0, y + h).x;
-      segRows.push({ seg: sg.id, type: sg.type, model: [sg.x0, sg.x1], plan: [x0, x1] });
-      if (Math.abs(x0 - sg.x0) > 0.01 || Math.abs(x1 - sg.x1) > 0.01)
-        bad.push({ value: 'segment ' + sg.id + ' (' + sg.type + ') band x0..x1', model: sg.x0.toFixed(3) + '..' + sg.x1.toFixed(3), independent: x0.toFixed(3) + '..' + x1.toFixed(3) });
+      if (!r) bad.push({ value: 'Plan draws no band for segment ' + sg.id + ' (' + sg.type + ')', model: [sg.x0, sg.x1], independent: 'missing' });
+      else {
+        var y = +r.getAttribute('y'), h = +r.getAttribute('height');
+        row.plan = [planToWorld(0, y).x, planToWorld(0, y + h).x];
+      }
+    }
+    if (have3d) {
+      var ms = seg3d[sg.id] || [];
+      if (ms.length !== 1) bad.push({ value: '3D has ' + ms.length + ' ground planes for segment ' + sg.id + ' (' + sg.type + ')', model: 1, independent: ms.length });
+      else {
+        var gb = new THREE.Box3().setFromObject(ms[0]), lo = _3d.group.worldToLocal(gb.min.clone()), hi = _3d.group.worldToLocal(gb.max.clone());
+        row.view3d = [Math.min(lo.x, hi.x), Math.max(lo.x, hi.x)];
+      }
+    }
+    ['plan', 'view3d'].forEach(function(k) {
+      if (row[k] && (Math.abs(row[k][0] - sg.x0) > 0.01 || Math.abs(row[k][1] - sg.x1) > 0.01))
+        bad.push({ value: 'segment ' + sg.id + ' (' + sg.type + ') ' + k + ' x0..x1', model: sg.x0.toFixed(3) + '..' + sg.x1.toFixed(3), independent: row[k][0].toFixed(3) + '..' + row[k][1].toFixed(3) });
     });
-  }
+    segRows.push(row);
+  });
   window._lastSegmentCheck = segRows;
   // Manholes: stored in metres (yM, xM). The drawn Plan centre must equal worldToPlan(yM, xM)
   // within 0.5 px, and the 3D cover must sit at world (yM, xM) within 0.01 m.
@@ -5064,6 +5081,22 @@ var DS = {
     map.forEach(function(p) { sv = sv.split(p[0]).join(p[1]); });
     return sv;
   },
+  // Ground colour of each cross-section segment type -- ONE palette for Plan (band fill) and
+  // 3D (ground plane) so the views read the same. Values are the colours Plan finally
+  // displays in each drawing style, so restylePlan leaves them untouched.
+  segPalette: {
+    technical: { 'travel-lane':'#FFFFFF', 'travel-lane-fail':'#EAE6E4', 'transit-lane':'#F4F2EE', 'turn-lane':'#F6F5F2',
+                 'parking':'#EFEEEB', 'parklet':'#EFEEEB', 'bike-lane':'#F4F4F2', 'bike-lane-fail':'#EAE6E4',
+                 'buf-pk':'#F1F1EE', 'buf-bl':'#F1F1EE', 'planting':'#E9EDE6', 'curb':'#D9D7D2' },
+    schematic: { 'travel-lane':'#E4E1DB', 'travel-lane-fail':'#EDD9D3', 'transit-lane':'#E8DDCB', 'turn-lane':'#E7E3D1',
+                 'parking':'#DDD9D2', 'parklet':'#DDD9D2', 'bike-lane':'#D6E4EC', 'bike-lane-fail':'#EDD9D3',
+                 'buf-pk':'#DCE6D5', 'buf-bl':'#DCE6D5', 'planting':'#C9D9BE', 'curb':'#B9B3A8' }
+  },
+  segColor: function(type) {
+    var p = DS.segPalette[DS.mode()];
+    return p[type] || p['travel-lane'];
+  },
+  segColor3D: function(type) { return parseInt(DS.segColor(type).slice(1), 16); },
   // Deterministic tonal remap of the generated plan SVG string. Geometry untouched.
   restylePlan: function(s, ctx) {
     var T = DS.t(), tech = DS.mode() === 'technical';
@@ -5169,7 +5202,6 @@ function renderPlanView() {
   const NAVY='#1a1a1a';
   const TDK = _iTch?'#DCDAD4':'#b8b4aa';
   const TMD = _iTch?'#F2F1EE':'#ede6d0';
-  const BLT = _iTch?'#E8E8E6':'#dde8f0';
   const WOOD= _iTch?'#D0CECC':'#c8a45c';
   const SAGE= _iTch?'#E4E3DE':'#9ab4a0';
   const BC2=`font-family="'Barlow Condensed','Helvetica Neue',Arial,sans-serif"`;
@@ -5190,13 +5222,13 @@ function renderPlanView() {
   const _bikeSeg = _pvRoadSegs.find(function(sg){ return sg.type === 'bike-lane'; });
   const _bikeCorr = _pvRoadSegs.filter(function(sg){ return sg.type === 'bike-lane' || sg.type === 'buf-pk' || sg.type === 'buf-bl'; });
   const blOkPV = _bikeSeg ? _bikeSeg.width >= bikeLaneMinW() - 0.001 : true;
-  const pvBLFill = blOkPV ? '#cce8f4' : '#fdd0d0';
   const pvBLStroke = blOkPV ? '#2a7aaa' : '#c03030';
+  const _lanesPass = travelLanesPass(_pvDM);
   const _segLbl = { 'transit-lane': 'TRANSIT LANE', 'parking': 'PARKING', 'turn-lane': 'TURN LANE', 'planting': 'PLANTING', 'curb': 'CURB' };
   _pvRoadSegs.forEach(function(sg) {
-    const fill = sg.type === 'bike-lane' ? pvBLFill
-               : (sg.type === 'buf-pk' || sg.type === 'buf-bl' || sg.type === 'planting') ? '#d0ead8'
-               : sg.type === 'curb' ? '#9a9894' : BLT;
+    // Fill from the shared segment palette (3D ground planes use the same colours).
+    const fill = DS.segColor(sg.type === 'bike-lane' && !blOkPV ? 'bike-lane-fail'
+                           : sg.type === 'travel-lane' && !_lanesPass ? 'travel-lane-fail' : sg.type);
     s += `<rect x='0' y='${sg.y0.toFixed(2)}' width='${VW}' height='${(sg.y1 - sg.y0).toFixed(2)}' fill='${fill}' data-seg='${sg.id}'/>`;
     if (_segLbl[sg.type]) {
       s += `<line x1='0' y1='${sg.y0.toFixed(2)}' x2='${VW}' y2='${sg.y0.toFixed(2)}' stroke='#aaa' stroke-width='0.8' stroke-dasharray='8,4'/>`;
@@ -5291,8 +5323,8 @@ function renderPlanView() {
   }
   
 // Parking lane flanks  
-s += `<rect x="0" y="${PK_Y}" width="${PK_X}" height="${pvPkH}" fill="#e4e0d8"/>`;
-  s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${VW-PK_X-PK_W}" height="${pvPkH}" fill="#e4e0d8"/>`;
+s += `<rect x="0" y="${PK_Y}" width="${PK_X}" height="${pvPkH}" fill="${DS.segColor('parklet')}"/>`;
+  s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${VW-PK_X-PK_W}" height="${pvPkH}" fill="${DS.segColor('parklet')}"/>`;
 
 // ── C13: Parking meter setback zones
 const C13_REQ = 1.5;
@@ -5891,6 +5923,13 @@ let _pvFurnDragging = null; // {instId, startWx, startWz, startClientX, startCli
 const CF_DEFAULT_YM = {H: -0.75, P: -0.76, S: -1.00};
 // Updated by renderPlanView so nearMH and placement use the live VH
 let _planVH = 215;
+
+// C02 travel-lane width compliance from the lane segments; Plan and 3D tint lanes from this.
+function travelLanesPass(DM) {
+  const req = getReqLane();
+  return DM.crossSection.filter(function(s){ return s.type === 'travel-lane'; })
+    .every(function(s){ return s.width >= req - 0.0001; });
+}
 
 // Manholes: {id, xM, yM} in metres -- xM = world z (along street), yM = world x (across).
 // WW1 frame: 939.8 mm outer diameter.
@@ -6664,7 +6703,9 @@ function renderMassView() {
     reason:        typeof _r3DLastRebuildReason !== 'undefined' ? _r3DLastRebuildReason : 'direct'
   };
   try { if (typeof _syncOverlayUpdate === 'function') _syncOverlayUpdate(window._last3DGeometryState); } catch(_e) {}
-  const carLW = parseFloat((LW - bld).toFixed(4));
+  // Total travel-lane width from the lane segments (not re-derived from globals).
+  const carLW = parseFloat(_dm3d.crossSection.filter(function(sg){ return sg.type === 'travel-lane'; })
+    .reduce(function(a, sg){ return a + sg.width; }, 0).toFixed(4));
   // Build canonical model â€” all geometry below reads from _s3d, not from globals.
   const _s3d   = _dm3d.crossSection;
   const _lnS   = _s3d.filter(function(sg){ return sg.type === 'travel-lane'; });
@@ -6673,8 +6714,7 @@ function renderMassView() {
   const _bbS   = _s3d.find(function(sg){ return sg.type === 'buf-bl'; });
   const _roadS = _s3d.filter(function(sg){ return sg.type !== 'sidewalk'; });
   const reqLane = getReqLane();
-  const laneW = carLW / getTotalLanes();
-  const passing = laneW >= reqLane - 0.0001;
+  const passing = travelLanesPass(_dm3d);
   const bufW = _LM.bufferW;
   const container = document.getElementById('threeWrap');
   if (!container) return;
@@ -6865,14 +6905,24 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   }
 
   // Left sidewalk slab (clear pedestrian zone, independent of buffer)
-  mplane(XSWL, ZS, XCL, ZE, 0.001, 0xd4d0c8, 0.97);
+  { const _sw3 = _s3d.find(function(sg){ return sg.type === 'sidewalk'; });
+    const _swm = mplane(XSWL, ZS, XCL, ZE, 0.001, 0xd4d0c8, 0.97);
+    if (_sw3) _swm.userData.seg = _sw3.id; }
 
   // Left curb
   mbox(XCL - 0.08, 0, ZS, XCL, 0.15, ZE, 0x888078, 0.95);
 
   // Road surface â€” one plane per canonical travel-lane segment
-  _lnS.forEach(function(seg) {
-    if (seg.x1 > seg.x0 + 0.001) mplane(seg.x0, ZS, seg.x1, ZE, 0.002, passing ? 0x8a8880 : 0x9a7a78, 0.97);
+  // Ground plane for EVERY cross-section segment beyond the sidewalk, at its model x0..x1,
+  // coloured from the shared DS palette (same as Plan's bands). Bike lane and buffers are
+  // drawn below with their markings; curbs get a 150 mm kerb block. userData.seg = segment id.
+  _s3d.forEach(function(seg) {
+    if (seg.type === 'sidewalk' || seg.type === 'bike-lane' || seg.type === 'buf-pk' || seg.type === 'buf-bl') return;
+    if (seg.x1 <= seg.x0 + 0.001) return;
+    const col = DS.segColor3D(seg.type === 'travel-lane' && !passing ? 'travel-lane-fail' : seg.type);
+    const m = seg.type === 'curb' ? mbox(seg.x0, 0, ZS, seg.x1, 0.15, ZE, col, 0.95)
+                                  : mplane(seg.x0, ZS, seg.x1, ZE, 0.002, col, 0.97);
+    m.userData.seg = seg.id;
   });
 
   // Bike lane surface and markings
@@ -6884,14 +6934,15 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     const blX1 = _blS ? _blS.x1 : blX0 + designBikeLaneW;
     // Buffer A surface (parklet side)
     if (bufA3d > 0.01 && _bpS) {
-      mplane(_bpS.x0, ZS, _bpS.x1, ZE, 0.003, 0x5aab6b, 0.9);
+      mplane(_bpS.x0, ZS, _bpS.x1, ZE, 0.003, DS.segColor3D('buf-pk'), 0.9).userData.seg = _bpS.id;
       if (bufPKType === 'raised') mbox(_bpS.x0 + 0.05, 0.003, ZS, _bpS.x1 - 0.05, 0.14, ZE, 0x8aa098, 0.85);
     }
     // Bike lane surface
-    mplane(blX0, ZS, blX1, ZE, 0.003, blOk ? 0xb8ddf0 : 0xf0c8c8, 0.93);
+    { const _blm = mplane(blX0, ZS, blX1, ZE, 0.003, DS.segColor3D(blOk ? 'bike-lane' : 'bike-lane-fail'), 0.93);
+      if (_blS) _blm.userData.seg = _blS.id; }
     // Buffer B surface (traffic side)
     if (bufB3d > 0.01 && _bbS) {
-      mplane(_bbS.x0, ZS, _bbS.x1, ZE, 0.003, 0x5aab6b, 0.9);
+      mplane(_bbS.x0, ZS, _bbS.x1, ZE, 0.003, DS.segColor3D('buf-bl'), 0.9).userData.seg = _bbS.id;
       if (bufBLType === 'raised') mbox(_bbS.x0 + 0.05, 0.003, ZS, _bbS.x1 - 0.05, 0.14, ZE, 0x8aa098, 0.85);
     }
     // Edge stripe at bike lane / traffic boundary
