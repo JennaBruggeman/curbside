@@ -2037,6 +2037,45 @@ function buildDesignModel() {
     });
     DESIGN_MODEL.vegetation = veg;
   })();
+  // Movement paths: the centre-lines people and vehicles follow in the animated export. Data
+  // only -- the animator reads these and nothing else. {id, kind:'lane'|'bike'|'sidewalk'|'deck',
+  // segId, dirZ (+1 / -1 = direction of travel, 0 = both ways), x, pts:[[x, z], ...] in travel
+  // order, len}. Lanes run the whole scene (sceneMinZ..sceneMaxZ) in their segment's direction;
+  // a bike lane runs with the travel lane nearest it; the deck path is the deck polygon's
+  // centroid line (the sketched shape when one is active).
+  (function() {
+    var LM = DESIGN_MODEL.landmarks, z0 = LM.sceneMinZ, z1 = LM.sceneMaxZ, paths = [];
+    function add(id, kind, segId, x, dirZ, za, zb) {
+      za = za === undefined ? z0 : za; zb = zb === undefined ? z1 : zb;
+      paths.push({ id: id, kind: kind, segId: segId, dirZ: dirZ, x: x,
+                   pts: dirZ < 0 ? [[x, zb], [x, za]] : [[x, za], [x, zb]], len: Math.abs(zb - za) });
+    }
+    var lanes = segs.filter(function(s) { return s.type === 'travel-lane'; });
+    lanes.forEach(function(s) { add('lane-' + s.id, 'lane', s.id, (s.x0 + s.x1) / 2, s.dirZ < 0 ? -1 : 1); });
+    segs.forEach(function(s) {
+      if (s.type !== 'bike-lane') return;
+      var c = (s.x0 + s.x1) / 2, near = null;
+      lanes.forEach(function(l) { if (!near || Math.abs((l.x0 + l.x1) / 2 - c) < Math.abs((near.x0 + near.x1) / 2 - c)) near = l; });
+      add('bike-' + s.id, 'bike', s.id, c, near && near.dirZ < 0 ? -1 : 1);
+    });
+    segs.forEach(function(s) { if (s.type === 'sidewalk') add('walk-' + s.id, 'sidewalk', s.id, (s.x0 + s.x1) / 2, 0); });
+    if (LM.sidewalkR && LM.sidewalkR.x1 - LM.sidewalkR.x0 > 0.5) add('walk-far', 'sidewalk', null, (LM.sidewalkR.x0 + LM.sidewalkR.x1) / 2, 0);
+    // Deck: centroid line of the deck polygon (sketch vertex {x, y} = world {z: x, x: y}).
+    var dx = (LM.deckX0 + LM.deckX1) / 2, dz0 = 0, dz1 = DESIGN_MODEL.parklet.length;
+    var sk = (typeof state !== 'undefined') ? state.pkShape : null;
+    if (sk && sk.active && sk.verts && sk.verts.length >= 3) {
+      var A = 0, cx = 0, v = sk.verts;
+      for (var i = 0; i < v.length; i++) {
+        var p = v[i], q = v[(i + 1) % v.length], k = p.x * q.y - q.x * p.y;
+        A += k; cx += (p.y + q.y) * k;
+      }
+      if (Math.abs(A) > 1e-6) dx = cx / (3 * A);
+      dz0 = Math.min.apply(null, v.map(function(p) { return p.x; }));
+      dz1 = Math.max.apply(null, v.map(function(p) { return p.x; }));
+    }
+    if (dz1 - dz0 > 1) add('deck', 'deck', null, dx, 0, dz0 + 0.4, dz1 - 0.4);
+    DESIGN_MODEL.paths = paths;
+  })();
   return DESIGN_MODEL;
 }
 
