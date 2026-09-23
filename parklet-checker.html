@@ -356,13 +356,13 @@
 <div style='font-size:8px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;'>Move</div>
 <div style='display:grid;grid-template-columns:minmax(40px,1fr) minmax(52px,64px) minmax(40px,1fr);gap:2px;margin-bottom:3px;'>
 <div></div>
-<button onclick='cadMoveCardinal("N")' style='font-size:10px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='North +Z'>&#8593; N</button>
+<button onclick='cadMoveCardinal("N")' style='font-size:10px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='North -Z'>&#8593; N</button>
 <div></div>
 <button onclick='cadMoveCardinal("W")' style='font-size:10px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='West -X'>&#8592; W</button>
 <input type='number' id='cadMoveDist' value='0.25' step='0.05' min='0.001' style='font-size:10px;padding:2px 1px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);text-align:center;width:100%;box-sizing:border-box;' title='Step (m)'>
 <button onclick='cadMoveCardinal("E")' style='font-size:10px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='East +X'>E &#8594;</button>
 <div></div>
-<button onclick='cadMoveCardinal("S")' style='font-size:10px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='South -Z'>&#8595; S</button>
+<button onclick='cadMoveCardinal("S")' style='font-size:10px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='South +Z'>&#8595; S</button>
 <div></div>
 </div>
 <div style='font-size:8px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:5px 0 3px;'>Delta</div>
@@ -593,7 +593,7 @@
         <div>
           <div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
             <input type='number' id='settNorthDeg' class='sett-input' step='1' value='0' style='width:80px;font-size:13px;padding:5px 8px;' oninput='cadSetProjectNorth(parseFloat(this.value)||0)'>
-            <span style='font-size:10px;color:var(--muted);'>degrees CW from world +Z axis</span>
+            <span style='font-size:10px;color:var(--muted);'>degrees CW from world north (-Z)</span>
           </div>
           <button class='ctx-btn' onclick='cadSetProjectNorth(0)'>Reset to 0&deg;</button>
         </div>
@@ -1436,12 +1436,17 @@ var DESIGN_MODEL = {
 
 // â”€â”€ Canonical world coordinate system (metres) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //   x  = across street; 0 = curb/sidewalk edge; increases toward road centre
-//   z  = along street;  0 = parklet start end; increases toward the far end (N)
+//   z  = along street;  0 = parklet start end (north end); increases toward the far end
 // Plan:   SVG_X = worldToPlan(x,z).px = _pvPKX - z * HS   (+Z runs LEFT on the page)
 //         SVG_Y = worldToPlan(x,z).py = PK_Y   + x * pvSC (+X runs DOWN the page)
 //         i.e. Plan is a true top-down view of the right-handed 3D scene, not a mirror.
 // 3D:     mesh.position.x = x,  mesh.position.z = z   (Three.js y = height)
 // All plan<->world conversions go through worldToPlan / planToWorld / planDeltaToWorld.
+//
+// Cardinal directions -- the ONLY definition; compasses, move buttons and labels read it.
+// Right-handed with Y up: facing N (-Z), E (+X) is on your right, so a north-up view
+// reads east-right like a real map. Plan: N points right, E points down.
+var CAD_CARDINAL = {N:{x:0,z:-1}, S:{x:0,z:1}, E:{x:1,z:0}, W:{x:-1,z:0}};
 
 // Mirror one FL3D instance into DESIGN_MODEL.objects (upsert by id).
 function _dmSyncObject(inst) {
@@ -1606,10 +1611,10 @@ window.debugLandmarks = function() {
     Object.assign({ pt: 'bldgL.face' }, _ndc(LM.buildingL.innerFaceX, h, L*0.5)),
     Object.assign({ pt: 'bldgR.face' }, _ndc(LM.buildingR.innerFaceX, h, L*0.5)),
     Object.assign({ pt: 'bldgR.back' }, _ndc(LM.buildingR.outerFaceX, h, L*0.5)),
-    Object.assign({ pt: 'deck.SW' },    _ndc(LM.deckX0, 0, 0)),
-    Object.assign({ pt: 'deck.NW' },    _ndc(LM.deckX0, 0, L)),
-    Object.assign({ pt: 'deck.NE' },    _ndc(LM.deckX1, 0, L)),
-    Object.assign({ pt: 'deck.SE' },    _ndc(LM.deckX1, 0, 0))
+    Object.assign({ pt: 'deck.NW' },    _ndc(LM.deckX0, 0, 0)),
+    Object.assign({ pt: 'deck.SW' },    _ndc(LM.deckX0, 0, L)),
+    Object.assign({ pt: 'deck.SE' },    _ndc(LM.deckX1, 0, L)),
+    Object.assign({ pt: 'deck.NE' },    _ndc(LM.deckX1, 0, 0))
   ];
   console.table(rows);
   var out = rows.filter(function(r){ return r.inFrame !== 'YES'; });
@@ -4431,7 +4436,7 @@ function snapToGrid(v, spacing) {
   return Math.round(v / spacing) * spacing;
 }
 // Plan is a true top-down projection of the right-handed Three.js world: with +X
-// (toward the road) running DOWN the page, +Z (along street, N) must run LEFT.
+// (toward the road) running DOWN the page, +Z (along street, south) must run LEFT.
 // _pvPKX is the SVG x of world z=0, which is the parklet rectangle's right edge.
 function worldToPlan(wx, wz) {
   return { px: _pvPKX - wz * _pvHS, py: _pvPKY + wx * _pvSC };
@@ -4528,13 +4533,14 @@ function _pvToggleMeasure() {
    X+  cross-street  (0 = near-curb edge, positive = toward roadway)
    Y+  vertical      (0 = deck surface,    positive = upward)
    Z+  along-street  (0 = parklet start,   positive = far end)
+   Cardinals: CAD_CARDINAL  (N = -Z, S = +Z, E = +X, W = -X)
 
    PARKLET CORNERS  (world coordinates)
    ──────────────────────────────────────────────────────────────────
-   SW = (0,            0, 0)               near-curb, start end
-   SE = (parkletWidth, 0, 0)              far-road,  start end
-   NW = (0,            0, parkletLength)  near-curb, far end
-   NE = (parkletWidth, 0, parkletLength)  far-road,  far end
+   NW = (0,            0, 0)               near-curb, start end
+   NE = (parkletWidth, 0, 0)              far-road,  start end
+   SW = (0,            0, parkletLength)  near-curb, far end
+   SE = (parkletWidth, 0, parkletLength)  far-road,  far end
 
    VIEW PROJECTIONS
    ──────────────────────────────────────────────────────────────────
@@ -4564,12 +4570,12 @@ var WM = (function() {
   function _anchors() {
     var W = _dmCurrent().parklet.width, L = _dmCurrent().parklet.length;
     return {
-      SW:   { wx: 0,   wz: 0,   label: 'PARKLET CORNER SW' },
-      SE:   { wx: W,   wz: 0,   label: 'PARKLET CORNER SE' },
-      NW:   { wx: 0,   wz: L,   label: 'PARKLET CORNER NW' },
-      NE:   { wx: W,   wz: L,   label: 'PARKLET CORNER NE' },
-      midS: { wx: W/2, wz: 0,   label: 'PARKLET EDGE S-MID' },
-      midN: { wx: W/2, wz: L,   label: 'PARKLET EDGE N-MID' },
+      NW:   { wx: 0,   wz: 0,   label: 'PARKLET CORNER NW' },
+      NE:   { wx: W,   wz: 0,   label: 'PARKLET CORNER NE' },
+      SW:   { wx: 0,   wz: L,   label: 'PARKLET CORNER SW' },
+      SE:   { wx: W,   wz: L,   label: 'PARKLET CORNER SE' },
+      midN: { wx: W/2, wz: 0,   label: 'PARKLET EDGE N-MID' },
+      midS: { wx: W/2, wz: L,   label: 'PARKLET EDGE S-MID' },
       midW: { wx: 0,   wz: L/2, label: 'PARKLET EDGE W-MID' },
       midE: { wx: W,   wz: L/2, label: 'PARKLET EDGE E-MID' },
       ctr:  { wx: W/2, wz: L/2, label: 'PARKLET CTR' },
@@ -5684,12 +5690,11 @@ const manholes = state['manholes'] || [];
     s += `<rect x='${(_sXpx-10*pvZS).toFixed(1)}' y='${_slTop}' width='${(20*pvZS).toFixed(1)}' height='${_slBot-_slTop}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event)' data-pvsl='hit'/>`;
   }
 
-  // North compass rose. N is world +Z (along-street far end); its screen direction is
-  // taken from worldToPlan, so it points LEFT in this true top-down projection.
-  // Placed in the top-right corner, above the near building.
+  // North compass rose. N comes from CAD_CARDINAL (world -Z) projected through
+  // worldToPlan, so it points RIGHT. Placed in the top-right corner, above the near building.
   (function() {
     var _cR = 11, _cX = VW - _cR - 20, _cY = -CTX_TOP + _cR + 10;
-    var _n0 = worldToPlan(0, 0), _n1 = worldToPlan(0, 1);
+    var _n0 = worldToPlan(0, 0), _n1 = worldToPlan(CAD_CARDINAL.N.x, CAD_CARDINAL.N.z);
     var _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
     _nx /= _nm; _ny /= _nm;
     var _pt = function(k) { return (_cX + _nx * k).toFixed(1) + ',' + (_cY + _ny * k).toFixed(1); };
@@ -7995,7 +8000,7 @@ function ensure3DReady() {
       _ccvs = document.createElement('canvas');
       _ccvs.id = '_3dCompassCvs';
       _ccvs.width = 56; _ccvs.height = 56;
-      _ccvs.title = 'N = along-street far end';
+      _ccvs.title = 'N = world -Z (parklet start end) · E = world +X (toward road)';
       _ccvs.style.cssText = 'position:absolute;bottom:8px;right:8px;pointer-events:none;z-index:3;border-radius:50%;';
       _e3c.appendChild(_ccvs);
     }
@@ -8064,9 +8069,9 @@ function ensure3DReady() {
 }
 window.ensure3DReady = ensure3DReady;
 
-// Compass rose: draws world N (+Z, red) and E (+X, amber) as live arrows each frame.
-// Updating on every camera orbit, so the user always knows which screen direction is which.
-// N = along-street far end (+Z).  E = toward road centre (+X).
+// Compass rose: draws world N (red) and E (amber) from CAD_CARDINAL as live arrows each
+// frame, so the user always knows which screen direction is which while orbiting.
+// N = -Z (toward the parklet start end).  E = +X (toward the road centre).
 function _3dUpdateCompass() {
   var cvs = document.getElementById('_3dCompassCvs');
   if (!cvs || !_3d || !_3d.camera || typeof THREE === 'undefined') return;
@@ -8082,8 +8087,8 @@ function _3dUpdateCompass() {
     if (m < 0.001) return { x: 1, y: 0 };
     return { x: v.x / m, y: -v.y / m };  // flip Y: canvas Y grows down, world Y grows up
   }
-  var nDir = _screenDir(0, 0, 1);  // N = +Z = along-street far end
-  var eDir = _screenDir(1, 0, 0);  // E = +X = toward road centre
+  var nDir = _screenDir(CAD_CARDINAL.N.x, 0, CAD_CARDINAL.N.z);
+  var eDir = _screenDir(CAD_CARDINAL.E.x, 0, CAD_CARDINAL.E.z);
   // Background disc
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(18,18,18,0.72)'; ctx.fill();
@@ -8106,8 +8111,8 @@ function _3dUpdateCompass() {
     ctx.fillStyle = color;
     ctx.fillText(label, cx + dir.x * (r+6), cy + dir.y * (r+6));
   }
-  _drawAxis(nDir, '#c03030', 'N');  // red:   N = along-street far end  (+Z)
-  _drawAxis(eDir, '#c07010', 'E');  // amber: E = toward road centre     (+X)
+  _drawAxis(nDir, '#c03030', 'N');  // red:   N = -Z
+  _drawAxis(eDir, '#c07010', 'E');  // amber: E = +X
 }
 window._3dUpdateCompass = _3dUpdateCompass;
 
@@ -9231,13 +9236,13 @@ function renderFurnitureProps(instId,inst) {
   var offsetBlock=_rpS('MOVE')+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;max-width:150px;margin-bottom:3px;">'+
     '<div></div>'+
-    '<button class="rp-btn rp-btn-sm" title="North (+Z)" onclick="moveFurnCardinal('+iid+',\'N\',parseFloat(document.getElementById(\'rpmDist'+iid+'\').value)||0.25)">&#8593;&#160;N</button>'+
+    '<button class="rp-btn rp-btn-sm" title="North (-Z)" onclick="moveFurnCardinal('+iid+',\'N\',parseFloat(document.getElementById(\'rpmDist'+iid+'\').value)||0.25)">&#8593;&#160;N</button>'+
     '<div></div>'+
     '<button class="rp-btn rp-btn-sm" title="West (-X)" onclick="moveFurnCardinal('+iid+',\'W\',parseFloat(document.getElementById(\'rpmDist'+iid+'\').value)||0.25)">&#8592;&#160;W</button>'+
     '<input type="number" id="rpmDist'+iid+'" step="0.05" min="0.01" value="0.25" title="Step (m)" style="width:44px;font-size:10px;padding:2px;border:1px solid var(--rule);border-radius:3px;font-family:var(--mono);background:var(--card);color:var(--ink);text-align:center;">'+
     '<button class="rp-btn rp-btn-sm" title="East (+X)" onclick="moveFurnCardinal('+iid+',\'E\',parseFloat(document.getElementById(\'rpmDist'+iid+'\').value)||0.25)">E&#160;&#8594;</button>'+
     '<div></div>'+
-    '<button class="rp-btn rp-btn-sm" title="South (-Z)" onclick="moveFurnCardinal('+iid+',\'S\',parseFloat(document.getElementById(\'rpmDist'+iid+'\').value)||0.25)">&#8595;&#160;S</button>'+
+    '<button class="rp-btn rp-btn-sm" title="South (+Z)" onclick="moveFurnCardinal('+iid+',\'S\',parseFloat(document.getElementById(\'rpmDist'+iid+'\').value)||0.25)">&#8595;&#160;S</button>'+
     '<div></div>'+
     '</div>'+
     _rpS('OFFSET')+
@@ -10318,8 +10323,8 @@ if (typeof seInit === 'function') seInit();
 // ============================================================
 // CAD ENGINE — One World, Three Views
 // World axes: X = cross-street, Y = vertical, Z = along-street
-// Cardinal: N = +Z, S = -Z, E = +X, W = -X
-// Origin (0,0,0) = SW corner of parklet deck
+// Cardinal: see CAD_CARDINAL (N = -Z, S = +Z, E = +X, W = -X)
+// Origin (0,0,0) = NW corner of parklet deck (curb side, north end)
 // ============================================================
 
 // ── Geometric primitives ──────────────────────────────────────
@@ -10343,8 +10348,8 @@ function getParkletBoundarySegments() {
   return [
     {a:{x:0,  z:0 }, b:{x:0,  z:pL}, edge:'west',  label:'WEST EDGE' },
     {a:{x:pW, z:0 }, b:{x:pW, z:pL}, edge:'east',  label:'EAST EDGE' },
-    {a:{x:0,  z:0 }, b:{x:pW, z:0 }, edge:'south', label:'SOUTH EDGE'},
-    {a:{x:0,  z:pL}, b:{x:pW, z:pL}, edge:'north', label:'NORTH EDGE'},
+    {a:{x:0,  z:0 }, b:{x:pW, z:0 }, edge:'north', label:'NORTH EDGE'},
+    {a:{x:0,  z:pL}, b:{x:pW, z:pL}, edge:'south', label:'SOUTH EDGE'},
   ];
 }
 
@@ -10467,10 +10472,8 @@ function moveFurnitureWorld(inst, dx, dy, dz) {
   if (typeof fl3DUpdateSelUI === 'function') fl3DUpdateSelUI(inst.id);
 }
 
-// Cardinal movement helper — called from Move panel buttons
-// N=+Z, S=-Z, E=+X, W=-X
-var CAD_CARDINAL = {N:{x:0,z:1}, S:{x:0,z:-1}, E:{x:1,z:0}, W:{x:-1,z:0}};
-
+// Cardinal movement helper — called from Move panel buttons (CAD_CARDINAL is defined
+// with the canonical coordinate system in the main script).
 function moveFurnCardinal(instId, dir, dist) {
   var inst = (typeof FL3D !== 'undefined' && FL3D.placed)
     ? FL3D.placed.find(function(i){ return i.id === instId; }) : null;
@@ -15228,7 +15231,7 @@ AX.system = function() {
 '- If the user only asks a question, answer from CURRENT STATE without calling the tool.',
 '',
 'COORDINATES',
-'- Street runs along Z (0 = south/start of parklet, parkletLength = north/end). X runs across the street: curb at x=0, parklet occupies 0..parkletWidth, then bike lane / buffer / travel lanes.',
+'- Street runs along Z (0 = north/start of parklet, parkletLength = south/end; north is -Z, east is +X). X runs across the street: curb at x=0, parklet occupies 0..parkletWidth, then bike lane / buffer / travel lanes.',
 '- Furniture: x = distance from curb across the deck (0..parkletWidth), z = distance along the deck (0..parkletLength), rotationDeg about vertical. Keep pieces inside the deck with ~0.3 m clear of edges and at least a 1.5 m clear path (Manual G19).',
 '- Site objects: hydrants (H), poles (P), signal boxes (S), driveways and manholes are placed by xM = position along the street in the same Z axis; the parklet spans 0..parkletLength. Manholes also take yF = fraction across the road 0..1.',
 '',
