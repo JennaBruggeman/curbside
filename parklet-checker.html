@@ -6354,9 +6354,9 @@ if (false) { // dead block â€” see ensure3DReady() above
     _3d.scene.background = new THREE.Color(DS.t().bg3d);
     _3d.scene.fog = DS.mode()==='technical' ? null : new THREE.Fog(DS.t().bg3d, 40, 80);
     _3d.camera = new THREE.PerspectiveCamera(42, W / H, 0.05, 200);
-    _3d.camera.position.set(-8, 12, 10);  // building side; North (far end) to the right
+    _3d.camera.position.set(-11, 14, 10); // behind typical near building; overridden by posTag block
     _3d.renderer = new THREE.WebGLRenderer({
- antialias: true 
+ antialias: true
 }
 );
     _3d.renderer.setSize(W, H);
@@ -6783,10 +6783,13 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   if (!_3d.hasPositioned || _3d._posTag !== _posTag) {
     _3d._posTag = _posTag;
     _3d.hasPositioned = true;
-    // Camera on building side (x < 0), centred on deck midpoint (z = cz).
-    // With camera.up=(0,1,0), screen-right = +Z = North (far parklet end).
-    const camH = Math.max(L * 0.65, _sceneW * 1.3);
-    _3d.camera.position.set(XSWL - _sceneW * 0.35, camH, cz);
+    // Camera on building side, far enough behind the near building to see it fully.
+    // camX must be < XSWL - bufW - lMaxSD (the leftmost face of near-side buildings).
+    // Add 2 m clearance so the near building is visible, not clipped.
+    const _camClear = Math.max(2.0, SW * 0.5);
+    const camX = XSWL - (bufW || 0) - lMaxSD - _camClear;
+    const camH = Math.max(L * 0.65, Math.abs(camX - roadCX) * 0.85);
+    _3d.camera.position.set(camX, camH, cz);
   }
   const slopePct = parseFloat(state['slope']) || 0;
   _3d.group.rotation.x = -Math.atan(slopePct / 100);
@@ -7763,7 +7766,7 @@ function ensure3DReady() {
     _3d.scene.fog = (typeof DS !== 'undefined' && DS.mode() === 'technical')
       ? null : new THREE.Fog(_e3bg, 40, 80);
     _3d.camera = new THREE.PerspectiveCamera(42, _e3w / _e3h, 0.05, 200);
-    _3d.camera.position.set(-8, 12, 10);  // building side; North (far end) to the right
+    _3d.camera.position.set(-11, 14, 10); // behind typical near building; overridden by posTag block
     try {
       _3d.renderer = new THREE.WebGLRenderer({ antialias: true });
     } catch (_we) {
