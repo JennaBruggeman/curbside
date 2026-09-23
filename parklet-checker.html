@@ -1497,6 +1497,13 @@ function _dmSyncObject(inst) {
     z:           typeof inst.z === 'number' ? inst.z : (inst.mesh ? inst.mesh.position.z : 0),
     rotationY:   typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)
   };
+  // Archetype instances carry their own numbers and finishes; Plan draws from these.
+  if (inst.archetype) {
+    data.archetype = inst.archetype;
+    data.params    = Object.assign({}, inst.params);
+    data.materials = Object.assign({}, inst.materials);
+    data.meshUrl   = inst.meshUrl || null;
+  }
   if (obj) { Object.assign(obj, data); }
   else { DESIGN_MODEL.objects.push(data); }
 }
@@ -2898,7 +2905,7 @@ function _initSVGZoom(svgId, vb, baseW, baseH) {
           var _pfwx = typeof _pFinst.x==='number'?_pFinst.x:0;
           var _pfwz = typeof _pFinst.z==='number'?_pFinst.z:0;
           var _pfP = worldToPlan(_pfwx, _pfwz), _pfcx = _pfP.px, _pfcy = _pfP.py;
-          var _pfdims = typeof _flGetDims==='function'?_flGetDims(_pFinst.objId):{l:1.5,d:0.5};
+          var _pfdims = flInstDims(_pFinst);
           var _pfhr = Math.sqrt(Math.pow(_pfdims.l*_pHS/2,2)+Math.pow(_pfdims.d*_ppvSC/2,2))+8;
           if (Math.hypot(pos.x-_pfcx,pos.y-_pfcy)<_pfhr) return;
         }
@@ -3391,12 +3398,16 @@ document.addEventListener('mouseup', function() {
           var fyTop = pkSurface - fHpx;
           var fyBot = pkSurface;
 
-          var _secFn = (typeof FL2D_SECTION !== 'undefined') ? (FL2D_SECTION[obj.objId] || FL2D_SECTION['_default']) : null;
-          if (_secFn) {
-            sv += _secFn(fxL, fxR, fyTop, fyBot, fW, fHpx, SC, !!obj.isBeyond, !!isTech, null);
+          // Archetype pieces: the elevation of the same parts Plan and 3D draw.
+          var _sInst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return i.id === obj.id; }) : null;
+          var _sSpec = _sInst ? flInstSpec(_sInst) : null;
+          if (_sSpec) {
+            sv += flSectionArchetype(_sSpec.type, _sSpec.params, {mats:_sSpec.mats, x:_sInst.x || 0,
+              rot:(typeof _sInst.userRotation === 'number' ? _sInst.userRotation : (_sInst.rotationY || 0)),
+              xToPx:function(wx) { return pkLeft + wx * SC; }, yDeck:pkSurface, SC:SC, isBeyond:!!obj.isBeyond, tech:!!isTech, id:_sInst.id});
             if (!obj.isBeyond && fW > 18) {
-              var _lbl = obj.objId ? obj.objId.replace(/^VS-[A-Z]+-/,'').replace(/-\d+$/,'')+(isTech?'':' ') : (isTech?'FRN':'F');
-              sv += '<text x="' + Math.round(fxL+fW/2) + '" y="' + Math.round(fyTop+fHpx/2+2) + '" text-anchor="middle" font-family="Helvetica Neue,Arial,sans-serif" font-size="5.5" fill="' + (isTech?'#222':'#4a2810') + '" letter-spacing="' + (isTech?'0.5':'0') + '" dominant-baseline="middle">' + _lbl.trim().toUpperCase() + '</text>';
+              var _lbl = FL_ARCHETYPES[_sSpec.type].label;
+              sv += '<text x="' + Math.round(fxL+fW/2) + '" y="' + Math.round(fyTop+fHpx/2+2) + '" text-anchor="middle" font-family="Helvetica Neue,Arial,sans-serif" font-size="5.5" fill="' + (isTech?'#222':'#4a2810') + '" letter-spacing="' + (isTech?'0.5':'0') + '" dominant-baseline="middle">' + _lbl.toUpperCase() + '</text>';
             }
             return;
           }
@@ -4186,31 +4197,6 @@ function getSectionCutWorldZ() {
   return getSectionCutLocation();
 }
 
-function _flGetDims(objId) {
-  var def = {l:1.5, d:0.5, h:0.45};
-  try {
-    if (typeof FL_OBJ !== 'undefined') {
-      var obj = FL_OBJ.find(function(o){ return o.id === objId; });
-      if (obj && obj.dims) {
-        var lv = function(k) { var d=obj.dims.find(function(x){return x.l===k;}); return d?parseFloat(d.v):null; };
-        var l = lv('Length')||lv('Width')||0; var dep = lv('Depth')||0; var h = lv('Height')||lv('Seat H')||0;
-        if (l > 0) def.l = Math.min(l / 1000, 6);
-        if (dep > 0) def.d = Math.min(dep / 1000, 3);
-        if (h > 0) def.h = Math.min(h / 1000, 2);
-      }
-    }
-    if (window.FL3D_FACTORY && window.FL3D_FACTORY[objId]) {
-      var tmpM = window.FL3D_FACTORY[objId]({});
-      if (tmpM && tmpM.userData) {
-        if (tmpM.userData.l) def.l = tmpM.userData.l;
-        if (tmpM.userData.d) def.d = tmpM.userData.d;
-        if (tmpM.userData.h) def.h = tmpM.userData.h;
-      }
-    }
-  } catch(e) {}
-  return def;
-}
-
 // ── Objects intersected by a vertical plane at world Z = cutWorldZ ───────────
 function getSectionObjectsAt(cutWorldZ) {
   const TOL = 0.05;
@@ -4542,7 +4528,7 @@ function renderCrossSection() {
     s += `<rect x='${(bSvgX-bBW*0.32).toFixed(1)}' y='${(GY-CURB_H-bH*0.22).toFixed(1)}' width='${(bBW*0.64).toFixed(1)}' height='${rbH}' fill='white' opacity='0.85'/>`;
   });
 
-  // Furniture: section profile using FL2D_SECTION
+  // Furniture: section elevation of each archetype piece (flSectionArchetype)
   _secObj.furniture.forEach(function(furn) {
     const box = furn.box;
     const fx0 = _x3D(box.min.x);
@@ -4553,11 +4539,14 @@ function renderCrossSection() {
     const fw = fx1 - fx0;
     const fh = fy_bot - fy_top;
     if (fw < 1 || fh < 1) return;
-    var _secFn = (typeof FL2D_SECTION !== 'undefined') ? (FL2D_SECTION[furn.objId] || FL2D_SECTION['_default']) : null;
-    if (_secFn) {
-      s += _secFn(fx0, fx1, fy_top, fy_bot, fw, fh, SC, !!furn.isBeyond, false, 'url(#pocheH)');
+    const _cInst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return i.id === furn.id; }) : null;
+    const _cSpec = _cInst ? flInstSpec(_cInst) : null;
+    if (_cSpec) {
+      s += flSectionArchetype(_cSpec.type, _cSpec.params, {mats:_cSpec.mats, x:_cInst.x || 0,
+        rot:(typeof _cInst.userRotation === 'number' ? _cInst.userRotation : (_cInst.rotationY || 0)),
+        xToPx:_x3D, yDeck:DECK_Y, SC:SC, isBeyond:!!furn.isBeyond, tech:DS.mode() === 'technical', id:_cInst.id});
       if (!furn.isBeyond && fw > 18) {
-        const _nm = furn.objId ? furn.objId.replace(/^VS-[A-Z]+-/,'').replace(/-\d+$/,'').toUpperCase() : 'FURN';
+        const _nm = FL_ARCHETYPES[_cSpec.type].label.toUpperCase();
         s += `<text x='${((fx0+fx1)/2).toFixed(1)}' y='${((fy_top+fy_bot)/2).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='5' fill='#444' dominant-baseline='middle'>${_nm}</text>`;
       }
       return;
@@ -4862,7 +4851,7 @@ function worldFrameToPlanMatrix(wx, wz, rot, pxL, pxD) {
 function getFurnitureCorners(inst) {
   // Canonical: at userRotation=0, hw along world +Z (along-street), hd along world +X.
   // wx = x + lc*sin(th) + dc*cos(th),  wz = z + lc*cos(th) - dc*sin(th)
-  var dims = typeof _flGetDims === 'function' ? _flGetDims(inst.objId) : {l:1.5, d:0.5};
+  var dims = flInstDims(inst);
   var hw = dims.l / 2, hd = dims.d / 2;
   var th = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
   var cosT = Math.cos(th), sinT = Math.sin(th);
@@ -4996,7 +4985,7 @@ var WM = (function() {
     var x  = typeof inst.x === 'number' ? inst.x : (inst.mesh ? inst.mesh.position.x : 0);
     var z  = typeof inst.z === 'number' ? inst.z : (inst.mesh ? inst.mesh.position.z : 0);
     var yD = (typeof FL3D !== 'undefined' && FL3D && FL3D.DECK_H) ? FL3D.DECK_H : 0.065;
-    // Return userRotation (world rotation in UI). mesh.rotation.y includes FURN_BASE_YAW.
+    // Return userRotation (world rotation in UI). mesh.rotation.y includes FL_BASE_YAW.
     var ry = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
     return { position: { x: x, y: yD, z: z }, rotation: { x: 0, y: ry, z: 0 } };
   }
@@ -5139,204 +5128,6 @@ WM.rebuild = function() { syncDesignModel('rebuild'); };
 WM.rebuildAll = function() { syncDesignModel('rebuildAll'); };
 
 
-// ── FL2D SECTION PROJECTIONS ─────────────────────────────────────────────────
-var FL2D_SECTION = {};
-(function() {
-  var _s = FL2D_SECTION;
-  function _pr(x,y,w,h,fill,stk,sw,extra) { return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" fill="'+fill+'" stroke="'+stk+'" stroke-width="'+sw+'"'+(extra||'')+'/>';}
-  function _ln(x1,y1,x2,y2,col,sw) { return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+col+'" stroke-width="'+sw+'"/>';}
-  function _poche(x,y,w,h,isTech,pat) {
-    var fill=isTech?'#d0ccc6':'#c4906a',stk=isTech?'#000':'#7a4a28',sw=isTech?1.5:1;
-    var thePat=pat||(isTech?'url(#sePoché)':'url(#seWarmHatch)');
-    return _pr(x,y,w,h,fill,stk,sw)+_pr(x,y,w,h,thePat,'none',0,' opacity="'+(isTech?0.5:0.3)+'"');
-  }
-  function _beyond(x,y,w,h,isTech) {
-    if(isTech) return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="none" stroke="#888" stroke-width="0.5" stroke-dasharray="3,2"/>';
-    return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="rgba(160,110,60,.12)" stroke="rgba(106,60,20,.35)" stroke-width="0.5" stroke-dasharray="3,2" rx="1"/>';
-  }
-  function _bench(fxL,fxR,fyTop,fyBot,fw,fh,SC,isBeyond,isTech,pat) {
-    if(isBeyond) return _beyond(fxL,fyTop,fw,fh,isTech);
-    var sH=Math.min(fh*0.58,Math.max(4,Math.round(0.44*SC)));
-    var sY=fyBot-sH,brW=Math.min(fw*0.22,Math.max(2,Math.round(0.12*SC)));
-    var s=_poche(fxL,sY,fw,sH,isTech,pat);
-    if(fh-sH>3) s+=_poche(fxL,fyTop,brW,fh-sH,isTech,pat);
-    if(!isTech&&fw>14){for(var i=1;i<3;i++){var sx=fxL+fw*(i/3);s+=_ln(sx,sY,sx,fyBot,'rgba(120,70,30,.2)',0.5);}}
-    return s;
-  }
-  function _seat(fxL,fxR,fyTop,fyBot,fw,fh,SC,isBeyond,isTech,pat) {
-    if(isBeyond) return _beyond(fxL,fyTop,fw,fh,isTech);
-    return _poche(fxL,fyTop,fw,fh,isTech,pat)+_ln(fxL,fyTop+1,fxR,fyTop+1,isTech?'#888':'rgba(255,200,140,.6)',1.5);
-  }
-  function _table(fxL,fxR,fyTop,fyBot,fw,fh,SC,isBeyond,isTech,pat) {
-    if(isBeyond) return _beyond(fxL,fyTop,fw,fh,isTech);
-    var tH=Math.max(2,Math.min(fh*0.12,Math.round(0.06*SC)));
-    var lW=Math.max(2,Math.min(fw*0.1,Math.round(0.06*SC)));
-    return _poche(fxL,fyTop,fw,tH,isTech,pat)+_poche(fxL,fyTop+tH,lW,fh-tH,isTech,pat)+_poche(fxR-lW,fyTop+tH,lW,fh-tH,isTech,pat);
-  }
-  function _planter(fxL,fxR,fyTop,fyBot,fw,fh,SC,isBeyond,isTech,pat) {
-    if(isBeyond) return _beyond(fxL,fyTop,fw,fh,isTech);
-    var wt=Math.max(3,Math.min(fw*0.18,Math.round(0.15*SC)));
-    var tw=Math.max(2,Math.round(0.05*SC));
-    var s=_poche(fxL,fyTop,fw,fh,isTech,pat);
-    var vw=fw-wt*2,vh=fh-tw;
-    if(vw>3&&vh>2) s+='<rect x="'+(fxL+wt).toFixed(1)+'" y="'+(fyTop+tw).toFixed(1)+'" width="'+vw.toFixed(1)+'" height="'+vh.toFixed(1)+'" fill="'+(isTech?'#f0ede8':'#e8c8a0')+'" stroke="'+(isTech?'#555':'#9a6a38')+'" stroke-width="0.5"/>';
-    return s;
-  }
-  function _picnic(fxL,fxR,fyTop,fyBot,fw,fh,SC,isBeyond,isTech,pat) {
-    if(isBeyond) return _beyond(fxL,fyTop,fw,fh,isTech);
-    var tH=Math.max(2,Math.min(fh*0.1,Math.round(0.06*SC)));
-    var sH=Math.max(3,Math.min(fh*0.45,Math.round(0.44*SC)));
-    var sW=Math.min(fw*0.28,Math.max(4,Math.round(0.3*SC)));
-    return _poche(fxL+sW,fyTop,fw-sW*2,tH,isTech,pat)+_poche(fxL,fyBot-sH,sW,sH,isTech,pat)+_poche(fxR-sW,fyBot-sH,sW,sH,isTech,pat);
-  }
-  function _generic(fxL,fxR,fyTop,fyBot,fw,fh,SC,isBeyond,isTech,pat) {
-    if(isBeyond) return _beyond(fxL,fyTop,fw,fh,isTech);
-    return _poche(fxL,fyTop,fw,fh,isTech,pat);
-  }
-  ['VS-FRM-BN01','VS-HVL-BN01','VS-DLG-BN01','VS-APR-BN01','VS-ATL-BN01','VS-AIR-BN01','VS-EDO-BN01','VS-FLK-BN01','GN-BN01'].forEach(function(id){_s[id]=_bench;});
-  ['VS-BLC-ST01','VS-APR-CH01','VS-AGO-CH01'].forEach(function(id){_s[id]=_seat;});
-  _s['VS-BLC-BB01']=function(fxL,fxR,fyTop,fyBot,fw,fh,SC,isBeyond,isTech,pat){if(isBeyond)return _beyond(fxL,fyTop,fw,fh,isTech);var h2=fh/2;return _poche(fxL,fyTop,fw,h2,isTech,pat)+_poche(fxL,fyTop+h2,fw,h2,isTech,pat);};
-  ['VS-FRM-TL01','VS-HVL-TL01','VS-APR-TL01','VS-AGO-TL01','VS-AIR-TL01','VS-BLC-TL01','VS-FLK-TL01'].forEach(function(id){_s[id]=_table;});
-  ['VS-HVL-PT01','VS-BUZ-TB01'].forEach(function(id){_s[id]=_picnic;});
-  ['VS-BLC-PL01','VS-BLC-FB01','VS-AGO-PL01','GN-PL01'].forEach(function(id){_s[id]=_planter;});
-  _s['_default']=_generic;
-})();
-
-// ── FL2D PLAN PROJECTIONS ────────────────────────────────────────────────────
-var FL2D_PLAN = {
-  '_default': function(fw, fh, rotDeg, isSel, fillColor, strokeColor, strokeWidth) {
-    return `<rect x='${(-fw/2).toFixed(1)}' y='${(-fh/2).toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' fill='${fillColor}' stroke='${strokeColor}' stroke-width='${strokeWidth}' rx='1.5'/><line x1='0' y1='${(-fh/2).toFixed(1)}' x2='0' y2='${(fh/2).toFixed(1)}' stroke='${strokeColor}' stroke-width='0.4' opacity='0.5'/>`;
-  }
-};
-// Bench types
-(function() {
-  function benchSVG(fw, fh, fillColor, strokeColor, strokeWidth) {
-    var hw = fw/2, hh = fh/2;
-    var s = '';
-    s += `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${(fh*0.6).toFixed(1)}' rx='1' fill='${fillColor}' stroke='${strokeColor}' stroke-width='${strokeWidth}'/>`;
-    s += `<rect x='${(-hw+fw*0.05).toFixed(1)}' y='${(fh*0.1).toFixed(1)}' width='${(fw*0.9).toFixed(1)}' height='${(fh*0.2).toFixed(1)}' rx='0.5' fill='${fillColor}' stroke='${strokeColor}' stroke-width='${(strokeWidth*0.7).toFixed(1)}'/>`;
-    s += `<line x1='${(-hw+fw*0.12).toFixed(1)}' y1='${(-hh).toFixed(1)}' x2='${(-hw+fw*0.12).toFixed(1)}' y2='${hh.toFixed(1)}' stroke='${strokeColor}' stroke-width='0.8'/>`;
-    s += `<line x1='${(hw-fw*0.12).toFixed(1)}' y1='${(-hh).toFixed(1)}' x2='${(hw-fw*0.12).toFixed(1)}' y2='${hh.toFixed(1)}' stroke='${strokeColor}' stroke-width='0.8'/>`;
-    return s;
-  }
-  ['VS-FRM-BN01','VS-HVL-BN01','VS-DLG-BN01','__GENERIC_BENCH'].forEach(function(id) {
-    FL2D_PLAN[id] = function(fw,fh,rotDeg,isSel,fc,sc,sw){return benchSVG(fw,fh,fc,sc,sw);};
-  });
-})();
-// Seat types
-(function() {
-  FL2D_PLAN['VS-BLC-ST01'] = function(fw,fh,rotDeg,isSel,fc,sc,sw) {
-    var s = `<rect x='${(-fw/2).toFixed(1)}' y='${(-fh/2).toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' rx='1' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-    s += `<line x1='${(-fw/2+2).toFixed(1)}' y1='0' x2='${(fw/2-2).toFixed(1)}' y2='0' stroke='${sc}' stroke-width='0.6' opacity='0.6'/>`;
-    return s;
-  };
-  FL2D_PLAN['VS-BLC-BB01'] = function(fw,fh,rotDeg,isSel,fc,sc,sw) {
-    var hh = fh/2, hw = fw/2;
-    var s = `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${(fh*0.45).toFixed(1)}' rx='1' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-    s += `<rect x='${(-hw).toFixed(1)}' y='${(hh-fh*0.45).toFixed(1)}' width='${fw.toFixed(1)}' height='${(fh*0.45).toFixed(1)}' rx='1' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-    return s;
-  };
-  FL2D_PLAN['VS-APR-CH01'] = function(fw,fh,rotDeg,isSel,fc,sc,sw) {
-    var hw = fw/2, hh = fh/2;
-    var s = `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${(fh*0.7).toFixed(1)}' rx='1' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-    s += `<circle cx='${(-hw+fw*0.15).toFixed(1)}' cy='${(hh-fh*0.1).toFixed(1)}' r='2.5' fill='${sc}'/>`;
-    s += `<circle cx='${(hw-fw*0.15).toFixed(1)}' cy='${(hh-fh*0.1).toFixed(1)}' r='2.5' fill='${sc}'/>`;
-    return s;
-  };
-  FL2D_PLAN['__GENERIC_CHAIR'] = FL2D_PLAN['VS-APR-CH01'];
-})();
-// Table types
-(function() {
-  function tableSVG(fw, fh, fillColor, strokeColor, strokeWidth) {
-    var hw = fw/2, hh = fh/2;
-    var s = `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' rx='1.5' fill='${fillColor}' stroke='${strokeColor}' stroke-width='${strokeWidth}'/>`;
-    s += `<rect x='${(-hw+2).toFixed(1)}' y='${(-hh+2).toFixed(1)}' width='${(fw-4).toFixed(1)}' height='${(fh-4).toFixed(1)}' fill='none' stroke='${strokeColor}' stroke-width='0.5' opacity='0.5'/>`;
-    var lw = fw*0.12, lh = fh*0.15;
-    s += `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${lw.toFixed(1)}' height='${lh.toFixed(1)}' fill='${strokeColor}' opacity='0.6'/>`;
-    s += `<rect x='${(hw-lw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${lw.toFixed(1)}' height='${lh.toFixed(1)}' fill='${strokeColor}' opacity='0.6'/>`;
-    s += `<rect x='${(-hw).toFixed(1)}' y='${(hh-lh).toFixed(1)}' width='${lw.toFixed(1)}' height='${lh.toFixed(1)}' fill='${strokeColor}' opacity='0.6'/>`;
-    s += `<rect x='${(hw-lw).toFixed(1)}' y='${(hh-lh).toFixed(1)}' width='${lw.toFixed(1)}' height='${lh.toFixed(1)}' fill='${strokeColor}' opacity='0.6'/>`;
-    return s;
-  }
-  ['VS-APR-TL01','VS-FRM-TL01','__GENERIC_TABLE'].forEach(function(id) {
-    FL2D_PLAN[id] = function(fw,fh,rotDeg,isSel,fc,sc,sw){return tableSVG(fw,fh,fc,sc,sw);};
-  });
-})();
-// Picnic table
-FL2D_PLAN['VS-HVL-PT01'] = function(fw,fh,rotDeg,isSel,fc,sc,sw) {
-  var hw = fw/2, hh = fh/2;
-  var s = `<rect x='${(-fw*0.3).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${(fw*0.6).toFixed(1)}' height='${fh.toFixed(1)}' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-  s += `<rect x='${(-hw).toFixed(1)}' y='${(-fh*0.35).toFixed(1)}' width='${(fw*0.18).toFixed(1)}' height='${(fh*0.7).toFixed(1)}' fill='${fc}' opacity='0.7' stroke='${sc}' stroke-width='${(sw*0.6).toFixed(1)}'/>`;
-  s += `<rect x='${(hw-fw*0.18).toFixed(1)}' y='${(-fh*0.35).toFixed(1)}' width='${(fw*0.18).toFixed(1)}' height='${(fh*0.7).toFixed(1)}' fill='${fc}' opacity='0.7' stroke='${sc}' stroke-width='${(sw*0.6).toFixed(1)}'/>`;
-  return s;
-};
-// Buzz combo
-FL2D_PLAN['VS-BUZ-TB01'] = function(fw,fh,rotDeg,isSel,fc,sc,sw) {
-  var hw = fw/2, hh = fh/2;
-  var s = `<circle cx='0' cy='0' r='${(fw*0.28).toFixed(1)}' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-  s += `<rect x='${(-fw*0.12).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${(fw*0.24).toFixed(1)}' height='${(fh*0.22).toFixed(1)}' fill='${fc}' opacity='0.7' stroke='${sc}' stroke-width='${(sw*0.6).toFixed(1)}'/>`;
-  s += `<rect x='${(-fw*0.12).toFixed(1)}' y='${(hh-fh*0.22).toFixed(1)}' width='${(fw*0.24).toFixed(1)}' height='${(fh*0.22).toFixed(1)}' fill='${fc}' opacity='0.7' stroke='${sc}' stroke-width='${(sw*0.6).toFixed(1)}'/>`;
-  s += `<rect x='${(-hw).toFixed(1)}' y='${(-fh*0.12).toFixed(1)}' width='${(fw*0.22).toFixed(1)}' height='${(fh*0.24).toFixed(1)}' fill='${fc}' opacity='0.7' stroke='${sc}' stroke-width='${(sw*0.6).toFixed(1)}'/>`;
-  s += `<rect x='${(hw-fw*0.22).toFixed(1)}' y='${(-fh*0.12).toFixed(1)}' width='${(fw*0.22).toFixed(1)}' height='${(fh*0.24).toFixed(1)}' fill='${fc}' opacity='0.7' stroke='${sc}' stroke-width='${(sw*0.6).toFixed(1)}'/>`;
-  return s;
-};
-// Planters
-(function() {
-  function planterSVG(fw, fh, fc, sc, sw) {
-    var hw = fw/2, hh = fh/2;
-    var s = `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' rx='2' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-    s += `<rect x='${(-hw+fw*0.15).toFixed(1)}' y='${(-hh+fh*0.15).toFixed(1)}' width='${(fw*0.7).toFixed(1)}' height='${(fh*0.7).toFixed(1)}' fill='none' stroke='${sc}' stroke-width='0.6' rx='1.5'/>`;
-    s += `<line x1='${(-fw*0.1).toFixed(1)}' y1='0' x2='${(fw*0.1).toFixed(1)}' y2='0' stroke='${sc}' stroke-width='0.8'/>`;
-    s += `<line x1='0' y1='${(-fh*0.1).toFixed(1)}' x2='0' y2='${(fh*0.1).toFixed(1)}' stroke='${sc}' stroke-width='0.8'/>`;
-    return s;
-  }
-  ['VS-BLC-PL01','VS-BLC-PL02','VS-BLC-PL03','VS-BLC-PL04','VS-BOB-PL01','VS-AGO-PL01'].forEach(function(id) {
-    FL2D_PLAN[id] = function(fw,fh,rotDeg,isSel,fc,sc,sw){return planterSVG(fw,fh,fc,sc,sw);};
-  });
-})();
-// Bike racks
-(function() {
-  function rackSVG(fw, fh, fc, sc, sw) {
-    var hw = fw/2, hh = fh/2;
-    var s = `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' rx='1' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-    s += `<ellipse cx='${(-fw*0.25).toFixed(1)}' cy='0' rx='${(fw*0.08).toFixed(1)}' ry='${(fh*0.3).toFixed(1)}' fill='none' stroke='${sc}' stroke-width='0.8'/>`;
-    s += `<ellipse cx='${(fw*0.25).toFixed(1)}' cy='0' rx='${(fw*0.08).toFixed(1)}' ry='${(fh*0.3).toFixed(1)}' fill='none' stroke='${sc}' stroke-width='0.8'/>`;
-    return s;
-  }
-  ['VS-BOY-BR01','VS-CYC-BR01'].forEach(function(id) {
-    FL2D_PLAN[id] = function(fw,fh,rotDeg,isSel,fc,sc,sw){return rackSVG(fw,fh,fc,sc,sw);};
-  });
-})();
-// Bollard
-FL2D_PLAN['VS-HVL-BL01'] = function(fw,fh,rotDeg,isSel,fc,sc,sw) {
-  return `<circle cx='0' cy='0' r='${(Math.min(fw,fh)/2).toFixed(1)}' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-};
-// Bins
-(function() {
-  function binSVG(fw, fh, fc, sc, sw) {
-    var hw = fw/2, hh = fh/2;
-    var s = `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' rx='1.5' fill='${fc}' stroke='${sc}' stroke-width='${sw}'/>`;
-    s += `<rect x='${(-hw+fw*0.1).toFixed(1)}' y='${(-hh+fh*0.1).toFixed(1)}' width='${(fw*0.8).toFixed(1)}' height='${(fh*0.8).toFixed(1)}' fill='none' stroke='${sc}' stroke-width='0.5' opacity='0.5'/>`;
-    s += `<circle cx='0' cy='0' r='${(Math.min(fw,fh)*0.1).toFixed(1)}' fill='${sc}' opacity='0.4'/>`;
-    return s;
-  }
-  ['VS-BLC-WB01','VS-CTY-WB01'].forEach(function(id) {
-    FL2D_PLAN[id] = function(fw,fh,rotDeg,isSel,fc,sc,sw){return binSVG(fw,fh,fc,sc,sw);};
-  });
-})();
-// Cover/roof/platform
-(function() {
-  function coverSVG(fw, fh, sc, sw) {
-    var hw = fw/2, hh = fh/2;
-    var s = `<rect x='${(-hw).toFixed(1)}' y='${(-hh).toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' rx='2' fill='rgba(0,0,0,0.05)' stroke='${sc}' stroke-dasharray='4,2' stroke-width='${sw}'/>`;
-    s += `<line x1='${(-hw).toFixed(1)}' y1='${(-hh).toFixed(1)}' x2='${hw.toFixed(1)}' y2='${hh.toFixed(1)}' stroke='${sc}' stroke-width='0.5' opacity='0.4'/>`;
-    s += `<line x1='${hw.toFixed(1)}' y1='${(-hh).toFixed(1)}' x2='${(-hw).toFixed(1)}' y2='${hh.toFixed(1)}' stroke='${sc}' stroke-width='0.5' opacity='0.4'/>`;
-    return s;
-  }
-  ['VS-CVR-SH01','MC-KPE-SY109'].forEach(function(id) {
-    FL2D_PLAN[id] = function(fw,fh,rotDeg,isSel,fc,sc,sw){return coverSVG(fw,fh,sc,sw);};
-  });
-})();
 
 // ═════════════════════════════════════════════════════════════════
 // REFACTOR 11 — DRAWING STYLE LAYER (DS)
@@ -5746,24 +5537,20 @@ const C03_REQ = 6;
         // userRotation = world/architectural rotation; rotationY kept as migration alias.
         var _iury = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
         var _iSel = (window.FL3D && window.FL3D.selId === inst.id);
-        var _fl_l = 1.5, _fl_d = 0.5;
-        if (typeof _flGetDims === 'function') { var _fd = _flGetDims(inst.objId); _fl_l = _fd.l; _fl_d = _fd.d; }
-        else if (inst.mesh && inst.mesh.userData) { _fl_l = inst.mesh.userData.l || 1.5; _fl_d = inst.mesh.userData.d || 0.5; }
+        var _fd = flInstDims(inst), _fl_l = _fd.l, _fl_d = _fd.d;
         var _fw = Math.max(4, _fl_l * HS), _fh = Math.max(3, _fl_d * pvSC);
         var _fcP = worldToPlan(_iw, _iz), _fcx = _fcP.px, _fcy = _fcP.py;
-        var _frot = _iury * 180 / Math.PI;
-        var _fFill = _iSel ? 'rgba(6,150,215,.45)' : 'rgba(160,110,60,.42)';
-        var _fStr = _iSel ? '#0696D7' : '#6a3c14';
-        var _fsw = _iSel ? 1.5 : 0.8;
+        var _fSpec = flInstSpec(inst);
         // Placement + rotation + handedness all come from worldToPlan (not a hand-picked rotate sign).
-        var _fMtx = worldFrameToPlanMatrix(_iw, _iz, _iury, _fw / _fl_l, _fh / _fl_d);
-        s += `<g transform='${_fMtx}' class='pv-furn' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
-        var _planFn = (typeof FL2D_PLAN !== 'undefined' && FL2D_PLAN[inst.objId]) ? FL2D_PLAN[inst.objId] : (typeof FL2D_PLAN !== 'undefined' ? FL2D_PLAN['_default'] : null);
-        if (_planFn) {
-          s += _planFn(_fw, _fh, _frot, _iSel, _fFill, _fStr, _fsw);
+        if (_fSpec) {
+          // Archetype piece: its parts projected top-down in metres (the same parts 3D and Section use).
+          s += `<g transform='${worldFrameToPlanMatrix(_iw, _iz, _iury, 1, 1)}' class='pv-furn' data-inst='${inst.id}' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
+          s += flPlanArchetype(_fSpec.type, _fSpec.params, {mats:_fSpec.mats, sel:_iSel, tech:DS.mode() === 'technical'});
         } else {
+          // Street object: its detail-drawing footprint as a box.
+          var _fFill = _iSel ? 'rgba(6,150,215,.45)' : 'rgba(160,110,60,.42)', _fStr = _iSel ? '#0696D7' : '#6a3c14', _fsw = _iSel ? 1.5 : 0.8;
+          s += `<g transform='${worldFrameToPlanMatrix(_iw, _iz, _iury, _fw / _fl_l, _fh / _fl_d)}' class='pv-furn' data-inst='${inst.id}' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
           s += `<rect x='${(-_fw/2).toFixed(1)}' y='${(-_fh/2).toFixed(1)}' width='${_fw.toFixed(1)}' height='${_fh.toFixed(1)}' fill='${_fFill}' stroke='${_fStr}' stroke-width='${_fsw}' rx='1.5'/>`;
-          s += `<line x1='0' y1='${(-_fh/2).toFixed(1)}' x2='0' y2='${(_fh/2).toFixed(1)}' stroke='${_fStr}' stroke-width='0.4' opacity='0.5'/>`;
         }
         s += `</g>`;
         // Corner handles for selected furniture (outside the rotated group, in world space)
@@ -6403,7 +6190,7 @@ function planMD(e) {
       const _fwx = typeof _fInst.x === 'number' ? _fInst.x : 0;
       const _fwz = typeof _fInst.z === 'number' ? _fInst.z : 0;
       const _fcP = worldToPlan(_fwx, _fwz), _fcx = _fcP.px, _fcy = _fcP.py;
-      const _fdims = typeof _flGetDims === 'function' ? _flGetDims(_fInst.objId) : {l:1.5, d:0.5};
+      const _fdims = flInstDims(_fInst);
       const _fhr = Math.sqrt(Math.pow(_fdims.l * HS / 2, 2) + Math.pow(_fdims.d * pvSC / 2, 2)) + 5;
       if (Math.hypot(pos.x - _fcx, pos.y - _fcy) < _fhr) {
         _pvFurnDragging = {instId: _fInst.id, startWx: _fwx, startWz: _fwz,
@@ -7107,12 +6894,11 @@ while (_3d.group.children.length) {
 
 }
   // Restore user-placed furniture after scene rebuild
-  if (window.FL3D && window.FL3D.placed && window.FL3D.placed.length > 0 && window.FL3D_FACTORY) {
+  if (window.FL3D && window.FL3D.placed && window.FL3D.placed.length > 0) {
     window.FL3D.placed.forEach(function(inst) {
-      var fac = window.FL3D_FACTORY[inst.objId];
-      if (!fac) return;
       try {
-        var newMesh = fac({});
+        var newMesh = fl3DBuildInst(inst);
+        if (!newMesh) return;
         newMesh.position.set(inst.x || 0, window.FL3D.DECK_H, inst.z || 0);
         inst.userRotation = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
         inst.rotationY = inst.userRotation;
@@ -8169,7 +7955,7 @@ const FL_MATERIALS = [
 const FL_ARCHETYPES = {
   // -- Seating --------------------------------------------------------------------------
   bench:          {label:'Bench', cat:'seating', params:{l:[1.8,0.5,4], d:[0.55,0.35,0.95], h:[0.45,0.35,0.5], back:true, backH:[0.8,0.5,1.0], arms:false, double:false, ends:{def:'legs', opts:['legs','plinth']}},
-                   adjust:['l','d','h','back','backH','arms','double','ends'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}, tags:{back:['with back','no back'], double:['back-to-back','']}},
+                   adjust:['l','d','h','back','backH','arms','double','ends'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood', back:'wood other|thermowood'}, tags:{back:['with back','no back'], double:['back-to-back','']}},
   backless_bench: {label:'Backless bench', cat:'seating', params:{l:[1.8,0.5,4], d:[0.45,0.3,0.8], h:[0.45,0.35,0.5], ends:{def:'legs', opts:['legs','plinth']}},
                    adjust:['l','d','h','ends'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
   chair:          {label:'Chair', cat:'seating', params:{l:[0.5,0.4,0.8], d:[0.55,0.45,0.7], h:[0.45,0.4,0.5], back:true, backH:[0.82,0.65,1.0]},
@@ -8264,7 +8050,7 @@ const FL_ARCHETYPES = {
   deck_lip:       {label:'Deck lip', cat:'deck', params:{l:[2.4,1.0,6], d:[0.1,0.05,0.2], h:[0.1,0.05,0.15]},
                    adjust:['l','d','h'], parts:{body:'metal wood|galvanized', band:'fixed|safety_yellow'}},
   // -- Amenity --------------------------------------------------------------------------------
-  bin:            {label:'Bin', cat:'bin', params:{l:[0.6,0.3,1.4], d:[0.6,0.3,0.7], h:[1.0,0.6,1.2], streams:[1,1,3,1], shape:{def:'box', opts:['box','round']}},
+  bin:            {label:'Bin', cat:'bin', params:{l:[0.6,0.25,1.4], d:[0.6,0.3,0.7], h:[1.0,0.6,1.2], streams:[1,1,3,1], shape:{def:'box', opts:['box','round']}},
                    adjust:['l','d','h','streams','shape'], parts:{body:'metal powder|galvanized', lid:'metal powder other|ral_7016'}},
   bike_rack:      {label:'Bike rack', cat:'bikerack', params:{l:[0.9,0.4,6], d:[0.1,0.05,2.0], h:[0.8,0.4,1.1], type:{def:'u', opts:['u','post','wave','corral']}, count:[1,1,6,1]},
                    adjust:['l','d','h','type','count'], parts:{frame:'metal powder|galvanized'}},
@@ -8609,21 +8395,6 @@ function fl3DInit() {
   FL3D.raycaster = new THREE.Raycaster();
   FL3D.mouse = new THREE.Vector2();
 
-  FL3D.mats = {
-    wood:   new THREE.MeshPhongMaterial({color:0xB8875A,shininess:20}),
-    woodDk: new THREE.MeshPhongMaterial({color:0x8B5E30,shininess:15}),
-    steel:  new THREE.MeshPhongMaterial({color:0x8A9BAA,shininess:80}),
-    galv:   new THREE.MeshPhongMaterial({color:0xA8B8BC,shininess:60}),
-    alum:   new THREE.MeshPhongMaterial({color:0xC4CDD0,shininess:90}),
-    black:  new THREE.MeshPhongMaterial({color:0x2E2E2E,shininess:40}),
-    dark:   new THREE.MeshPhongMaterial({color:0x3A3A3A,shininess:30}),
-    plant:  new THREE.MeshPhongMaterial({color:0x4A7A3A,shininess:5}),
-    soil:   new THREE.MeshPhongMaterial({color:0x6A5040,shininess:5}),
-    hpl:    new THREE.MeshPhongMaterial({color:0x8A8A8A,shininess:30}),
-    yellow: new THREE.MeshPhongMaterial({color:0xFFEB3B,shininess:90}),
-    glass:  new THREE.MeshPhongMaterial({color:0xCCE8F0,transparent:true,opacity:0.55,shininess:120}),
-  };
-
   // Invisible floor plane at deck surface for raycasting
   FL3D.floor = new THREE.Mesh(
     new THREE.PlaneGeometry(300, 300),
@@ -8727,24 +8498,6 @@ function ensure3DReady() {
     FL3D._built = true;
     FL3D.raycaster = new THREE.Raycaster();
     FL3D.mouse     = new THREE.Vector2();
-    if (typeof fl3DEnsureMats === 'function') {
-      fl3DEnsureMats();
-    } else if (!FL3D.mats) {
-      FL3D.mats = {
-        wood:   new THREE.MeshPhongMaterial({color:0xB8875A,shininess:20}),
-        woodDk: new THREE.MeshPhongMaterial({color:0x8B5E30,shininess:15}),
-        steel:  new THREE.MeshPhongMaterial({color:0x8A9BAA,shininess:80}),
-        galv:   new THREE.MeshPhongMaterial({color:0xA8B8BC,shininess:60}),
-        alum:   new THREE.MeshPhongMaterial({color:0xC4CDD0,shininess:90}),
-        black:  new THREE.MeshPhongMaterial({color:0x2E2E2E,shininess:40}),
-        dark:   new THREE.MeshPhongMaterial({color:0x3A3A3A,shininess:30}),
-        plant:  new THREE.MeshPhongMaterial({color:0x4A7A3A,shininess:5}),
-        soil:   new THREE.MeshPhongMaterial({color:0x6A5040,shininess:5}),
-        hpl:    new THREE.MeshPhongMaterial({color:0x8A8A8A,shininess:30}),
-        yellow: new THREE.MeshPhongMaterial({color:0xFFEB3B,shininess:90}),
-        glass:  new THREE.MeshPhongMaterial({color:0xCCE8F0,transparent:true,opacity:0.55,shininess:120}),
-      };
-    }
     if (_3d.scene && !FL3D.floor) {
       FL3D.floor = new THREE.Mesh(
         new THREE.PlaneGeometry(300, 300),
@@ -8821,384 +8574,815 @@ function _3dUpdateCompass() {
 }
 window._3dUpdateCompass = _3dUpdateCompass;
 
-function _b3(w, h, d, mat) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-  m.castShadow = true; m.receiveShadow = true; return m;
-}
-function _c3(r, h, mat, s=12) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, s), mat);
-  m.castShadow = true; return m;
-}
-function _p3(mesh, x, y, z) { mesh.position.set(x, y, z); return mesh; }
-function _g(label, w, d, h) {
-  const g = new THREE.Group();
-  g.userData = {fl3d:true, label, w, d, h};
-  return g;
-}
-
-// ── FURNITURE FACTORY FUNCTIONS ─────────────────────────────────────────
-// VS-FRM-BN01 — Forum Bench (wood slats + galv steel I-frame, no back)
-// L 1000/2000/3000 mm, D 420 mm, Seat H 470 mm
-function fl3DForumBench(p={}) {
-  const L=p.length||2.0, D=0.42, SH=0.47, TH=0.022;
-  const g=_g('Forum Bench',L,D,SH), m=FL3D.mats;
-  const sw=(D-4*0.01)/5;
-  for(let i=0;i<5;i++) g.add(_p3(_b3(L-0.06,TH,sw,m.wood),0,SH-TH/2,-D/2+sw/2+i*(sw+0.01)));
-  [-L*0.3,L*0.3].forEach(lx=>{
-    [-D/2+0.04,D/2-0.04].forEach(lz=>g.add(_p3(_b3(0.035,SH-TH,0.035,m.galv),lx,(SH-TH)/2,lz)));
-    g.add(_p3(_b3(0.025,0.025,D-0.06,m.galv),lx,(SH-TH)*0.35,0));
-  });
-  return g;
-}
-
-// VS-HVL-BN01 — Hvilan Bench (with backrest)
-// L 2000 mm, D 635 mm, Seat H 470 mm, Back H 714 mm
-function fl3DHvilanBench(p={}) {
-  const L=p.length||2.0, D=0.635, SH=0.47, BH=0.714, TH=0.025;
-  const g=_g('Hvilan Bench',L,D,BH), m=FL3D.mats;
-  const sw=(D*0.5-2*0.01)/3;
-  for(let i=0;i<3;i++) g.add(_p3(_b3(L-0.06,TH,sw,m.wood),0,SH-TH/2,-D/2+sw/2+i*(sw+0.01)));
-  [SH+0.1,SH+0.22].forEach(by=>g.add(_p3(_b3(L-0.06,TH,0.07,m.wood),0,by,D/2-0.06)));
-  [-L/2+0.1,L/2-0.1].forEach(lx=>{
-    const bs=_b3(0.04,BH-SH+0.05,0.06,m.galv); bs.rotation.x=0.35;
-    g.add(_p3(bs,lx,SH+0.12,D/2-0.1));
-    [-D/2+0.05,D/2-0.05].forEach(lz=>g.add(_p3(_b3(0.04,SH,0.04,m.galv),lx,SH/2,lz)));
-  });
-  return g;
-}
-
-// VS-BLC-ST01 — Bloc Seat (single seat, heavy steel side-panel frame)
-// W 670 mm, D 460 mm, Seat H 460 mm, Total H 790 mm
-function fl3DBlocSeat(p={}) {
-  const W=0.67, D=0.46, SH=0.46, BH=0.79, TH=0.025;
-  const g=_g('Bloc Seat',W,D,BH), m=FL3D.mats;
-  [-W/2+0.04,W/2-0.04].forEach(x=>g.add(_p3(_b3(0.06,BH,D,m.galv),x,BH/2,0)));
-  g.add(_p3(_b3(W-0.14,TH,D-0.04,m.wood),0,SH-TH/2,0));
-  g.add(_p3(_b3(W-0.14,BH-SH-0.08,0.07,m.wood),0,SH+(BH-SH-0.08)/2,D/2-0.05));
-  return g;
-}
-
-// VS-BLC-BB01 — Bloc Back-to-Back (two seats facing away)
-// L 1382 mm, D 920 mm, Seat H 460 mm
-function fl3DBlocBackToBack(p={}) {
-  const L=1.382, D=0.92, SH=0.46, TH=0.025;
-  const g=_g('Bloc Back-to-Back',L,D,SH+0.08), m=FL3D.mats;
-  [-L/2+0.04,L/2-0.04].forEach(x=>g.add(_p3(_b3(0.06,SH+0.08,D,m.galv),x,(SH+0.08)/2,0)));
-  [-1,1].forEach(s=>{
-    g.add(_p3(_b3(L-0.14,TH,D/2-0.06,m.wood),0,SH-TH/2,s*(D/4)));
-    g.add(_p3(_b3(L-0.14,0.1,0.04,m.wood),0,SH+0.04,-s*0.04));
-  });
-  return g;
+// == PARAMETRIC FURNITURE: ONE PART LIST, THREE VIEWS =====================================
+// An archetype's geometry function FL_GEOM[type](p, K) turns its numeric params into a list
+// of primitive PARTS in local metres: x along the length (-l/2..l/2), z along the depth
+// (-d/2..d/2; a back sits at +z), y up from the deck (0..h). The 3D group (fl3DArchetype),
+// the plan glyph (flPlanArchetype) and the section glyph (flSectionArchetype) are all
+// projections of that one list, so a piece is the same size in every view.
+// Part: {k:'box'|'cyl'|'rod'|'sph'|'cone'|'wedge', role, x0,x1,y0,y1,z0,z1 (extent before
+// yaw), yaw (radians about the part centre), axis ('x'|'z', rods), dir (wedge rise), veg}.
+// veg parts (planting above a planter) are drawn but are not part of the piece's envelope.
+function _flKit() {
+  var P = [];
+  function add(o) { P.push(o); return o; }
+  var K = {
+    parts: P,
+    box: function(role, x0, x1, y0, y1, z0, z1, o) { return add(Object.assign({k:'box', role:role, x0:x0, x1:x1, y0:y0, y1:y1, z0:z0, z1:z1}, o)); },
+    cbox: function(role, cx, cz, sx, sz, y0, y1, o) { return K.box(role, cx - sx/2, cx + sx/2, y0, y1, cz - sz/2, cz + sz/2, o); },
+    cyl: function(role, cx, cz, r, y0, y1, o) { return add(Object.assign({k:'cyl', role:role, x0:cx - r, x1:cx + r, y0:y0, y1:y1, z0:cz - r, z1:cz + r}, o)); },
+    // horizontal rod along 'x' (a0..a1 at z = c) or along 'z' (a0..a1 at x = c), centre height cy
+    rod: function(role, axis, a0, a1, c, cy, r, o) {
+      return add(Object.assign(axis === 'x' ? {k:'rod', axis:'x', role:role, x0:a0, x1:a1, y0:cy - r, y1:cy + r, z0:c - r, z1:c + r}
+                                            : {k:'rod', axis:'z', role:role, x0:c - r, x1:c + r, y0:cy - r, y1:cy + r, z0:a0, z1:a1}, o));
+    },
+    sph: function(role, cx, cy, cz, rx, ry, rz, o) { return add(Object.assign({k:'sph', role:role, x0:cx - rx, x1:cx + rx, y0:cy - ry, y1:cy + ry, z0:cz - rz, z1:cz + rz}, o)); },
+    cone: function(role, cx, cz, r, y0, y1, o) { return add(Object.assign({k:'cone', role:role, x0:cx - r, x1:cx + r, y0:y0, y1:y1, z0:cz - r, z1:cz + r}, o)); },
+    // full height at the dir end ('+x','-x','+z','-z'), zero at the opposite end
+    wedge: function(role, x0, x1, y0, y1, z0, z1, dir, o) { return add(Object.assign({k:'wedge', role:role, x0:x0, x1:x1, y0:y0, y1:y1, z0:z0, z1:z1, dir:dir || '+x'}, o)); },
+    // n equal pieces split along axis ('x','y','z') with a gap between them
+    slats: function(role, n, axis, x0, x1, y0, y1, z0, z1, gap, o) {
+      var a = {x:[x0, x1], y:[y0, y1], z:[z0, z1]}[axis], w = (a[1] - a[0] - gap * (n - 1)) / n;
+      for (var i = 0; i < n; i++) {
+        var b = {x0:x0, x1:x1, y0:y0, y1:y1, z0:z0, z1:z1}, s = a[0] + i * (w + gap);
+        b[axis + '0'] = s; b[axis + '1'] = s + w;
+        K.box(role, b.x0, b.x1, b.y0, b.y1, b.z0, b.z1, o);
+      }
+    },
+    // square posts of size s (round when round) at every (x, z) pair
+    posts: function(role, xs, zs, y0, y1, s, round) {
+      xs.forEach(function(x) { zs.forEach(function(z) { if (round) K.cyl(role, x, z, s/2, y0, y1); else K.cbox(role, x, z, s, s, y0, y1); }); });
+    },
+    // four corner legs plus four rails in the top band [y1 - t, y1]
+    frame: function(role, x0, x1, y0, y1, z0, z1, t) {
+      K.posts(role, [x0 + t/2, x1 - t/2], [z0 + t/2, z1 - t/2], y0, y1 - t, t);
+      K.box(role, x0, x1, y1 - t, y1, z0, z0 + t); K.box(role, x0, x1, y1 - t, y1, z1 - t, z1);
+      K.box(role, x0, x0 + t, y1 - t, y1, z0 + t, z1 - t); K.box(role, x1 - t, x1, y1 - t, y1, z0 + t, z1 - t);
+    },
+    // open-top box: four walls of thickness t on a base
+    shell: function(role, x0, x1, y0, y1, z0, z1, t) {
+      K.box(role, x0, x1, y0, y1, z0, z0 + t); K.box(role, x0, x1, y0, y1, z1 - t, z1);
+      K.box(role, x0, x0 + t, y0, y1, z0 + t, z1 - t); K.box(role, x1 - t, x1, y0, y1, z0 + t, z1 - t);
+      K.box(role, x0 + t, x1 - t, y0, y0 + t, z0 + t, z1 - t);
+    },
+    // soil ending at y (inside the body) and planting on it; planting is veg
+    plant: function(kind, x0, x1, z0, z1, y, noSoil) {
+      if (!noSoil) K.box('soil', x0, x1, y - 0.04, y, z0, z1);
+      var w = x1 - x0, dd = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, i, n;
+      if (kind === 'shrub') { n = Math.max(1, Math.round(w / 0.55)); for (i = 0; i < n; i++) K.sph('plant', x0 + (i + 0.5) * w / n, y + 0.16, cz, w / n * 0.5, 0.22, dd * 0.46, {veg:true}); }
+      else if (kind === 'grass') { n = Math.max(1, Math.round(w / 0.2)); for (i = 0; i < n; i++) K.cone('plant', x0 + (i + 0.5) * w / n, cz, Math.min(w / n, dd) * 0.45, y, y + 0.42, {veg:true}); }
+      else if (kind === 'tree') { K.cyl('trunk', cx, cz, 0.05, y, y + 1.4, {veg:true}); K.sph('plant', cx, y + 1.9, cz, 0.6, 0.6, 0.6, {veg:true}); }
+    },
+    // shift every part so the envelope is centred on x = z = 0 (arcs, one-sided pieces)
+    recentre: function() {
+      var e = flEnvelope(P), dx = (e.x0 + e.x1) / 2, dz = (e.z0 + e.z1) / 2;
+      P.forEach(function(q) { q.x0 -= dx; q.x1 -= dx; q.z0 -= dz; q.z1 -= dz; });
+    }
+  };
+  return K;
 }
 
-// VS-APR-CH01 — April Chair (café chair with back)
-// W 786 mm, D 560 mm, Seat H 450 mm, Total H 820 mm
-function fl3DAprilChair(p={}) {
-  const W=0.786, D=0.56, SH=0.45, BH=0.82, TH=0.022;
-  const g=_g('April Chair',W,D,BH), m=FL3D.mats;
-  for(let i=0;i<3;i++) g.add(_p3(_b3(W-0.06,TH,0.15,m.wood),0,SH,-D/2+0.08+i*0.17));
-  [SH+0.1,SH+0.23].forEach(by=>g.add(_p3(_b3(W-0.06,TH,0.07,m.wood),0,by,D/2-0.04)));
-  [-W/2+0.05,W/2-0.05].forEach(x=>{
-    g.add(_p3(_b3(0.028,SH,0.028,m.galv),x,SH/2,-D/2+0.05));
-    g.add(_p3(_b3(0.028,BH,0.028,m.galv),x,BH/2,D/2-0.04));
-  });
-  return g;
-}
-
-// VS-DLG-BN01 — Dialog Bench (minimalist, thin steel plate legs)
-// L 1840 mm, D 380 mm, H 420 mm
-function fl3DDialogBench(p={}) {
-  const L=1.84, D=0.38, SH=0.42, TH=0.03;
-  const g=_g('Dialog Bench',L,D,SH), m=FL3D.mats;
-  const sw=(D-3*0.01)/4;
-  for(let i=0;i<4;i++) g.add(_p3(_b3(L,TH,sw,m.woodDk),0,SH-TH/2,-D/2+sw/2+i*(sw+0.01)));
-  [-L/2+0.12,L/2-0.12].forEach(x=>g.add(_p3(_b3(0.008,SH-TH,D-0.04,m.steel),x,(SH-TH)/2,0)));
-  return g;
-}
-
-// VS-APR-TL01 — April Table (wheelchair-accessible, open underside)
-// L 1800 mm, D 695 mm, H 750 mm
-function fl3DAprilTable(p={}) {
-  const L=1.8, D=0.695, H=0.75, TH=0.035;
-  const g=_g('April Table (WC)',L,D,H), m=FL3D.mats;
-  g.add(_p3(_b3(L,TH,D,m.hpl),0,H-TH/2,0));
-  [-L/2+0.15,L/2-0.15].forEach(x=>{
-    g.add(_p3(_b3(0.08,H-TH,0.08,m.galv),x,(H-TH)/2,0));
-    g.add(_p3(_b3(0.38,0.04,0.1,m.galv),x,0.02,0));
-  });
-  return g;
-}
-
-// VS-FRM-TL01 — Forum Table
-// L 1000–3000 mm, D 650 mm, H 730 mm
-function fl3DForumTable(p={}) {
-  const L=p.length||2.0, D=0.65, H=0.73, TH=0.035;
-  const g=_g('Forum Table',L,D,H), m=FL3D.mats;
-  g.add(_p3(_b3(L,TH,D,m.hpl),0,H-TH/2,0));
-  [-L*0.35,L*0.35].forEach(lx=>{
-    [-D/2+0.05,D/2-0.05].forEach(lz=>g.add(_p3(_b3(0.04,H-TH,0.04,m.galv),lx,(H-TH)/2,lz)));
-    g.add(_p3(_b3(0.03,0.03,D-0.04,m.galv),lx,(H-TH)*0.3,0));
-  });
-  return g;
-}
-
-// VS-HVL-PT01 — Hvilan Picnic Table (integral bench seats)
-// L 1718 mm, bench-to-bench D ~1600 mm, Table H 740 mm, Bench H 450 mm
-function fl3DHvilanPicnic(p={}) {
-  const L=1.718, TD=0.29, BD=0.31, TH=0.03, TBH=0.74, BBH=0.45, SEP=0.65;
-  const g=_g('Hvilan Picnic Table',L,SEP*2+BD,TBH), m=FL3D.mats;
-  g.add(_p3(_b3(L,TH,TD,m.wood),0,TBH,0));
-  [-1,1].forEach(s=>g.add(_p3(_b3(L,TH,BD,m.wood),0,BBH-TH/2,s*SEP)));
-  [-L/2+0.12,L/2-0.12].forEach(lx=>{
-    const a1=_b3(0.04,TBH+0.05,0.04,m.galv); a1.rotation.z=0.22;
-    const a2=_b3(0.04,TBH+0.05,0.04,m.galv); a2.rotation.z=-0.22;
-    g.add(_p3(a1,lx,(TBH+0.05)/2,-0.18));
-    g.add(_p3(a2,lx,(TBH+0.05)/2,0.18));
-  });
-  return g;
-}
-
-// VS-BUZ-TB01 — Buzz Combined Table+Bench (circular, ground-bolted)
-// D 938 mm total. Table H 740 mm, Seat H 460 mm
-function fl3DBuzzCombined(p={}) {
-  const Rt=0.27, Rs=0.47, Ht=0.74, Hs=0.46, TH=0.03;
-  const g=_g('Buzz Table+Bench',0.94,0.94,Ht), m=FL3D.mats;
-  g.add(_p3(_c3(Rt,TH,m.hpl,24),0,Ht,0));
-  g.add(_p3(_c3(0.055,Ht-TH,m.galv),0,(Ht-TH)/2,0));
-  const sr=new THREE.Mesh(new THREE.TorusGeometry(Rs,0.07,6,24),m.hpl);
-  sr.rotation.x=Math.PI/2; sr.position.y=Hs; g.add(sr);
-  g.add(_p3(_c3(0.42,0.04,m.galv,20),0,0.02,0));
-  return g;
-}
-
-// VS-BLC-PL01–04 — Bloc Planters (parametric steel box)
-// Sizes: 45L/165L/320L/520L; W/D/H vary
-function fl3DBlocPlanter(p={}) {
-  const W=p.width||0.9, D=p.depth||p.width||0.6, H=p.height||0.55, WL=0.07;
-  const g=_g('Bloc Planter',W,D,H+0.18), m=FL3D.mats;
-  [D/2-WL/2,-D/2+WL/2].forEach(z=>g.add(_p3(_b3(W,H,WL,m.galv),0,H/2,z)));
-  [-W/2+WL/2,W/2-WL/2].forEach(x=>g.add(_p3(_b3(WL,H,D-WL*2,m.galv),x,H/2,0)));
-  g.add(_p3(_b3(W-WL*2,WL,D-WL*2,m.galv),0,WL/2,0));
-  g.add(_p3(_b3(W-WL*2-0.02,0.08,D-WL*2-0.02,m.soil),0,H-0.05,0));
-  g.add(_p3(_b3(W-WL*2-0.06,0.16,D-WL*2-0.06,m.plant),0,H+0.06,0));
-  return g;
-}
-
-// VS-BOB-PL01 — Boboli Planter (dark body, various sizes)
-function fl3DBoboli(p={}) {
-  const W=p.width||0.9, D=p.depth||0.45, H=p.height||0.38, WL=0.06;
-  const g=_g('Boboli Planter',W,D,H+0.18), m=FL3D.mats;
-  [D/2-WL/2,-D/2+WL/2].forEach(z=>g.add(_p3(_b3(W,H,WL,m.dark),0,H/2,z)));
-  [-W/2+WL/2,W/2-WL/2].forEach(x=>g.add(_p3(_b3(WL,H,D,m.dark),x,H/2,0)));
-  g.add(_p3(_b3(W,WL,D,m.dark),0,WL/2,0));
-  g.add(_p3(_b3(W-WL*2-0.05,0.18,D-WL*2-0.05,m.plant),0,H+0.07,0));
-  return g;
-}
-
-// VS-AGO-PL01 — April GO Planter (tall, freestanding)
-// H 570–900 mm, W/D 350–600 mm
-function fl3DAprilGOPlanter(p={}) {
-  const W=p.width||0.45, D=p.depth||0.45, H=p.height||0.7, WL=0.04;
-  const g=_g('April GO Planter',W,D,H+0.2), m=FL3D.mats;
-  [D/2-WL/2,-D/2+WL/2].forEach(z=>g.add(_p3(_b3(W,H,WL,m.galv),0,H/2,z)));
-  [-W/2+WL/2,W/2-WL/2].forEach(x=>g.add(_p3(_b3(WL,H,D,m.galv),x,H/2,0)));
-  g.add(_p3(_b3(W-WL*2,0.2,D-WL*2,m.plant),0,H+0.08,0));
-  return g;
-}
-
-// VS-BOY-BR01 — Boy Cycle Rack (low-profile U-rack)
-// W 718 mm, H 480 mm
-function fl3DBoyRack(p={}) {
-  const W=0.718, H=0.48, R=0.016;
-  const g=_g('Boy Cycle Rack',W,0.25,H), m=FL3D.mats;
-  [-W/2+0.06,W/2-0.06].forEach(x=>g.add(_p3(_c3(R,H,m.galv),x,H/2,0)));
-  g.add(_p3(_b3(W-0.12,R*2,R*2,m.galv),0,H-R,0));
-  return g;
-}
-
-// VS-CYC-BR01 — Cycle Rack (2-bike, vertical bars)
-// W 1155 mm, H 1010 mm
-function fl3DForumRack(p={}) {
-  const W=1.155, H=1.01, R=0.018;
-  const g=_g('Cycle Rack (2 bike)',W,0.1,H), m=FL3D.mats;
-  [-W/2,0,W/2].forEach(x=>g.add(_p3(_c3(R,H,m.galv),x,H/2,0)));
-  [H*0.35,H*0.75].forEach(y=>g.add(_p3(_b3(W,R*2,R*2,m.galv),0,y,0)));
-  g.add(_p3(_b3(W+0.1,0.02,0.1,m.galv),0,0.01,0));
-  return g;
-}
-
-// VS-HVL-BL01 — Hvilan Bollard (impact rated, reflective band)
-// D 244.5/500/590 mm, H ~800 mm
-function fl3DHvilanBollard(p={}) {
-  const R=(p.diameter||0.245)/2, H=p.height||0.8;
-  const g=_g('Hvilan Bollard',R*2,R*2,H), m=FL3D.mats;
-  g.add(_p3(_c3(R,H*0.95,m.galv),0,H*0.95/2,0));
-  g.add(_p3(_c3(R+0.003,0.04,m.yellow,12),0,H*0.85,0));
-  g.add(_p3(_c3(R*1.4,0.04,m.galv,16),0,0.02,0));
-  return g;
-}
-
-// VS-BLC-WB01 — Bloc Litter Bin 100 L
-// W 300 mm, D 550 mm, H 922 mm
-function fl3DBlocBin(p={}) {
-  const W=p.width||0.3, D=p.depth||0.55, H=p.height||0.922, WL=0.03;
-  const g=_g('Bloc Bin 100L',W,D,H), m=FL3D.mats;
-  [D/2-WL/2,-D/2+WL/2].forEach(z=>g.add(_p3(_b3(W,H,WL,m.galv),0,H/2,z)));
-  [-W/2+WL/2,W/2-WL/2].forEach(x=>g.add(_p3(_b3(WL,H,D,m.galv),x,H/2,0)));
-  g.add(_p3(_b3(W,0.03,D,m.dark),0,H+0.015,0));
-  g.add(_p3(_b3(W-0.04,0.04,0.08,m.black),0,H-0.08,D/2));
-  return g;
-}
-
-// VS-CTY-WB01 — City Litter Bin 50 L (cylindrical)
-// D 390 mm, H ~650 mm
-function fl3DCityBin(p={}) {
-  const R=0.195, H=p.height||0.65;
-  const g=_g('City Bin 50L',R*2,R*2,H), m=FL3D.mats;
-  g.add(_p3(_c3(R,H*0.9,m.galv),0,H*0.9/2,0));
-  g.add(_p3(_c3(R+0.01,0.05,m.dark),0,H*0.9+0.025,0));
-  return g;
-}
-
-// VS-CVR-SH01 — Cover Roof (large shade structure, anchored)
-// W 4620 mm, D 2312 mm, column H ~2500 mm
-function fl3DCoverRoof(p={}) {
-  const W=4.62, D=2.312, CH=2.5, RH=0.1;
-  const g=_g('Cover Roof',W,D,CH+RH), m=FL3D.mats;
-  [[-W/2+0.1,-D/2+0.1],[W/2-0.1,-D/2+0.1],[-W/2+0.1,D/2-0.1],[W/2-0.1,D/2-0.1]].forEach(([x,z])=>{
-    g.add(_p3(_b3(0.1,CH,0.1,m.galv),x,CH/2,z));
-  });
-  g.add(_p3(new THREE.Mesh(new THREE.BoxGeometry(W,RH,D),m.glass),0,CH+RH/2,0));
-  [-W/2+0.1,W/2-0.1].forEach(x=>g.add(_p3(_b3(0.1,0.15,D-0.2,m.galv),x,CH-0.07,0)));
-  return g;
-}
-
-// MC-KPE-SY109 — Platform Kupé PLF109 (modular deck system)
-// L 1900 mm, D 2415 mm, Deck H 220 mm, Railing H 1200 mm
-function fl3DPlatformKupe109(p={}) {
-  const L=1.9, D=2.415, DH=0.22, RH=1.2, BH=0.45;
-  const g=_g('Platform Kupé PLF109',L,D,RH), m=FL3D.mats;
-  g.add(_p3(_b3(L,0.055,D,m.wood),0,DH,0));
-  const lh=DH-0.05;
-  [[-L/2+0.15,-D/2+0.15],[L/2-0.15,-D/2+0.15],[-L/2+0.15,D/2-0.15],[L/2-0.15,D/2-0.15],
-   [-L/2+0.15,0],[L/2-0.15,0],[0,-D/2+0.15],[0,D/2-0.15]].forEach(([x,z])=>{
-    g.add(_p3(_c3(0.025,lh,m.steel),x,lh/2,z));
-  });
-  // Railing 3 sides
-  g.add(_p3(_b3(L,RH-DH,0.03,m.galv),0,DH+(RH-DH)/2,-D/2+0.03));
-  [-L/2+0.03,L/2-0.03].forEach(x=>g.add(_p3(_b3(0.03,RH-DH,D*0.7,m.galv),x,DH+(RH-DH)/2,-D*0.15)));
-  // Integrated bench (open side)
-  g.add(_p3(_b3(L-0.06,0.025,0.4,m.wood),0,DH+BH,D/2-0.25));
-  g.add(_p3(_b3(L-0.06,0.35,0.04,m.wood),0,DH+BH+0.175,D/2-0.03));
-  return g;
-}
-
-// Generic parametric bench
-function fl3DGenericBench(p={}) {
-  const L=p.length||1.8, D=p.depth||0.45, SH=p.seatHeight||0.45, TH=0.025;
-  const hb=p.hasBack||false, BH=p.backHeight||0.8;
-  const g=_g('Generic Bench',L,D,hb?BH:SH), m=FL3D.mats;
-  g.add(_p3(_b3(L,TH,D,m.wood),0,SH,0));
-  [[-L/2+0.06,-D/2+0.06],[L/2-0.06,-D/2+0.06],[-L/2+0.06,D/2-0.06],[L/2-0.06,D/2-0.06]].forEach(([x,z])=>
-    g.add(_p3(_b3(0.04,SH,0.04,m.steel),x,SH/2,z)));
-  if(hb){
-    g.add(_p3(_b3(L,BH-SH-0.05,0.04,m.wood),0,SH+(BH-SH)/2+0.025,D/2-0.04));
-    [-L/2+0.06,L/2-0.06].forEach(x=>g.add(_p3(_b3(0.04,BH-SH,0.04,m.steel),x,SH+(BH-SH)/2,D/2-0.04)));
+// One geometry function per archetype. Honest massing only: boxes, cylinders, slats.
+var FL_GEOM = {
+  // -- Seating --------------------------------------------------------------------------------
+  bench: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.03, bt = p.back ? 0.06 : 0, bh = p.back ? Math.max(p.backH, p.h + 0.15) : p.h;
+    var ex = Math.min(0.15, p.l * 0.1), xs = [-hx + ex, hx - ex];
+    var seats = !p.back ? [[-hz, hz]] : p.double ? [[-hz, -bt/2], [bt/2, hz]] : [[-hz, hz - bt]];
+    seats.forEach(function(s) { K.slats('seat', 3, 'z', -hx, hx, p.h - T, p.h, s[0], s[1], 0.012); });
+    if (p.ends === 'plinth') { K.box('frame', -hx, -hx + 0.06, 0, p.h - T, -hz, hz); K.box('frame', hx - 0.06, hx, 0, p.h - T, -hz, hz); }
+    else K.posts('frame', xs, [-hz + 0.04, hz - 0.04], 0, p.h - T, 0.04);
+    if (p.back) {
+      var b0 = p.double ? -bt/2 : hz - bt;
+      K.slats('back', 3, 'y', -hx, hx, p.h + 0.06, bh, b0, b0 + 0.03, 0.03);
+      K.posts('frame', xs, [b0 + 0.045], p.h - T, bh, 0.03);
+    }
+    if (p.arms) {
+      var az = p.back && !p.double ? hz - bt : hz;
+      K.box('frame', -hx, -hx + 0.05, p.h, p.h + 0.22, -hz, az); K.box('frame', hx - 0.05, hx, p.h, p.h + 0.22, -hz, az);
+    }
+  },
+  backless_bench: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.03, ex = Math.min(0.15, p.l * 0.1);
+    K.slats('seat', Math.max(3, Math.round(p.d / 0.1)), 'z', -hx, hx, p.h - T, p.h, -hz, hz, 0.01);
+    if (p.ends === 'plinth') { K.box('frame', -hx, -hx + 0.06, 0, p.h - T, -hz, hz); K.box('frame', hx - 0.06, hx, 0, p.h - T, -hz, hz); }
+    else K.posts('frame', [-hx + ex, hx - ex], [-hz + 0.04, hz - 0.04], 0, p.h - T, 0.04);
+  },
+  chair: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.025, bh = p.back ? Math.max(p.backH, p.h + 0.15) : p.h;
+    K.slats('seat', 3, 'z', -hx, hx, p.h - T, p.h, -hz, p.back ? hz - 0.03 : hz, 0.01);
+    K.posts('frame', [-hx + 0.02, hx - 0.02], [-hz + 0.02], 0, p.h - T, 0.03);
+    K.posts('frame', [-hx + 0.02, hx - 0.02], [hz - 0.015], 0, p.back ? bh : p.h - T, 0.03);
+    if (p.back) K.slats('seat', 2, 'y', -hx + 0.04, hx - 0.04, p.h + 0.1, bh, hz - 0.03, hz - 0.005, 0.04);
+  },
+  armchair: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, aw = 0.06;
+    K.box('frame', -hx, -hx + aw, 0, p.h + 0.2, -hz, hz); K.box('frame', hx - aw, hx, 0, p.h + 0.2, -hz, hz);
+    K.box('seat', -hx + aw, hx - aw, p.h - 0.04, p.h, -hz, hz - 0.08);
+    K.box('seat', -hx + aw, hx - aw, p.h - 0.1, Math.max(p.backH, p.h + 0.2), hz - 0.08, hz);
+  },
+  stool: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.04, r = Math.min(hx, hz);
+    if (p.shape === 'round') { K.cyl('seat', 0, 0, r, p.h - T, p.h); K.cyl('frame', 0, 0, 0.03, 0.02, p.h - T); K.cyl('frame', 0, 0, r * 0.8, 0, 0.02); }
+    else { K.box('seat', -hx, hx, p.h - T, p.h, -hz, hz); K.posts('frame', [-hx + 0.03, hx - 0.03], [-hz + 0.03, hz - 0.03], 0, p.h - T, 0.03); }
+  },
+  bar_stool: function(p, K) {
+    var r = Math.min(p.l, p.d) / 2;
+    K.cyl('seat', 0, 0, r, p.h - 0.05, p.h); K.cyl('frame', 0, 0, 0.025, 0.02, p.h - 0.05);
+    K.cyl('frame', 0, 0, r * 0.85, 0, 0.02); K.cyl('frame', 0, 0, r * 0.7, 0.28, 0.3);
+  },
+  lounge: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('frame', -hx, hx, 0, 0.12, -hz, hz);
+    K.box('seat', -hx, hx, 0.12, p.h, -hz, hz - 0.15);
+    K.box('seat', -hx, hx, 0.12, Math.max(p.backH, p.h + 0.1), hz - 0.15, hz);
+  },
+  sun_lounger: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.04, bl = Math.min(0.7, p.d * 0.35);
+    K.posts('frame', [-hx + 0.03, hx - 0.03], [-hz + 0.05, hz - 0.05], 0, p.h - T, 0.04);
+    K.slats('seat', 6, 'z', -hx, hx, p.h - T, p.h, -hz, hz - bl, 0.02);
+    K.wedge('seat', -hx, hx, p.h - T, Math.max(p.backH, p.h + 0.1), hz - bl, hz, '+z');
+  },
+  curved_bench: function(p, K) {
+    var A = p.angle * Math.PI / 180, R = p.radius, n = Math.max(3, Math.round(p.angle / 12)), seg = 2 * R * Math.sin(A / n / 2) * 1.02;
+    for (var i = 0; i < n; i++) {
+      var ph = -A / 2 + (i + 0.5) * A / n, cx = R * Math.sin(ph), cz = R * Math.cos(ph);
+      K.box('seat', cx - seg/2, cx + seg/2, p.h - 0.04, p.h, cz - p.d/2, cz + p.d/2, {yaw:ph});
+      K.box('frame', cx - seg * 0.3, cx + seg * 0.3, 0, p.h - 0.04, cz - p.d * 0.35, cz + p.d * 0.35, {yaw:ph});
+    }
+    K.recentre();
+  },
+  seat_wall: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, c = p.cap ? 0.05 : 0;
+    K.box('body', -hx, hx, 0, p.h - c, -hz, hz);
+    if (p.cap) K.box('seat', -hx, hx, p.h - c, p.h, -hz, hz);
+  },
+  swing_bench: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, sl = p.l - 0.3, sd = Math.min(0.5, p.d * 0.45);
+    [-hx + 0.04, hx - 0.04].forEach(function(x) {
+      K.box('frame', x - 0.04, x + 0.04, 0, p.h - 0.08, -hz, -hz + 0.08); K.box('frame', x - 0.04, x + 0.04, 0, p.h - 0.08, hz - 0.08, hz);
+      K.box('frame', x - 0.04, x + 0.04, p.h - 0.08, p.h, -hz, hz);
+    });
+    K.box('frame', -hx + 0.08, hx - 0.08, p.h - 0.08, p.h, -0.04, 0.04);
+    K.box('seat', -sl/2, sl/2, p.seatH - 0.04, p.seatH, -sd/2, sd/2 - 0.04);
+    K.box('seat', -sl/2, sl/2, p.seatH, p.seatH + 0.4, sd/2 - 0.04, sd/2);
+    [-sl/2 + 0.05, sl/2 - 0.05].forEach(function(x) { K.cyl('frame', x, 0, 0.008, p.seatH, p.h - 0.08); });
+  },
+  bleacher_step: function(p, K) {
+    var hx = p.l/2, D = p.rows * p.rowD;
+    for (var i = 0; i < p.rows; i++) {
+      var z0 = -D/2 + i * p.rowD, top = (i + 1) * p.rowH;
+      K.box('body', -hx, hx, 0, top - 0.04, z0, z0 + p.rowD);
+      K.box('seat', -hx, hx, top - 0.04, top, z0, z0 + p.rowD);
+    }
+  },
+  // -- Tables -------------------------------------------------------------------------------
+  table: function(p, K) {
+    var round = p.shape === 'round', hx = p.l/2, hz = (round || p.shape === 'square') ? hx : p.d/2, T = 0.035;
+    if (round) K.cyl('top', 0, 0, hx, p.h - T, p.h); else K.box('top', -hx, hx, p.h - T, p.h, -hz, hz);
+    if (p.base === 'pedestal') { K.cyl('frame', 0, 0, 0.04, 0.03, p.h - T); K.cyl('frame', 0, 0, Math.min(hx, hz) * 0.6, 0, 0.03); }
+    else { var ix = round ? hx * 0.7071 : hx, iz = round ? hx * 0.7071 : hz; K.posts('frame', [-ix + 0.05, ix - 0.05], [-iz + 0.05, iz - 0.05], 0, p.h - T, 0.045); }
+  },
+  bar_table: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.035;
+    K.box('top', -hx, hx, p.h - T, p.h, -hz, hz);
+    if (p.base === 'pedestal') { K.box('frame', -0.04, 0.04, 0.03, p.h - T, -0.04, 0.04); K.box('frame', -hx * 0.6, hx * 0.6, 0, 0.03, -hz * 0.8, hz * 0.8); }
+    else { K.posts('frame', [-hx + 0.06, hx - 0.06], [-hz + 0.05, hz - 0.05], 0, p.h - T, 0.045); K.rod('frame', 'x', -hx + 0.06, hx - 0.06, -hz + 0.05, 0.3, 0.015); }
+  },
+  communal_table: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.04, n = Math.max(2, Math.ceil(p.l / 1.4) + 1);
+    K.box('top', -hx, hx, p.h - T, p.h, -hz, hz);
+    for (var i = 0; i < n; i++) { var x = -hx + 0.1 + i * (p.l - 0.2) / (n - 1); K.box('frame', x - 0.03, x + 0.03, 0, p.h - T, -hz + 0.08, hz - 0.08); }
+    K.box('frame', -hx + 0.13, hx - 0.13, 0.3, 0.36, -0.03, 0.03);
+  },
+  picnic: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.035, sw = Math.min(0.32, p.d * 0.22);
+    if (p.shape === 'round') {
+      K.cyl('seat', 0, 0, hx, p.seatH - T, p.seatH); K.cyl('top', 0, 0, hx * 0.55, p.h - T, p.h);
+      K.cyl('frame', 0, 0, 0.05, 0, p.seatH - T); K.cyl('frame', 0, 0, 0.05, p.seatH, p.h - T);
+      return;
+    }
+    K.box('top', -hx, hx, p.h - T, p.h, -hz + sw + 0.12, hz - sw - 0.12);
+    K.box('seat', -hx, hx, p.seatH - T, p.seatH, -hz, -hz + sw); K.box('seat', -hx, hx, p.seatH - T, p.seatH, hz - sw, hz);
+    [-hx + 0.15, hx - 0.15].forEach(function(x) {
+      K.box('frame', x - 0.03, x + 0.03, p.seatH - T - 0.05, p.seatH - T, -hz + 0.02, hz - 0.02);
+      K.box('frame', x - 0.03, x + 0.03, 0, p.h - T, -0.25, 0.25);
+    });
+  },
+  cafe_table: function(p, K) {
+    var r = p.l/2;
+    K.cyl('top', 0, 0, r, p.h - 0.03, p.h); K.cyl('frame', 0, 0, 0.03, 0.02, p.h - 0.03); K.cyl('frame', 0, 0, r * 0.7, 0, 0.02);
+  },
+  counter: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.04;
+    K.box('top', -hx, hx, p.h - T, p.h, -hz, hz);
+    if (p.mount === 'wall') { K.box('frame', -hx, hx, 0, p.h - T, hz - 0.03, hz); K.posts('frame', [-hx + 0.1, hx - 0.1], [hz - 0.05], p.h - T - 0.25, p.h - T, 0.04); }
+    else { K.box('frame', -hx, -hx + 0.05, 0, p.h - T, -hz + 0.05, hz); K.box('frame', hx - 0.05, hx, 0, p.h - T, -hz + 0.05, hz); K.box('frame', -hx + 0.05, hx - 0.05, 0, p.h - T, hz - 0.03, hz); }
+  },
+  shelf_ledge: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, n = Math.max(2, Math.ceil(p.l / 1.2) + 1);
+    K.box('top', -hx, hx, p.h - 0.04, p.h, -hz, hz);
+    for (var i = 0; i < n; i++) {
+      var x = -hx + 0.08 + i * (p.l - 0.16) / (n - 1);
+      K.box('frame', x - 0.02, x + 0.02, 0, p.h - 0.04, hz - 0.05, hz); K.box('frame', x - 0.01, x + 0.01, p.h - 0.2, p.h - 0.04, -hz + 0.03, hz - 0.05);
+    }
+  },
+  // -- Planters -----------------------------------------------------------------------------
+  planter: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, t = Math.min(0.06, p.d * 0.1);
+    K.shell('body', -hx, hx, 0, p.h, -hz, hz, t);
+    K.plant(p.plant, -hx + t, hx - t, -hz + t, hz - t, p.h - 0.03);
+  },
+  planter_tall: function(p, K) { FL_GEOM.planter(p, K); },
+  planter_round: function(p, K) {
+    var r = p.l/2, ri = r - 0.04;
+    K.cyl('body', 0, 0, r, 0, p.h - 0.004); K.cyl('soil', 0, 0, ri, p.h - 0.04, p.h);
+    K.plant(p.plant, -ri * 0.7, ri * 0.7, -ri * 0.7, ri * 0.7, p.h, true);
+  },
+  planter_bench: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, sd = Math.min(0.42, p.d * 0.45), t = 0.05;
+    K.shell('body', -hx, hx, 0, p.h, -hz + sd, hz, t);
+    K.plant(p.plant, -hx + t, hx - t, -hz + sd + t, hz - t, p.h - 0.03);
+    K.box('seat', -hx, hx, p.seatH - 0.04, p.seatH, -hz, -hz + sd);
+    K.posts('body', [-hx + 0.1, hx - 0.1], [-hz + 0.05], 0, p.seatH - 0.04, 0.05);
+  },
+  planter_wall: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, t = 0.08;
+    K.shell('body', -hx, hx, 0, p.h, -hz, hz, t);
+    K.plant(p.plant, -hx + t, hx - t, -hz + t, hz - t, p.h - 0.03);
+  },
+  tree_pit: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, t = 0.06, r = Math.min(2.0, p.treeH * 0.3);
+    K.shell('grate', -hx, hx, 0, p.h, -hz, hz, t);
+    K.box('soil', -hx + t, hx - t, t, p.h - 0.02, -hz + t, hz - t);
+    K.cyl('trunk', 0, 0, 0.08, p.h, p.h + p.treeH - r, {veg:true});
+    K.sph('plant', 0, p.h + p.treeH - r, 0, r, r, r, {veg:true});
+  },
+  trough: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, yb = p.h - p.boxH;
+    K.shell('body', -hx, hx, yb, p.h, -hz, hz, 0.02);
+    K.plant('grass', -hx + 0.02, hx - 0.02, -hz + 0.02, hz - 0.02, p.h - 0.03);
+    if (yb > 0.05) K.posts('frame', [-hx + 0.1, hx - 0.1], [0], 0, yb, 0.05);
+  },
+  living_wall_panel: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, f = 0.05;
+    K.box('frame', -hx, -hx + f, 0, p.h, -hz, hz); K.box('frame', hx - f, hx, 0, p.h, -hz, hz);
+    K.box('frame', -hx + f, hx - f, 0, 0.1, -hz, hz); K.box('frame', -hx + f, hx - f, p.h - f, p.h, -hz, hz);
+    K.box('plant', -hx + f, hx - f, 0.1, p.h - f, -hz + 0.01, hz - 0.01);
+  },
+  // -- Shade / shelter ------------------------------------------------------------------------
+  umbrella: function(p, K) {
+    var r = p.l/2, b = Math.min(0.25, r * 0.4);
+    K.box('base', -b, b, 0, 0.1, -b, b);
+    K.cyl('pole', 0, 0, 0.025, 0.1, p.h - 0.02);
+    if (p.shape === 'square') { K.box('canopy', -r, r, p.h - 0.5, p.h - 0.45, -r, r); K.cone('canopy', 0, 0, r * 0.99, p.h - 0.45, p.h); }
+    else K.cone('canopy', 0, 0, r, p.h - 0.5, p.h);
+  },
+  pergola: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, s = 0.12, n = Math.max(2, Math.floor(p.l / p.slat) + 1);
+    K.posts('post', [-hx + s/2, hx - s/2], [-hz + s/2, hz - s/2], 0, p.h - 0.2, s);
+    [-hz + s/2, hz - s/2].forEach(function(z) { K.box('post', -hx, hx, p.h - 0.2, p.h - 0.06, z - 0.04, z + 0.04); });
+    for (var i = 0; i < n; i++) { var x = -hx + 0.02 + i * (p.l - 0.04) / (n - 1); K.box('slat', x - 0.02, x + 0.02, p.h - 0.06, p.h, -hz, hz); }
+  },
+  canopy_sail: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.posts('post', [-hx + 0.05, hx - 0.05], [-hz + 0.05, hz - 0.05], 0, p.h - 0.03, 0.08, true);
+    K.box('canopy', -hx, hx, p.h - 0.03, p.h, -hz, hz);
+  },
+  shade_arbor: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, s = 0.08, n = Math.max(3, Math.round(p.l / 0.25));
+    K.posts('post', [-hx + s/2, hx - s/2], [-hz + s/2, hz - s/2], 0, p.h - 0.12, s);
+    for (var i = 0; i < n; i++) { var x = -hx + (i + 0.5) * p.l / n; K.box('slat', x - 0.02, x + 0.02, p.h - 0.12, p.h - 0.06, -hz, hz); }
+    K.box('plant', -hx, hx, p.h - 0.06, p.h, -hz, hz);
+  },
+  shelter_roof: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.posts('post', [-hx + 0.1, hx - 0.1], [-hz + 0.1, hz - 0.1], 0, p.h - 0.25, 0.1);
+    [-hx + 0.1, hx - 0.1].forEach(function(x) { K.box('post', x - 0.05, x + 0.05, p.h - 0.25, p.h - 0.1, -hz + 0.05, hz - 0.05); });
+    K.box('roof', -hx, hx, p.h - 0.1, p.h, -hz, hz);
+  },
+  // -- Edge / safety -----------------------------------------------------------------------------
+  screen: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, f = 0.04;
+    K.box('frame', -hx, -hx + f, 0, p.h, -hz, hz); K.box('frame', hx - f, hx, 0, p.h, -hz, hz);
+    K.box('frame', -hx + f, hx - f, p.h - f, p.h, -hz, hz); K.box('frame', -hx + f, hx - f, 0.05, 0.05 + f, -hz, hz);
+    if (p.infill === 'solid') K.box('panel', -hx + f, hx - f, 0.05 + f, p.h - f, -hz * 0.5, hz * 0.5);
+    else K.slats('panel', Math.max(2, Math.round((p.l - 2 * f) / 0.1)), 'x', -hx + f, hx - f, 0.05 + f, p.h - f, -hz * 0.6, hz * 0.6, 0.03);
+  },
+  railing: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, np = Math.max(2, Math.ceil(p.l / 1.5) + 1), nb = Math.max(2, Math.round(p.l / 0.12));
+    for (var i = 0; i < np; i++) { var x = -hx + 0.025 + i * (p.l - 0.05) / (np - 1); K.box('rail', x - 0.025, x + 0.025, 0, p.h - 0.04, -hz, hz); }
+    K.box('rail', -hx, hx, p.h - 0.04, p.h, -hz, hz); K.box('rail', -hx, hx, 0.08, 0.12, -hz * 0.6, hz * 0.6);
+    for (var j = 1; j < nb; j++) K.cyl('rail', -hx + j * p.l / nb, 0, 0.008, 0.12, p.h - 0.04);
+  },
+  glass_screen: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('frame', -hx, hx, 0, 0.08, -hz, hz); K.box('frame', -hx, -hx + 0.04, 0.08, p.h, -hz, hz); K.box('frame', hx - 0.04, hx, 0.08, p.h, -hz, hz);
+    K.box('glass', -hx + 0.04, hx - 0.04, 0.08, p.h - 0.01, -0.006, 0.006);
+  },
+  bollard: function(p, K) {
+    var r = p.l/2;
+    K.cyl('body', 0, 0, r, 0, p.h * 0.78); K.cyl('band', 0, 0, r, p.h * 0.78, p.h * 0.86); K.cyl('body', 0, 0, r, p.h * 0.86, p.h);
+  },
+  wheel_stop: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, b = 0.12, xs = [-hx, -hx * 0.5 - b/2, -hx * 0.5 + b/2, hx * 0.5 - b/2, hx * 0.5 + b/2, hx];
+    for (var i = 0; i < 5; i++) K.box(i % 2 ? 'band' : 'body', xs[i], xs[i + 1], 0, p.h, -hz, hz);
+  },
+  planter_barrier: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, t = 0.12;
+    K.shell('body', -hx, hx, 0, p.h, -hz, hz, t);
+    K.plant('shrub', -hx + t, hx - t, -hz + t, hz - t, p.h - 0.03);
+  },
+  reflector_post: function(p, K) {
+    var r = p.l/2, ys = [0, p.h - 0.2, p.h - 0.14, p.h - 0.1, p.h - 0.04, p.h];
+    for (var i = 0; i < 5; i++) K.cyl(i % 2 ? 'band' : 'body', 0, 0, r, ys[i], ys[i + 1]);
+  },
+  edge_rail: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, np = Math.max(2, Math.ceil(p.l / 1.5) + 1);
+    for (var i = 0; i < np; i++) { var x = -hx + 0.025 + i * (p.l - 0.05) / (np - 1); K.box('rail', x - 0.025, x + 0.025, 0, p.h - 0.05, -hz, hz); }
+    K.box('rail', -hx, hx, p.h - 0.05, p.h, -hz, hz); K.box('rail', -hx, hx, p.h * 0.5 - 0.02, p.h * 0.5 + 0.02, -hz * 0.6, hz * 0.6);
+  },
+  // -- Deck / structure -------------------------------------------------------------------------
+  deck_step: function(p, K) { K.box('tread', -p.l/2, p.l/2, 0, p.h, -p.d/2, p.d/2); },
+  platform_step: function(p, K) {
+    var hx = p.l/2, D = p.steps * p.tread;
+    for (var i = 0; i < p.steps; i++) K.box('tread', -hx, hx, i * p.rise, (i + 1) * p.rise, -D/2 + i * p.tread, D/2);
+  },
+  ramp: function(p, K) {
+    var hx = p.rise / (p.slope / 100) / 2, hz = p.d/2, e = 0.05;
+    K.wedge('tread', -hx, hx, 0, p.rise, -hz + e, hz - e, '+x');
+    K.wedge('edge', -hx, hx, 0, p.rise, -hz, -hz + e, '+x'); K.wedge('edge', -hx, hx, 0, p.rise, hz - e, hz, '+x');
+  },
+  deck_edge_bench: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('body', -hx, hx, 0, p.h - 0.04, -hz + 0.03, hz); K.box('seat', -hx, hx, p.h - 0.04, p.h, -hz, hz);
+  },
+  deck_lip: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('body', -hx, hx, 0, p.h, -hz + 0.03, hz); K.box('band', -hx, hx, 0, p.h, -hz, -hz + 0.03);
+  },
+  // -- Amenity ------------------------------------------------------------------------------------
+  bin: function(p, K) {
+    var n = p.streams, hx = p.l/2, hz = p.d/2, g = 0.02, w = (p.l - g * (n - 1)) / n;
+    for (var i = 0; i < n; i++) {
+      var x0 = -hx + i * (w + g), r = Math.min(w, p.d) / 2;
+      if (p.shape === 'round') { K.cyl('body', x0 + w/2, 0, r, 0, p.h - 0.04); K.cyl('lid', x0 + w/2, 0, r, p.h - 0.04, p.h); }
+      else { K.box('body', x0, x0 + w, 0, p.h - 0.04, -hz, hz); K.box('lid', x0, x0 + w, p.h - 0.04, p.h, -hz, hz); }
+    }
+  },
+  bike_rack: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, n = p.count, g = 0.2, w = (p.l - g * (n - 1)) / n, r = 0.02;
+    if (p.type === 'corral') {
+      K.posts('frame', [-hx + r, hx - r], [-hz + r, hz - r], 0, p.h, 2 * r, true);
+      K.rod('frame', 'x', -hx, hx, -hz + r, p.h - r, r); K.rod('frame', 'x', -hx, hx, hz - r, p.h - r, r);
+    }
+    for (var i = 0; i < n; i++) {
+      var x0 = -hx + i * (w + g), x1 = x0 + w, ht = p.type === 'corral' ? p.h * 0.85 : p.h;
+      if (p.type === 'post') K.cyl('frame', (x0 + x1) / 2, 0, Math.min(0.04, hz), 0, p.h);
+      else if (p.type === 'wave') { K.cyl('frame', x0 + r, 0, r, 0, ht - 2 * r); K.cyl('frame', x1 - r, 0, r, 0, ht * 0.6); K.rod('frame', 'x', x0, x1, 0, ht - r, r); }
+      else { K.cyl('frame', x0 + r, 0, r, 0, ht - 2 * r); K.cyl('frame', x1 - r, 0, r, 0, ht - 2 * r); K.rod('frame', 'x', x0, x1, 0, ht - r, r); }
+    }
+  },
+  bike_repair_stand: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('frame', -0.12, 0.12, 0, 0.02, -hz, hz); K.cyl('frame', 0, 0, 0.03, 0.02, p.h - 0.04);
+    K.rod('frame', 'x', -hx, hx, 0, p.h - 0.02, 0.02); K.box('frame', hx - 0.06, hx, p.h - 0.2, p.h - 0.04, -0.03, 0.03);
+  },
+  drinking_fountain: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('body', -hx * 0.45, hx * 0.45, 0, p.h - 0.12, -hz * 0.45, hz * 0.45); K.box('body', -hx, hx, p.h - 0.12, p.h, -hz, hz);
+  },
+  light_bollard: function(p, K) {
+    var r = p.l/2;
+    K.cyl('body', 0, 0, r, 0, p.h - 0.18); K.cyl('light', 0, 0, r * 0.9, p.h - 0.18, p.h - 0.04); K.cyl('body', 0, 0, r, p.h - 0.04, p.h);
+  },
+  string_light: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, n = Math.max(2, Math.round(p.l / 0.5)), a = -hx + hz, b = hx - hz;
+    K.cyl('post', a, 0, hz, 0, p.h); K.cyl('post', b, 0, hz, 0, p.h);
+    K.rod('post', 'x', a, b, 0, p.h - 0.2, 0.005);
+    for (var i = 1; i < n; i++) K.sph('light', a + i * (b - a) / n, p.h - 0.26, 0, 0.04, 0.05, 0.04);
+  },
+  heater: function(p, K) {
+    var r = p.l/2;
+    K.cyl('body', 0, 0, r * 0.8, 0, 0.05); K.cyl('body', 0, 0, 0.04, 0.05, p.h - 0.3);
+    K.cyl('body', 0, 0, 0.09, p.h - 0.3, p.h - 0.12); K.cone('body', 0, 0, r, p.h - 0.12, p.h);
+  },
+  sign_post: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.cyl('post', 0, 0, Math.min(0.03, hz), 0, p.h - 0.35); K.box('panel', -hx, hx, p.h - 0.35, p.h, -hz * 0.4, hz * 0.4);
+  },
+  menu_board: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.wedge('panel', -hx, hx, 0, p.h, -hz, 0, '+z'); K.wedge('panel', -hx, hx, 0, p.h, 0, hz, '-z');
+  },
+  kiosk: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, o = 0.12;
+    K.box('body', -hx + o, hx - o, 0, p.h - 0.15, -hz + o, hz - o);
+    K.box('top', -hx + o, hx - o, 1.0, 1.04, -hz, -hz + o);
+    K.box('roof', -hx, hx, p.h - 0.15, p.h, -hz, hz);
+  },
+  // -- Play / misc ----------------------------------------------------------------------------------
+  play_element: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('body', -hx, hx, 0, p.h * 0.6, -hz, hz); K.box('body', -hx * 0.6, hx * 0.6, p.h * 0.6, p.h, -hz * 0.6, hz * 0.6);
+  },
+  sculpture_block: function(p, K) {
+    var hx = p.l/2, hz = p.d/2;
+    K.box('body', -hx, hx, 0, p.h * 0.45, -hz, hz);
+    K.box('body', -hx * 0.75, hx * 0.75, p.h * 0.45, p.h * 0.8, -hz * 0.75, hz * 0.75, {yaw:0.3});
+    K.box('body', -hx * 0.45, hx * 0.45, p.h * 0.8, p.h, -hz * 0.45, hz * 0.45);
+  },
+  game_table: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, T = 0.04;
+    K.box('top', -hx, hx, p.h - T, p.h, -hz, hz);
+    if (p.game === 'pingpong') {
+      K.box('frame', -0.01, 0.01, p.h, p.h + 0.15, -hz, hz);
+      K.box('frame', -hx * 0.75, -hx * 0.65, 0, p.h - T, -hz + 0.1, hz - 0.1); K.box('frame', hx * 0.65, hx * 0.75, 0, p.h - T, -hz + 0.1, hz - 0.1);
+    } else K.box('frame', -hx * 0.3, hx * 0.3, 0, p.h - T, -hz * 0.3, hz * 0.3);
+  },
+  book_box: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, yb = p.h - 0.5;
+    K.cyl('post', 0, 0, 0.04, 0, yb); K.box('body', -hx, hx, yb, p.h - 0.06, -hz, hz);
+    K.wedge('body', -hx, 0, p.h - 0.06, p.h, -hz, hz, '+x'); K.wedge('body', 0, hx, p.h - 0.06, p.h, -hz, hz, '-x');
+  },
+  // -- Combined systems ------------------------------------------------------------------------------
+  platform_system: function(p, K) {
+    var hx = p.l/2, hz = p.d/2, dh = p.deckH, r = 0.04;
+    K.posts('rail', [-hx + 0.15, 0, hx - 0.15], [-hz + 0.15, hz - 0.15], 0, dh - 0.05, 0.05, true);
+    K.box('deck', -hx, hx, dh - 0.05, dh, -hz, hz);
+    K.box('rail', -hx, hx, dh, p.h, -hz, -hz + r);
+    K.box('rail', -hx, -hx + r, dh, p.h, -hz + r, -hz + p.d * 0.7); K.box('rail', hx - r, hx, dh, p.h, -hz + r, -hz + p.d * 0.7);
+    if (p.bench) { K.box('seat', -hx + r, hx - r, dh + 0.41, dh + 0.45, hz - 0.45, hz - 0.05); K.box('seat', -hx + r, hx - r, dh + 0.45, dh + 0.8, hz - 0.05, hz); }
   }
-  return g;
-}
-
-// Generic café table
-function fl3DGenericTable(p={}) {
-  const L=p.length||0.7, D=p.depth||0.7, H=p.height||0.73, TH=0.03;
-  const g=_g('Generic Table',L,D,H), m=FL3D.mats;
-  g.add(_p3(_b3(L,TH,D,m.hpl),0,H,0));
-  g.add(_p3(_c3(0.04,H-TH,m.galv),0,(H-TH)/2,0));
-  g.add(_p3(_b3(L*0.6,0.04,D*0.6,m.galv),0,0.02,0));
-  return g;
-}
-
-// Generic chair
-function fl3DGenericChair(p={}) {
-  const W=p.width||0.46, D=p.depth||0.46, SH=p.seatHeight||0.45, BH=0.82, TH=0.022;
-  const g=_g('Generic Chair',W,D,BH), m=FL3D.mats;
-  g.add(_p3(_b3(W,TH,D,m.wood),0,SH,0));
-  g.add(_p3(_b3(W,BH-SH-0.05,0.04,m.wood),0,SH+(BH-SH)/2+0.025,D/2-0.04));
-  [[-W/2+0.04,-D/2+0.04],[W/2-0.04,-D/2+0.04]].forEach(([x,z])=>g.add(_p3(_b3(0.03,SH,0.03,m.steel),x,SH/2,z)));
-  [[-W/2+0.04,D/2-0.04],[W/2-0.04,D/2-0.04]].forEach(([x,z])=>g.add(_p3(_b3(0.03,BH,0.03,m.steel),x,BH/2,z)));
-  return g;
-}
-
-// ── FACTORY LOOKUP ───────────────────────────────────────────────────────
-var FL3D_FACTORY = {
-  'VS-FRM-BN01': p=>fl3DForumBench(p),
-  'VS-HVL-BN01': p=>fl3DHvilanBench(p),
-  'VS-BLC-ST01': p=>fl3DBlocSeat(p),
-  'VS-BLC-BB01': p=>fl3DBlocBackToBack(p),
-  'VS-APR-CH01': p=>fl3DAprilChair(p),
-  'VS-DLG-BN01': p=>fl3DDialogBench(p),
-  'VS-APR-TL01': p=>fl3DAprilTable(p),
-  'VS-FRM-TL01': p=>fl3DForumTable(p),
-  'VS-HVL-PT01': p=>fl3DHvilanPicnic(p),
-  'VS-BUZ-TB01': p=>fl3DBuzzCombined(p),
-  'VS-BLC-PL01': p=>fl3DBlocPlanter({width:0.6,depth:0.6,height:0.42,...p}),
-  'VS-BLC-PL02': p=>fl3DBlocPlanter({width:0.9,depth:0.6,height:0.52,...p}),
-  'VS-BLC-PL03': p=>fl3DBlocPlanter({width:1.2,depth:0.6,height:0.62,...p}),
-  'VS-BLC-PL04': p=>fl3DBlocPlanter({width:1.6,depth:0.6,height:0.72,...p}),
-  'VS-BOB-PL01': p=>fl3DBoboli(p),
-  'VS-AGO-PL01': p=>fl3DAprilGOPlanter(p),
-  'VS-BOY-BR01': p=>fl3DBoyRack(p),
-  'VS-CYC-BR01': p=>fl3DForumRack(p),
-  'VS-HVL-BL01': p=>fl3DHvilanBollard(p),
-  'VS-BLC-WB01': p=>fl3DBlocBin(p),
-  'VS-CTY-WB01': p=>fl3DCityBin(p),
-  'VS-CVR-SH01': p=>fl3DCoverRoof(p),
-  'MC-KPE-SY109': p=>fl3DPlatformKupe109(p),
-  '__GENERIC_BENCH': p=>fl3DGenericBench(p),
-  '__GENERIC_TABLE': p=>fl3DGenericTable(p),
-  '__GENERIC_CHAIR': p=>fl3DGenericChair(p),
 };
+
+// -- Params, materials and dimensions ------------------------------------------------------------
+// Fill defaults, clamp numbers to the archetype's range, coerce choices. ctx.placing lets
+// defaultFrom params (edge_rail length) read the design when a piece is first placed.
+function flResolveParams(type, raw, ctx) {
+  var a = FL_ARCHETYPES[type], out = {};
+  raw = raw || {};
+  Object.keys(a.params).forEach(function(k) {
+    var p = a.params[k], v = raw[k];
+    if (v === undefined && a.defaultFrom && a.defaultFrom[k] && ctx && ctx.placing) v = flDefaultFrom(a.defaultFrom[k]);
+    if (p.type === 'num') { v = parseFloat(v); if (!isFinite(v)) v = p.def; v = Math.min(p.max, Math.max(p.min, v)); if (p.step >= 1) v = Math.round(v); }
+    else if (p.type === 'bool') v = (v === undefined) ? p.def : (v === true || v === 'true' || v === 1);
+    else if (p.opts.indexOf(v) < 0) v = p.def;
+    out[k] = v;
+  });
+  return out;
+}
+function flDefaultFrom(src) {
+  if (src === 'parkletLength') { try { return _dmCurrent().parklet.length; } catch (e) {} }
+  return undefined;
+}
+// Roles a builder may use without declaring them (planting inside any planter).
+var FL_ROLE_FALLBACK = {soil:'soil', plant:'foliage', trunk:'bark'};
+var _FL_CUSTOM_MATS = {};
+// Material entry for an id or a custom '#rrggbb' powder coat.
+function flMatInfo(ref) {
+  if (typeof ref === 'string' && /^#[0-9a-f]{6}$/i.test(ref)) {
+    var hx = ref.toUpperCase();
+    if (!_FL_CUSTOM_MATS[hx]) {
+      var base = FL_MAT_BY_ID.powder_custom;
+      _FL_CUSTOM_MATS[hx] = {id:hx, label:'Custom ' + hx, group:'powder', color:hx, rough:base.rough, metal:base.metal, tint:flTint2D(hx), edge:flEdge2D(hx), custom:true};
+    }
+    return _FL_CUSTOM_MATS[hx];
+  }
+  return FL_MAT_BY_ID[ref] || FL_MAT_BY_ID.galvanized;
+}
+// May this material go on this part? (allowed group, or a custom hex where powder is allowed)
+function flMatAllowed(type, role, ref) {
+  var pt = FL_ARCHETYPES[type] && FL_ARCHETYPES[type].parts[role];
+  if (!pt || pt.fixed || !ref) return false;
+  if (/^#[0-9a-f]{6}$/i.test(ref)) return pt.allow.indexOf('powder') >= 0;
+  var m = FL_MAT_BY_ID[ref];
+  return !!m && !m.custom && pt.allow.indexOf(m.group) >= 0;
+}
+function flResolveMats(type, raw) {
+  var a = FL_ARCHETYPES[type], out = {};
+  raw = raw || {};
+  Object.keys(a.parts).forEach(function(r) { out[r] = flMatAllowed(type, r, raw[r]) ? raw[r] : a.parts[r].def; });
+  return out;
+}
+// The material id a part of this role is drawn in.
+function flPartMat(type, role, mats) {
+  var a = FL_ARCHETYPES[type];
+  if (mats && mats[role]) return mats[role];
+  if (a && a.parts[role]) return a.parts[role].def;
+  return FL_ROLE_FALLBACK[role] || 'galvanized';
+}
+
+var _FL_PARTS_CACHE = {}, _FL_PARTS_N = 0;
+function flParts(type, params) {
+  var p = flResolveParams(type, params), key = type + JSON.stringify(p);
+  if (_FL_PARTS_CACHE[key]) return _FL_PARTS_CACHE[key];
+  var K = _flKit();
+  FL_GEOM[type](p, K);
+  if (++_FL_PARTS_N > 400) { _FL_PARTS_CACHE = {}; _FL_PARTS_N = 0; }
+  return (_FL_PARTS_CACHE[key] = K.parts);
+}
+// Plan corners of a part's extent after its yaw (Three.js Ry: (x,z) -> (x cos + z sin, -x sin + z cos)).
+function _flCorners(q) {
+  var cx = (q.x0 + q.x1) / 2, cz = (q.z0 + q.z1) / 2, c = Math.cos(q.yaw || 0), s = Math.sin(q.yaw || 0), out = [];
+  [[q.x0, q.z0], [q.x0, q.z1], [q.x1, q.z1], [q.x1, q.z0]].forEach(function(v) {
+    var dx = v[0] - cx, dz = v[1] - cz;
+    out.push([cx + dx * c + dz * s, cz - dx * s + dz * c]);
+  });
+  return out;
+}
+// Envelope of the non-veg parts: {x0,x1,y0,y1,z0,z1,l,d,h}. This is the piece's size.
+function flEnvelope(parts) {
+  var e = {x0:Infinity, x1:-Infinity, y0:Infinity, y1:-Infinity, z0:Infinity, z1:-Infinity};
+  parts.forEach(function(q) {
+    if (q.veg) return;
+    _flCorners(q).forEach(function(v) { e.x0 = Math.min(e.x0, v[0]); e.x1 = Math.max(e.x1, v[0]); e.z0 = Math.min(e.z0, v[1]); e.z1 = Math.max(e.z1, v[1]); });
+    e.y0 = Math.min(e.y0, q.y0); e.y1 = Math.max(e.y1, q.y1);
+  });
+  if (!isFinite(e.x0)) e = {x0:0, x1:0, y0:0, y1:0, z0:0, z1:0};
+  e.l = e.x1 - e.x0; e.d = e.z1 - e.z0; e.h = e.y1 - e.y0;
+  return e;
+}
+function _flFmtM(v) { return String(Math.round(v * 100) / 100); }
+// Library / selection label from the numbers: "Bench 1.8 m, with back".
+function flArchLabel(type, params) {
+  var a = FL_ARCHETYPES[type];
+  if (!a) return type;
+  var p = flResolveParams(type, params), e = flEnvelope(flParts(type, p));
+  var round = p.shape === 'round' || (a.params.l && !a.params.d && type !== 'ramp');
+  var s = a.label + ' ' + (round ? '⌀' : '') + _flFmtM(e.l) + ' m';
+  if (a.tags) Object.keys(a.tags).forEach(function(k) { var t = a.tags[k][p[k] ? 0 : 1]; if (t) s += ', ' + t; });
+  return s;
+}
+
+// -- Specs: catalogue key -> {type, params, mats} ------------------------------------------------
+// Keys are 'GEN-<archetype>' for generic pieces or a manufacturer preset id (FL_PRESETS).
+function flSpecFromKey(key) {
+  if (!key) return null;
+  if (key.indexOf('GEN-') === 0) { var t = key.slice(4); return FL_ARCHETYPES[t] ? {type:t, params:{}, mats:{}, presetId:null} : null; }
+  var pr = FL_PRESETS[key];
+  return pr ? {type:pr.archetype, params:pr.params || {}, mats:pr.materials || {}, presetId:key} : null;
+}
+// Resolved spec of a placed instance (FL3D.placed or DESIGN_MODEL.objects entry); null for street objects.
+function flInstSpec(inst) {
+  if (!inst) return null;
+  var type = inst.archetype, raw = inst.params, rm = inst.materials;
+  if (!type || !FL_ARCHETYPES[type]) { var sp = flSpecFromKey(inst.objId); if (!sp) return null; type = sp.type; raw = sp.params; rm = sp.mats; }
+  return {type:type, params:flResolveParams(type, raw), mats:flResolveMats(type, rm)};
+}
+// Give an instance its own copy of {archetype, params, materials} so two benches can differ.
+// over = saved/duplicated values; meshUrl is the slot for an imported product model (later brief).
+function flInitInstSpec(inst, over, ctx) {
+  over = over || {};
+  var sp = flSpecFromKey(inst.objId);
+  var type = (over.archetype && FL_ARCHETYPES[over.archetype]) ? over.archetype : (sp && sp.type);
+  if (!type) return false;
+  var base = sp && sp.type === type ? sp : {params:{}, mats:{}};
+  inst.archetype = type;
+  inst.params = flResolveParams(type, Object.assign({}, base.params, over.params), ctx || {placing:true});
+  inst.materials = flResolveMats(type, Object.assign({}, base.mats, over.materials));
+  inst.meshUrl = over.meshUrl || null;
+  return true;
+}
+// Street objects are not furniture: their plan footprint comes from the Standard Detail
+// Drawings (W4.1 hydrant, WW1 manhole, E5.19C pole, E1.3 controller base).
+function _flStreetDims(objId) {
+  var so = (typeof STREET_OBJ !== 'undefined') ? STREET_OBJ.find(function(s) { return s.id === objId; }) : null;
+  if (!so) return null;
+  var t = {manhole:[0.94, 0.94], hydrant:[0.5, 0.5], pole:[0.3, 0.3], controller:[0.94, 0.762]}[so.type] || [0.5, 0.5];
+  return {l:t[0], d:t[1], h:0.45};
+}
+// Footprint + height of a placed piece, from its params (street objects: see above).
+function flInstDims(inst) {
+  var sp = flInstSpec(inst);
+  if (sp) { var e = flEnvelope(flParts(sp.type, sp.params)); return {l:e.l, d:e.d, h:e.h}; }
+  return _flStreetDims(inst && inst.objId) || {l:1.5, d:0.5, h:0.45};
+}
+// Same for a catalogue key before placement (drag previews).
+function flKeyDims(key) {
+  var sp = flSpecFromKey(key);
+  if (!sp) return _flStreetDims(key) || {l:1.5, d:0.5, h:0.45};
+  var e = flEnvelope(flParts(sp.type, flResolveParams(sp.type, sp.params, {placing:true})));
+  return {l:e.l, d:e.d, h:e.h};
+}
+function flKeyLabel(key) {
+  var o = (typeof FL_OBJ !== 'undefined') ? FL_OBJ.find(function(x) { return x.id === key; }) : null;
+  if (o) return o.name;
+  var sp = flSpecFromKey(key);
+  return sp ? flArchLabel(sp.type, sp.params) : key;
+}
+
+// -- 3D ----------------------------------------------------------------------------------------------
+// flMat(role, inst): the cached MeshStandardMaterial for a part. Builders never hold a colour.
+var _FL_MAT3D = {};
+// The scene has no environment map, so a fully metallic surface has nothing to reflect and
+// renders near-black; metalness is applied at this fraction of the table value.
+var FL_METAL_SCALE = 0.3;
+function flMat(role, inst) {
+  var m = flMatInfo(flPartMat(inst.archetype, role, inst.materials));
+  if (_FL_MAT3D[m.id]) return _FL_MAT3D[m.id];
+  var mat = new THREE.MeshStandardMaterial({color:new THREE.Color(m.color), roughness:m.rough, metalness:m.metal * FL_METAL_SCALE, side:THREE.DoubleSide});
+  if (m.opacity !== undefined) { mat.transparent = true; mat.opacity = m.opacity; mat.depthWrite = false; }
+  if (m.emissive) { mat.emissive = new THREE.Color(m.color); mat.emissiveIntensity = m.emissive; }
+  mat.userData.flMatId = m.id;
+  return (_FL_MAT3D[m.id] = mat);
+}
+function _flWedgeVerts(q) {
+  function xz(u, w) {
+    if (q.dir === '-x') return [q.x1 - u * (q.x1 - q.x0), q.z0 + w * (q.z1 - q.z0)];
+    if (q.dir === '+z') return [q.x0 + w * (q.x1 - q.x0), q.z0 + u * (q.z1 - q.z0)];
+    if (q.dir === '-z') return [q.x0 + w * (q.x1 - q.x0), q.z1 - u * (q.z1 - q.z0)];
+    return [q.x0 + u * (q.x1 - q.x0), q.z0 + w * (q.z1 - q.z0)];
+  }
+  // bottom quad (0-3) at y0, top edge (4-5) at y1 over the high end (u = 1)
+  return [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [1, 0, 1], [1, 1, 1]].map(function(v) {
+    var p = xz(v[0], v[1]); return [p[0], v[2] ? q.y1 : q.y0, p[1]];
+  });
+}
+function _flWedgeGeo(q) {
+  var v = _flWedgeVerts(q), pos = [];
+  [[0,1,2],[0,2,3],[1,4,5],[1,5,2],[0,3,5],[0,5,4],[0,4,1],[3,2,5]].forEach(function(f) { f.forEach(function(i) { pos.push(v[i][0], v[i][1], v[i][2]); }); });
+  var g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+function _flPartMesh(q, mat) {
+  var sx = q.x1 - q.x0, sy = q.y1 - q.y0, sz = q.z1 - q.z0, geo;
+  if (q.k === 'box') geo = new THREE.BoxGeometry(sx, sy, sz);
+  else if (q.k === 'cyl') geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+  else if (q.k === 'cone') geo = new THREE.ConeGeometry(0.5, 1, 16);
+  else if (q.k === 'sph') geo = new THREE.SphereGeometry(0.5, 12, 8);
+  else if (q.k === 'rod') { geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 12); if (q.axis === 'x') geo.rotateZ(Math.PI / 2); else geo.rotateX(Math.PI / 2); }
+  else geo = _flWedgeGeo(q);
+  var m = new THREE.Mesh(geo, mat);
+  if (q.k !== 'box' && q.k !== 'wedge') m.scale.set(sx, sy, sz);
+  if (q.k !== 'wedge') m.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2);
+  if (q.yaw) m.rotation.y = q.yaw;
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+// type + params (+ materials by role) -> THREE.Group, length along local +X, base at y = 0.
+function fl3DArchetype(type, params, mats) {
+  var inst = {archetype:type, materials:mats || {}}, parts = flParts(type, params), e = flEnvelope(parts), g = new THREE.Group();
+  parts.forEach(function(q) {
+    var m = _flPartMesh(q, flMat(q.role, inst));
+    m.userData.flRole = q.role;
+    if (q.veg) m.userData.flVeg = true;
+    g.add(m);
+  });
+  g.userData = {fl3d:true, archetype:type, label:flArchLabel(type, params), l:e.l, d:e.d, h:e.h, w:e.l};
+  return g;
+}
+// Mesh for a placed instance: its archetype, or (street objects only) the FL3D_FACTORY mesh.
+function fl3DBuildInst(inst) {
+  var sp = flInstSpec(inst);
+  if (sp) {
+    var g = fl3DArchetype(sp.type, sp.params, sp.mats);
+    var o = (typeof FL_OBJ !== 'undefined') ? FL_OBJ.find(function(x) { return x.id === inst.objId; }) : null;
+    if (o) g.userData.label = o.name;
+    return g;
+  }
+  var fac = FL3D_FACTORY[inst.objId];
+  return fac ? fac({}) : null;
+}
+function fl3DBuildFromKey(key) {
+  var sp = flSpecFromKey(key);
+  if (!sp) { var fac = FL3D_FACTORY[key]; return fac ? fac({}) : null; }
+  return fl3DArchetype(sp.type, flResolveParams(sp.type, sp.params, {placing:true}), flResolveMats(sp.type, sp.mats));
+}
+
+// -- Plan ----------------------------------------------------------------------------------------------
+// Top-down projection in LOCAL METRES: u = x (length), v = -z (the depth axis of
+// worldFrameToPlanMatrix). Place it with worldFrameToPlanMatrix(x, z, rot, 1, 1).
+// ctx: {mats, sel, tech}. Fills are the materials' derived tints; technical mode draws greys.
+function flPlanArchetype(type, params, ctx) {
+  ctx = ctx || {};
+  var T = DS.tokens.technical, sw = ctx.sel ? 1.4 : (ctx.tech ? 0.6 : 0.5), s = '';
+  flParts(type, params).slice().sort(function(a, b) { return a.y1 - b.y1; }).forEach(function(q) {
+    var m = flMatInfo(flPartMat(type, q.role, ctx.mats));
+    var fill = ctx.tech ? (q.veg ? 'none' : T.xlt) : m.tint, stroke = ctx.sel ? '#0696D7' : (ctx.tech ? T.ink : m.edge);
+    var op = (!ctx.tech && m.opacity !== undefined) ? " fill-opacity='" + Math.max(0.4, m.opacity) + "'" : (!ctx.tech && q.veg ? " fill-opacity='0.85'" : '');
+    var st = " class='" + (q.veg ? 'fl-veg' : 'fl-part') + "' fill='" + fill + "' stroke='" + stroke + "' stroke-width='" + sw + "' vector-effect='non-scaling-stroke'" + op;
+    if (q.k === 'cyl' || q.k === 'sph' || q.k === 'cone') {
+      s += "<ellipse cx='" + ((q.x0 + q.x1) / 2).toFixed(4) + "' cy='" + (-(q.z0 + q.z1) / 2).toFixed(4) + "' rx='" + ((q.x1 - q.x0) / 2).toFixed(4) + "' ry='" + ((q.z1 - q.z0) / 2).toFixed(4) + "'" + st + '/>';
+    } else if (q.yaw) {
+      s += "<polygon points='" + _flCorners(q).map(function(v) { return v[0].toFixed(4) + ',' + (-v[1]).toFixed(4); }).join(' ') + "'" + st + '/>';
+    } else {
+      s += "<rect x='" + q.x0.toFixed(4) + "' y='" + (-q.z1).toFixed(4) + "' width='" + (q.x1 - q.x0).toFixed(4) + "' height='" + (q.z1 - q.z0).toFixed(4) + "'" + st + '/>';
+    }
+  });
+  return s;
+}
+
+// -- Section -----------------------------------------------------------------------------------------
+function _flHull(pts) {
+  pts = pts.slice().sort(function(a, b) { return a[0] - b[0] || a[1] - b[1]; });
+  if (pts.length < 3) return pts;
+  function cr(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+  var lo = [], up = [], i;
+  for (i = 0; i < pts.length; i++) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], pts[i]) <= 0) lo.pop(); lo.push(pts[i]); }
+  for (i = pts.length - 1; i >= 0; i--) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], pts[i]) <= 0) up.pop(); up.push(pts[i]); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+// Elevation of the parts onto the section plane (world X horizontal, height vertical).
+// ctx: {mats, x (world X of the piece centre), rot (userRotation), xToPx(worldX), yDeck (px of
+// the deck surface), SC (px per metre), isBeyond, tech}.
+function flSectionArchetype(type, params, ctx) {
+  var sn = Math.sin(ctx.rot || 0), cs = Math.cos(ctx.rot || 0), T = DS.tokens.technical, s = '';
+  function wx(lx, lz) { return ctx.x + lx * sn - lz * cs; }            // canonical frame, as getFurnitureCorners
+  function pt(lx, y, lz) { return [ctx.xToPx(wx(lx, lz)), ctx.yDeck - y * ctx.SC]; }
+  var parts = flParts(type, params);
+  parts.filter(function(q) { return !q.veg; }).concat(parts.filter(function(q) { return q.veg; })).forEach(function(q) {
+    var m = flMatInfo(flPartMat(type, q.role, ctx.mats)), fill, stroke, extra = '';
+    if (ctx.isBeyond) { fill = 'none'; stroke = ctx.tech ? '#888888' : m.edge; extra = " stroke-dasharray='3,2' stroke-opacity='0.6'"; }
+    else { fill = ctx.tech ? (q.veg ? 'none' : T.lt) : m.tint; stroke = ctx.tech ? T.ink : m.edge; if (!ctx.tech && m.opacity !== undefined) extra = " fill-opacity='" + Math.max(0.4, m.opacity) + "'"; }
+    var st = " class='" + (q.veg ? 'fl-veg' : 'fl-part') + "' fill='" + fill + "' stroke='" + stroke + "' stroke-width='" + (ctx.tech ? 0.7 : 0.5) + "'" + extra;
+    var cn = _flCorners(q), P = [];
+    if (q.k === 'sph') {
+      var xs = cn.map(function(v) { return ctx.xToPx(wx(v[0], v[1])); }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+      s += "<ellipse cx='" + ((x0 + x1) / 2).toFixed(2) + "' cy='" + (ctx.yDeck - (q.y0 + q.y1) / 2 * ctx.SC).toFixed(2) + "' rx='" + ((x1 - x0) / 2).toFixed(2) + "' ry='" + ((q.y1 - q.y0) / 2 * ctx.SC).toFixed(2) + "'" + st + '/>';
+      return;
+    }
+    if (q.k === 'wedge') _flWedgeVerts(q).forEach(function(v) { P.push(pt(v[0], v[1], v[2])); });
+    else if (q.k === 'cone') { cn.forEach(function(v) { P.push(pt(v[0], q.y0, v[1])); }); P.push(pt((q.x0 + q.x1) / 2, q.y1, (q.z0 + q.z1) / 2)); }
+    else cn.forEach(function(v) { P.push(pt(v[0], q.y0, v[1])); P.push(pt(v[0], q.y1, v[1])); });
+    s += "<polygon points='" + _flHull(P).map(function(v) { return v[0].toFixed(2) + ',' + v[1].toFixed(2); }).join(' ') + "'" + st + '/>';
+  });
+  return "<g class='fl-sec' data-arch='" + type + "'" + (ctx.id != null ? " data-inst='" + ctx.id + "'" : '') + " data-sc='" + ctx.SC + "'>" + s + '</g>';
+}
+
+// Manufacturer presets: product id -> archetype + catalogue numbers + catalogue finish.
+// (Values in metres from FL_OBJ's catalogue text; see each product's src.)
+var FL_PRESETS = {
+  'VS-APR-CH01': {archetype:'chair',          params:{l:0.786, d:0.56, h:0.45, backH:0.82}, materials:{frame:'galvanized', seat:'pine'}},
+  'VS-APR-BN01': {archetype:'bench',          params:{l:1.514, d:0.55, h:0.45, backH:0.82}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
+  'VS-AGO-CH01': {archetype:'armchair',       params:{l:0.715, d:0.627, h:0.35, backH:0.55}, materials:{frame:'black_steel', seat:'oak'}},
+  'VS-ATL-BN01': {archetype:'bench',          params:{l:1.806, d:0.55, h:0.45, backH:0.8}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
+  'VS-AIR-BN01': {archetype:'bench',          params:{l:1.39, d:0.464, h:0.45, backH:0.797}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
+  'VS-BLC-ST01': {archetype:'bench',          params:{l:0.67, d:0.46, h:0.46, backH:0.79, ends:'plinth'}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
+  'VS-BLC-BB01': {archetype:'bench',          params:{l:1.382, d:0.92, h:0.46, backH:0.62, double:true, ends:'plinth'}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
+  'VS-BLC-SB01': {archetype:'sun_lounger',    params:{l:0.868, d:1.9, h:0.39, backH:1.0}, materials:{frame:'galvanized', seat:'pine'}},
+  'VS-DLG-BN01': {archetype:'backless_bench', params:{l:1.84, d:0.38, h:0.42}, materials:{frame:'galvanized', seat:'oak'}},
+  'VS-EDO-BN01': {archetype:'backless_bench', params:{l:1.8, d:0.315, h:0.45}, materials:{frame:'galvanized', seat:'oak'}},
+  'VS-FLK-BN01': {archetype:'bleacher_step',  params:{l:0.807, rows:2, rowD:0.336, rowH:0.225}, materials:{body:'aluminium', seat:'aluminium'}},
+  'VS-FRM-BN01': {archetype:'backless_bench', params:{l:2.0, d:0.42, h:0.47}, materials:{frame:'galvanized', seat:'pine'}},
+  'VS-HVL-BN01': {archetype:'bench',          params:{l:2.0, d:0.635, h:0.47, backH:0.714}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
+  'VS-APR-TL01': {archetype:'table',          params:{l:1.8, d:0.695, h:0.75}, materials:{frame:'galvanized', top:'hpl_grey'}},
+  'VS-AGO-TL01': {archetype:'table',          params:{l:0.695, d:0.65, h:0.73}, materials:{frame:'galvanized', top:'pine'}},
+  'VS-AIR-TL01': {archetype:'table',          params:{l:1.64, d:0.652, h:0.75}, materials:{frame:'galvanized', top:'pine'}},
+  'VS-BLC-TL01': {archetype:'table',          params:{l:0.775, h:0.75, shape:'square'}, materials:{frame:'galvanized', top:'pine'}},
+  'VS-FLK-TL01': {archetype:'table',          params:{l:1.85, d:0.8, h:0.75}, materials:{frame:'aluminium', top:'aluminium'}},
+  'VS-FRM-TL01': {archetype:'table',          params:{l:2.0, d:0.65, h:0.73}, materials:{frame:'galvanized', top:'hpl_grey'}},
+  'VS-HVL-TL01': {archetype:'table',          params:{l:0.72, h:0.72, shape:'square'}, materials:{frame:'galvanized', top:'pine'}},
+  'VS-HVL-PT01': {archetype:'picnic',         params:{l:1.718, d:1.61, h:0.74, seatH:0.45}, materials:{frame:'galvanized', top:'pine', seat:'pine'}},
+  'VS-BUZ-TB01': {archetype:'picnic',         params:{l:0.938, h:0.74, seatH:0.46, shape:'round'}, materials:{frame:'galvanized', top:'hpl_grey', seat:'hpl_grey'}},
+  'VS-BRG-PT01': {archetype:'picnic',         params:{l:2.1, d:1.6, h:0.75}, materials:{frame:'galvanized', top:'pine', seat:'pine'}},
+  'VS-CDT-TB01': {archetype:'picnic',         params:{l:1.04, d:1.3, h:0.75}, materials:{frame:'galvanized', top:'pine', seat:'pine'}},
+  'VS-AGO-PL01': {archetype:'planter_tall',   params:{l:0.45, d:0.45, h:0.9}, materials:{body:'galvanized'}},
+  'VS-BLC-PL01': {archetype:'planter',        params:{l:0.6, d:0.6, h:0.42}, materials:{body:'galvanized'}},
+  'VS-BLC-PL02': {archetype:'planter',        params:{l:0.9, d:0.6, h:0.52}, materials:{body:'galvanized'}},
+  'VS-BLC-PL03': {archetype:'planter',        params:{l:1.2, d:0.6, h:0.62}, materials:{body:'galvanized'}},
+  'VS-BLC-PL04': {archetype:'planter',        params:{l:1.6, d:0.6, h:0.72}, materials:{body:'galvanized'}},
+  'VS-BOB-PL01': {archetype:'planter',        params:{l:0.9, d:0.45, h:0.38}, materials:{body:'black_steel'}},
+  'VS-CDQ-PL01': {archetype:'planter',        params:{l:0.8, d:0.826, h:0.6}, materials:{body:'galvanized'}},
+  'VS-CDQ-PL02': {archetype:'planter_tall',   params:{l:0.8, d:0.8, h:0.9}, materials:{body:'galvanized'}},
+  'VS-BLC-WB01': {archetype:'bin',            params:{l:0.3, d:0.55, h:0.922}, materials:{body:'galvanized', lid:'ral_7016'}},
+  'VS-BLC-WB02': {archetype:'bin',            params:{l:0.45, d:0.55, h:0.95}, materials:{body:'galvanized', lid:'ral_7016'}},
+  'VS-CTY-WB01': {archetype:'bin',            params:{l:0.39, d:0.39, h:0.65, shape:'round'}, materials:{body:'galvanized', lid:'ral_7016'}},
+  'VS-CTY-WB02': {archetype:'bin',            params:{l:0.4, d:0.4, h:0.9, shape:'round'}, materials:{body:'galvanized', lid:'ral_7016'}},
+  'VS-DLG-WB01': {archetype:'bin',            params:{l:0.26, d:0.56, h:0.9}, materials:{body:'galvanized', lid:'ral_7016'}},
+  'VS-FRM-WB01': {archetype:'bin',            params:{l:0.43, d:0.43, h:0.75}, materials:{body:'galvanized', lid:'ral_7016'}},
+  'VS-BRG-BR01': {archetype:'bike_rack',      params:{l:1.448, h:0.775, type:'u', count:2}, materials:{frame:'galvanized'}},
+  'VS-BOY-BR01': {archetype:'bike_rack',      params:{l:0.718, h:0.48, type:'u'}, materials:{frame:'galvanized'}},
+  'VS-CYC-BR01': {archetype:'bike_rack',      params:{l:1.155, h:1.01, type:'u', count:2}, materials:{frame:'galvanized'}},
+  'VS-FLK-BR01': {archetype:'bike_rack',      params:{l:0.8, h:0.45, type:'u'}, materials:{frame:'aluminium'}},
+  'VS-FRM-BR01': {archetype:'bike_rack',      params:{l:0.7, h:0.8, type:'u'}, materials:{frame:'aluminium'}},
+  'VS-KLP-BR01': {archetype:'bike_rack',      params:{l:0.9, h:0.8, type:'wave'}, materials:{frame:'galvanized'}},
+  'VS-HVL-BL01': {archetype:'bollard',        params:{l:0.245, h:0.8}, materials:{body:'galvanized'}},
+  'VS-CVR-SH01': {archetype:'shelter_roof',   params:{l:4.62, d:2.312, h:2.6}, materials:{post:'galvanized', roof:'glass_clear'}},
+  'MC-KPE-SY109': {archetype:'platform_system', params:{l:1.9, d:2.415, h:1.2}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}},
+  'MC-KPE-SY110': {archetype:'platform_system', params:{l:2.8, d:2.415, h:1.2}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}},
+  'MC-KPE-SY111': {archetype:'platform_system', params:{l:2.8, d:2.415, h:1.2, bench:false}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}},
+  'MC-KPE-SY112': {archetype:'platform_system', params:{l:2.8, d:1.875, h:1.2}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}}
+};
+
+// Street objects (manholes, hydrants, poles...) register their own meshes here
+// (_registerStreet3DFactories). Furniture never does: it is all FL_ARCHETYPES.
+var FL3D_FACTORY = {};
 
 // == CANONICAL FURNITURE ORIENTATION ==================================================
 // Three.js Ry(th): local +X -> world (cos th, 0, -sin th). At th=-pi/2: local +X -> world +Z.
-// All FL3D_FACTORY objects model primary length along local +X.
-// FURN_BASE_YAW corrects each factory so at userRotation=0, length runs along world +Z.
-var FURN_BASE_YAW = {
-  'VS-FRM-BN01': -Math.PI/2,
-  'VS-HVL-BN01': -Math.PI/2,
-  'VS-BLC-ST01': -Math.PI/2,
-  'VS-BLC-BB01': -Math.PI/2,
-  'VS-APR-CH01': -Math.PI/2,
-  'VS-DLG-BN01': -Math.PI/2,
-  'VS-APR-TL01': -Math.PI/2,
-  'VS-FRM-TL01': -Math.PI/2,
-  'VS-HVL-PT01': -Math.PI/2,
-  'VS-BUZ-TB01': 0,
-  'VS-BLC-PL01': -Math.PI/2,
-  'VS-BLC-PL02': -Math.PI/2,
-  'VS-BLC-PL03': -Math.PI/2,
-  'VS-BLC-PL04': -Math.PI/2,
-  'VS-BOB-PL01': -Math.PI/2,
-  'VS-AGO-PL01': -Math.PI/2,
-  'VS-BOY-BR01': -Math.PI/2,
-  'VS-CYC-BR01': -Math.PI/2,
-  'VS-HVL-BL01': 0,
-  'VS-BLC-WB01': -Math.PI/2,
-  'VS-CTY-WB01': 0,
-  'VS-CVR-SH01': -Math.PI/2,
-  'MC-KPE-SY109': -Math.PI/2,
-  '__GENERIC_BENCH': -Math.PI/2,
-  '__GENERIC_TABLE': -Math.PI/2,
-  '__GENERIC_CHAIR': -Math.PI/2,
-};
+// Every builder models its length along local +X, so one base yaw turns it onto world +Z
+// at userRotation = 0.
+var FL_BASE_YAW = -Math.PI / 2;
 
 // The ONLY function that writes mesh.rotation.y for furniture.
 // mesh.rotation.y = baseYaw + userRotation.
 // userRotation is the world rotation shown in the UI. baseYaw is never shown.
 function applyFurnitureTransform(inst) {
   if (!inst || !inst.mesh) return;
-  var base = (typeof FURN_BASE_YAW !== 'undefined' && FURN_BASE_YAW[inst.objId] !== undefined)
-             ? FURN_BASE_YAW[inst.objId] : -Math.PI/2;
+  var base = FL_BASE_YAW;
   var user = typeof inst.userRotation === 'number' ? inst.userRotation : 0;
   inst.mesh.rotation.y = base + user;
 }
@@ -9268,11 +9452,14 @@ function fl3DHandleClick(e) {
   fl3DSelect(null);
 }
 
-function fl3DPlaceAt(objId, wx, wz) {
+// objId is a catalogue key ('GEN-bench' or a preset id). over = {params, materials, archetype,
+// meshUrl} from a save or a duplicate; otherwise the key's defaults are copied onto the instance.
+function fl3DPlaceAt(objId, wx, wz, over) {
   if (!_3d || !_3d.group) return;
-  const factory = FL3D_FACTORY[objId];
-  if (!factory) return;
-  const mesh = factory({});
+  var _newInst = {id: null, objId: objId, mesh: null, x: wx, z: wz, rotationY: 0, userRotation: 0};
+  if (!flInitInstSpec(_newInst, over) && !FL3D_FACTORY[objId]) return;
+  const mesh = fl3DBuildInst(_newInst);
+  if (!mesh) return;
   if (typeof snapToGrid === 'function' && typeof _snapEnabled !== 'undefined' && _snapEnabled) {
     wx = snapToGrid(wx, _gridSpacing);
     wz = snapToGrid(wz, _gridSpacing);
@@ -9282,7 +9469,7 @@ function fl3DPlaceAt(objId, wx, wz) {
   _3d.group.add(mesh);
   const id = ++_fl3DInstId;
   mesh.userData.fl3dInstId = id;
-  var _newInst = {id, objId, mesh, x: wx, z: wz, rotationY: 0, userRotation: 0};
+  _newInst.id = id; _newInst.mesh = mesh; _newInst.x = wx; _newInst.z = wz;
   applyFurnitureTransform(_newInst);
   FL3D.placed.push(_newInst);
   _dmSyncObject(_newInst);
@@ -9364,7 +9551,7 @@ function fl3DUpdateSelUI(id) {
       var _xI = document.getElementById('fl3DInstX'), _zI = document.getElementById('fl3DInstZ'), _rI = document.getElementById('fl3DInstRot');
       if (_xI) _xI.value = (typeof inst.x === 'number' ? inst.x : (inst.mesh ? inst.mesh.position.x : 0)).toFixed(3);
       if (_zI) _zI.value = (typeof inst.z === 'number' ? inst.z : (inst.mesh ? inst.mesh.position.z : 0)).toFixed(3);
-      // Show userRotation (world rotation in UI), NOT raw mesh.rotation.y (includes FURN_BASE_YAW).
+      // Show userRotation (world rotation in UI), NOT raw mesh.rotation.y (includes FL_BASE_YAW).
       var _dispUR = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
       if (_rI) _rI.value = Math.round(_dispUR * 180 / Math.PI);
     }
@@ -9408,7 +9595,7 @@ function _fl3DAlignX(side) {
   var inst = window.FL3D.placed.find(function(i){ return i.id === window.FL3D.selId; });
   if (!inst) return;
   var pkW = _dmCurrent().parklet.width;
-  var dims = (typeof _flGetDims === 'function') ? _flGetDims(inst.objId) : {l:1.5, d:0.5};
+  var dims = flInstDims(inst);
   var hd = dims.d / 2;
   var nx;
   if (side === 'center') nx = pkW / 2;
@@ -9494,9 +9681,9 @@ const FL3D_TRAY_ITEMS = [
   {objId:'VS-CTY-WB01', ico:'○', lbl:'City Bin'},
   {objId:'VS-CVR-SH01', ico:'⌂', lbl:'Cover Roof'},
   {objId:'MC-KPE-SY109', ico:'▩', lbl:'Kupé PLF109'},
-  {objId:'__GENERIC_BENCH', ico:'▬', lbl:'Gen Bench'},
-  {objId:'__GENERIC_TABLE', ico:'▭', lbl:'Gen Table'},
-  {objId:'__GENERIC_CHAIR', ico:'▤', lbl:'Gen Chair'},
+  {objId:'GEN-bench', ico:'▬', lbl:'Bench'},
+  {objId:'GEN-table', ico:'▭', lbl:'Table'},
+  {objId:'GEN-chair', ico:'▤', lbl:'Chair'},
 ];
 
 function fl3DRenderTray() {
@@ -9585,26 +9772,6 @@ function setCanvasView(view) {
 // PHASE 2 — Preview System · Selection · Right Panel · Plan Clicks
 // ═══════════════════════════════════════════════════════════════════
 
-// ── MATERIALS STANDALONE INIT ──────────────────────────────────────
-// Allows FL3D_FACTORY functions to run before the main 3D scene exists.
-function fl3DEnsureMats() {
-  if (FL3D.mats) return;
-  FL3D.mats = {
-    wood:   new THREE.MeshPhongMaterial({color:0xB8875A,shininess:20}),
-    woodDk: new THREE.MeshPhongMaterial({color:0x8B5E30,shininess:15}),
-    steel:  new THREE.MeshPhongMaterial({color:0x8A9BAA,shininess:80}),
-    galv:   new THREE.MeshPhongMaterial({color:0xA8B8BC,shininess:60}),
-    alum:   new THREE.MeshPhongMaterial({color:0xC4CDD0,shininess:90}),
-    black:  new THREE.MeshPhongMaterial({color:0x2E2E2E,shininess:40}),
-    dark:   new THREE.MeshPhongMaterial({color:0x3A3A3A,shininess:30}),
-    plant:  new THREE.MeshPhongMaterial({color:0x4A7A3A,shininess:5}),
-    soil:   new THREE.MeshPhongMaterial({color:0x6A5040,shininess:5}),
-    hpl:    new THREE.MeshPhongMaterial({color:0x8A8A8A,shininess:30}),
-    yellow: new THREE.MeshPhongMaterial({color:0xFFEB3B,shininess:90}),
-    glass:  new THREE.MeshPhongMaterial({color:0xCCE8F0,transparent:true,opacity:0.55,shininess:120}),
-  };
-}
-
 // ── SHARED FURNITURE PREVIEW RENDERER ─────────────────────────────
 var _FPR = {r:null,scene:null,cam:null,cache:{},W:200,H:150};
 
@@ -9625,12 +9792,9 @@ function _fprInit() {
 function fprGetDataUrl(objId) {
   if (_FPR.cache[objId]) return _FPR.cache[objId];
   if (!window.THREE) return null;
-  fl3DEnsureMats();
   _fprInit();
   if (!_FPR.r) return null;
-  var factory = (typeof FL3D_FACTORY !== 'undefined') ? FL3D_FACTORY[objId] : null;
-  if (!factory) return null;
-  var mesh; try { mesh = factory({}); } catch(e) { return null; }
+  var mesh; try { mesh = fl3DBuildFromKey(objId); } catch(e) { return null; }
   if (!mesh) return null;
   // Remove previous geometry meshes (keep lights which have no userData.fl3d)
   var prev = _FPR.scene.children.filter(function(c){return c.userData&&c.userData.fl3d;});
@@ -9699,7 +9863,7 @@ function _fvRender(wrap) {
     var grid = document.createElement('div');
     grid.className = 'fv-grid';
     groups[sec].forEach(function(obj) {
-      var hasFact = !!(typeof FL3D_FACTORY !== 'undefined' && FL3D_FACTORY[obj.id]);
+      var hasFact = !!flSpecFromKey(obj.id);
       var dims = obj.dims||{};
       var W=dims.W||dims.w||'', D=dims.D||dims.d||'', H=dims.H||dims.h||'';
       var dimStr = [W,D,H].filter(Boolean).join(' x ');
@@ -9971,7 +10135,7 @@ function renderFurnitureInfoProps(obj) {
   if (!obj) return '';
   var dims=obj.dims||{};
   var W=dims.W||dims.w||'—', D=dims.D||dims.d||'—', H=dims.H||dims.h||'—';
-  var hasFact=!!(typeof FL3D_FACTORY!=='undefined'&&FL3D_FACTORY[obj.id]);
+  var hasFact=!!flSpecFromKey(obj.id);
   return '<div class="rp-obj-name">'+obj.name+'</div>'+(obj.brand?'<div class="rp-obj-sub">'+obj.brand+'</div>':'')+
     _rpS('OBJECT')+_rpR('ID',obj.id)+(obj.cat?_rpR('Category',obj.cat):'')+
     (hasFact?'<div class="rp-status rp-pass">✓ 3D geometry</div>':'<div class="rp-status rp-unclear">No 3D geometry</div>')+
@@ -9984,7 +10148,7 @@ function fvDuplicateSelected() {
   if (FL3D.selId===null||!_3d) return;
   var inst=FL3D.placed.find(function(i){return i.id===FL3D.selId;});
   if (!inst) return;
-  fl3DPlaceAt(inst.objId,inst.mesh.position.x+0.5,inst.mesh.position.z+0.5);
+  fl3DPlaceAt(inst.objId,inst.mesh.position.x+0.5,inst.mesh.position.z+0.5,{archetype:inst.archetype,params:inst.params,materials:inst.materials,meshUrl:inst.meshUrl});
   // fl3DPlaceAt already calls renderCrossSection; select new instance
   var n=FL3D.placed.find(function(i){return i.id===FL3D.selId;});
   if (n) setSelection('furniture',n.id,n);
@@ -11398,7 +11562,7 @@ function cadAction(type) {
     if (typeof fl3DRotateSelected === 'function') fl3DRotateSelected(45);
     if (inst) cadToolsUpdate(inst);
   } else if (type === 'duplicate') {
-    if (inst && typeof fl3DPlaceAt === 'function') fl3DPlaceAt(inst.objId, (inst.x||0)+0.5, (inst.z||0)+0.5);
+    if (inst && typeof fl3DPlaceAt === 'function') fl3DPlaceAt(inst.objId, (inst.x||0)+0.5, (inst.z||0)+0.5, {archetype:inst.archetype, params:inst.params, materials:inst.materials, meshUrl:inst.meshUrl});
   } else if (type === 'delete') {
     if (typeof fl3DDeleteSelected === 'function') fl3DDeleteSelected();
     cadToolsUpdate(null);
@@ -12527,7 +12691,7 @@ function _fdUpdatePlanPreview(wx, wz, snap) {
   var m = (typeof planMetrics === 'function') ? planMetrics() : null;
   if (!m) { grp.innerHTML = ''; return; }
   var _cP = worldToPlan(wx, wz), cx = _cP.px, cy = _cP.py;
-  var dims = (typeof _flGetDims === 'function') ? _flGetDims(FURN_DRAG.objId) : { l: 1.5, d: 0.5 };
+  var dims = flKeyDims(FURN_DRAG.objId);
   var pw = dims.l * m.HS;
   var ph = dims.d * m.pvSC;
   var snapLbl = snap ? (snap.label || snap.type || '') : '';
@@ -12560,9 +12724,9 @@ function _fdUpdateSectionPreview(wx, wz, snap) {
   var m = _fdGetSectionMetrics();
   var cx = m.XSW + wx * m.SC;
   var GY = 148; // deck-level Y in section SVG (constant from renderCrossSection)
-  var dims = (typeof _flGetDims === 'function') ? _flGetDims(FURN_DRAG.objId) : { l: 1.5, d: 0.5 };
+  var dims = flKeyDims(FURN_DRAG.objId);
   var pw = Math.max(4, dims.d * m.SC);
-  var ph = Math.max(6, 0.45 * 20);  // approx furniture height ~0.45 m × 20 px/m
+  var ph = Math.max(6, dims.h * m.SC);   // the piece height, from its params
   var snapLbl = snap ? (snap.label || snap.type || '') : '';
   var html =
     '<rect x="' + (cx - pw/2).toFixed(1) + '" y="' + (GY - ph).toFixed(1) + '"' +
@@ -12584,15 +12748,15 @@ function _fdClearSectionPreview() {
 function _fdUpdate3DPreview(wx, wz) {
   if (!_3d || !FL3D._built) return;
   var objId = FURN_DRAG.objId;
-  var factory = FL3D_FACTORY[objId];
-  if (!factory) return;
+  if (!flSpecFromKey(objId) && !FL3D_FACTORY[objId]) return;
   // Rebuild if object type changed
   if (FURN_DRAG.preview3DMesh && FURN_DRAG.preview3DObjId !== objId) {
     _3d.scene.remove(FURN_DRAG.preview3DMesh);
     FURN_DRAG.preview3DMesh = null;
   }
   if (!FURN_DRAG.preview3DMesh) {
-    var mesh = factory({});
+    var mesh = fl3DBuildFromKey(objId);
+    if (!mesh) return;
     mesh.traverse(function(child) {
       if (child.isMesh) {
         child.material = child.material.clone();
@@ -12606,6 +12770,7 @@ function _fdUpdate3DPreview(wx, wz) {
     _3d.scene.add(mesh);
   }
   FURN_DRAG.preview3DMesh.position.set(wx, FL3D.DECK_H, wz);
+  FURN_DRAG.preview3DMesh.rotation.y = FL_BASE_YAW;   // same orientation the placed piece will get
   requestAnimationFrame(function() {
     if (_3d && _3d.renderer && _3d.scene && _3d.camera) {
       _3d.renderer.render(_3d.scene, _3d.camera);
@@ -12965,7 +13130,7 @@ function isPlanCanvasEmpty(pos) {
     for (var i = 0; i < FL3D.placed.length; i++) {
       var inst = FL3D.placed[i];
       var _cP = worldToPlan(inst.x || 0, inst.z || 0), cx = _cP.px, cy = _cP.py;
-      var dims = (typeof _flGetDims === 'function') ? _flGetDims(inst.objId) : {l:1.5, d:0.6};
+      var dims = flInstDims(inst);
       var hr = Math.sqrt(Math.pow(dims.l * m.HS / 2, 2) + Math.pow(dims.d * m.pvSC / 2, 2)) + 6;
       if (Math.hypot(pos.x - cx, pos.y - cy) < hr) return false;
     }
@@ -12990,7 +13155,7 @@ function isSectionCanvasEmpty(svgX) {
   for (var i = 0; i < FL3D.placed.length; i++) {
     var inst = FL3D.placed[i];
     var cx = sm.XSW + (inst.x || 0) * sm.SC;
-    var dims = (typeof _flGetDims === 'function') ? _flGetDims(inst.objId) : {l:1.5, d:0.6};
+    var dims = flInstDims(inst);
     var hw = dims.d * sm.SC / 2 + 6;
     if (Math.abs(svgX - cx) < hw) return false;
   }
@@ -13082,24 +13247,6 @@ window.addEventListener('load', function() {
 
   // Inject compact LHS street section after dk-panels init
   setTimeout(function() { _initStreetLHSSection(); }, 500);
-
-  // Patch _flGetDims to know about street objects
-  if (typeof _flGetDims === 'function') {
-    var _origFlGetDims = _flGetDims;
-    _flGetDims = function(objId) {
-      for (var si = 0; si < STREET_OBJ.length; si++) {
-        if (STREET_OBJ[si].id === objId) {
-          var so = STREET_OBJ[si];
-          if (so.type === 'manhole')    return {l: 0.94, d: 0.94};
-          if (so.type === 'hydrant')    return {l: 0.50, d: 0.50};
-          if (so.type === 'pole')       return {l: 0.30, d: 0.30};
-          if (so.type === 'controller') return {l: 0.94, d: 0.762};
-          return {l: 0.50, d: 0.50};
-        }
-      }
-      return _origFlGetDims(objId);
-    };
-  }
 
   // Register STREET3D_FACTORY entries into FL3D_FACTORY (idempotent, no delay needed)
   if (typeof _registerStreet3DFactories === 'function') _registerStreet3DFactories();
@@ -14256,7 +14403,9 @@ function pkSerialize() {
     },
     furniture: {
       placed: (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? FL3D.placed.map(function(inst) {
-        return { objId: inst.objId, x: inst.x, z: inst.z, rotationY: inst.rotationY||0, userRotation: inst.userRotation||0 };
+        var _rec = { objId: inst.objId, x: inst.x, z: inst.z, rotationY: inst.rotationY||0, userRotation: inst.userRotation||0 };
+        if (inst.archetype) { _rec.archetype = inst.archetype; _rec.params = Object.assign({}, inst.params); _rec.materials = Object.assign({}, inst.materials); _rec.meshUrl = inst.meshUrl || null; }
+        return _rec;
       }) : []
     }
   };
@@ -14410,12 +14559,16 @@ function pkApplyDesignState(raw) {
     data.furniture.placed.forEach(function(inst) {
       try {
         if (typeof fl3DPlaceAt === 'function') {
-          fl3DPlaceAt(inst.objId, inst.x, inst.z);
-          var placed = FL3D.placed[FL3D.placed.length - 1];
-          if (placed) {
-            placed.userRotation = inst.userRotation || 0;
-            placed.rotationY    = inst.rotationY    || 0;
-            if (placed.mesh) placed.mesh.rotation.y = placed.rotationY + placed.userRotation;
+          // Old saves carry only objId (a preset id): its archetype + catalogue params fill in.
+          var _nBefore = FL3D.placed.length;
+          fl3DPlaceAt(inst.objId, inst.x, inst.z, {archetype:inst.archetype, params:inst.params, materials:inst.materials, meshUrl:inst.meshUrl});
+          var placed = FL3D.placed.length > _nBefore ? FL3D.placed[FL3D.placed.length - 1] : null;
+          if (!placed) console.warn('[pk] furniture not restored (unknown objId):', inst.objId);
+          else {
+            placed.userRotation = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
+            placed.rotationY    = placed.userRotation;
+            applyFurnitureTransform(placed);
+            _dmSyncObject(placed);
           }
         }
       } catch(e_) { console.warn('[pk] furniture restore error:', inst.objId, e_); }
@@ -15846,12 +15999,12 @@ AX.clear = function() { AX.history = []; document.getElementById('axMsgs').inner
 AX._cat = null;
 AX.catalog = function() {
   if (AX._cat) return AX._cat;
+  // Generic archetypes first (objId GEN-<type>), then manufacturer presets. Footprints come
+  // from the archetype params (FL_OBJ is a top-level const, not a window property).
   var rows = [];
-  (window.FL_OBJ || []).forEach(function(o) {
-    var fp = '';
-    try { if (window.FL3D_FACTORY && FL3D_FACTORY[o.id]) { var m = FL3D_FACTORY[o.id]({}), ud = m.userData || {}; if (ud.l && ud.d) fp = ' ' + (+ud.l).toFixed(2) + 'x' + (+ud.d).toFixed(2) + 'm'; } } catch(e) {}
-    rows.push(o.id + ' | ' + o.name + ' | ' + o.brand + ' | ' + o.cat + fp);
-  });
+  function fp(key) { var d = flKeyDims(key); return ' ' + d.l.toFixed(2) + 'x' + d.d.toFixed(2) + 'm'; }
+  Object.keys(FL_ARCHETYPES).forEach(function(t) { rows.push('GEN-' + t + ' | ' + flArchLabel(t, {}) + ' | generic | ' + FL_ARCHETYPES[t].cat + fp('GEN-' + t)); });
+  FL_OBJ.forEach(function(o) { rows.push(o.id + ' | ' + o.name + ' | ' + o.brand + ' | ' + o.cat + fp(o.id)); });
   AX._cat = rows.join('\n'); return AX._cat;
 };
 AX.derived = function() {
@@ -15928,7 +16081,8 @@ AX.apply = function(changes) {
   var snap = pkSerialize(); AX.undoSnap = JSON.parse(JSON.stringify(snap));
   var applied = [], rejected = [];
   var num = function(v) { var n = parseFloat(v); return isNaN(n) ? null : n; };
-  var byId = {}; (window.FL_OBJ || []).forEach(function(o) { byId[o.id] = o; byId[o.name.toLowerCase()] = o; });
+  var byId = {}; FL_OBJ.forEach(function(o) { byId[o.id] = o; byId[o.name.toLowerCase()] = o; });
+  Object.keys(FL_ARCHETYPES).forEach(function(t) { byId['GEN-' + t] = {id:'GEN-' + t, name:flArchLabel(t, {})}; });
   (changes || []).forEach(function(c) {
     try {
       switch (c.op) {
