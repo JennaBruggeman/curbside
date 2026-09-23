@@ -516,7 +516,28 @@
   <button class='ctx-btn ctx-btn-full' id='px3dBtn' onclick='PX.export()' style='margin-top:6px'>&#8595; Export 3D Model</button>
   <div id='px3dNote' style='font-size:9px;color:var(--text-mu);margin-top:8px;line-height:1.5'></div>
   <div style='font-size:9px;color:var(--text-mu);margin-top:6px;opacity:.7'>Exports the current 3D view as meshes, metres, Z-up. .skp and .rvt are closed formats — use the interchange file each app imports natively.</div>
-</div></div>
+</div>
+<div class='ctx-group' id='axeGroup'>
+  <div class='ctx-label'>Animated axonometric</div>
+  <div class='ctx-row'><span style='font-size:10.5px;color:var(--text-lo);width:62px;flex-shrink:0'>Duration</span><input type='range' id='axeDur' min='6' max='20' step='1' value='10' oninput='AXE.ui()' style='flex:1'><span id='axeDurLbl' style='font-size:10.5px;color:var(--text-lo);width:34px;text-align:right;font-variant-numeric:tabular-nums'>10 s</span></div>
+  <div class='ctx-row'><span style='font-size:10.5px;color:var(--text-lo);width:62px;flex-shrink:0'>Vehicles</span><input type='range' id='axeVeh' min='0' max='3' step='1' value='1' oninput='AXE.ui()' style='flex:1'><span id='axeVehLbl' style='font-size:10.5px;color:var(--text-lo);width:34px;text-align:right'>1</span></div>
+  <div class='ctx-row'><span style='font-size:10.5px;color:var(--text-lo);width:62px;flex-shrink:0'>People</span><input type='range' id='axePed' min='0' max='3' step='1' value='2' oninput='AXE.ui()' style='flex:1'><span id='axePedLbl' style='font-size:10.5px;color:var(--text-lo);width:34px;text-align:right'>2</span></div>
+  <div class='ctx-row'>
+    <select id='axeRes' class='px-sel'><option value='1280x720'>1280 &times; 720</option><option value='1920x1080' selected>1920 &times; 1080</option><option value='3840x2160'>3840 &times; 2160</option></select>
+    <select id='axeCam' class='px-sel'><option value='iso' selected>Isometric 45&deg; / 35.26&deg;</option><option value='3060'>30/60 plan oblique</option></select>
+  </div>
+  <div class='ctx-row'>
+    <select id='axeFmt' class='px-sel'><option value='webm' selected>WebM video (30 fps)</option><option value='zip'>PNG frames (.zip)</option></select>
+  </div>
+  <div class='ctx-row' style='margin-bottom:6px'><label class='px-chk' title='Agents wrap so the last frame leads back into the first'><input type='checkbox' id='axeLoop' checked> Seamless loop</label></div>
+  <div class='ctx-row' style='gap:6px'>
+    <button class='ctx-btn' id='axePrevBtn' onclick='AXE.preview()' style='flex:1'>&#9654; Preview</button>
+    <button class='ctx-btn' id='axeExpBtn' onclick='AXE.export()' style='flex:1'>&#8595; Export</button>
+  </div>
+  <div id='axeStatus' style='font-size:9px;color:var(--text-mu);margin-top:6px;line-height:1.5;min-height:12px'></div>
+  <div style='font-size:9px;color:var(--text-mu);margin-top:4px;opacity:.7;line-height:1.5'>Vehicles on the travel lanes, bikes in bike lanes, people on the sidewalks and through the parklet. Follows the Schematic / Technical appearance; far-side buildings are cut away so the street reads. MP4 is not available: browsers can only record WebM &mdash; convert with HandBrake or ffmpeg if you need MP4. Nothing in the design is changed.</div>
+</div>
+</div>
 </div>
 <div id='dockResizer'></div>
 <div class='canvas-area'>
@@ -8491,8 +8512,11 @@ function ensure3DReady() {
     }
     (function _e3loop() {
       requestAnimationFrame(_e3loop);
-      if (_3d && _3d.controls) _3d.controls.update();
-      if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
+      if (window.AXE && AXE.previewing) { AXE.previewFrame(); }          // animated axon preview: axon camera + agents
+      else {
+        if (_3d && _3d.controls) _3d.controls.update();
+        if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
+      }
       if (typeof _3dUpdateCompass === 'function') _3dUpdateCompass();
       if (typeof _3dCaptureHome === 'function') _3dCaptureHome();
     })();
@@ -16894,6 +16918,7 @@ AXE.build = function(o) {
   AXE.agents = agents;
   AXE.T = T;
   AXE.setTime(0);
+  AXE._cut = AXE.cutaway();
   AXE.built = { agents: agents.length, streams: streams, seated: agents.filter(function(a) { return a.kind === 'seated'; }).length };
   return AXE.built;
 };
@@ -16911,6 +16936,7 @@ AXE.clear = function() {
     AXE.group.traverse(function(c) { if (c.isMesh && c.geometry) c.geometry.dispose(); });   // materials are the shared flMat cache
   }
   AXE.group = null; AXE.agents = []; AXE.built = null;
+  AXE._cut = null;
 };
 
 // ── Axonometric camera ─────────────────────────────────────────────────────────────────────
@@ -16977,13 +17003,341 @@ AXE.renderer = function(W, H) {
   AXE._r.setSize(W, H, false);
   return AXE._r;
 };
-// One frame at time t: agents placed, fog off (an axon has none), rendered, fog restored.
+// Both axon views look from the road side, so the far-side buildings would stand between the
+// camera and the street. Cut them away (context meshes wholly beyond the far sidewalk) for the
+// axon render only; the interactive view is never affected.
+AXE.cutaway = function() {
+  var LM = DESIGN_MODEL.landmarks, farX = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, out = [], b = new THREE.Box3();
+  _3d.group.children.forEach(function(m) {
+    if (m === AXE.group || !m.visible) return;
+    b.setFromObject(m);
+    if (b.min.x >= farX - 0.01) out.push(m);
+  });
+  return out;
+};
+// One frame at time t: agents placed, fog off (an axon has none), far context cut away,
+// rendered, everything restored.
 AXE.draw = function(renderer, cam, t) {
   AXE.setTime(t);
-  var fog = _3d.scene.fog;
+  var fog = _3d.scene.fog, cut = AXE._cut || [];
   _3d.scene.fog = null;
+  cut.forEach(function(m) { m.visible = false; });
   renderer.render(_3d.scene, cam);
+  cut.forEach(function(m) { m.visible = true; });
   _3d.scene.fog = fog;
+};
+
+// ── Export tab: options, preview, recording ─────────────────────────────────────────────────
+AXE.fps = 30;
+AXE.ui = function() {
+  [['axeDur', 'axeDurLbl', ' s'], ['axeVeh', 'axeVehLbl', ''], ['axePed', 'axePedLbl', '']].forEach(function(r) {
+    var i = document.getElementById(r[0]), l = document.getElementById(r[1]);
+    if (i && l) l.textContent = i.value + r[2];
+  });
+};
+AXE.opts = function() {
+  function v(id, d) { var e = document.getElementById(id); return e ? e.value : d; }
+  var res = String(v('axeRes', '1920x1080')).split('x');
+  var loopEl = document.getElementById('axeLoop');
+  return { T: Math.max(6, Math.min(20, +v('axeDur', 10))), fps: AXE.fps, W: +res[0], H: +res[1], cam: v('axeCam', 'iso'),
+           veh: +v('axeVeh', 1), ped: +v('axePed', 2), loop: loopEl ? loopEl.checked : true, fmt: v('axeFmt', 'webm'), seed: 20260923 };
+};
+AXE.status = function(msg) { var s = document.getElementById('axeStatus'); if (s) s.textContent = msg; };
+// What must be the same after a preview or an export.
+AXE.snapshot = function() {
+  var w = document.getElementById('threeWrap');
+  return { cam: _3d.camera.position.toArray().concat(_3d.controls.target.toArray()), placed: FL3D.placed.length,
+           canvas: [_3d.renderer.domElement.width, _3d.renderer.domElement.height], wrap: [w.clientWidth, w.clientHeight] };
+};
+AXE.check = function(before) {
+  var now = AXE.snapshot(), pr = _3d.renderer.getPixelRatio(), size = new THREE.Vector2();
+  _3d.renderer.getSize(size);
+  var r = {
+    cameraSame: before.cam.every(function(v, i) { return Math.abs(v - now.cam[i]) < 1e-9; }),
+    rendererUnchanged: now.canvas[0] === before.canvas[0] && now.canvas[1] === before.canvas[1],
+    // a hidden viewport (Export mode) keeps its last size; compare with #threeWrap when it is shown
+    rendererMatchesWrap: !now.wrap[0] ? null : (Math.round(size.x) === now.wrap[0] && Math.round(size.y) === now.wrap[1] && now.canvas[0] === Math.round(now.wrap[0] * pr)),
+    placedSame: before.placed === now.placed,
+    consistency: window.checkLandmarkConsistency(false)
+  };
+  r.ok = r.cameraSame && r.rendererUnchanged && r.rendererMatchesWrap !== false && r.placedSame && r.consistency;
+  return r;
+};
+// Wait until performance.now() >= t without timers (they are throttled in background tabs).
+AXE.sleepUntil = function(t) {
+  return new Promise(function(res) {
+    var ch = AXE._mc || (AXE._mc = new MessageChannel());
+    (function spin() {
+      var now = performance.now();
+      if (now >= t) { ch.port2.onmessage = null; return res(); }
+      if (document.visibilityState === 'visible' && t - now > 12) { setTimeout(spin, t - now - 6); return; }
+      ch.port2.onmessage = spin; ch.port1.postMessage(0);
+    })();
+  });
+};
+
+// Preview: the 3D viewport shows the axon camera and the agents (wall-clock time, looping)
+// until Stop, which puts the interactive camera, controls and layout back.
+AXE.previewing = false;
+AXE.preview = function() {
+  if (AXE.previewing) { AXE.stop(); return; }
+  if (AXE.busy) return;
+  var o = AXE.opts(), ws = document.getElementById('workspaceExport'), grid = document.getElementById('viewportGrid');
+  AXE._pvState = { ws: ws ? ws.style.display : null, grid: grid ? grid.style.display : null, layout: VIEWPORT_LAYOUT.mode === 'max' ? VIEWPORT_LAYOUT.max : 'three', before: null };
+  if (_3d) { var _sz = new THREE.Vector2(); _3d.renderer.getSize(_sz); AXE._pvState.size = [_sz.x, _sz.y]; AXE._pvState.aspect = _3d.camera.aspect; }
+  if (ws && ws.style.display !== 'none') { ws.style.display = 'none'; if (grid) grid.style.display = ''; }
+  setViewportLayout('max', '3d', { silent: true });
+  if (!_3d && typeof ensure3DReady === 'function') ensure3DReady();
+  if (!_3d) { AXE.status('3D view is not available.'); return; }
+  _vpSizeAll();
+  AXE._pvState.before = AXE.snapshot();
+  AXE.build(o);
+  AXE._pvAspect = 0;
+  AXE._pvOpts = o;
+  _3d.controls.enabled = false;
+  AXE._pv0 = performance.now();
+  AXE.previewing = true;
+  var b = document.getElementById('axePrevBtn'); if (b) b.innerHTML = '&#9632; Stop';
+  AXE.status('Previewing ' + AXE.built.agents + ' agents (' + AXE.built.seated + ' seated), ' + o.T + ' s loop.');
+};
+// Called by the 3D render loop instead of the interactive render while previewing.
+AXE.previewFrame = function() {
+  var w = document.getElementById('threeWrap'), asp = w.clientWidth / Math.max(1, w.clientHeight);
+  if (Math.abs(asp - AXE._pvAspect) > 1e-3) { AXE._pvCam = AXE.camera(AXE._pvOpts.cam, asp); AXE._pvAspect = asp; }
+  var t = ((performance.now() - AXE._pv0) / 1000) % AXE.T;
+  AXE.draw(_3d.renderer, AXE._pvCam, Math.floor(t * AXE.fps) / AXE.fps);
+};
+AXE.stop = function() {
+  if (!AXE.previewing) return;
+  AXE.previewing = false;
+  AXE.clear();
+  _3d.controls.enabled = true;
+  var st = AXE._pvState || {}, ws = document.getElementById('workspaceExport'), grid = document.getElementById('viewportGrid');
+  if (ws && st.ws !== null) ws.style.display = st.ws;
+  if (grid && st.grid !== null) grid.style.display = st.grid;
+  setViewportLayout(st.layout === 'three' ? 'three' : 'max', st.layout, { silent: true });
+  _vpSizeAll();
+  // back in Export mode the viewport is hidden, so nothing resizes it: put back the size and aspect
+  if (st.size) {
+    var _now = new THREE.Vector2(); _3d.renderer.getSize(_now);
+    if (_now.x !== st.size[0] || _now.y !== st.size[1]) { _3d.renderer.setSize(st.size[0], st.size[1], false); _3d.camera.aspect = st.aspect; _3d.camera.updateProjectionMatrix(); }
+  }
+  _3d.renderer.render(_3d.scene, _3d.camera);
+  var b = document.getElementById('axePrevBtn'); if (b) b.innerHTML = '&#9654; Preview';
+  var c = st.before ? AXE.check(st.before) : null;
+  AXE.status('Preview stopped' + (c ? (c.ok ? '; interactive camera and viewport restored.' : '; CHECK FAILED ' + JSON.stringify(c)) : '.'));
+};
+
+// Export: N = T x fps frames at a fixed timestep (frame i shows t = i / fps), rendered
+// offscreen at the chosen size. WebM through canvas.captureStream + MediaRecorder, or a
+// store-only ZIP of PNG frames. over = {download:false, ...} returns the file instead.
+AXE.export = async function(over) {
+  if (AXE.busy) return null;
+  if (AXE.previewing) AXE.stop();
+  var o = Object.assign(AXE.opts(), over || {});
+  if (!_3d && typeof ensure3DReady === 'function') ensure3DReady();
+  if (!_3d) { AXE.status('3D view is not available.'); return null; }
+  var before = AXE.snapshot(), N = Math.round(o.T * o.fps), blob = null, err = null;
+  AXE.busy = true;
+  var btn = document.getElementById('axeExpBtn'); if (btn) btn.disabled = true;
+  try {
+    AXE.build(o);
+    var cam = AXE.camera(o.cam, o.W / o.H), rr = AXE.renderer(o.W, o.H);
+    blob = o.fmt === 'zip' ? await AXE.recordZip(rr, cam, N, o) : await AXE.recordWebM(rr, cam, N, o);
+  } catch (e) { err = e; }
+  finally {
+    AXE.clear();
+    AXE.busy = false;
+    if (btn) btn.disabled = false;
+  }
+  var check = AXE.check(before);
+  if (err) { AXE.status('Export failed: ' + (err.message || err)); return { error: String(err.message || err), check: check }; }
+  var name = 'parklet-axon-' + o.T + 's-' + o.W + 'x' + o.H + (o.fmt === 'zip' ? '-frames.zip' : '.webm');
+  var got = o.fmt === 'zip' ? N : AXE.webmFrames(new Uint8Array(await blob.arrayBuffer()));
+  if (o.download !== false) AXE.download(blob, name);
+  AXE.status('Exported ' + name + ' (' + got + (got === N ? '' : ' of ' + N) + ' frames' + (o.fmt === 'zip' ? '' : ', ' + AXE.method) + ', ' + (blob.size / 1048576).toFixed(1) + ' MB). ' +
+    (got < N ? 'The video encoder dropped ' + (N - got) + ' frames at this size; use PNG frames for a frame-exact export. ' : '') +
+    (check.ok ? 'Camera, viewport and design unchanged.' : 'CHECK FAILED ' + JSON.stringify(check)));
+  return { blob: blob, name: name, frames: N, recorded: got, method: o.fmt === 'zip' ? 'png' : AXE.method, W: o.W, H: o.H, check: check };
+};
+// Frame-exact WebM: WebCodecs VideoEncoder (VP8) fed one VideoFrame per rendered frame with an
+// exact timestamp (i / fps), muxed by the minimal writer below. Not tied to the wall clock, so
+// no frame can be dropped and the clip renders as fast as the machine allows. Used when the
+// browser has WebCodecs; otherwise AXE.recordWebM falls back to captureStream + MediaRecorder.
+AXE.canEncode = async function(W, H, fps) {
+  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') return null;
+  var cfg = { codec: 'vp8', width: W, height: H, bitrate: Math.min(40e6, Math.round(W * H * fps * 0.12)), framerate: fps };
+  try { var s = await VideoEncoder.isConfigSupported(cfg); return s && s.supported ? cfg : null; } catch (e) { return null; }
+};
+AXE.encodeWebM = async function(rr, cam, N, o, cfg) {
+  var chunks = [], fail = null;
+  var enc = new VideoEncoder({
+    output: function(chunk) { var d = new Uint8Array(chunk.byteLength); chunk.copyTo(d); chunks.push({ t: chunk.timestamp, key: chunk.type === 'key', data: d }); },
+    error: function(e) { fail = e; }
+  });
+  enc.configure(cfg);
+  for (var i = 0; i < N && !fail; i++) {
+    AXE.draw(rr, cam, i / o.fps);
+    var fr = new VideoFrame(rr.domElement, { timestamp: Math.round(i * 1e6 / o.fps), duration: Math.round(1e6 / o.fps) });
+    enc.encode(fr, { keyFrame: i % (o.fps * 2) === 0 });
+    fr.close();
+    if (i % 10 === 0) AXE.status('Encoding frame ' + (i + 1) + ' / ' + N + '…');
+    while (enc.encodeQueueSize > 6 && !fail) await AXE.sleepUntil(performance.now() + 4);
+  }
+  await enc.flush();
+  enc.close();
+  if (fail) throw fail;
+  return AXE.muxWebM(chunks, o.W, o.H, o.fps);
+};
+// Minimal WebM (Matroska) writer: EBML header, Segment { Info, Tracks (one VP8 track),
+// Clusters of SimpleBlocks }. A new cluster at every key frame keeps block timecodes in range.
+AXE.muxWebM = function(frames, W, H, fps) {
+  function bytes(n, len) { var a = []; for (var i = len - 1; i >= 0; i--) a.push(Math.floor(n / Math.pow(256, i)) & 255); return a; }
+  function uint(n) { var len = 1; while (n >= Math.pow(256, len) && len < 8) len++; return bytes(n, len); }
+  function size(n) { return [0x01].concat(bytes(n, 7)); }                       // 8-byte size vint
+  function el(id, payload) { var p = payload instanceof Uint8Array ? Array.from(payload) : payload; return id.concat(size(p.length), p); }
+  function str(s) { return Array.from(new TextEncoder().encode(s)); }
+  function f64(x) { var b = new DataView(new ArrayBuffer(8)); b.setFloat64(0, x); return Array.from(new Uint8Array(b.buffer)); }
+  var ebml = el([0x1A, 0x45, 0xDF, 0xA3], [].concat(
+    el([0x42, 0x86], uint(1)), el([0x42, 0xF7], uint(1)), el([0x42, 0xF2], uint(4)), el([0x42, 0xF3], uint(8)),
+    el([0x42, 0x82], str('webm')), el([0x42, 0x87], uint(2)), el([0x42, 0x85], uint(2))));
+  var info = el([0x15, 0x49, 0xA9, 0x66], [].concat(
+    el([0x2A, 0xD7, 0xB1], uint(1000000)),                                       // timecodes in ms
+    el([0x44, 0x89], f64(frames.length * 1000 / fps)),
+    el([0x4D, 0x80], str('Parklet Checker')), el([0x57, 0x41], str('Parklet Checker axon export'))));
+  var tracks = el([0x16, 0x54, 0xAE, 0x6B], el([0xAE], [].concat(
+    el([0xD7], uint(1)), el([0x73, 0xC5], uint(1)), el([0x83], uint(1)), el([0x86], str('V_VP8')),
+    el([0x23, 0xE3, 0x83], uint(Math.round(1e9 / fps))),
+    el([0xE0], [].concat(el([0xB0], uint(W)), el([0xBA], uint(H)))))));
+  var parts = [new Uint8Array(ebml)], body = [new Uint8Array(info), new Uint8Array(tracks)], cluster = null, c0 = 0;
+  // a cluster is kept as typed-array parts (header written once its length is known)
+  function flush() {
+    if (!cluster) return;
+    body.push(new Uint8Array([0x1F, 0x43, 0xB6, 0x75].concat(size(cluster.len))));
+    cluster.parts.forEach(function(p) { body.push(p); });
+    cluster = null;
+  }
+  function add(p) { cluster.parts.push(p); cluster.len += p.length; }
+  frames.sort(function(a, b) { return a.t - b.t; }).forEach(function(f) {
+    var ms = Math.round(f.t / 1000);
+    if (!cluster || f.key || ms - c0 > 30000) { flush(); c0 = ms; cluster = { parts: [], len: 0 }; add(new Uint8Array(el([0xE7], uint(ms)))); }
+    var rel = ms - c0;
+    add(new Uint8Array([0xA3].concat(size(4 + f.data.length), [0x81, (rel >> 8) & 255, rel & 255, f.key ? 0x80 : 0x00])));
+    add(f.data);
+  });
+  flush();
+  var segLen = body.reduce(function(a, b) { return a + b.length; }, 0);
+  parts.push(new Uint8Array([0x18, 0x53, 0x80, 0x67].concat(size(segLen))));
+  return new Blob(parts.concat(body), { type: 'video/webm' });
+};
+AXE.recordWebM = async function(rr, cam, N, o) {
+  var cfg = await AXE.canEncode(o.W, o.H, o.fps);
+  if (cfg) { AXE.method = 'WebCodecs, frame-exact'; return AXE.encodeWebM(rr, cam, N, o, cfg); }
+  AXE.method = 'MediaRecorder, real time';
+  return AXE.recordWebMRealtime(rr, cam, N, o);
+};
+// Fallback: canvas.captureStream + MediaRecorder. MediaRecorder stamps frames with the wall
+// clock and may drop frames the encoder cannot take in time; the export reports the count.
+AXE.recordWebMRealtime = async function(rr, cam, N, o) {
+  if (typeof MediaRecorder === 'undefined' || !rr.domElement.captureStream) throw new Error('this browser cannot record video; choose PNG frames (.zip)');
+  var stream = rr.domElement.captureStream(0), track = stream.getVideoTracks()[0];
+  // VP8 first: VP9 cannot encode in real time here and drops frames (54-58 of 60 measured).
+  var mime = ['video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'].find(function(m) { return MediaRecorder.isTypeSupported(m); });
+  if (!mime) throw new Error('no WebM encoder available; choose PNG frames (.zip)');
+  var rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: Math.min(40e6, Math.round(o.W * o.H * o.fps * 0.12)) });
+  var chunks = [], done = new Promise(function(res) { rec.onstop = res; });
+  rec.ondataavailable = function(e) { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.start(1000);
+  // start() is asynchronous (its event does not always fire for a WebGL canvas): pre-roll so the
+  // encoder is running before frame 0.
+  await AXE.sleepUntil(performance.now() + 300);
+  // MediaRecorder stamps frames with wall-clock time, so frames are paced at 1 / fps; what
+  // each frame shows comes from its index alone (fixed timestep).
+  var t0 = performance.now(), dt = 1000 / o.fps;
+  for (var i = 0; i < N; i++) {
+    AXE.draw(rr, cam, i / o.fps);
+    track.requestFrame();
+    if (i % 10 === 0) AXE.status('Recording frame ' + (i + 1) + ' / ' + N + '…');
+    await AXE.sleepUntil(t0 + (i + 1) * dt);
+  }
+  // Let the encoder take the last frames before closing the stream (stopping at once drops the tail).
+  await AXE.sleepUntil(performance.now() + 600);
+  rec.stop();
+  await done;
+  track.stop();
+  return new Blob(chunks, { type: 'video/webm' });
+};
+// Frames actually in a WebM (EBML walk: SimpleBlock / Block elements), so the export can say
+// when the real-time encoder dropped any.
+AXE.webmFrames = function(buf) {
+  function vint(p, keep) {
+    var b = buf[p], len = 1, m = 0x80;
+    while (len <= 8 && !(b & m)) { len++; m >>= 1; }
+    var v = keep ? b : (b & (m - 1)), ones = (b & (m - 1)) === (m - 1);
+    for (var i = 1; i < len; i++) { v = v * 256 + buf[p + i]; if (buf[p + i] !== 255) ones = false; }
+    return { v: v, len: len, unknown: !keep && ones };
+  }
+  var MASTER = { 0x18538067: 1, 0x1F43B675: 1, 0xA0: 1 }, n = 0;
+  function walk(p, end) {
+    while (p < end) {
+      var id = vint(p, true), sz = vint(p + id.len, false), dp = p + id.len + sz.len, e = sz.unknown ? end : dp + sz.v;
+      if (id.v === 0xA3 || id.v === 0xA1) n++;
+      if (MASTER[id.v]) {
+        if (sz.unknown) {        // unknown-size cluster: children until the next cluster
+          var q = dp;
+          while (q < end) { var c = vint(q, true); if (c.v === 0x1F43B675) break; var cs = vint(q + c.len, false), cd = q + c.len + cs.len; walk(q, Math.min(end, cd + cs.v)); q = cd + cs.v; }
+          e = q;
+        } else walk(dp, Math.min(end, e));
+      }
+      p = e;
+    }
+  }
+  walk(0, buf.length);
+  return n;
+};
+AXE.recordZip = async function(rr, cam, N, o) {
+  var files = [];
+  for (var i = 0; i < N; i++) {
+    AXE.draw(rr, cam, i / o.fps);
+    var png = await new Promise(function(res) { rr.domElement.toBlob(res, 'image/png'); });
+    files.push({ name: 'frame_' + String(i).padStart(4, '0') + '.png', data: new Uint8Array(await png.arrayBuffer()) });
+    if (i % 10 === 0) AXE.status('Rendering frame ' + (i + 1) + ' / ' + N + '…');
+  }
+  return AXE.zip(files);
+};
+// Minimal store-only ZIP writer (no compression; PNG is already compressed).
+AXE._crcT = null;
+AXE.crc32 = function(d) {
+  var T = AXE._crcT;
+  if (!T) { T = AXE._crcT = new Uint32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; T[n] = c >>> 0; } }
+  var crc = 0xFFFFFFFF;
+  for (var i = 0; i < d.length; i++) crc = T[(crc ^ d[i]) & 255] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+};
+AXE.zip = function(files) {
+  var parts = [], central = [], off = 0, enc = new TextEncoder();
+  function hdr(n) { return { b: new DataView(new ArrayBuffer(n)), n: n }; }
+  files.forEach(function(f) {
+    var nm = enc.encode(f.name), crc = AXE.crc32(f.data), L = hdr(30);
+    [[0, 0x04034b50, 4], [4, 20, 2], [6, 0, 2], [8, 0, 2], [10, 0, 2], [12, 0x21, 2], [14, crc, 4], [18, f.data.length, 4], [22, f.data.length, 4], [26, nm.length, 2], [28, 0, 2]]
+      .forEach(function(e) { if (e[2] === 4) L.b.setUint32(e[0], e[1], true); else L.b.setUint16(e[0], e[1], true); });
+    parts.push(new Uint8Array(L.b.buffer), nm, f.data);
+    var C = hdr(46);
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0, 2], [10, 0, 2], [12, 0, 2], [14, 0x21, 2], [16, crc, 4], [20, f.data.length, 4], [24, f.data.length, 4], [28, nm.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, off, 4]]
+      .forEach(function(e) { if (e[2] === 4) C.b.setUint32(e[0], e[1], true); else C.b.setUint16(e[0], e[1], true); });
+    central.push(new Uint8Array(C.b.buffer), nm);
+    off += 30 + nm.length + f.data.length;
+  });
+  var cdSize = central.reduce(function(a, p) { return a + p.length; }, 0), E = hdr(22);
+  [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, files.length, 2], [10, files.length, 2], [12, cdSize, 4], [16, off, 4], [20, 0, 2]]
+    .forEach(function(e) { if (e[2] === 4) E.b.setUint32(e[0], e[1], true); else E.b.setUint16(e[0], e[1], true); });
+  return new Blob(parts.concat(central, [new Uint8Array(E.b.buffer)]), { type: 'application/zip' });
+};
+AXE.download = function(blob, name) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
 };
 </script>
 </body></html>
