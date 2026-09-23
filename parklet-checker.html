@@ -1777,6 +1777,29 @@ window.checkLandmarkConsistency = function(verbose) {
     mhRows.push(row);
   });
   window._lastManholeCheck = mhRows;
+  // Vegetation: Plan and 3D must each draw exactly DESIGN_MODEL.vegetation.length plants, and
+  // every plant must sit at worldToPlan(x, z) in Plan (0.5 px) and at (x, z) in 3D (0.01 m).
+  var veg = DM.vegetation || [], vegPlan = planSvg ? planSvg.querySelectorAll('[data-veg]') : [], veg3d = {};
+  if (typeof _3d !== 'undefined' && _3d && _3d.group)
+    _3d.group.traverse(function(o){ if (o.userData && o.userData.veg !== undefined) veg3d[o.userData.veg] = o; });
+  var n3d = Object.keys(veg3d).length, have3dScene = typeof _3d !== 'undefined' && _3d && _3d.group && _3d.group.children.length > 0;
+  if (planSvg && planSvg.childElementCount && vegPlan.length !== veg.length)
+    bad.push({ value: 'Plan vegetation count', model: veg.length, independent: vegPlan.length });
+  if (have3dScene && n3d !== veg.length)
+    bad.push({ value: '3D vegetation count', model: veg.length, independent: n3d });
+  [].slice.call(vegPlan).forEach(function(el) {
+    var v = veg[+el.getAttribute('data-veg')]; if (!v) return;
+    var want = worldToPlan(v.x, v.z);
+    var cx = el.tagName.toLowerCase() === 'rect' ? +el.getAttribute('x') + +el.getAttribute('width') / 2 : +el.getAttribute('cx');
+    var cy = el.tagName.toLowerCase() === 'rect' ? +el.getAttribute('y') + +el.getAttribute('height') / 2 : +el.getAttribute('cy');
+    if (Math.hypot(cx - want.px, cy - want.py) > 0.5) bad.push({ value: 'vegetation ' + el.getAttribute('data-veg') + ' Plan position', model: want.px.toFixed(2) + ',' + want.py.toFixed(2), independent: cx.toFixed(2) + ',' + cy.toFixed(2) });
+  });
+  Object.keys(veg3d).forEach(function(k) {
+    var v = veg[+k]; if (!v) return;
+    var p = _3d.group.worldToLocal(veg3d[k].getWorldPosition(new THREE.Vector3()));
+    if (Math.abs(p.x - v.x) > 0.01 || Math.abs(p.z - v.z) > 0.01) bad.push({ value: 'vegetation ' + k + ' 3D position', model: v.x + ',' + v.z, independent: p.x.toFixed(3) + ',' + p.z.toFixed(3) });
+  });
+  window._lastVegetationCheck = { model: veg.length, plan: vegPlan.length, view3d: n3d };
   window._lastConsistencyIssues = bad;
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL: ' +
@@ -1910,6 +1933,24 @@ function buildDesignModel() {
       sceneMinZ:   _lmZ0,
       sceneMaxZ:   _lmZ1
     };
+  })();
+  // Trees and planters: one entry per plant in every planting / buffer segment whose content
+  // is trees or planters. The only place this list is computed -- Plan, Section and 3D all
+  // draw DESIGN_MODEL.vegetation. x = across (segment centre), z = along; metres.
+  (function() {
+    var LM = DESIGN_MODEL.landmarks, veg = [];
+    segs.forEach(function(seg) {
+      if (seg.type !== 'planting' && seg.type !== 'buf-pk' && seg.type !== 'buf-bl') return;
+      var bv = seg.variant;   // segment variant, else the legacy buffer globals; planting defaults to trees
+      if (!bv || bv === 'bollards' || bv === 'none')
+        bv = seg.type === 'buf-pk' ? bufPKType : seg.type === 'buf-bl' ? bufBLType : 'trees';
+      if (bv !== 'trees' && bv !== 'planters') return;
+      var tree = bv === 'trees', sp = tree ? 6.0 : 2.0;
+      var r = Math.min(seg.width / 2, tree ? 0.5 : 0.25), x = (seg.x0 + seg.x1) / 2;
+      for (var z = LM.sceneMinZ + sp / 2; z < LM.sceneMaxZ; z += sp)
+        veg.push({ segId: seg.id, type: tree ? 'tree' : 'planter', x: x, z: z, canopyR: r, trunkR: tree ? Math.min(0.1, r * 0.4) : 0 });
+    });
+    DESIGN_MODEL.vegetation = veg;
   })();
   return DESIGN_MODEL;
 }
@@ -2717,7 +2758,8 @@ document.addEventListener('mouseup', function() {
     'transit-lane': { label:'Transit',     color:'#7a6030', light:false, fixed:false, resize:true,  del:true,  def:3.5,  mn:3.0,  mx:4.5  },
     'parking':      { label:'Parking',     color:'#606472', light:false, fixed:false, resize:true,  del:true,  def:2.4,  mn:2.0,  mx:3.0  },
     'turn-lane':    { label:'Turn Lane',   color:'#9a9070', light:false, fixed:false, resize:true,  del:true,  def:3.0,  mn:2.5,  mx:4.0  },
-    'planting':     { label:'Planting',    color:'#4a7040', light:false, fixed:false, resize:true,  del:true,  def:0.8,  mn:0.3,  mx:2.5  },
+    'planting':     { label:'Planting',    color:'#4a7040', light:false, fixed:false, resize:true,  del:true,  def:0.8,  mn:0.3,  mx:2.5,
+      variants:['trees','planters'] },
     'curb':         { label:'Curb',        color:'#444850', light:false, fixed:false, resize:false, del:true,  def:0.15, mn:0.1,  mx:0.3  },
   };
   var SE_PALETTE = ['travel-lane','transit-lane','parking','turn-lane','bike-lane','planting','curb'];
@@ -3909,35 +3951,20 @@ function _flGetDims(objId) {
 function getSectionObjectsAt(cutWorldZ) {
   const TOL = 0.05;
   const L = _dmCurrent().parklet.length;
-  const ZS = -5.0;
   const result = { trees: [], bollards: [], furniture: [], streetObjects: [], manholes: [] };
 
   // Get ordered segment geometry — the single source of truth for street positions
   const segs = (typeof getSectionGeometry === 'function') ? getSectionGeometry() : [];
   const PW = _dmCurrent().parklet.width;
 
-  // ── Trees and planters: every buffer / planting segment independently ──
-  segs.forEach(function(seg) {
-    var isBuf = seg.type === 'buf-pk' || seg.type === 'buf-bl' || seg.type === 'planting';
-    if (!isBuf) return;
-    // Resolve buffer content type from segment variant, then from legacy globals
-    var bv = seg.variant;
-    if (!bv || bv === 'bollards' || bv === 'none') {
-      if (seg.type === 'buf-pk') bv = (typeof bufPKType !== 'undefined') ? bufPKType : 'none';
-      else if (seg.type === 'buf-bl') bv = (typeof bufBLType !== 'undefined') ? bufBLType : 'none';
-      else bv = 'trees';
-    }
-    if (bv !== 'trees' && bv !== 'planters') return;
-    var sp  = bv === 'trees' ? 6.0 : 2.0;
-    var rad = Math.min(seg.width / 2, bv === 'trees' ? 0.5 : 0.25);
-    var bX  = (seg.x0 + seg.x1) / 2;  // center X of this specific buffer segment
-    var atRoadLevel = seg.x0 >= PW - 0.001; // segments beyond parklet are at road elevation
-    for (var vz = ZS + sp / 2; vz < L + 5.0; vz += sp) {
-      if (vz - rad <= cutWorldZ + TOL && vz + rad >= cutWorldZ - TOL) {
-        result.trees.push({ x: bX, z: vz, type: bv, side: seg.type === 'buf-pk' ? 'A' : 'B',
-          radius: rad, bufW: seg.width, sourceSegId: seg.id, atRoadLevel: atRoadLevel });
-      }
-    }
+  // ── Trees and planters the cut passes through, from DESIGN_MODEL.vegetation ──
+  const _dmS = _dmCurrent();
+  _dmS.vegetation.forEach(function(v) {
+    if (Math.abs(v.z - cutWorldZ) > v.canopyR + TOL) return;
+    const seg = _dmS.crossSection.find(function(s){ return s.id === v.segId; }) || {};
+    result.trees.push({ x: v.x, z: v.z, type: v.type === 'tree' ? 'trees' : 'planters', side: seg.type === 'buf-pk' ? 'A' : 'B',
+      radius: v.canopyR, trunkR: v.trunkR, bufW: seg.width, sourceSegId: v.segId,
+      atRoadLevel: seg.x0 >= PW - 0.001 });   // segments beyond the parklet are at road elevation
   });
 
   // ── Bollards: every PROTECTED bike-lane segment independently ─────────
@@ -5233,6 +5260,17 @@ function renderPlanView() {
     if (_segLbl[sg.type]) {
       s += `<line x1='0' y1='${sg.y0.toFixed(2)}' x2='${VW}' y2='${sg.y0.toFixed(2)}' stroke='#aaa' stroke-width='0.8' stroke-dasharray='8,4'/>`;
       if (sg.y1 - sg.y0 > 9) s += `<text x='8' y='${(sg.y1 - 3).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='rgba(0,0,0,.35)'>${_segLbl[sg.type]}</text>`;
+    }
+  });
+  // Trees and planters from DESIGN_MODEL.vegetation, on top of their bands, true scale
+  // (ellipse radii use each axis's own px/m). Tagged data-veg='<index>' for the check.
+  _pvDM.vegetation.forEach(function(v, i) {
+    const c = worldToPlan(v.x, v.z), rx = v.canopyR * HS, ry = v.canopyR * pvSC;
+    if (v.type === 'tree') {
+      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='rgba(111,154,90,.30)' stroke='#5d8a52' stroke-width='0.7' stroke-dasharray='3,2' data-veg='${i}'/>`;
+      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${Math.max(1, v.trunkR * HS).toFixed(2)}' ry='${Math.max(1, v.trunkR * pvSC).toFixed(2)}' fill='#6b4c2a'/>`;
+    } else {   // planter: footprint of the 3D planter box (2r x 2r)
+      s += `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}' rx='1.5' fill='#8fae78' stroke='#6f5a3e' stroke-width='0.7' data-veg='${i}'/>`;
     }
   });
   if (_bikeSeg) {
@@ -6954,42 +6992,6 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       mplane(chMx - chW, z, chMx, z + 0.18, 0.006, 0xffffff, 0.9);
       mplane(chMx, z, chMx + chW, z + 0.18, 0.006, 0xffffff, 0.9);
     }
-    // 3D vegetation in buffer A
-    if (bufA3d > 0.01 && _bpS && (bufPKType === 'trees' || bufPKType === 'planters')) {
-      const bAMx = (_bpS.x0 + _bpS.x1) / 2;
-      const spacing = bufPKType === 'trees' ? 6.0 : 2.0;
-      for (let vz = ZS + spacing/2; vz < ZE; vz += spacing) {
-        if (bufPKType === 'trees') {
-          const tk = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.10, 1.4, 6), new THREE.MeshStandardMaterial({color:0x6b4c2a, roughness:0.9}));
-          tk.position.set(bAMx, 0.065 + 0.7, vz); tk.castShadow = true; g.add(tk);
-          const cn = new THREE.Mesh(new THREE.SphereGeometry(bufA3d * 0.42, 8, 6), new THREE.MeshStandardMaterial({color:0x3d7a4e, roughness:0.7}));
-          cn.position.set(bAMx, 0.065 + 1.4 + bufA3d * 0.35, vz); cn.castShadow = true; g.add(cn);
-        } else {
-          const pb = new THREE.Mesh(new THREE.BoxGeometry(bufA3d*0.7, 0.25, 0.8), new THREE.MeshStandardMaterial({color:0x9a7a58, roughness:0.9}));
-          pb.position.set(bAMx, 0.065 + 0.125, vz); g.add(pb);
-          const sh = new THREE.Mesh(new THREE.SphereGeometry(0.28, 7, 5), new THREE.MeshStandardMaterial({color:0x4a8040, roughness:0.7}));
-          sh.scale.y = 0.55; sh.position.set(bAMx, 0.065 + 0.38, vz); sh.castShadow = true; g.add(sh);
-        }
-      }
-    }
-    // 3D vegetation in buffer B
-    if (bufB3d > 0.01 && _bbS && (bufBLType === 'trees' || bufBLType === 'planters')) {
-      const bBMx = (_bbS.x0 + _bbS.x1) / 2;
-      const spacing = bufBLType === 'trees' ? 6.0 : 2.0;
-      for (let vz = ZS + spacing/2; vz < ZE; vz += spacing) {
-        if (bufBLType === 'trees') {
-          const tk = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.10, 1.4, 6), new THREE.MeshStandardMaterial({color:0x6b4c2a, roughness:0.9}));
-          tk.position.set(bBMx, 0.065 + 0.7, vz); tk.castShadow = true; g.add(tk);
-          const cn = new THREE.Mesh(new THREE.SphereGeometry(bufB3d * 0.42, 8, 6), new THREE.MeshStandardMaterial({color:0x3d7a4e, roughness:0.7}));
-          cn.position.set(bBMx, 0.065 + 1.4 + bufB3d * 0.35, vz); cn.castShadow = true; g.add(cn);
-        } else {
-          const pb = new THREE.Mesh(new THREE.BoxGeometry(bufB3d*0.7, 0.25, 0.8), new THREE.MeshStandardMaterial({color:0x9a7a58, roughness:0.9}));
-          pb.position.set(bBMx, 0.065 + 0.125, vz); g.add(pb);
-          const sh = new THREE.Mesh(new THREE.SphereGeometry(0.28, 7, 5), new THREE.MeshStandardMaterial({color:0x4a8040, roughness:0.7}));
-          sh.scale.y = 0.55; sh.position.set(bBMx, 0.065 + 0.38, vz); sh.castShadow = true; g.add(sh);
-        }
-      }
-    }
     // Protected bike lane: flexible bollards at parklet/bike-lane boundary
     // Manual p.21, p.48: "City will supply and install flexible bollards at each end of the parklet as needed"
     // Manual p.21: to ensure visibility to passing cyclists/motorists
@@ -7009,6 +7011,28 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
         g.add(rm);
       }
     }
+  }
+
+  // Trees and planters from DESIGN_MODEL.vegetation (buffers and planting segments alike).
+  // The canopy (tree) or planter box carries userData.veg = entry index for the check.
+  { const matTrunk = new THREE.MeshStandardMaterial({color:0x6b4c2a, roughness:0.9});
+    const matCanopy = new THREE.MeshStandardMaterial({color:0x3d7a4e, roughness:0.7});
+    const matBox = new THREE.MeshStandardMaterial({color:0x9a7a58, roughness:0.9});
+    const matTop = new THREE.MeshStandardMaterial({color:0x4a8040, roughness:0.7});
+    _dm3d.vegetation.forEach(function(v, i) {
+      if (v.type === 'tree') {
+        const tk = new THREE.Mesh(new THREE.CylinderGeometry(v.trunkR * 0.6, v.trunkR, 1.4, 6), matTrunk);
+        tk.position.set(v.x, 0.7, v.z); tk.castShadow = true; g.add(tk);
+        const cn = new THREE.Mesh(new THREE.SphereGeometry(v.canopyR, 8, 6), matCanopy);
+        cn.position.set(v.x, 1.4 + v.canopyR * 0.8, v.z); cn.castShadow = true; cn.userData.veg = i; g.add(cn);
+      } else {
+        const d = 2 * v.canopyR;
+        const pb = new THREE.Mesh(new THREE.BoxGeometry(d, 0.25, d), matBox);
+        pb.position.set(v.x, 0.125, v.z); pb.castShadow = true; pb.userData.veg = i; g.add(pb);
+        const tp = new THREE.Mesh(new THREE.BoxGeometry(d * 0.9, 0.06, d * 0.9), matTop);
+        tp.position.set(v.x, 0.28, v.z); g.add(tp);
+      }
+    });
   }
 
   // White edge lines at curbs
