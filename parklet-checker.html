@@ -2779,16 +2779,16 @@ function setViewportLayout(mode, max, opts) {
   });
   if (opts.silent) return;
   try { if (typeof saveSettings === 'function') saveSettings(); } catch (e) {}
-  // A layout change is a resize, not a geometry change: never syncDesignModel, never a 3D
-  // rebuild. The ResizeObserver resizes Section and 3D; Plan is redrawn once only because
-  // its renderer reads _fsPanel (the SVG itself keeps its world window _pvVB).
+  // A layout change is a resize, not a geometry change: never syncDesignModel. The ResizeObserver
+  // resizes Section and 3D; Plan is redrawn once only because its renderer reads _fsPanel (the
+  // SVG itself keeps its world window _pvVB).
   if ((max === 'plan' || prevMax === 'plan') && typeof renderPlanView === 'function') renderPlanView();
-  if (max === '3d' && typeof _3d !== 'undefined' && !_3d && typeof ensure3DReady === 'function') {
-    ensure3DReady(); if (typeof renderMassView === 'function') renderMassView();   // first-ever 3D show only
-  }
   // This change knows which boxes moved: size the visible viewports now (same handler the
   // ResizeObserver runs, so nothing waits a frame at the old size).
   _vpSizeAll();
+  // A 3D panel that was hidden may hold no scene or a stale one (rebuilds wait while it is
+  // hidden): complete it now, before its first frame. A no-op when nothing is pending.
+  if ((mode === 'three' || max === '3d') && typeof flush3DScene === 'function') flush3DScene();
   if (_sv && _vpSecScroll) {
     if (mode === 'max' && max === 'section') { _sv.scrollLeft = _vpSecScroll.pre; _vpSecScroll.applied = _sv.scrollLeft; }
     else if (mode === 'three') {
@@ -9731,6 +9731,9 @@ function fl3DHandleClick(e) {
 // objId is a catalogue key ('GEN-bench' or a preset id). over = {params, materials, archetype,
 // meshUrl} from a save or a duplicate; otherwise the key's defaults are copied onto the instance.
 function fl3DPlaceAt(objId, wx, wz, over) {
+  // Placing (or restoring a saved design) with the 3D panel hidden: create the scene off-screen
+  // rather than drop the piece.
+  if ((!_3d || !_3d.group) && typeof flush3DScene === 'function') flush3DScene();
   if (!_3d || !_3d.group) return;
   if (typeof snapToGrid === 'function' && typeof _snapEnabled !== 'undefined' && _snapEnabled) {
     wx = snapToGrid(wx, _gridSpacing);
@@ -10008,6 +10011,8 @@ function appSetMode(mode) {
   if (tb) tb.style.display = isCanvas ? '' : 'none';
   // After every display change above: the grid may have been resized while hidden.
   if (isCanvas && typeof _vpSizeAll === 'function') _vpSizeAll();
+  // back to a canvas mode: a 3D panel that was hidden gets its pending scene before its first frame
+  if (isCanvas && typeof flush3DScene === 'function') { var _mv = document.getElementById('mvPanel'); if (_mv && _mv.offsetWidth) flush3DScene(); }
 
   // Build furniture library on first open
   if (mode === 'furniture' && typeof _flBuilt !== 'undefined' && !_flBuilt) {
@@ -10540,6 +10545,7 @@ var _origRMV = typeof renderMassView==='function' ? renderMassView : null;
 renderMassView = function() {
   _techEdges=[];
   if (_origRMV) _origRMV();
+  if (typeof _3d !== 'undefined' && _3d && _3d.group && typeof _3dSceneDirty !== 'undefined') _3dSceneDirty = false;   // scene is current
   if (typeof apply3DTheme==='function') apply3DTheme();
   if (typeof _3dCaptureHome === 'function') _3dCaptureHome();
 };
@@ -11415,8 +11421,10 @@ async function generatePDF() {
   }
 }
 
-// Initialize section editor after all globals are set
-if (typeof seInit === 'function') seInit();
+// Initialize section editor after all globals are set. Its first fill gives the cross-section
+// segments their ids, which the model then carries: send that through the one update path so
+// every view (Plan included, whatever layout the page opens in) draws the same segments.
+if (typeof seInit === 'function') { seInit(); if (typeof syncDesignModel === 'function') syncDesignModel('section-edit'); }
 </script><script>
 
 // ============================================================
@@ -16498,15 +16506,21 @@ window.AX = AX;
 var _r3DLastRebuildTs     = 0;
 var _r3DLastRebuildReason = 'init';
 var _r3DRebuildPending    = false;
+// True while the 3D scene is out of date: a rebuild was requested but has not run yet, or it
+// ran while the scene did not exist (renderMassView skips creating it while #threeWrap is
+// hidden). flush3DScene() clears it.
+var _3dSceneDirty = true, _r3DRebuildRaf = 0;
 function request3DRebuild(reason) {
   _r3DLastRebuildReason = reason || 'geometry';
+  _3dSceneDirty = true;
   if (_r3DRebuildPending) return;
   _r3DRebuildPending = true;
-  requestAnimationFrame(function() {
+  _r3DRebuildRaf = requestAnimationFrame(function() {
     _r3DRebuildPending = false;
     if (typeof renderMassView === 'function') {
       try {
         renderMassView();
+        if (_3d && _3d.group) _3dSceneDirty = false;
         _r3DLastRebuildTs = Date.now();
         if (typeof window.checkLandmarkConsistency === 'function') window.checkLandmarkConsistency(false);
       } catch(e) {
@@ -16517,6 +16531,27 @@ function request3DRebuild(reason) {
     }
   });
 }
+
+// Make the 3D scene complete NOW, before anything draws it: a hidden 3D panel becoming visible
+// (setViewportLayout, appSetMode) or the axon animator (AXE.build), which may render with the
+// viewport never shown. Creates the scene off-screen if it does not exist yet, cancels a queued
+// deferred rebuild and runs it synchronously. Returns true if it rebuilt.
+function flush3DScene() {
+  if (typeof THREE === 'undefined' || typeof renderMassView !== 'function') return false;
+  if (!_3d || !_3d.group) {
+    if (typeof ensure3DReady !== 'function' || !ensure3DReady() || !_3d || !_3d.group) return false;
+    _3dSceneDirty = true;
+  }
+  var built = _3d.group.children.some(function(c) { return !(c.userData && c.userData.axe); });
+  if (!_3dSceneDirty && !_r3DRebuildPending && built) return false;
+  if (_r3DRebuildPending) { cancelAnimationFrame(_r3DRebuildRaf); _r3DRebuildPending = false; }
+  renderMassView();
+  _3dSceneDirty = false;
+  _r3DLastRebuildTs = Date.now();
+  if (typeof window.checkLandmarkConsistency === 'function') window.checkLandmarkConsistency(false);
+  return true;
+}
+window.flush3DScene = flush3DScene;
 
 // â”€â”€ Extend WM with rebuildAll â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // WM must exist (defined earlier in the file).
@@ -16834,6 +16869,7 @@ AXE.seats = function() {
 // Build the agents for one preview / export. o: {T, loop, veh (0..3), ped (0..3), seed}.
 AXE.build = function(o) {
   AXE.clear();
+  flush3DScene();   // agents go on top of a complete _3d.group (synchronous; creates the scene if needed)
   if (typeof _3d === 'undefined' || !_3d || !_3d.group) return null;
   var rnd = AXE.rng(o.seed || 20260923), T = o.T, agents = [], streams = [], LM = DESIGN_MODEL.landmarks;
   var paths = DESIGN_MODEL.paths || [], ext = 8;
@@ -17078,8 +17114,19 @@ AXE.sleepUntil = function(t) {
 
 // Preview: the 3D viewport shows the axon camera and the agents (wall-clock time, looping)
 // until Stop, which puts the interactive camera, controls and layout back.
+// Scene state at the start of a preview / export (diagnostics for the empty-axon report).
+AXE.diag = function(where) {
+  var g = (typeof _3d !== 'undefined' && _3d && _3d.group) ? _3d.group : null, vis = 0;
+  if (g) g.children.forEach(function(c) { if (c.visible) vis++; });
+  var d = { where: where, has3d: !!(typeof _3d !== 'undefined' && _3d), groupChildren: g ? g.children.length : null, visible: g ? vis : null,
+            rebuildPending: typeof _r3DRebuildPending !== 'undefined' ? _r3DRebuildPending : null, cut: AXE._cut ? AXE._cut.length : null,
+            wrapShown: (function() { var w = document.getElementById('threeWrap'); return !!(w && w.clientWidth); })() };
+  console.log('[AXE] ' + where + ' ' + JSON.stringify(d));
+  return d;
+};
 AXE.previewing = false;
 AXE.preview = function() {
+  AXE.diag('preview');
   if (AXE.previewing) { AXE.stop(); return; }
   if (AXE.busy) return;
   var o = AXE.opts(), ws = document.getElementById('workspaceExport'), grid = document.getElementById('viewportGrid');
@@ -17087,7 +17134,7 @@ AXE.preview = function() {
   if (_3d) { var _sz = new THREE.Vector2(); _3d.renderer.getSize(_sz); AXE._pvState.size = [_sz.x, _sz.y]; AXE._pvState.aspect = _3d.camera.aspect; }
   if (ws && ws.style.display !== 'none') { ws.style.display = 'none'; if (grid) grid.style.display = ''; }
   setViewportLayout('max', '3d', { silent: true });
-  if (!_3d && typeof ensure3DReady === 'function') ensure3DReady();
+  flush3DScene();     // the scene must be complete before the first preview frame
   if (!_3d) { AXE.status('3D view is not available.'); return; }
   _vpSizeAll();
   AXE._pvState.before = AXE.snapshot();
@@ -17132,10 +17179,13 @@ AXE.stop = function() {
 // offscreen at the chosen size. WebM through canvas.captureStream + MediaRecorder, or a
 // store-only ZIP of PNG frames. over = {download:false, ...} returns the file instead.
 AXE.export = async function(over) {
+  AXE.diag('export');
   if (AXE.busy) return null;
   if (AXE.previewing) AXE.stop();
   var o = Object.assign(AXE.opts(), over || {});
-  if (!_3d && typeof ensure3DReady === 'function') ensure3DReady();
+  // Works from Export mode with the viewport never shown: the scene is created and built
+  // off-screen if needed, and the export renders offscreen.
+  flush3DScene();
   if (!_3d) { AXE.status('3D view is not available.'); return null; }
   var before = AXE.snapshot(), N = Math.round(o.T * o.fps), blob = null, err = null;
   AXE.busy = true;
