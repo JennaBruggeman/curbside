@@ -8103,9 +8103,260 @@ function switchMode(mode) {
 let _flBuilt = false;
 let _flCurFilt = 'all', _flCurSearch = '';
 
-const FL_CATS = {seating:'Seating',table:'Table',combo:'Table + Bench',planter:'Planter',bin:'Waste Bin',bikerack:'Bike Rack',edge:'Edge / Safety',shelter:'Shelter',system:'Combined System'};
-const FL_SEC_ORDER = ['seating','table','combo','planter','bin','bikerack','edge','shelter','system'];
-const FL_SEC_TITLE = {seating:'Seating',table:'Tables',combo:'Table + Bench Combos',planter:'Planters',bin:'Waste & Recycling Bins',bikerack:'Bike Racks',edge:'Edge / Safety',shelter:'Shelter',system:'Combined Parklet Systems'};
+const FL_CATS = {seating:'Seating',table:'Table',combo:'Table + Bench',planter:'Planter',bin:'Waste Bin',bikerack:'Bike Rack',edge:'Edge / Safety',shelter:'Shade / Shelter',deck:'Deck / Structure',amenity:'Amenity',play:'Play / Misc',system:'Combined System'};
+const FL_SEC_ORDER = ['seating','table','combo','planter','shelter','edge','deck','bin','bikerack','amenity','play','system'];
+const FL_SEC_TITLE = {seating:'Seating',table:'Tables',combo:'Table + Bench Combos',planter:'Planters',bin:'Waste & Recycling Bins',bikerack:'Bike Racks',edge:'Edge / Safety',shelter:'Shade / Shelter',deck:'Deck / Structure',amenity:'Amenities',play:'Play / Misc',system:'Combined Parklet Systems'};
+
+// == FURNITURE MATERIALS (data only) ====================================================
+// ONE table for all three views. color = base colour (sRGB hex); rough/metal feed the 3D
+// MeshStandardMaterial; opacity for glass. The plan/section tint is DERIVED from color below
+// (flTint2D) -- there is no separate 2D colour list. group decides which part roles may use it;
+// 'fixed' materials (soil, foliage...) are never offered to the user.
+const FL_MATERIALS = [
+  {id:'pine',            label:'Pine',               group:'wood',    color:'#C9A26B', rough:0.75, metal:0},
+  {id:'oak',             label:'Oak',                group:'wood',    color:'#A67C52', rough:0.7,  metal:0},
+  {id:'ipe',             label:'Ipe',                group:'wood',    color:'#6B4128', rough:0.6,  metal:0},
+  {id:'thermowood',      label:'Thermowood',         group:'wood',    color:'#8A5A36', rough:0.7,  metal:0},
+  {id:'weathered_cedar', label:'Weathered cedar',    group:'wood',    color:'#9C9486', rough:0.85, metal:0},
+  {id:'black_stain',     label:'Black stain',        group:'wood',    color:'#2B2622', rough:0.7,  metal:0},
+  {id:'galvanized',      label:'Galvanized',         group:'metal',   color:'#A8B0B2', rough:0.45, metal:0.8},
+  {id:'black_steel',     label:'Black steel',        group:'metal',   color:'#2A2B2D', rough:0.5,  metal:0.7},
+  {id:'corten',          label:'Corten',             group:'metal',   color:'#8A4B2A', rough:0.8,  metal:0.3},
+  {id:'stainless',       label:'Stainless',          group:'metal',   color:'#C8CCCE', rough:0.25, metal:0.9},
+  {id:'aluminium',       label:'Aluminium',          group:'metal',   color:'#BFC4C7', rough:0.35, metal:0.85},
+  {id:'ral_9005',        label:'RAL 9005 Jet black', group:'powder',  color:'#0A0A0D', rough:0.55, metal:0.1},
+  {id:'ral_9016',        label:'RAL 9016 Traffic white', group:'powder', color:'#F1F0EA', rough:0.55, metal:0.1},
+  {id:'ral_7016',        label:'RAL 7016 Anthracite', group:'powder', color:'#383E42', rough:0.55, metal:0.1},
+  {id:'ral_6009',        label:'RAL 6009 Fir green', group:'powder',  color:'#27352A', rough:0.55, metal:0.1},
+  {id:'ral_3020',        label:'RAL 3020 Traffic red', group:'powder', color:'#CC0605', rough:0.55, metal:0.1},
+  {id:'ral_5010',        label:'RAL 5010 Gentian blue', group:'powder', color:'#0E4C92', rough:0.55, metal:0.1},
+  {id:'ral_1021',        label:'RAL 1021 Rape yellow', group:'powder', color:'#F6B600', rough:0.55, metal:0.1},
+  {id:'ral_2004',        label:'RAL 2004 Pure orange', group:'powder', color:'#E25303', rough:0.55, metal:0.1},
+  {id:'powder_custom',   label:'Custom hex',         group:'powder',  color:'#808080', rough:0.55, metal:0.1, custom:true},
+  {id:'concrete',        label:'Concrete',           group:'mineral', color:'#B7B2A8', rough:0.9,  metal:0},
+  {id:'precast_grey',    label:'Precast grey',       group:'mineral', color:'#9A9893', rough:0.85, metal:0},
+  {id:'granite',         label:'Granite',            group:'mineral', color:'#6E6A67', rough:0.6,  metal:0},
+  {id:'terrazzo',        label:'Terrazzo',           group:'mineral', color:'#D8D2C6', rough:0.5,  metal:0},
+  {id:'recycled_grey',   label:'Recycled plastic grey',  group:'other', color:'#7E8083', rough:0.8, metal:0},
+  {id:'recycled_black',  label:'Recycled plastic black', group:'other', color:'#2E2F30', rough:0.8, metal:0},
+  {id:'recycled_green',  label:'Recycled plastic green', group:'other', color:'#3F5B3A', rough:0.8, metal:0},
+  {id:'composite_decking', label:'Composite decking', group:'other',  color:'#7A6552', rough:0.8,  metal:0},
+  {id:'hpl_grey',        label:'HPL grey',           group:'other',   color:'#8A8A8A', rough:0.5,  metal:0},
+  {id:'glass_clear',     label:'Glass, clear',       group:'other',   color:'#CFE3E8', rough:0.05, metal:0, opacity:0.35},
+  {id:'glass_frosted',   label:'Glass, frosted',     group:'other',   color:'#E6EEF0', rough:0.4,  metal:0, opacity:0.7},
+  {id:'fabric_canvas',   label:'Fabric, canvas',     group:'other',   color:'#E8E1D0', rough:0.95, metal:0},
+  {id:'fabric_red',      label:'Fabric, red',        group:'other',   color:'#B23A2E', rough:0.95, metal:0},
+  {id:'fabric_green',    label:'Fabric, green',      group:'other',   color:'#4E6B45', rough:0.95, metal:0},
+  {id:'fabric_navy',     label:'Fabric, navy',       group:'other',   color:'#2E3E5C', rough:0.95, metal:0},
+  {id:'fabric_charcoal', label:'Fabric, charcoal',   group:'other',   color:'#45474A', rough:0.95, metal:0},
+  {id:'soil',            label:'Soil',               group:'fixed',   color:'#5E4A3A', rough:1,    metal:0},
+  {id:'foliage',         label:'Foliage',            group:'fixed',   color:'#5E8A4A', rough:1,    metal:0},
+  {id:'grass',           label:'Grasses',            group:'fixed',   color:'#8FA85C', rough:1,    metal:0},
+  {id:'bark',            label:'Bark',               group:'fixed',   color:'#5A4636', rough:1,    metal:0},
+  {id:'safety_yellow',   label:'Safety yellow',      group:'fixed',   color:'#F2C200', rough:0.5,  metal:0},
+  {id:'lamp',            label:'Lamp',               group:'fixed',   color:'#FFE9B0', rough:0.3,  metal:0, emissive:0.9}
+];
+
+// == PARAMETRIC FURNITURE ARCHETYPES (data only) =========================================
+// One entry per generic type. All dimensions in METRES. params:
+//   [def, min, max(, step)]  number     true/false  boolean     {def, opts:[...]}  choice
+// l = length (local x), d = depth (local z), h = height; the drawn envelope comes from the
+// parts built from these numbers, so plan, section and 3D share one size.
+// adjust = params the user may change after placement. parts = material roles:
+//   'groups allowed|default material'   ('fixed|soil' = not user-selectable).
+// defaultFrom: params filled from the design at placement (edge_rail follows the parklet).
+// tags: boolean params named in the library label ("Bench 1.8 m, with back").
+const FL_ARCHETYPES = {
+  // -- Seating --------------------------------------------------------------------------
+  bench:          {label:'Bench', cat:'seating', params:{l:[1.8,0.5,4], d:[0.55,0.35,0.95], h:[0.45,0.35,0.5], back:true, backH:[0.8,0.5,1.0], arms:false, double:false, ends:{def:'legs', opts:['legs','plinth']}},
+                   adjust:['l','d','h','back','backH','arms','double','ends'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}, tags:{back:['with back','no back'], double:['back-to-back','']}},
+  backless_bench: {label:'Backless bench', cat:'seating', params:{l:[1.8,0.5,4], d:[0.45,0.3,0.8], h:[0.45,0.35,0.5], ends:{def:'legs', opts:['legs','plinth']}},
+                   adjust:['l','d','h','ends'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
+  chair:          {label:'Chair', cat:'seating', params:{l:[0.5,0.4,0.8], d:[0.55,0.45,0.7], h:[0.45,0.4,0.5], back:true, backH:[0.82,0.65,1.0]},
+                   adjust:['l','d','h','back','backH'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
+  armchair:       {label:'Armchair', cat:'seating', params:{l:[0.65,0.55,0.9], d:[0.65,0.55,0.8], h:[0.42,0.3,0.48], backH:[0.78,0.5,0.95]},
+                   adjust:['l','d','h','backH'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
+  stool:          {label:'Stool', cat:'seating', params:{l:[0.4,0.3,0.6], d:[0.4,0.3,0.6], h:[0.45,0.4,0.5], shape:{def:'round', opts:['round','square']}},
+                   adjust:['l','d','h','shape'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
+  bar_stool:      {label:'Bar stool', cat:'seating', params:{l:[0.4,0.3,0.5], d:[0.4,0.3,0.5], h:[0.75,0.65,0.85]},
+                   adjust:['l','d','h'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
+  lounge:         {label:'Lounge seat', cat:'seating', params:{l:[0.7,0.55,0.9], d:[1.6,0.8,2.0], h:[0.4,0.3,0.5], backH:[0.75,0.5,1.0]},
+                   adjust:['l','d','h','backH'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
+  sun_lounger:    {label:'Sun lounger', cat:'seating', params:{l:[0.7,0.6,0.95], d:[1.9,1.6,2.1], h:[0.35,0.25,0.45], backH:[0.8,0.5,1.4]},
+                   adjust:['l','d','h','backH'], parts:{frame:'metal powder|galvanized', seat:'wood other|thermowood'}},
+  curved_bench:   {label:'Curved bench', cat:'seating', params:{radius:[2.0,1.0,6.0], angle:[90,30,180,5], d:[0.5,0.35,0.7], h:[0.45,0.38,0.5]},
+                   adjust:['radius','angle','d','h'], parts:{frame:'metal powder mineral|galvanized', seat:'wood other|thermowood'}},
+  seat_wall:      {label:'Seat wall', cat:'seating', params:{l:[2.4,0.8,6], d:[0.45,0.3,0.8], h:[0.45,0.35,0.6], cap:true},
+                   adjust:['l','d','h','cap'], parts:{body:'mineral wood metal|precast_grey', seat:'wood other|thermowood'}, tags:{cap:['timber cap','']}},
+  swing_bench:    {label:'Swing bench', cat:'seating', params:{l:[1.6,1.2,2.4], d:[1.2,1.0,1.6], h:[2.3,2.0,2.6], seatH:[0.45,0.4,0.5]},
+                   adjust:['l','d','h','seatH'], parts:{frame:'metal powder wood|black_steel', seat:'wood other|thermowood'}},
+  bleacher_step:  {label:'Bleacher step', cat:'seating', params:{l:[2.4,0.6,6], rows:[3,2,5,1], rowD:[0.45,0.3,0.6], rowH:[0.4,0.2,0.45]},
+                   adjust:['l','rows','rowD','rowH'], parts:{body:'mineral wood metal|precast_grey', seat:'wood other metal|thermowood'}},
+  // -- Tables -----------------------------------------------------------------------------
+  table:          {label:'Table', cat:'table', params:{l:[1.2,0.6,3], d:[0.8,0.6,1.2], h:[0.75,0.7,0.8], shape:{def:'rect', opts:['rect','round','square']}, base:{def:'legs', opts:['legs','pedestal']}},
+                   adjust:['l','d','h','shape','base'], parts:{frame:'metal powder|galvanized', top:'wood mineral metal powder other|thermowood'}},
+  bar_table:      {label:'Bar table', cat:'table', params:{l:[1.5,0.6,3], d:[0.5,0.4,0.9], h:[1.05,0.95,1.15], base:{def:'legs', opts:['legs','pedestal']}},
+                   adjust:['l','d','h','base'], parts:{frame:'metal powder|galvanized', top:'wood mineral metal powder other|thermowood'}},
+  communal_table: {label:'Communal table', cat:'table', params:{l:[3.0,2.0,4.0], d:[0.9,0.75,1.2], h:[0.75,0.7,0.8]},
+                   adjust:['l','d','h'], parts:{frame:'metal powder|galvanized', top:'wood mineral metal powder other|thermowood'}},
+  picnic:         {label:'Picnic table', cat:'table', params:{l:[1.8,0.8,2.4], d:[1.5,0.8,1.8], h:[0.75,0.7,0.8], seatH:[0.45,0.4,0.48], shape:{def:'rect', opts:['rect','round']}},
+                   adjust:['l','d','h','seatH','shape'], parts:{frame:'metal powder|galvanized', top:'wood mineral metal powder other|thermowood', seat:'wood other metal|thermowood'}},
+  cafe_table:     {label:'Cafe table', cat:'table', params:{l:[0.6,0.5,0.8], h:[0.75,0.7,0.8]},
+                   adjust:['l','h'], parts:{frame:'metal powder|black_steel', top:'wood mineral metal powder other|terrazzo'}},
+  counter:        {label:'Counter', cat:'table', params:{l:[2.0,0.8,4], d:[0.6,0.3,0.8], h:[1.05,0.9,1.15], mount:{def:'freestanding', opts:['freestanding','wall']}},
+                   adjust:['l','d','h','mount'], parts:{frame:'metal powder wood|galvanized', top:'wood mineral metal powder other|thermowood'}},
+  shelf_ledge:    {label:'Shelf ledge', cat:'table', params:{l:[1.8,0.6,4], d:[0.3,0.2,0.45], h:[1.05,0.9,1.2]},
+                   adjust:['l','d','h'], parts:{frame:'metal powder|black_steel', top:'wood mineral metal powder other|thermowood'}},
+  // -- Planters ---------------------------------------------------------------------------
+  planter:        {label:'Planter', cat:'planter', params:{l:[1.2,0.4,3], d:[0.6,0.3,1.2], h:[0.6,0.3,1.0], plant:{def:'shrub', opts:['shrub','grass','tree','none']}},
+                   adjust:['l','d','h','plant'], parts:{body:'metal powder mineral wood|galvanized', soil:'fixed|soil', plant:'fixed|foliage'}},
+  planter_tall:   {label:'Tall planter', cat:'planter', params:{l:[0.6,0.3,1.0], d:[0.6,0.3,1.0], h:[0.9,0.6,1.2], plant:{def:'grass', opts:['shrub','grass','tree','none']}},
+                   adjust:['l','d','h','plant'], parts:{body:'metal powder mineral wood|galvanized', soil:'fixed|soil', plant:'fixed|foliage'}},
+  planter_round:  {label:'Round planter', cat:'planter', params:{l:[0.9,0.4,1.8], h:[0.6,0.3,1.0], plant:{def:'shrub', opts:['shrub','grass','tree','none']}},
+                   adjust:['l','h','plant'], parts:{body:'metal powder mineral|precast_grey', soil:'fixed|soil', plant:'fixed|foliage'}},
+  planter_bench:  {label:'Planter bench', cat:'planter', params:{l:[2.0,1.2,3.6], d:[1.0,0.8,1.4], h:[0.6,0.45,0.8], seatH:[0.45,0.4,0.48], plant:{def:'shrub', opts:['shrub','grass','tree','none']}},
+                   adjust:['l','d','h','seatH','plant'], parts:{body:'metal powder mineral wood|galvanized', seat:'wood other|thermowood', soil:'fixed|soil', plant:'fixed|foliage'}},
+  planter_wall:   {label:'Planter wall', cat:'planter', params:{l:[3.0,1.5,6], d:[0.4,0.3,0.6], h:[0.45,0.3,0.6], plant:{def:'grass', opts:['shrub','grass','none']}},
+                   adjust:['l','d','h','plant'], parts:{body:'mineral metal powder wood|precast_grey', soil:'fixed|soil', plant:'fixed|foliage'}},
+  tree_pit:       {label:'Tree pit', cat:'planter', params:{l:[1.5,1.0,2.5], d:[1.5,1.0,2.5], h:[0.15,0.05,0.3], treeH:[4.0,2.5,8]},
+                   adjust:['l','d','h','treeH'], parts:{grate:'metal mineral|black_steel', soil:'fixed|soil', trunk:'fixed|bark', plant:'fixed|foliage'}},
+  trough:         {label:'Rail trough', cat:'planter', params:{l:[1.8,0.8,3], d:[0.25,0.15,0.35], h:[0.95,0.6,1.2], boxH:[0.3,0.2,0.4]},
+                   adjust:['l','d','h','boxH'], parts:{body:'metal powder|corten', frame:'metal powder|black_steel', soil:'fixed|soil', plant:'fixed|grass'}},
+  living_wall_panel:{label:'Living wall panel', cat:'planter', params:{l:[1.2,0.6,2.4], d:[0.2,0.15,0.3], h:[2.0,1.2,2.4]},
+                   adjust:['l','d','h'], parts:{frame:'metal powder wood|black_steel', plant:'fixed|foliage'}},
+  // -- Shade / shelter ----------------------------------------------------------------------
+  umbrella:       {label:'Umbrella', cat:'shelter', params:{l:[2.5,1.5,4], h:[2.4,2.1,2.8], shape:{def:'round', opts:['round','square']}},
+                   adjust:['l','h','shape'], parts:{pole:'metal powder wood|aluminium', canopy:'other|fabric_canvas', base:'mineral metal|precast_grey'}},
+  pergola:        {label:'Pergola', cat:'shelter', params:{l:[3.0,2.0,6], d:[2.4,1.5,4], h:[2.6,2.2,3.2], slat:[0.3,0.15,0.6]},
+                   adjust:['l','d','h','slat'], parts:{post:'metal powder wood|galvanized', slat:'wood metal powder|thermowood'}},
+  canopy_sail:    {label:'Canopy sail', cat:'shelter', params:{l:[3.0,2,6], d:[3.0,2,6], h:[2.8,2.4,3.5]},
+                   adjust:['l','d','h'], parts:{post:'metal powder|galvanized', canopy:'other|fabric_canvas'}},
+  shade_arbor:    {label:'Shade arbor', cat:'shelter', params:{l:[2.0,1.2,3], d:[0.6,0.4,1.0], h:[2.4,2.1,2.8]},
+                   adjust:['l','d','h'], parts:{post:'metal powder wood|black_steel', slat:'wood metal powder|thermowood', plant:'fixed|foliage'}},
+  shelter_roof:   {label:'Shelter roof', cat:'shelter', params:{l:[4.6,2.4,6], d:[2.3,1.5,3], h:[2.6,2.3,3.0]},
+                   adjust:['l','d','h'], parts:{post:'metal powder|galvanized', roof:'other metal powder|glass_clear'}},
+  // -- Edge / safety ------------------------------------------------------------------------
+  screen:         {label:'Screen', cat:'edge', params:{l:[1.8,0.6,3], d:[0.05,0.03,0.1], h:[1.1,0.8,1.8], infill:{def:'slats', opts:['slats','solid']}},
+                   adjust:['l','d','h','infill'], parts:{frame:'metal powder|black_steel', panel:'wood metal powder other|thermowood'}},
+  railing:        {label:'Railing', cat:'edge', params:{l:[2.0,0.6,4], d:[0.05,0.04,0.08], h:[1.07,0.9,1.2]},
+                   adjust:['l','d','h'], parts:{rail:'metal powder|galvanized'}},
+  glass_screen:   {label:'Glass screen', cat:'edge', params:{l:[1.8,0.6,3], d:[0.06,0.04,0.1], h:[1.2,0.9,1.8]},
+                   adjust:['l','d','h'], parts:{frame:'metal powder|aluminium', glass:'other|glass_clear'}},
+  bollard:        {label:'Bollard', cat:'edge', params:{l:[0.15,0.1,0.6], h:[0.9,0.6,1.2]},
+                   adjust:['l','h'], parts:{body:'metal powder mineral|galvanized', band:'fixed|safety_yellow'}},
+  wheel_stop:     {label:'Wheel stop', cat:'edge', params:{l:[1.8,0.9,2.4], d:[0.15,0.1,0.25], h:[0.1,0.08,0.15]},
+                   adjust:['l','d','h'], parts:{body:'mineral other|recycled_black', band:'fixed|safety_yellow'}},
+  planter_barrier:{label:'Planter barrier', cat:'edge', params:{l:[2.0,1.2,3], d:[0.6,0.45,0.9], h:[0.8,0.6,1.0]},
+                   adjust:['l','d','h'], parts:{body:'mineral|concrete', soil:'fixed|soil', plant:'fixed|foliage'}},
+  reflector_post: {label:'Reflector post', cat:'edge', params:{l:[0.08,0.05,0.15], h:[1.0,0.8,1.2]},
+                   adjust:['l','h'], parts:{body:'other powder|recycled_grey', band:'fixed|safety_yellow'}},
+  edge_rail:      {label:'Edge rail', cat:'edge', params:{l:[4.0,0.6,30], d:[0.06,0.04,0.1], h:[0.9,0.6,1.1]}, defaultFrom:{l:'parkletLength'},
+                   adjust:['l','d','h'], parts:{rail:'metal powder|galvanized'}},
+  // -- Deck / structure ---------------------------------------------------------------------
+  deck_step:      {label:'Deck step', cat:'deck', params:{l:[1.2,0.6,3], d:[0.35,0.28,0.45], h:[0.15,0.1,0.2]},
+                   adjust:['l','d','h'], parts:{tread:'wood other mineral|thermowood'}},
+  platform_step:  {label:'Platform steps', cat:'deck', params:{l:[1.2,0.6,3], steps:[2,1,4,1], tread:[0.3,0.28,0.4], rise:[0.15,0.1,0.18]},
+                   adjust:['l','steps','tread','rise'], parts:{tread:'wood other mineral|thermowood'}},
+  ramp:           {label:'Ramp', cat:'deck', params:{rise:[0.15,0.05,0.3], slope:[8.33,5,8.33], d:[1.2,0.9,1.8]},
+                   adjust:['rise','slope','d'], parts:{tread:'wood other mineral|composite_decking', edge:'metal powder|galvanized'}},
+  deck_edge_bench:{label:'Deck edge bench', cat:'deck', params:{l:[2.4,1.0,4], d:[0.45,0.35,0.6], h:[0.45,0.35,0.5]},
+                   adjust:['l','d','h'], parts:{body:'wood other mineral|thermowood', seat:'wood other|thermowood'}},
+  deck_lip:       {label:'Deck lip', cat:'deck', params:{l:[2.4,1.0,6], d:[0.1,0.05,0.2], h:[0.1,0.05,0.15]},
+                   adjust:['l','d','h'], parts:{body:'metal wood|galvanized', band:'fixed|safety_yellow'}},
+  // -- Amenity --------------------------------------------------------------------------------
+  bin:            {label:'Bin', cat:'bin', params:{l:[0.6,0.3,1.4], d:[0.6,0.3,0.7], h:[1.0,0.6,1.2], streams:[1,1,3,1], shape:{def:'box', opts:['box','round']}},
+                   adjust:['l','d','h','streams','shape'], parts:{body:'metal powder|galvanized', lid:'metal powder other|ral_7016'}},
+  bike_rack:      {label:'Bike rack', cat:'bikerack', params:{l:[0.9,0.4,6], d:[0.1,0.05,2.0], h:[0.8,0.4,1.1], type:{def:'u', opts:['u','post','wave','corral']}, count:[1,1,6,1]},
+                   adjust:['l','d','h','type','count'], parts:{frame:'metal powder|galvanized'}},
+  bike_repair_stand:{label:'Bike repair stand', cat:'amenity', params:{l:[0.5,0.3,0.8], d:[0.3,0.2,0.5], h:[1.5,1.2,1.8]},
+                   adjust:['l','d','h'], parts:{frame:'metal powder|ral_3020'}},
+  drinking_fountain:{label:'Drinking fountain', cat:'amenity', params:{l:[0.5,0.4,0.9], d:[0.5,0.4,0.8], h:[0.95,0.8,1.1]},
+                   adjust:['l','d','h'], parts:{body:'metal powder mineral|stainless'}},
+  light_bollard:  {label:'Light bollard', cat:'amenity', params:{l:[0.2,0.15,0.3], h:[1.0,0.6,1.2]},
+                   adjust:['l','h'], parts:{body:'metal powder|ral_7016', light:'fixed|lamp'}},
+  string_light:   {label:'String lights', cat:'amenity', params:{l:[4.0,2,10], d:[0.12,0.08,0.2], h:[3.0,2.4,4.5]},
+                   adjust:['l','h'], parts:{post:'metal powder wood|black_steel', light:'fixed|lamp'}},
+  heater:         {label:'Patio heater', cat:'amenity', params:{l:[0.5,0.4,0.8], h:[2.2,1.8,2.4]},
+                   adjust:['l','h'], parts:{body:'metal powder|stainless'}},
+  sign_post:      {label:'Sign post', cat:'amenity', params:{l:[0.45,0.3,0.8], d:[0.08,0.05,0.12], h:[2.4,1.8,3]},
+                   adjust:['l','h'], parts:{post:'metal powder|galvanized', panel:'metal powder|ral_9016'}},
+  menu_board:     {label:'Menu board', cat:'amenity', params:{l:[0.6,0.5,0.8], d:[0.5,0.4,0.7], h:[1.0,0.8,1.2]},
+                   adjust:['l','d','h'], parts:{panel:'wood powder other|black_stain'}},
+  kiosk:          {label:'Kiosk', cat:'amenity', params:{l:[1.8,1.2,3], d:[1.2,1.0,2], h:[2.4,2.2,2.8]},
+                   adjust:['l','d','h'], parts:{body:'wood metal powder|thermowood', roof:'metal powder|ral_7016', top:'wood mineral metal powder other|stainless'}},
+  // -- Play / misc ------------------------------------------------------------------------------
+  play_element:   {label:'Play element', cat:'play', params:{l:[0.8,0.3,2], d:[0.8,0.3,2], h:[0.45,0.2,1.2]},
+                   adjust:['l','d','h'], parts:{body:'mineral wood powder other|ral_1021'}},
+  sculpture_block:{label:'Sculpture block', cat:'play', params:{l:[0.6,0.3,2], d:[0.6,0.3,2], h:[1.2,0.5,2.5]},
+                   adjust:['l','d','h'], parts:{body:'mineral metal wood powder|corten'}},
+  game_table:     {label:'Game table', cat:'play', params:{l:[0.8,0.6,2.74], d:[0.8,0.6,1.525], h:[0.75,0.7,0.76], game:{def:'chess', opts:['chess','pingpong']}},
+                   adjust:['l','d','h','game'], parts:{frame:'metal powder mineral|concrete', top:'mineral other powder|granite'}},
+  book_box:       {label:'Book box', cat:'play', params:{l:[0.5,0.4,0.7], d:[0.4,0.3,0.5], h:[1.5,1.2,1.8]},
+                   adjust:['l','d','h'], parts:{body:'wood powder|thermowood', post:'metal powder wood|black_steel'}},
+  // -- Combined systems -------------------------------------------------------------------------
+  platform_system:{label:'Platform system', cat:'system', params:{l:[1.9,1.2,4], d:[2.4,1.5,3], deckH:[0.22,0.1,0.35], h:[1.2,0.9,1.3], bench:true},
+                   adjust:['l','d','deckH','h','bench'], parts:{deck:'wood other|thermowood', rail:'metal powder|galvanized', seat:'wood other|thermowood'}, tags:{bench:['with bench','']}}
+};
+// Every archetype draws through the same three builders (Phase 2); an entry may override.
+const FL_ARCH_BUILDERS = {plan:'flPlanArchetype', section:'flSectionArchetype', mesh:'fl3DArchetype'};
+
+// Normalise FL_ARCHETYPES in place: params -> {type, def, min, max, step, opts}; parts ->
+// {allow:[groups], def}. Runs once at load; data stays declarative above.
+(function _flNormArchetypes() {
+  Object.keys(FL_ARCHETYPES).forEach(function(id) {
+    var a = FL_ARCHETYPES[id];
+    a.id = id;
+    a.builders = a.builders || FL_ARCH_BUILDERS;
+    Object.keys(a.params).forEach(function(k) {
+      var v = a.params[k];
+      if (Array.isArray(v)) a.params[k] = {type:'num', def:v[0], min:v[1], max:v[2], step:v[3] || (v[2] - v[1] > 3 ? 0.05 : 0.01)};
+      else if (typeof v === 'boolean') a.params[k] = {type:'bool', def:v};
+      else a.params[k] = {type:'enum', def:v.def, opts:v.opts};
+    });
+    Object.keys(a.parts).forEach(function(r) {
+      var s = String(a.parts[r]).split('|');
+      a.parts[r] = {allow:s[0].split(' '), def:s[1], fixed:s[0] === 'fixed'};
+    });
+  });
+})();
+// Plan/section colours are derived from the one base colour: the fill is the base mixed
+// 30% toward the schematic paper, the edge is the base mixed 45% toward ink.
+function _flMixHex(a, b, t) {
+  var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16), o = '#';
+  [16, 8, 0].forEach(function(s) {
+    var v = Math.round(((pa >> s) & 255) * (1 - t) + ((pb >> s) & 255) * t);
+    o += (v < 16 ? '0' : '') + v.toString(16);
+  });
+  return o.toUpperCase();
+}
+function flTint2D(hex) { return _flMixHex(hex, '#F6F3EC', 0.3); }
+function flEdge2D(hex) { return _flMixHex(hex, '#1A1A1A', 0.45); }
+var FL_MAT_BY_ID = {};
+FL_MATERIALS.forEach(function(m) { m.tint = flTint2D(m.color); m.edge = flEdge2D(m.color); FL_MAT_BY_ID[m.id] = m; });
+
+// Schema check, run at load: every default inside its range, every part default a real
+// material in an allowed group. Problems go to the console, loudly.
+function flValidateArchetypes() {
+  var bad = [];
+  Object.keys(FL_ARCHETYPES).forEach(function(id) {
+    var a = FL_ARCHETYPES[id];
+    if (!FL_CATS[a.cat]) bad.push(id + ': unknown cat ' + a.cat);
+    Object.keys(a.params).forEach(function(k) {
+      var p = a.params[k];
+      if (p.type === 'num' && (p.def < p.min || p.def > p.max)) bad.push(id + '.' + k + ' default ' + p.def + ' outside ' + p.min + '..' + p.max);
+      if (p.type === 'enum' && p.opts.indexOf(p.def) < 0) bad.push(id + '.' + k + ' default not an option');
+    });
+    (a.adjust || []).forEach(function(k) { if (!a.params[k]) bad.push(id + ': adjust names unknown param ' + k); });
+    Object.keys(a.parts).forEach(function(r) {
+      var pt = a.parts[r], m = FL_MAT_BY_ID[pt.def];
+      if (!m) bad.push(id + '.' + r + ': default material ' + pt.def + ' missing');
+      else if (pt.allow.indexOf(m.group) < 0) bad.push(id + '.' + r + ': default ' + pt.def + ' not in ' + pt.allow.join('/'));
+    });
+  });
+  if (bad.length) console.warn('[FL_ARCHETYPES] ' + bad.length + ' problem(s):\n' + bad.join('\n'));
+  return bad;
+}
+flValidateArchetypes();
 
 const FL_OBJ = [
 {id:'VS-APR-CH01',name:'April Chair',family:'April',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.173 area',desc:'Single outdoor chair with galvanized steel frame and FSC pine seat.',dims:[{l:'Width',v:'~786 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'},{l:'Bar chair seat H',v:'~700 mm',lv:'SF',n:'bar stool variant'}],mats:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Seat / back',v:'FSC pine, linseed oil treated',lv:'SF'}],install:'Anchored — suffix A/B/C/D in article number [SF]',weight:null,access:'Seat H 450 mm standard [SF].',param:'fixed',modNote:null,relIds:['VS-APR-BN01','VS-APR-TL01'],notes:[]},
