@@ -1663,7 +1663,10 @@ function buildDesignModel() {
   // Compute cross-street landmark positions once so renderMassView / renderPlanView
   // can read them without rediscovering SW, bufW, and building depths independently.
   (function() {
-    var _lmSW   = (typeof SW !== 'undefined') ? SW : 3.0;
+    if (typeof SIDEWALK_W === 'undefined') console.warn('[DESIGN_MODEL.landmarks] SIDEWALK_W not in scope -- check global init order.');
+    var _lmSW   = (typeof SIDEWALK_W !== 'undefined') ? SIDEWALK_W : 1.8;
+    if (typeof BLDG_L === 'undefined') console.warn('[DESIGN_MODEL.landmarks] BLDG_L not in scope -- building positions will be wrong.');
+    if (typeof BLDG_R === 'undefined') console.warn('[DESIGN_MODEL.landmarks] BLDG_R not in scope -- building positions will be wrong.');
     var _lmBufW = (typeof designBufferEnabled !== 'undefined' && designBufferEnabled &&
                    typeof designBufferW !== 'undefined') ? designBufferW : 0;
     var _lmXCL  = 0;
@@ -7906,7 +7909,7 @@ function ensure3DReady() {
     if (!_ccvs) {
       _ccvs = document.createElement('canvas');
       _ccvs.id = '_3dCompassCvs';
-      _ccvs.width = 44; _ccvs.height = 44;
+      _ccvs.width = 56; _ccvs.height = 56;
       _ccvs.title = 'N = along-street far end';
       _ccvs.style.cssText = 'position:absolute;bottom:8px;right:8px;pointer-events:none;z-index:3;border-radius:50%;';
       _e3c.appendChild(_ccvs);
@@ -7976,40 +7979,50 @@ function ensure3DReady() {
 }
 window.ensure3DReady = ensure3DReady;
 
-// Compass rose: draw world-North direction onto the _3dCompassCvs overlay each frame.
-// N = +Z world = along-street far end = right in Plan view.
+// Compass rose: draws world N (+Z, red) and E (+X, amber) as live arrows each frame.
+// Updating on every camera orbit, so the user always knows which screen direction is which.
+// N = along-street far end (+Z).  E = toward road centre (+X).
 function _3dUpdateCompass() {
   var cvs = document.getElementById('_3dCompassCvs');
   if (!cvs || !_3d || !_3d.camera || typeof THREE === 'undefined') return;
   var ctx = cvs.getContext('2d');
-  var sz = 44, cx = sz / 2, cy = sz / 2, r = 16;
+  var sz = 56, cx = sz / 2, cy = sz / 2, r = 18;
   ctx.clearRect(0, 0, sz, sz);
   _3d.camera.updateMatrixWorld(false);
-  var nv = new THREE.Vector3(0, 0, 1);
-  nv.transformDirection(_3d.camera.matrixWorldInverse);
-  var nx = nv.x, ny = -nv.y;
-  var mag = Math.sqrt(nx * nx + ny * ny);
-  if (mag < 0.001) { nx = 1; ny = 0; } else { nx /= mag; ny /= mag; }
+  // Project a world-space direction into 2D screen space (XY plane of the canvas).
+  function _screenDir(wx, wy, wz) {
+    var v = new THREE.Vector3(wx, wy, wz);
+    v.transformDirection(_3d.camera.matrixWorldInverse);
+    var m = Math.sqrt(v.x * v.x + v.y * v.y);
+    if (m < 0.001) return { x: 1, y: 0 };
+    return { x: v.x / m, y: -v.y / m };  // flip Y: canvas Y grows down, world Y grows up
+  }
+  var nDir = _screenDir(0, 0, 1);  // N = +Z = along-street far end
+  var eDir = _screenDir(1, 0, 0);  // E = +X = toward road centre
+  // Background disc
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(18,18,18,0.60)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 0.5; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx, cy);
-  ctx.lineTo(cx - nx * (r - 2), cy - ny * (r - 2));
-  ctx.strokeStyle = 'rgba(160,160,160,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + nx * (r - 2), cy + ny * (r - 2));
-  ctx.strokeStyle = '#c03030'; ctx.lineWidth = 2.5; ctx.stroke();
-  var perpX = -ny, perpY = nx;
-  var tipX = cx + nx * (r - 2), tipY = cy + ny * (r - 2);
-  var baseX = cx + nx * (r - 7), baseY = cy + ny * (r - 7);
-  ctx.beginPath();
-  ctx.moveTo(tipX, tipY);
-  ctx.lineTo(baseX + perpX * 2.5, baseY + perpY * 2.5);
-  ctx.lineTo(baseX - perpX * 2.5, baseY - perpY * 2.5);
-  ctx.closePath(); ctx.fillStyle = '#c03030'; ctx.fill();
-  ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#c03030';
-  ctx.fillText('N', cx + nx * (r + 5), cy + ny * (r + 5));
+  ctx.fillStyle = 'rgba(18,18,18,0.72)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 0.5; ctx.stroke();
+  // Draw a labelled axis: tail (grey S/W) + coloured head arrow + label at tip
+  function _drawAxis(dir, color, label) {
+    var hx = cx + dir.x * (r-3), hy = cy + dir.y * (r-3);
+    var tx = cx - dir.x * (r-2), ty = cy - dir.y * (r-2);
+    var bx = cx + dir.x * (r-7), by = cy + dir.y * (r-7);
+    var px = -dir.y, py = dir.x;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(tx, ty);
+    ctx.strokeStyle = 'rgba(140,140,140,0.55)'; ctx.lineWidth = 1.1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy);
+    ctx.strokeStyle = color; ctx.lineWidth = 2.0; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hx, hy);
+    ctx.lineTo(bx + px*2.2, by + py*2.2);
+    ctx.lineTo(bx - px*2.2, by - py*2.2);
+    ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+    ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    ctx.fillText(label, cx + dir.x * (r+6), cy + dir.y * (r+6));
+  }
+  _drawAxis(nDir, '#c03030', 'N');  // red:   N = along-street far end  (+Z)
+  _drawAxis(eDir, '#c07010', 'E');  // amber: E = toward road centre     (+X)
 }
 window._3dUpdateCompass = _3dUpdateCompass;
 
