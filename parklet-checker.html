@@ -378,6 +378,7 @@
 <input type='number' id='cadRot' step='15' placeholder='0' style='width:100%;box-sizing:border-box;font-size:10px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyRot()' title='Rotation in degrees'>
 <span style='font-size:8px;color:var(--muted);'>deg</span>
 </div>
+<div id='cadParams' style='display:none;margin:0 0 8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.07);'></div>
 <div style='font-size:8px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;'>Grid &amp; Snap</div>
 <div style='display:flex;gap:3px;align-items:center;margin-bottom:7px;'>
 <button id='cadGridBtn' onclick='cadToggleGrid()' style='font-size:10px;padding:2px 7px;border:1px solid var(--rule);border-radius:2px;background:var(--ink);color:var(--bg);cursor:pointer;font-family:var(--mono);' title='Toggle grid (all views)'>Grid</button>
@@ -1844,6 +1845,42 @@ window.checkLandmarkConsistency = function(verbose) {
     if (Math.abs(p.x - v.x) > 0.01 || Math.abs(p.z - v.z) > 0.01) bad.push({ value: 'vegetation ' + k + ' 3D position', model: v.x + ',' + v.z, independent: p.x.toFixed(3) + ',' + p.z.toFixed(3) });
   });
   window._lastVegetationCheck = { model: veg.length, plan: vegPlan.length, view3d: n3d };
+  // Furniture: every archetype piece's 3D size (its non-veg meshes, measured in the piece's own
+  // frame so rotation does not inflate the box) and its Plan glyph (local metres) must equal the
+  // size its params give (flInstDims), within 5 mm.
+  var furnRows = [];
+  if (typeof FL3D !== 'undefined' && FL3D && FL3D.placed && typeof THREE !== 'undefined') FL3D.placed.forEach(function(inst) {
+    if (!inst.archetype) return;
+    var want = flInstDims(inst), row = { id: inst.id, archetype: inst.archetype, model: [want.l, want.d, want.h] };
+    if (inst.mesh) {
+      var b = new THREE.Box3(), inv = new THREE.Matrix4();
+      inst.mesh.updateMatrixWorld(true); inv.copy(inst.mesh.matrixWorld).invert();
+      inst.mesh.traverse(function(c) {
+        if (!c.isMesh || c.userData.flVeg) return;
+        c.geometry.computeBoundingBox();
+        b.union(c.geometry.boundingBox.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld)));
+      });
+      var sz = b.getSize(new THREE.Vector3()); row.view3d = [sz.x, sz.z, sz.y];
+    }
+    var g = (planSvg && planSvg.getBoundingClientRect().width > 0) ? planSvg.querySelector("g.pv-furn[data-inst='" + inst.id + "']") : null;
+    if (g) {
+      var u = null;
+      [].forEach.call(g.querySelectorAll('.fl-part'), function(e) {
+        var bb = e.getBBox();
+        u = u ? [Math.min(u[0], bb.x), Math.min(u[1], bb.y), Math.max(u[2], bb.x + bb.width), Math.max(u[3], bb.y + bb.height)] : [bb.x, bb.y, bb.x + bb.width, bb.y + bb.height];
+      });
+      if (u) row.plan = [u[2] - u[0], u[3] - u[1]];
+    }
+    ['view3d', 'plan'].forEach(function(k) {
+      if (!row[k]) return;
+      row[k].forEach(function(v, i) {
+        if (Math.abs(v - row.model[i]) > 0.005)
+          bad.push({ value: 'furniture #' + inst.id + ' (' + inst.archetype + ') ' + ['length', 'depth', 'height'][i] + ' (' + k + ')', model: row.model[i], independent: v });
+      });
+    });
+    furnRows.push(row);
+  });
+  window._lastFurnitureCheck = furnRows;
   window._lastConsistencyIssues = bad;
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL: ' +
@@ -6902,6 +6939,7 @@ while (_3d.group.children.length) {
         else { newMesh.rotation.y = inst.userRotation; }
         newMesh.traverse(function(c) { if (c.isMesh) c.userData.flInstId = inst.id; });
         _3d.group.add(newMesh);
+        if (window.FL3D.selId === inst.id && typeof fl3DHighlight === 'function') fl3DHighlight(newMesh, true);   // keep the selection visible
       } catch(e) {}
     });
   }
@@ -9293,6 +9331,98 @@ function fl3DBuildFromKey(key) {
   return fl3DArchetype(sp.type, flResolveParams(sp.type, sp.params, {placing:true}), flResolveMats(sp.type, sp.mats));
 }
 
+// -- Editing a placed piece (Selection panel) --------------------------------------------------------
+// Swap a piece's mesh for one built from its current params/materials, keeping its transform.
+function flRebuildInstMesh(inst) {
+  if (!inst || !inst.mesh || typeof _3d === 'undefined' || !_3d || !_3d.group) return;
+  var old = inst.mesh, parent = old.parent || _3d.group, mesh = fl3DBuildInst(inst);
+  if (!mesh) return;
+  mesh.position.copy(old.position);
+  mesh.userData.fl3dInstId = inst.id;
+  mesh.traverse(function(c) { if (c.isMesh) c.userData.flInstId = inst.id; });
+  parent.remove(old);
+  old.traverse(function(c) { if (c.isMesh && c.geometry) c.geometry.dispose(); });
+  parent.add(mesh);
+  inst.mesh = mesh;
+  applyFurnitureTransform(inst);
+  if (FL3D.selId === inst.id) fl3DHighlight(mesh, true);
+  if (DS.mode() === 'technical' && typeof apply3DTheme === 'function') apply3DTheme();
+}
+// After a param or finish change: the one update path, like any other edit.
+function _flAfterInstEdit(inst) {
+  flRebuildInstMesh(inst);
+  _dmSyncObject(inst);
+  syncDesignModel('furniture');
+  if (typeof cadToolsUpdate === 'function' && FL3D.selId === inst.id) cadToolsUpdate(inst);
+}
+function _flInst(id) { return (typeof FL3D !== 'undefined' && FL3D.placed) ? FL3D.placed.find(function(i) { return i.id === id; }) : null; }
+function flSetInstParam(id, key, value) {
+  var inst = _flInst(id);
+  if (!inst || !inst.archetype) return;
+  var P = FL_ARCHETYPES[inst.archetype].params[key];
+  if (!P) return;
+  var raw = Object.assign({}, inst.params);
+  raw[key] = P.type === 'bool' ? !!value : P.type === 'num' ? parseFloat(value) : value;
+  inst.params = flResolveParams(inst.archetype, raw);     // clamped to the archetype's range
+  _flAfterInstEdit(inst);
+}
+function flSetInstMaterial(id, role, ref) {
+  var inst = _flInst(id);
+  if (!inst || !inst.archetype) return;
+  ref = String(ref || '').trim();
+  if (/^#?[0-9a-f]{6}$/i.test(ref)) ref = ('#' + ref.replace('#', '')).toUpperCase();
+  if (!flMatAllowed(inst.archetype, role, ref)) { if (typeof cadToolsUpdate === 'function') cadToolsUpdate(inst); return; }
+  inst.materials = Object.assign({}, inst.materials);
+  inst.materials[role] = ref;
+  _flAfterInstEdit(inst);
+}
+var FL_PARAM_LABEL = {l:'Length', d:'Depth', h:'Height', backH:'Back height', seatH:'Seat height', radius:'Radius', angle:'Angle',
+  rows:'Rows', rowD:'Row depth', rowH:'Row height', treeH:'Tree height', boxH:'Box height', slat:'Slat spacing', steps:'Steps',
+  tread:'Tread', rise:'Rise', slope:'Slope', deckH:'Deck height', streams:'Streams', count:'Count', back:'Back', arms:'Arms',
+  double:'Back-to-back', ends:'Ends', shape:'Shape', base:'Base', plant:'Planting', mount:'Mount', infill:'Infill', type:'Type',
+  game:'Game', cap:'Cap', bench:'Bench'};
+var FL_PARAM_UNIT = {angle:'°', slope:'%', rows:'', steps:'', count:'', streams:''};
+// Pieces whose h is the seat, not the top of the piece.
+var FL_SEAT_H = ['bench', 'backless_bench', 'chair', 'armchair', 'stool', 'bar_stool', 'lounge', 'sun_lounger', 'curved_bench', 'seat_wall', 'deck_edge_bench'];
+// Size and finish controls for the Selection block: the archetype's adjustable params with its
+// ranges, and one swatch row per part filtered to the groups that part allows.
+function flInstPanelHtml(inst) {
+  var sp = flInstSpec(inst);
+  if (!sp) return '';
+  var a = FL_ARCHETYPES[sp.type], id = inst.id, h = '', e = flEnvelope(flParts(sp.type, sp.params));
+  var lab = 'font-size:8px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:0 0 3px;';
+  var nm = 'font-size:9px;color:var(--muted);font-family:var(--mono);white-space:nowrap;';
+  var inp = 'width:100%;box-sizing:border-box;font-size:10px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);';
+  h += "<div style='" + lab + "'>Size &middot; " + a.label + "</div>";
+  h += "<div style='font-size:9px;color:var(--muted);font-family:var(--mono);margin:-1px 0 4px;'>" + e.l.toFixed(2) + ' &times; ' + e.d.toFixed(2) + ' &times; ' + e.h.toFixed(2) + ' m</div>';
+  h += "<div style='display:grid;grid-template-columns:auto 1fr;gap:2px 6px;align-items:center;margin-bottom:6px;'>";
+  a.adjust.forEach(function(k) {
+    var P = a.params[k], v = sp.params[k], u = FL_PARAM_UNIT[k] !== undefined ? FL_PARAM_UNIT[k] : 'm';
+    var label = (k === 'h' && FL_SEAT_H.indexOf(sp.type) >= 0) ? 'Seat height' : (FL_PARAM_LABEL[k] || k);
+    h += "<span style='" + nm + "'>" + label + (P.type === 'num' && u ? ' (' + u + ')' : '') + '</span>';
+    if (P.type === 'num') h += "<input type='number' data-flp='" + k + "' value='" + v + "' min='" + P.min + "' max='" + P.max + "' step='" + P.step + "' title='" + P.min + ' to ' + P.max + (u ? ' ' + u : '') + "' style='" + inp + "' onchange='flSetInstParam(" + id + ", \"" + k + "\", this.value)'>";
+    else if (P.type === 'bool') h += "<input type='checkbox' data-flp='" + k + "'" + (v ? ' checked' : '') + " style='margin:0;justify-self:start;' onchange='flSetInstParam(" + id + ", \"" + k + "\", this.checked)'>";
+    else h += "<select data-flp='" + k + "' style='" + inp + "' onchange='flSetInstParam(" + id + ", \"" + k + "\", this.value)'>" +
+      P.opts.map(function(o) { return "<option value='" + o + "'" + (o === v ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>';
+  });
+  h += '</div>';
+  var roles = Object.keys(a.parts).filter(function(r) { return !a.parts[r].fixed; });
+  if (roles.length) h += "<div style='" + lab + "'>Finish</div>";
+  roles.forEach(function(r) {
+    var pt = a.parts[r], cur = sp.mats[r], ci = flMatInfo(cur), custom = /^#/.test(cur);
+    h += "<div style='margin-bottom:4px;'><div style='" + nm + "margin-bottom:2px;'>" + r + " &middot; <span style='color:var(--ink);'>" + ci.label + '</span></div>';
+    h += "<div style='display:flex;flex-wrap:wrap;gap:2px;align-items:center;'>";
+    FL_MATERIALS.forEach(function(m) {
+      if (m.custom || pt.allow.indexOf(m.group) < 0) return;
+      h += "<button type='button' data-flm='" + r + ':' + m.id + "' title='" + m.label + "' onclick='flSetInstMaterial(" + id + ", \"" + r + "\", \"" + m.id + "\")' style='width:14px;height:14px;padding:0;border-radius:2px;cursor:pointer;background:" + m.color + ';border:' + (m.id === cur ? '2px solid #0696D7' : '1px solid rgba(255,255,255,.28)') + ";'></button>";
+    });
+    if (pt.allow.indexOf('powder') >= 0)
+      h += "<input type='text' data-flm-hex='" + r + "' maxlength='7' placeholder='#hex' title='Custom powder coat: type a hex colour' value='" + (custom ? cur : '') + "' onchange='flSetInstMaterial(" + id + ", \"" + r + "\", this.value)' style='width:56px;font-size:9px;padding:1px 3px;border:" + (custom ? '2px solid #0696D7' : '1px solid var(--rule)') + ";border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);'>";
+    h += '</div></div>';
+  });
+  return h;
+}
+
 // -- Plan ----------------------------------------------------------------------------------------------
 // Top-down projection in LOCAL METRES: u = x (length), v = -z (the depth axis of
 // worldFrameToPlanMatrix). Place it with worldFrameToPlanMatrix(x, z, rot, 1, 1).
@@ -11585,6 +11715,18 @@ function cadToggleDim() {
     if (_prevCTU) _prevCTU(inst);
     var al = document.getElementById('cadAlign');
     if (al) al.style.display = inst ? 'block' : 'none';
+  };
+})();
+// Selection block: size and finish controls for archetype pieces (flInstPanelHtml).
+(function() {
+  var _prevCTU = cadToolsUpdate;
+  cadToolsUpdate = function(inst) {
+    _prevCTU(inst);
+    var el = document.getElementById('cadParams');
+    if (!el) return;
+    var h = inst ? flInstPanelHtml(inst) : '';
+    el.innerHTML = h;
+    el.style.display = h ? 'block' : 'none';
   };
 })();
 
