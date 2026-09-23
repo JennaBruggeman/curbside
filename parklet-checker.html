@@ -5487,6 +5487,40 @@ const manholes = state['manholes'] || [];
     s += `<rect x='${(_sXpx-10*pvZS).toFixed(1)}' y='${_slTop}' width='${(20*pvZS).toFixed(1)}' height='${_slBot-_slTop}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event)' data-pvsl='hit'/>`;
   }
 
+  // North compass rose â€” N = along-street far end (+Z world) = rightward in Plan.
+  // Placed in top-right corner, above the curb, outside the road cross-section.
+  (function() {
+    var _cR = 11, _cX = VW - _cR - 6, _cY = -CTX_TOP + _cR + 10;
+    s += "<g opacity='0.88' style='pointer-events:none'>";
+    // Background disc
+    s += "<circle cx='" + _cX + "' cy='" + _cY + "' r='" + _cR + "' fill='rgba(255,255,255,0.18)' stroke='rgba(120,120,120,0.55)' stroke-width='0.6'/>";
+    // S tick (grey, pointing left)
+    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX - _cR + 2) + "' y2='" + _cY + "' stroke='rgba(140,140,140,0.7)' stroke-width='1.2'/>";
+    // N arrow body (red, pointing right = +Z = North)
+    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX + _cR - 4) + "' y2='" + _cY + "' stroke='#c03030' stroke-width='2'/>";
+    // N arrowhead polygon
+    s += "<polygon points='" + (_cX + _cR - 1) + "," + _cY + " " + (_cX + _cR - 5) + "," + (_cY - 2.5) + " " + (_cX + _cR - 5) + "," + (_cY + 2.5) + "' fill='#c03030'/>";
+    // N label (right of disc)
+    s += "<text x='" + (_cX + _cR + 5) + "' y='" + (_cY + 3) + "' font-size='7.5' fill='#c03030' font-weight='700' font-family='Helvetica Neue,Arial,sans-serif'>N</text>";
+    s += "</g>";
+  })();
+  // North compass rose â€” N = along-street far end (+Z world) = rightward in Plan.
+  // Placed in top-right corner, above the curb, outside the road cross-section.
+  (function() {
+    var _cR = 11, _cX = VW - _cR - 6, _cY = -CTX_TOP + _cR + 10;
+    s += "<g opacity='0.88' style='pointer-events:none'>";
+    // Background disc
+    s += "<circle cx='" + _cX + "' cy='" + _cY + "' r='" + _cR + "' fill='rgba(255,255,255,0.18)' stroke='rgba(120,120,120,0.55)' stroke-width='0.6'/>";
+    // S tick (grey, pointing left)
+    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX - _cR + 2) + "' y2='" + _cY + "' stroke='rgba(140,140,140,0.7)' stroke-width='1.2'/>";
+    // N arrow body (red, pointing right = +Z = North)
+    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX + _cR - 4) + "' y2='" + _cY + "' stroke='#c03030' stroke-width='2'/>";
+    // N arrowhead polygon
+    s += "<polygon points='" + (_cX + _cR - 1) + "," + _cY + " " + (_cX + _cR - 5) + "," + (_cY - 2.5) + " " + (_cX + _cR - 5) + "," + (_cY + 2.5) + "' fill='#c03030'/>";
+    // N label (right of disc)
+    s += "<text x='" + (_cX + _cR + 5) + "' y='" + (_cY + 3) + "' font-size='7.5' fill='#c03030' font-weight='700' font-family='Helvetica Neue,Arial,sans-serif'>N</text>";
+    s += "</g>";
+  })();
     s = DS.restylePlan(s, { vb: _pvVB });
     svg.innerHTML = s.replace(/[''']/g, '\x22');
   svg.style.background = DS.t().paper;
@@ -6320,7 +6354,7 @@ if (false) { // dead block â€” see ensure3DReady() above
     _3d.scene.background = new THREE.Color(DS.t().bg3d);
     _3d.scene.fog = DS.mode()==='technical' ? null : new THREE.Fog(DS.t().bg3d, 40, 80);
     _3d.camera = new THREE.PerspectiveCamera(42, W / H, 0.05, 200);
-    _3d.camera.position.set(-8, 5, 18);
+    _3d.camera.position.set(-8, 12, 10);  // building side; North (far end) to the right
     _3d.renderer = new THREE.WebGLRenderer({
  antialias: true 
 }
@@ -6739,7 +6773,9 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     });
   }
 
-  // Camera: angled bird's-eye from scene start, centred on street, looking down the corridor
+  // Camera: positioned on the building/sidewalk side, looking across the street.
+  // This makes Z increase left-to-right on screen (South=left, North=right),
+  // which matches the Plan view orientation so furniture positions feel consistent.
   const cz = L / 2, roadCX = (XCL + XCR) / 2;
   _3d.controls.target.set(roadCX, 0.5, cz);
   const _sceneW = bufW + SW + PW + LW + Math.max(rMaxSD, 2);
@@ -6747,8 +6783,10 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   if (!_3d.hasPositioned || _3d._posTag !== _posTag) {
     _3d._posTag = _posTag;
     _3d.hasPositioned = true;
-    const camH = Math.max(_sceneW * 1.0, 8);
-    _3d.camera.position.set(roadCX - _sceneW * 0.35, camH, ZS - _sceneW * 0.5);
+    // Camera on building side (x < 0), centred on deck midpoint (z = cz).
+    // With camera.up=(0,1,0), screen-right = +Z = North (far parklet end).
+    const camH = Math.max(L * 0.65, _sceneW * 1.3);
+    _3d.camera.position.set(XSWL - _sceneW * 0.35, camH, cz);
   }
   const slopePct = parseFloat(state['slope']) || 0;
   _3d.group.rotation.x = -Math.atan(slopePct / 100);
@@ -7725,7 +7763,7 @@ function ensure3DReady() {
     _3d.scene.fog = (typeof DS !== 'undefined' && DS.mode() === 'technical')
       ? null : new THREE.Fog(_e3bg, 40, 80);
     _3d.camera = new THREE.PerspectiveCamera(42, _e3w / _e3h, 0.05, 200);
-    _3d.camera.position.set(-8, 5, 18);
+    _3d.camera.position.set(-8, 12, 10);  // building side; North (far end) to the right
     try {
       _3d.renderer = new THREE.WebGLRenderer({ antialias: true });
     } catch (_we) {
@@ -7757,10 +7795,22 @@ function ensure3DReady() {
     _e3f.position.set(10, 3, -6); _3d.scene.add(_e3f);
     _3d.group = new THREE.Group(); _3d.scene.add(_3d.group);
     _3d.hasPositioned = false;
+    // Compass canvas â€” tracks camera orientation each frame
+    _e3c.style.position = 'relative';
+    var _ccvs = document.getElementById('_3dCompassCvs');
+    if (!_ccvs) {
+      _ccvs = document.createElement('canvas');
+      _ccvs.id = '_3dCompassCvs';
+      _ccvs.width = 44; _ccvs.height = 44;
+      _ccvs.title = 'N = along-street far end';
+      _ccvs.style.cssText = 'position:absolute;bottom:8px;right:8px;pointer-events:none;z-index:3;border-radius:50%;';
+      _e3c.appendChild(_ccvs);
+    }
     (function _e3loop() {
       requestAnimationFrame(_e3loop);
       if (_3d && _3d.controls) _3d.controls.update();
       if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
+      if (typeof _3dUpdateCompass === 'function') _3dUpdateCompass();
     })();
     var _e3ro = new ResizeObserver(function() { if (typeof resize3DViewport === 'function') resize3DViewport(); });
     _e3ro.observe(_e3c);
@@ -7820,6 +7870,43 @@ function ensure3DReady() {
   return !!(_3d && _3d.scene && _3d.renderer && FL3D._built);
 }
 window.ensure3DReady = ensure3DReady;
+
+// Compass rose: draw world-North direction onto the _3dCompassCvs overlay each frame.
+// N = +Z world = along-street far end = right in Plan view.
+function _3dUpdateCompass() {
+  var cvs = document.getElementById('_3dCompassCvs');
+  if (!cvs || !_3d || !_3d.camera || typeof THREE === 'undefined') return;
+  var ctx = cvs.getContext('2d');
+  var sz = 44, cx = sz / 2, cy = sz / 2, r = 16;
+  ctx.clearRect(0, 0, sz, sz);
+  _3d.camera.updateMatrixWorld(false);
+  var nv = new THREE.Vector3(0, 0, 1);
+  nv.transformDirection(_3d.camera.matrixWorldInverse);
+  var nx = nv.x, ny = -nv.y;
+  var mag = Math.sqrt(nx * nx + ny * ny);
+  if (mag < 0.001) { nx = 1; ny = 0; } else { nx /= mag; ny /= mag; }
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(18,18,18,0.60)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 0.5; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy);
+  ctx.lineTo(cx - nx * (r - 2), cy - ny * (r - 2));
+  ctx.strokeStyle = 'rgba(160,160,160,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + nx * (r - 2), cy + ny * (r - 2));
+  ctx.strokeStyle = '#c03030'; ctx.lineWidth = 2.5; ctx.stroke();
+  var perpX = -ny, perpY = nx;
+  var tipX = cx + nx * (r - 2), tipY = cy + ny * (r - 2);
+  var baseX = cx + nx * (r - 7), baseY = cy + ny * (r - 7);
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(baseX + perpX * 2.5, baseY + perpY * 2.5);
+  ctx.lineTo(baseX - perpX * 2.5, baseY - perpY * 2.5);
+  ctx.closePath(); ctx.fillStyle = '#c03030'; ctx.fill();
+  ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#c03030';
+  ctx.fillText('N', cx + nx * (r + 5), cy + ny * (r + 5));
+}
+window._3dUpdateCompass = _3dUpdateCompass;
 
 function _b3(w, h, d, mat) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
