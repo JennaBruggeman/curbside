@@ -1720,6 +1720,21 @@ window.checkLandmarkConsistency = function(verbose) {
     });
   });
   window._lastBuildingCheck = rows;
+  // Cross-section bands: every segment's Plan band (<rect data-seg>) read back through
+  // planToWorld must span exactly its model x0..x1 (tolerance 0.01 m).
+  var segRows = [];
+  if (planSvg && planSvg.childElementCount) {
+    DM.crossSection.forEach(function(sg) {
+      var r = planSvg.querySelector("rect[data-seg='" + sg.id + "']");
+      if (!r) { bad.push({ value: 'Plan draws no band for segment ' + sg.id + ' (' + sg.type + ')', model: [sg.x0, sg.x1], independent: 'missing' }); return; }
+      var y = +r.getAttribute('y'), h = +r.getAttribute('height');
+      var x0 = planToWorld(0, y).x, x1 = planToWorld(0, y + h).x;
+      segRows.push({ seg: sg.id, type: sg.type, model: [sg.x0, sg.x1], plan: [x0, x1] });
+      if (Math.abs(x0 - sg.x0) > 0.01 || Math.abs(x1 - sg.x1) > 0.01)
+        bad.push({ value: 'segment ' + sg.id + ' (' + sg.type + ') band x0..x1', model: sg.x0.toFixed(3) + '..' + sg.x1.toFixed(3), independent: x0.toFixed(3) + '..' + x1.toFixed(3) });
+    });
+  }
+  window._lastSegmentCheck = segRows;
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL:');
     console.table(bad);
@@ -5105,35 +5120,32 @@ function renderPlanView() {
   const _pvDM = buildDesignModel(), _pvLM = _pvDM.landmarks;
   const SHOWN_M = Math.max(34, _pvDM.parklet.length + 14), HS = VW / SHOWN_M;
   const T_PAD = 18, pvSC = 20;
-  const SW_H = Math.max(20, Math.round(_pvLM.sidewalkW * pvSC));
-  const SW_Y = T_PAD, CURB_Y = SW_Y + SW_H;
-  const PK_Y = CURB_Y;
   const _pvXS    = _pvDM.crossSection;
   const _pvPkW   = _pvLM.deckW;
-  const pvBLD    = _pvXS.filter(function(s){ return s.type === 'bike-lane' || s.type === 'buf-pk' || s.type === 'buf-bl'; }).reduce(function(a,s){ return a+s.width; }, 0);
-  const _pvCarW  = _pvXS.filter(function(s){ return s.type === 'travel-lane'; }).reduce(function(a,s){ return a+s.width; }, 0);
-  const pvResidual = pvBLD + _pvCarW;
-  const pvPkH    = Math.max(24, Math.round(_pvPkW * pvSC));
-  const pvBikeH  = pvBLD > 0.05 ? Math.max(12, Math.round(pvBLD * pvSC)) : 0;
-  const pvLnH    = Math.max(30, Math.round(_pvCarW * pvSC));
-  const LN_Y = PK_Y + pvPkH;
-  const ROAD_BOTTOM = LN_Y + pvLnH + pvBikeH;
-  const VH = ROAD_BOTTOM;
-  _planVH = VH;
   const PARKLET_M = _pvDM.parklet.length;
-  const WS_M = 1.1;
- 
-// wheel-stop overhang per end (fixed)  
-const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
+  const WS_M = 1.1;   // wheel-stop overhang per end (fixed)
+  const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
   const CONTEXT_M = Math.max(2, (SHOWN_M - PARKLET_M) / 2);
   const PK_X = Math.round(CONTEXT_M * HS);
   const PK_W = Math.round(PARKLET_M * HS);
   const DECK_X = PK_X + Math.round(WS_M * HS);
   const DECK_W = Math.round(DECK_M * HS);
   const WS_PX = Math.round(WS_M * HS);
-  // PK_X..PK_X+PK_W is the parklet rectangle on screen. World z=0 sits at its RIGHT edge
-  // (+Z runs left), so everything positioned in world z below goes through worldToPlan.
-  _pvPKX = PK_X + PK_W; _pvPKY = PK_Y; _pvHS = HS; _pvSC = pvSC; _pvVW = VW; _pvVH = VH || 200;
+  // Plan frame. x: PK_X..PK_X+PK_W is the parklet rectangle; world z=0 sits at its RIGHT
+  // edge (+Z runs left). y: world x=0 (near curb) sits one sidewalk width below T_PAD, unrounded.
+  // Every band edge below is worldToPlan of a model x -- no rounding and no pixel minimums.
+  const PK_Y = T_PAD + _pvLM.sidewalkW * pvSC;
+  _pvPKX = PK_X + PK_W; _pvPKY = PK_Y; _pvHS = HS; _pvSC = pvSC; _pvVW = VW;
+  const _yOf = function(x) { return worldToPlan(x, 0).py; };
+  const SW_Y = _yOf(_pvLM.sidewalkL.x0), CURB_Y = _yOf(_pvLM.sidewalkL.x1), SW_H = CURB_Y - SW_Y;
+  const pvPkH = _yOf(_pvLM.deckX1) - _yOf(_pvLM.deckX0);
+  // Every cross-section segment beyond the parklet, in Section-editor order, with its screen band.
+  const _pvRoadSegs = _pvXS.filter(function(sg){ return sg.type !== 'sidewalk' && sg.type !== 'parklet'; })
+    .map(function(sg){ return Object.assign({}, sg, { y0: _yOf(sg.x0), y1: _yOf(sg.x1) }); });
+  const LN_Y = _yOf(_pvLM.deckX1);             // road side of the parklet
+  const ROAD_BOTTOM = _yOf(_pvLM.roadRight);   // far curb
+  const VH = ROAD_BOTTOM;
+  _planVH = VH; _pvVH = VH || 200;
   const _zSign = worldToPlan(0, 1).px - worldToPlan(0, 0).px > 0 ? 1 : -1; // screen sense of world +Z
   // Street context beyond the curbs, placed from the model through worldToPlan.
   const _pvFaceNY = worldToPlan(_pvLM.buildingL.innerFaceX, 0).py;   // near frontage line
@@ -5168,26 +5180,31 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
   _defsStr += `</defs>`;
   s += _defsStr;
   s += `<rect width='${VW}' height='${VH}' fill='white'/>`;
-  s += `<rect x='0' y='${SW_Y}' width='${VW}' height='${SW_H}' fill='${TDK}'/>`;
+  { const _swSeg = _pvXS.find(function(sg){ return sg.type === 'sidewalk'; });
+    s += `<rect x='0' y='${SW_Y.toFixed(2)}' width='${VW}' height='${SW_H.toFixed(2)}' fill='${TDK}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}/>`; }
   s += `<text x='8' y='${SW_Y+9}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.4)'>SIDEWALK / BUILDING FRONTAGE</text>`;
-  s += `<rect x='0' y='${LN_Y}' width='${VW}' height='${ROAD_BOTTOM - LN_Y}' fill='${BLT}'/>`;
-  // Bike lane band at top of travel zone
-  if (pvBikeH > 0) {
-    const blOkPV = designBikeLaneW >= bikeLaneMinW() - 0.001;
-    const pvBLFill = blOkPV ? '#cce8f4' : '#fdd0d0';
-    const pvBLStroke = blOkPV ? '#2a7aaa' : '#c03030';
-    // Subdivide corridor into buffer A + bike lane + buffer B
-    const pvTotalD = getBikeLaneD();
-    const pvBufAH = (pvTotalD > 0.05 && bufPKType !== 'none') ? pvBikeH * (bufPKW / pvTotalD) : 0;
-    const pvBufBH = (pvTotalD > 0.05 && bufBLType !== 'none') ? pvBikeH * (bufBLW / pvTotalD) : 0;
-    const pvLaneH = pvBikeH - pvBufAH - pvBufBH;
-    const pvBufAY = LN_Y;
-    const pvLaneY = pvBufAY + pvBufAH;
-    const pvBufBY = pvLaneY + pvLaneH;
-    if (pvBufAH > 0.5) s += `<rect x='0' y='${pvBufAY.toFixed(1)}' width='${VW}' height='${pvBufAH.toFixed(1)}' fill='#d0ead8'/>`;
-    s += `<rect x='0' y='${pvLaneY.toFixed(1)}' width='${VW}' height='${pvLaneH.toFixed(1)}' fill='${pvBLFill}'/>`;
-    if (pvBufBH > 0.5) s += `<rect x='0' y='${pvBufBY.toFixed(1)}' width='${VW}' height='${pvBufBH.toFixed(1)}' fill='#d0ead8'/>`;
-    s += `<line x1='0' y1='${LN_Y+pvBikeH}' x2='${VW}' y2='${LN_Y+pvBikeH}' stroke='${pvBLStroke}' stroke-width='1' stroke-dasharray='6,3'/>`;
+  // Road segments beyond the parklet, each at its own model x range in Section-editor order.
+  // Bands are tagged data-seg='<segment id>' so checkLandmarkConsistency can read them back.
+  const _bikeSeg = _pvRoadSegs.find(function(sg){ return sg.type === 'bike-lane'; });
+  const _bikeCorr = _pvRoadSegs.filter(function(sg){ return sg.type === 'bike-lane' || sg.type === 'buf-pk' || sg.type === 'buf-bl'; });
+  const blOkPV = _bikeSeg ? _bikeSeg.width >= bikeLaneMinW() - 0.001 : true;
+  const pvBLFill = blOkPV ? '#cce8f4' : '#fdd0d0';
+  const pvBLStroke = blOkPV ? '#2a7aaa' : '#c03030';
+  const _segLbl = { 'transit-lane': 'TRANSIT LANE', 'parking': 'PARKING', 'turn-lane': 'TURN LANE', 'planting': 'PLANTING', 'curb': 'CURB' };
+  _pvRoadSegs.forEach(function(sg) {
+    const fill = sg.type === 'bike-lane' ? pvBLFill
+               : (sg.type === 'buf-pk' || sg.type === 'buf-bl' || sg.type === 'planting') ? '#d0ead8'
+               : sg.type === 'curb' ? '#9a9894' : BLT;
+    s += `<rect x='0' y='${sg.y0.toFixed(2)}' width='${VW}' height='${(sg.y1 - sg.y0).toFixed(2)}' fill='${fill}' data-seg='${sg.id}'/>`;
+    if (_segLbl[sg.type]) {
+      s += `<line x1='0' y1='${sg.y0.toFixed(2)}' x2='${VW}' y2='${sg.y0.toFixed(2)}' stroke='#aaa' stroke-width='0.8' stroke-dasharray='8,4'/>`;
+      if (sg.y1 - sg.y0 > 9) s += `<text x='8' y='${(sg.y1 - 3).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='rgba(0,0,0,.35)'>${_segLbl[sg.type]}</text>`;
+    }
+  });
+  if (_bikeSeg) {
+    const pvLaneY = _bikeSeg.y0, pvLaneH = _bikeSeg.y1 - _bikeSeg.y0;
+    const _corrEdgeY = Math.max.apply(null, _bikeCorr.map(function(sg){ return sg.y1; }));  // traffic side of the corridor
+    s += `<line x1='0' y1='${_corrEdgeY.toFixed(2)}' x2='${VW}' y2='${_corrEdgeY.toFixed(2)}' stroke='${pvBLStroke}' stroke-width='1' stroke-dasharray='6,3'/>`;
     // Standardized bicycle symbol (side profile, wheel-to-wheel horizontal)
     const bkInt = Math.max(110, Math.round(VW / 6));
     const bkSc = Math.max(0.4, pvLaneH / 28);
@@ -5214,7 +5231,7 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
     // Manual p.21, p.48: City installs flexible bollards at each end and as needed
     if (designBikeLane === 'protected') {
       const bollardSpPx = Math.round(2.0 * HS);
-      const bollardY = LN_Y + pvBikeH;
+      const bollardY = _corrEdgeY;
       for (let bpx = PK_X + WS_PX; bpx <= PK_X + PK_W - WS_PX; bpx += bollardSpPx) {
         s += `<circle cx='${bpx.toFixed(1)}' cy='${bollardY}' r='4' fill='#f07030' stroke='white' stroke-width='1.2'/>`;
       }
@@ -5234,10 +5251,13 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
     }
     s += `<text x='8' y='${(_bfY1-2).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='#4a9060'>VEG. BUFFER</text>`;
   }
-  const carLnY = LN_Y + pvBikeH;
   // Travel direction is a world fact (segment.dirZ, +1 = world +Z); the chevron's screen
-  // sense is whatever worldToPlan makes of it.
-  const _lnSegs = _pvXS.filter(function(sg){ return sg.type === 'travel-lane'; });
+  // sense is whatever worldToPlan makes of it. Lane positions come from the lane segments.
+  const _lnSegs = _pvRoadSegs.filter(function(sg){ return sg.type === 'travel-lane'; });
+  const _span = function(list) {
+    return list.length ? { y0: Math.min.apply(null, list.map(function(l){ return l.y0; })),
+                           y1: Math.max.apply(null, list.map(function(l){ return l.y1; })) } : null;
+  };
   const _laneScr = function(dir) { return (_lnSegs.find(function(sg){ return sg.direction === dir; }) || {dirZ: 1}).dirZ * _zSign; };
   const _chev = function(cx, y, sd, half, h) {
     const tip = cx + sd * half, tail = cx - sd * half;
@@ -5245,12 +5265,13 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
            `<line x1='${tip.toFixed(1)}' y1='${y.toFixed(1)}' x2='${tail.toFixed(1)}' y2='${(y+h).toFixed(1)}' stroke='#aaa' stroke-width='1'/>`;
   };
   const _glyph = function(sd) { return sd > 0 ? '→' : '←'; };
-  if (ROAD_DIR === 'twoway') {
-    const _tl = getTotalLanes();
-    const cenFrac = LANES_A / _tl;
-    const cenY = carLnY + cenFrac * pvLnH;
-    const nearMidY = carLnY + cenFrac * pvLnH * 0.5;
-    const farMidY = cenY + (1 - cenFrac) * pvLnH * 0.5;
+  const _nearSp = _span(_lnSegs.filter(function(l){ return l.direction === 'near'; }));
+  const _farSp  = _span(_lnSegs.filter(function(l){ return l.direction === 'far'; }));
+  const _allSp  = _span(_lnSegs);
+  if (ROAD_DIR === 'twoway' && _nearSp && _farSp) {
+    const cenY = (_nearSp.y1 + _farSp.y0) / 2;
+    const nearMidY = (_nearSp.y0 + _nearSp.y1) / 2;
+    const farMidY = (_farSp.y0 + _farSp.y1) / 2;
     const sdN = _laneScr('near'), sdF = _laneScr('far');
     for (let ax=130; ax<VW-50; ax+=160) {
       s += _chev(ax, nearMidY, sdN, 10, 8);
@@ -5259,12 +5280,12 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
     s += `<line x1='0' y1='${(cenY-1.5).toFixed(1)}' x2='${VW}' y2='${(cenY-1.5).toFixed(1)}' stroke='#e8c040' stroke-width='1.8'/>`;
     s += `<line x1='0' y1='${(cenY+1.5).toFixed(1)}' x2='${VW}' y2='${(cenY+1.5).toFixed(1)}' stroke='#e8c040' stroke-width='1.8'/>`;
     s += `<text x='8' y='${(cenY-4).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${LANES_A > 1 ? `${_glyph(sdN)} \xd7${LANES_A} LANES` : `${_glyph(sdN)} TRAVEL LANE`}</text>`;
-    s += `<text x='8' y='${ROAD_BOTTOM-6}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${LANES_B > 1 ? `${_glyph(sdF)} \xd7${LANES_B} LANES` : `${_glyph(sdF)} TRAVEL LANE`}</text>`;
-  } else {
-    const arrowMidY = carLnY + pvLnH * 0.5;
+    s += `<text x='8' y='${(_farSp.y1-6).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${LANES_B > 1 ? `${_glyph(sdF)} \xd7${LANES_B} LANES` : `${_glyph(sdF)} TRAVEL LANE`}</text>`;
+  } else if (_allSp) {
+    const arrowMidY = (_allSp.y0 + _allSp.y1) / 2;
     const sdW = _laneScr('fwd');
     for (let ax=132; ax<VW-50; ax+=160) s += _chev(ax, arrowMidY, sdW, 12, 10);
-    s += `<text x='8' y='${ROAD_BOTTOM-6}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${getTotalLanes() > 1 ? `${_glyph(sdW)} TRAVEL LANE \xd7${getTotalLanes()}` : `${_glyph(sdW)} TRAVEL LANE`}</text>`;
+    s += `<text x='8' y='${(_allSp.y1-6).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.14em' fill='rgba(0,0,0,.35)'>${getTotalLanes() > 1 ? `${_glyph(sdW)} TRAVEL LANE \xd7${getTotalLanes()}` : `${_glyph(sdW)} TRAVEL LANE`}</text>`;
   }
   
 // Parking lane flanks  
@@ -5344,11 +5365,12 @@ const C03_REQ = 6;
       var _gMajZ = Math.abs(Math.round(_gz / _gMaj) * _gMaj - _gz) < _gS * 0.01;
       s += `<line x1='${_gpx}' y1='${_vbY0.toFixed(1)}' x2='${_gpx}' y2='${_vbY1.toFixed(1)}' stroke='${_gMajZ?"rgba(0,0,0,.20)":"rgba(0,0,0,.10)"}' stroke-width='${_gMajZ?0.5:0.25}'/>`;
     }
-    // Cross-street (X) grid lines: SVG horizontal, world X = (svgY - PK_Y) / pvSC
-    var _gxMin = Math.floor((_vbY0 - PK_Y) / (pvSC * _gS)) * _gS;
-    var _gxMax2 = Math.ceil((_vbY1 - PK_Y) / (pvSC * _gS)) * _gS;
+    // Cross-street (X) grid lines: SVG horizontal; world-X range of the viewBox via planToWorld
+    var _gxA = planToWorld(0, _vbY0).x, _gxB = planToWorld(0, _vbY1).x;
+    var _gxMin = Math.floor(Math.min(_gxA, _gxB) / _gS) * _gS;
+    var _gxMax2 = Math.ceil(Math.max(_gxA, _gxB) / _gS) * _gS;
     for (var _gx = _gxMin; _gx <= _gxMax2 + _gS * 0.5; _gx = Math.round((_gx + _gS) * 1e6) / 1e6) {
-      var _gpy = (PK_Y + _gx * pvSC).toFixed(1);
+      var _gpy = worldToPlan(_gx, 0).py.toFixed(1);
       var _gMajX = Math.abs(Math.round(_gx / _gMaj) * _gMaj - _gx) < _gS * 0.01;
       s += `<line x1='${_vbX0.toFixed(1)}' y1='${_gpy}' x2='${_vbX1.toFixed(1)}' y2='${_gpy}' stroke='${_gMajX?"rgba(0,0,0,.20)":"rgba(0,0,0,.10)"}' stroke-width='${_gMajX?0.5:0.25}'/>`;
     }
@@ -5484,7 +5506,8 @@ const C03_REQ = 6;
     }
   }
   s += `<line x1='${PK_X}' y1='${PK_Y+pvPkH-1}' x2='${PK_X+PK_W}' y2='${PK_Y+pvPkH-1}' stroke='#333' stroke-width='2'/>`;
-  s += `<rect x='${PK_X}' y='${PK_Y}' width='${PK_W}' height='${pvPkH}' fill='none' stroke='#111' stroke-width='2'/>`;
+  { const _pkSeg = _pvXS.find(function(sg){ return sg.type === 'parklet'; });
+    s += `<rect x='${PK_X}' y='${_yOf(_pvLM.deckX0).toFixed(2)}' width='${PK_W}' height='${pvPkH.toFixed(2)}' fill='none' stroke='#111' stroke-width='2'${_pkSeg ? ` data-seg='${_pkSeg.id}'` : ''}/>`; }
   if (_clipD) {
     s += `</g>`;
     s += `<path d='` + _clipD + `' fill='none' stroke='#333' stroke-width='2.5' stroke-linejoin='round'/>`;
@@ -5637,14 +5660,22 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       }
     };
     // Near-side chain items
-    const _carW = _pvCarW;
-    const _carLbl = getTotalLanes()>1 ? `LANE \xd7${getTotalLanes()}` : 'LANE';
+    // One item per run of segments: bike corridor (buffers + bike lane) and travel lanes
+    // each merge into one dimension; every other segment gets its own.
     const _rmItems = [
-      {y1:SW_Y,    y2:CURB_Y,        val:`${_pvLM.sidewalkW.toFixed(2)} m`,   lbl:'SIDEWALK'},
-      {y1:PK_Y,    y2:PK_Y+pvPkH,    val:`${_pvPkW.toFixed(2)} m`,            lbl:'PARKLET'},
-      ...(pvBikeH>0?[{y1:LN_Y,y2:LN_Y+pvBikeH,val:`${getBikeLaneD().toFixed(2)} m`,lbl:'BIKE LANE'}]:[]),
-      {y1:LN_Y+pvBikeH, y2:ROAD_BOTTOM, val:`${_carW.toFixed(2)} m`,          lbl:_carLbl},
+      {y1:SW_Y,              y2:CURB_Y,             w:_pvLM.sidewalkW, lbl:'SIDEWALK'},
+      {y1:_yOf(_pvLM.deckX0), y2:_yOf(_pvLM.deckX1), w:_pvPkW,          lbl:'PARKLET'},
     ];
+    const _grp = function(t) { return (t === 'bike-lane' || t === 'buf-pk' || t === 'buf-bl') ? 'BIKE LANE' : t === 'travel-lane' ? 'LANE' : (_segLbl[t] || t.toUpperCase()); };
+    _pvRoadSegs.forEach(function(sg) {
+      const g = _grp(sg.type), last = _rmItems[_rmItems.length - 1];
+      if (last.grp === g) { last.y2 = sg.y1; last.w += sg.width; last.n++; }
+      else _rmItems.push({ y1: sg.y0, y2: sg.y1, w: sg.width, lbl: g, grp: g, n: 1 });
+    });
+    _rmItems.forEach(function(d) {
+      d.val = `${d.w.toFixed(2)} m`;
+      if (d.grp === 'LANE' && d.n > 1) d.lbl = `LANE \xd7${d.n}`;
+    });
     const _bnd = [...new Set(_rmItems.flatMap(d=>[d.y1,d.y2]))].sort((a,b)=>a-b);
     _bnd.forEach(y => { pvExt(y); pvTk(y); });
     pvSeg(_bnd[0], _bnd[_bnd.length-1]);
@@ -5873,13 +5904,13 @@ function planMetrics() {
   const CONTEXT_M = Math.max(2, (SHOWN_M - _DM.parklet.length) / 2);
   const PK_X = Math.round(CONTEXT_M * HS), PK_W = Math.round(_DM.parklet.length * HS);
   const pvSC2 = 20;
-  const SW_H = Math.max(20, Math.round(_LM.sidewalkW * pvSC2));
-  const SW_Y = 18, CURB_Y = SW_Y + SW_H;
-  const PK_Y = CURB_Y;
-  const PK_H = Math.max(24, Math.round(_LM.deckW * pvSC2));
-  // PK_X..PK_X+PK_W = parklet rectangle on screen; Z0X = SVG x of world z=0 (its right edge).
-  // Positions in world z must go through worldToPlan/planToWorld, not PK_X + z*HS.
-  const Z0X = PK_X + PK_W;
+  // Same frame renderPlanView sets: PK_X..PK_X+PK_W = parklet rectangle, Z0X = SVG x of world
+  // z=0 (its right edge), PK_Y = SVG y of world x=0 (unrounded). Positions go through worldToPlan.
+  const Z0X = PK_X + PK_W, PK_Y = 18 + _LM.sidewalkW * pvSC2;
+  const f = { x0: Z0X, y0: PK_Y, hs: HS, vs: pvSC2 };
+  const SW_Y = worldToPlan(_LM.sidewalkL.x0, 0, f).py, CURB_Y = worldToPlan(_LM.sidewalkL.x1, 0, f).py;
+  const SW_H = CURB_Y - SW_Y;
+  const PK_H = worldToPlan(_LM.deckX1, 0, f).py - worldToPlan(_LM.deckX0, 0, f).py;
   return {HS, PK_X, PK_W, Z0X, PK_Y, PK_H, CONTEXT_M, CURB_Y, pvSC: pvSC2, SW_H, SW_Y};
 }
 
