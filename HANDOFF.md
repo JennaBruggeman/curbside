@@ -111,6 +111,16 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 - `AX.apply()` was unit-tested headlessly (valid / clamped / rejected ops, undo). The live API loop has not been run here — first real test needs a key.
 - Ideas: multi-level undo; show a diff preview before applying; stream responses; let the assistant read the Parklet Manual PDF text for citations; per-user rate limit in the proxy.
 
+## Furniture archetypes (Brief 05)
+- **Data, not functions.** `FL_ARCHETYPES` (60 generic types across 11 of the 12 `FL_CATS` categories; `combo` is presets only) holds numeric params in metres (`[def, min, max, step]`, booleans, `{def, opts}` choices), an `adjust` list and material roles per part (`'groups allowed|default'`). `FL_MATERIALS` (42 entries: wood, metal, RAL powder coats + typed custom hex, mineral, other, fixed) holds base colour + roughness/metalness; the plan/section tint and edge are derived (`flTint2D` / `flEdge2D`). `flValidateArchetypes()` checks the schema at load.
+- **One part list, three views.** `FL_GEOM[type](p, K)` builds primitive parts (box, cyl, rod, sph, cone, wedge; composites slats/posts/frame/shell/plant) in local metres: x = length, z = depth (back at +z), y up from the deck. `fl3DArchetype`, `flPlanArchetype` (top-down, local metres, placed with `worldFrameToPlanMatrix(x, z, rot, 1, 1)`) and `flSectionArchetype` (elevation onto world X / height) are projections of that list. Size = `flEnvelope(parts)` minus veg parts (planting above a planter). `flInstDims(inst)` / `flKeyDims(key)` replace the old `_flGetDims` text parsing.
+- **Keys and instances.** Catalogue key = `GEN-<archetype>` or a preset id. `FL_OBJ` items are presets: `archetype`, `params`, `materials` (catalogue finish) and `est` (params that are assumptions, not catalogue values); catalogue prose lives in `specs` / `finish` and is display-only. A placed instance stores its own `{archetype, params, materials, meshUrl}` (meshUrl = slot for an imported product model), saved by `pkSerialize` and mirrored into `DESIGN_MODEL.objects` by `_dmSyncObject`. Old saves with only `objId` load through the preset.
+- **Materials.** `flMat(role, inst)` returns a cached `MeshStandardMaterial`; builders never hold a colour. Metalness is applied at `FL_METAL_SCALE` = 30% because the scene has no environment map. Technical mode: 3D swap as before, 2D fills collapse to greys.
+- **Editing.** Selection block `#cadParams` (`flInstPanelHtml`): adjustable params with ranges + one swatch row per part (+ `#hex` where powder is allowed). `flSetInstParam` / `flSetInstMaterial` rebuild the mesh in place, then `_dmSyncObject` + `syncDesignModel('furniture')`.
+- **Library.** `flLibraryItems({cat, search, presets})` feeds the Design sidebar, the Furniture page and the 3D tray: generic first, labelled from the numbers ("Bench 1.8 m, with back"); presets appear only with the "Manufacturer presets" toggle (`flSetShowPresets`).
+- **Checks.** `checkLandmarkConsistency` now compares every piece's 3D size (own frame) and Plan glyph against its params (5 mm). Street objects are not furniture: `FL3D_FACTORY` holds only their meshes; `_flStreetDims` gives their footprints.
+- **Adding an archetype:** one `FL_ARCHETYPES` entry + one `FL_GEOM` function (keep it under 30 lines). Nothing else.
+
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
@@ -132,6 +142,8 @@ $html = $html.Replace($old, $new)
 
 ## Known dead code
 - `#csToolbar` + `#crossSection` static SVG - superseded by the section editor, hidden, candidate for deletion.
+- `renderFurnitureProps` (both definitions, one plain and one `window.` override) - never called; the live selection panel is `#cadTools` (`cadToolsUpdate`). Candidate for deletion.
+- Furniture popover `#furniturePanel` (`cadToggleFurniturePanel`, `_cadBuildFp`, `_cadRenderFp`) - its markup is gone, so it never shows. Candidate for deletion.
 
 ## Style system
 - Dark charcoal sidebar, `#c03030` red accent (`var(--acc)`)
