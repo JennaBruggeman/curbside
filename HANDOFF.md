@@ -16,6 +16,25 @@ Do NOT open as a `file://` URL — Supabase network requests will fail.
 - Anon key: already embedded in the HTML (~line 12606)
 - SQL schema: already applied (profiles + designs tables, RLS policies, triggers)
 
+## Coordinate conventions
+
+Read this before touching any drawing code. Nearly every cross-view bug in this project came from the same fact being computed in two places, or from a mapping that was a mirror image of another.
+
+**World (metres).** Right-handed, Three.js convention, `+Y` up.
+- `+X` across the street: `x = 0` is the near curb; the sidewalk is at negative X; the parklet spans `0..parkletWidth`; the road continues to the far curb at `DESIGN_MODEL.landmarks.roadRight`. `+X` is **East**.
+- `+Z` along the street: `z = 0` is the parklet start end, `z = parkletLength` the far end.
+- Because the frame is right-handed with `+Y` up and `+X` East, **North is `-Z`** (South is `+Z`). The single definition is `CAD_CARDINAL` (`N:{0,-1} S:{0,1} E:{1,0} W:{-1,0}`); the Plan compass, the 3D compass and the N/E/S/W move buttons all read it.
+
+**Plan is a true top-down projection.** `worldToPlan(x, z)` maps `+X` **down** the page and `+Z` to the **LEFT** (`px = _pvPKX - z*HS`, `py = _pvPKY + x*pvSC`; `_pvPKX` is the SVG x of world `z = 0`, the parklet rectangle's right edge). This is not a bug. The earlier `+Z`-to-the-right mapping was a mirror image of the 3D scene, which is why no amount of camera repositioning could ever make 3D match Plan. With `+Z` left, north (`-Z`) points right and east (`+X`) points down, so a north-up rotation reads east-right like a real map.
+
+**One source of truth, one mapping.**
+- Every Plan, Section and 3D drawing reads `DESIGN_MODEL` (built by `buildDesignModel()`: `crossSection` segments with `x0/x1`, `landmarks`, `buildings.L/R[i].footprint`, `parklet`) and converts positions only through `worldToPlan()` / `planToWorld()` (drag deltas: `planDeltaToWorld()`; oriented objects: `worldFrameToPlanMatrix()`). The deck sketch editor uses the same functions with its own frame (`sketchTransform().skF`).
+- No local recomputation of geometry in a renderer, and nothing stored in pixels or fractions of pixels. Site objects are stored in metres: curb features and driveways `{xM}` (+ `yM` for curb features), manholes `{xM, yM}`. Old saves with a manhole `yF` pixel fraction are converted once on load by `_migrateManholeYF()`, the only place the old pixel layout exists.
+- Shared facts have one home: segment colours `DS.segColor(type)` (Plan bands and 3D ground planes), lane compliance `travelLanesPass()`, manhole clearance `manholeClearance()`, travel direction `segment.dirZ`.
+- Geometry inputs change through `syncDesignModel(reason)` (sidebar inputs, design load); it resyncs the Section editor's segments, rebuilds the model and renders all three views.
+
+**`checkLandmarkConsistency()`** runs after every `syncDesignModel()` (once the deferred 3D rebuild has finished) and is silent when everything agrees. On a warning it prints what disagreed and keeps the list in `window._lastConsistencyIssues`. It checks: landmarks vs the raw inputs; Plan helper metrics vs the renderer; every segment's drawn Plan band and 3D ground plane vs its `x0..x1`; every building's Plan rect and 3D mass vs its footprint; every manhole's Plan position vs `worldToPlan(yM, xM)` and its 3D position; and **orientation**: an along-street pair and an across-street pair of points are projected through `worldToPlan()` and through the live 3D camera, and the sign of their 2D cross product is compared. A rotation preserves that sign; a mirror flips it. So a warning **"orientation: Plan is a MIRROR of the 3D view"**, which means exactly one axis differs between Plan and 3D, is a mirror, not a camera problem.
+
 ## What has been built (Refactors 1–8)
 
 | # | What |
