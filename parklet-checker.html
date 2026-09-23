@@ -1617,6 +1617,53 @@ window.debugLandmarks = function() {
   else console.log('[debugLandmarks] All 8 key points are within the camera frustum.');
 };
 
+// Standing check: recomputes each landmark independently from the raw inputs, compares it
+// with DESIGN_MODEL, and checks the Plan interaction helpers against what the renderer last
+// drew. Runs after every syncDesignModel(); silent when everything agrees.
+window.checkLandmarkConsistency = function(verbose) {
+  var DM = DESIGN_MODEL, LM = DM && DM.landmarks, bad = [];
+  if (!LM) { console.warn('[checkLandmarkConsistency] no landmarks -- buildDesignModel() has not run.'); return false; }
+  function chk(name, model, live) {
+    if (typeof model !== 'number' || typeof live !== 'number' || Math.abs(model - live) > 0.001)
+      bad.push({ value: name, model: model, independent: live });
+  }
+  function deepest(list) {
+    return list.reduce(function(m,b){ var t=(b.setback||0)+(b.depth||4); return t>m.d?{d:t,sb:b.setback||0}:m; }, {d:-1,sb:0});
+  }
+  var road  = DM.crossSection.filter(function(s){ return s.type !== 'sidewalk'; });
+  var swSeg = DM.crossSection.find(function(s){ return s.type === 'sidewalk'; });
+  chk('sidewalkW vs SIDEWALK_W shim', LM.sidewalkW, SIDEWALK_W);
+  if (swSeg) chk('sidewalkW vs sidewalk segment', LM.sidewalkW, swSeg.width);
+  chk('totalRoad vs TOTAL_ROAD', DM.totalRoad, TOTAL_ROAD);
+  chk('roadRight vs sum of road segments', LM.roadRight, road.reduce(function(a,s){ return a + s.width; }, 0));
+  chk('parklet.width vs designParkletWidth', DM.parklet.width, designParkletWidth);
+  chk('parklet.length vs designParkletLength', DM.parklet.length, designParkletLength);
+  chk('deckW vs parklet.width', LM.deckW, DM.parklet.width);
+  chk('bufferW', LM.bufferW, designBufferEnabled ? designBufferW : 0);
+  var dL = deepest(BLDG_L.buildings), dR = deepest(BLDG_R.buildings);
+  chk('buildingL.depth', LM.buildingL.depth, Math.max(2, dL.d));
+  chk('buildingR.depth', LM.buildingR.depth, Math.max(2, dR.d));
+  chk('buildingL.setback', LM.buildingL.setback, dL.sb);
+  chk('buildingR.setback', LM.buildingR.setback, dR.sb);
+  chk('buildings.L count', DM.buildings.L.length, BLDG_L.buildings.length);
+  chk('buildings.R count', DM.buildings.R.length, BLDG_R.buildings.length);
+  chk('buildingL.innerFaceX', LM.buildingL.innerFaceX, -LM.sidewalkW - LM.bufferW);
+  chk('buildingR.innerFaceX', LM.buildingR.innerFaceX, LM.roadRight + LM.sidewalkW);
+  if (typeof _pvPKY === 'number' && document.getElementById('planView')) {
+    var pm = planMetrics();
+    chk('Plan PK_Y: planMetrics vs renderer', pm.PK_Y, _pvPKY);
+    chk('Plan PK_X: planMetrics vs renderer', pm.PK_X, _pvPKX);
+    chk('Plan HS: planMetrics vs renderer', pm.HS, _pvHS);
+  }
+  if (bad.length) {
+    console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL:');
+    console.table(bad);
+  } else if (verbose !== false) {
+    console.log('[checkLandmarkConsistency] OK -- landmarks, globals and Plan helpers agree.');
+  }
+  return bad.length === 0;
+};
+
 // Build (or rebuild) DESIGN_MODEL from the canonical source.
 // CANONICAL SOURCE: window.seGetSegs() â€” the section editor's _segs array.
 // _segs is what the user directly edits; all three views are projections of it.
@@ -1663,8 +1710,10 @@ function buildDesignModel() {
   // Compute cross-street landmark positions once so renderMassView / renderPlanView
   // can read them without rediscovering SW, bufW, and building depths independently.
   (function() {
-    if (typeof SIDEWALK_W === 'undefined') console.warn('[DESIGN_MODEL.landmarks] SIDEWALK_W not in scope -- check global init order.');
-    var _lmSW   = (typeof SIDEWALK_W !== 'undefined') ? SIDEWALK_W : 1.8;
+    // Sidewalk width comes from the canonical sidewalk segment; SIDEWALK_W is only a shim.
+    var _lmSwSeg = segs.find(function(s){ return s.type === 'sidewalk'; });
+    if (!_lmSwSeg && typeof SIDEWALK_W === 'undefined') console.warn('[DESIGN_MODEL.landmarks] no sidewalk segment and SIDEWALK_W not in scope -- using 1.8 m.');
+    var _lmSW   = _lmSwSeg ? _lmSwSeg.width : ((typeof SIDEWALK_W !== 'undefined') ? SIDEWALK_W : 1.8);
     if (typeof BLDG_L === 'undefined') console.warn('[DESIGN_MODEL.landmarks] BLDG_L not in scope -- building positions will be wrong.');
     if (typeof BLDG_R === 'undefined') console.warn('[DESIGN_MODEL.landmarks] BLDG_R not in scope -- building positions will be wrong.');
     var _lmBufW = (typeof designBufferEnabled !== 'undefined' && designBufferEnabled &&
@@ -1684,6 +1733,15 @@ function buildDesignModel() {
     var _lmRMaxD = _lmRBld.reduce(function(m,b){ return Math.max(m,(b.setback||0)+(b.depth||4)); }, 2);
     var _lmLMaxH = _lmLBld.reduce(function(m,b){ return Math.max(m,b.height||8); }, 8);
     var _lmRMaxH = _lmRBld.reduce(function(m,b){ return Math.max(m,b.height||8); }, 8);
+    // Setback of the building with the greatest (setback+depth) -- the one that sets .depth.
+    function _lmSbOfDeepest(list) {
+      return list.reduce(function(m,b){ var t=(b.setback||0)+(b.depth||4); return t>m.d?{d:t,sb:b.setback||0}:m; }, {d:-1,sb:0}).sb;
+    }
+    // Per-building copies so renderers never touch BLDG_L / BLDG_R directly.
+    DESIGN_MODEL.buildings = {
+      L: _lmLBld.map(function(b){ return Object.assign({}, b); }),
+      R: _lmRBld.map(function(b){ return Object.assign({}, b); })
+    };
     var _lmLFaceX = _lmXSWL - _lmBufW;
     var _lmRFaceX = _lmXSWR;
     var _lmPkSeg  = DESIGN_MODEL.crossSection &&
@@ -1698,10 +1756,11 @@ function buildDesignModel() {
       sidewalkR:   { x0: _lmXCR,    x1: _lmXSWR },
       bufferL:     { x0: _lmLFaceX, x1: _lmXSWL },
       bufferR:     { x0: _lmXSWR,   x1: _lmXSWR + _lmBufW },
-      buildingL:   { innerFaceX: _lmLFaceX, outerFaceX: _lmLFaceX - _lmLMaxD, depth: _lmLMaxD, height: _lmLMaxH },
-      buildingR:   { innerFaceX: _lmRFaceX, outerFaceX: _lmRFaceX + _lmRMaxD, depth: _lmRMaxD, height: _lmRMaxH },
+      buildingL:   { innerFaceX: _lmLFaceX, outerFaceX: _lmLFaceX - _lmLMaxD, depth: _lmLMaxD, height: _lmLMaxH, setback: _lmSbOfDeepest(_lmLBld) },
+      buildingR:   { innerFaceX: _lmRFaceX, outerFaceX: _lmRFaceX + _lmRMaxD, depth: _lmRMaxD, height: _lmRMaxH, setback: _lmSbOfDeepest(_lmRBld) },
       deckX0:      _lmPkSeg ? _lmPkSeg.x0 : 0,
       deckX1:      _lmPkSeg ? _lmPkSeg.x1 : DESIGN_MODEL.parklet.width,
+      deckW:       _lmPkSeg ? _lmPkSeg.width : DESIGN_MODEL.parklet.width,
       sceneMinX:   _lmLFaceX - _lmLMaxD - 1,
       sceneMaxX:   _lmRFaceX + _lmRMaxD + 1
     };
@@ -1725,6 +1784,7 @@ function syncDesignModel(reason) {
   if (typeof renderCrossSection === 'function') { try { renderCrossSection(); } catch(e){} }
   if (typeof request3DRebuild   === 'function') { request3DRebuild(reason || 'geometry'); }
   else if (typeof renderMassView === 'function'){ try { renderMassView();    } catch(e){} }
+  try { window.checkLandmarkConsistency(false); } catch(e) { console.warn('[checkLandmarkConsistency] threw:', e); }
 }
 window.syncDesignModel = syncDesignModel;
 
@@ -3675,14 +3735,11 @@ document.addEventListener('mouseup', function() {
 })();
 
 // ── Section cut location (plan section-line position → model Z) ──────────────
-// Returns parklet-relative Z in [0, designParkletLength].
+// Returns parklet-relative Z in [0, parklet length].
 function getSectionCutLocation() {
-  const SHOWN_M = Math.max(34, designParkletLength + 14);
-  const HS = 760 / SHOWN_M;
-  const CONTEXT_M = Math.max(2, (SHOWN_M - designParkletLength) / 2);
-  const PK_X = Math.round(CONTEXT_M * HS);
-  const raw = _pvSectionXM !== null ? (_pvSectionXM - PK_X) / HS : designParkletLength / 2;
-  return Math.max(0, Math.min(designParkletLength, raw));
+  const _m = planMetrics(), L = _dmCurrent().parklet.length;
+  const raw = _pvSectionXM !== null ? (_pvSectionXM - _m.PK_X) / _m.HS : L / 2;
+  return Math.max(0, Math.min(L, raw));
 }
 
 // ── World Z of the section cut plane ─────────────────────────────────────────
@@ -3723,13 +3780,13 @@ function _flGetDims(objId) {
 // ── Objects intersected by a vertical plane at world Z = cutWorldZ ───────────
 function getSectionObjectsAt(cutWorldZ) {
   const TOL = 0.05;
-  const L = designParkletLength;
+  const L = _dmCurrent().parklet.length;
   const ZS = -5.0;
   const result = { trees: [], bollards: [], furniture: [], streetObjects: [], manholes: [] };
 
   // Get ordered segment geometry — the single source of truth for street positions
   const segs = (typeof getSectionGeometry === 'function') ? getSectionGeometry() : [];
-  const PW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.65;
+  const PW = _dmCurrent().parklet.width;
 
   // ── Trees and planters: every buffer / planting segment independently ──
   segs.forEach(function(seg) {
@@ -3809,21 +3866,23 @@ function renderCrossSection() {
   if (!svg) return;
   const VW = 760, GY = 148, SFB = 188, PB = 202, DIM_Y = 220;
   const FACADE_W = 28, TAIL_W = 32;
-  const bufW = designBufferEnabled ? designBufferW : 0;
-  const SC = (VW - FACADE_W - TAIL_W) / (SIDEWALK_W + TOTAL_ROAD);
+  const _csDM = buildDesignModel(), _csLM = _csDM.landmarks;
+  const _csRoad = _csDM.totalRoad, _csSW = _csLM.sidewalkW, _csPkW = _csLM.deckW;
+  const bufW = _csLM.bufferW;
+  const SC = (VW - FACADE_W - TAIL_W) / (_csSW + _csRoad);
   const bufPX = bufW * SC;
   const reqLane = getReqLane();
   const bld = getBikeLaneD();
-  const residual = parseFloat((TOTAL_ROAD - designParkletWidth).toFixed(4));
+  const residual = parseFloat((_csRoad - _csPkW).toFixed(4));
   const carResidual = parseFloat((residual - bld).toFixed(4));
   const laneW = parseFloat((carResidual / getTotalLanes()).toFixed(4));
   const laneOk = laneW >= reqLane - 0.0001;
-  const maxPkW = TOTAL_ROAD - bld - reqLane;
+  const maxPkW = _csRoad - bld - reqLane;
   const XBF = FACADE_W;
   const XBUF = XBF + bufW * SC;
-  // Default positions from globals; overridden below by segment walk
-  let XSW = XBF + (bufW + SIDEWALK_W) * SC;
-  let XPK = XSW + designParkletWidth * SC;
+  // Default positions from the model; overridden below by segment walk
+  let XSW = XBF + (bufW + _csSW) * SC;
+  let XPK = XSW + _csPkW * SC;
   let XBL = XPK + bld * SC;
   let XLN = XBL + carResidual * SC;
   let XLN_actual = XBL + carResidual * SC;
@@ -3853,7 +3912,7 @@ function renderCrossSection() {
       XLN = _tlanes[_tlanes.length-1].x1;
       XLN_actual = XLN;
     }
-    XTAIL = Math.max(_cx, XSW + TOTAL_ROAD * SC) + TAIL_W;
+    XTAIL = Math.max(_cx, XSW + _csRoad * SC) + TAIL_W;
   }
 
   const XLIM = XSW + maxPkW * SC;
@@ -3887,12 +3946,12 @@ function renderCrossSection() {
   const CTX_L = 160, CTX_R = 280;
   const hSc = 12;                         // fixed 12 px/m — height/depth changes are visible
   const flPx = Math.max(4, Math.round(3 * hSc)); // 3 m floor slab spacing in px
-  const allBHts2 = BLDG_L.buildings.concat(BLDG_R.buildings).map(function(b){return b.height;});
+  const allBHts2 = _csDM.buildings.L.concat(_csDM.buildings.R).map(function(b){return b.height;});
   const maxBH2 = Math.max.apply(null, allBHts2.concat([3]));
   // Find buildings actually intersected by the section cut — no fallback; null = no building cut
   const _bCuts = function(b){ const z0=b.zOffset||0; return _cutWorldZ>=z0 && _cutWorldZ<=z0+(b.length||30); };
-  const bL = BLDG_L.buildings.find(_bCuts) || null;
-  const bR0 = BLDG_R.buildings.find(_bCuts) || null;
+  const bL = _csDM.buildings.L.find(_bCuts) || null;
+  const bR0 = _csDM.buildings.R.find(_bCuts) || null;
   const bLH = bL ? Math.round(bL.height * hSc) : 0;
   const bLD = bL ? Math.min(CTX_L - 4, Math.round((bL.depth || 4) * hSc)) : 0;
   const bRH = bR0 ? Math.round(bR0.height * hSc) : 0;
@@ -3908,7 +3967,7 @@ function renderCrossSection() {
   }
 
   // ── Right context: sky tone + opposite sidewalk + poche ─────────────────
-  { const OBX0=XTAIL, OCB=14, OSW_PX=Math.max(24,Math.min(70,Math.round(SIDEWALK_W*SC*0.6)));
+  { const OBX0=XTAIL, OCB=14, OSW_PX=Math.max(24,Math.min(70,Math.round(_csSW*SC*0.6)));
     const OBX1=OBX0+OCB+OSW_PX, OBX_END=OBX0+CTX_R;
     const bRD = bR0 ? Math.min(OBX_END-OBX1-4, Math.round((bR0.depth||4)*hSc)) : 0;
     // Sky + context bg
@@ -4215,11 +4274,11 @@ function renderCrossSection() {
     // ── Zone dims (inner chain) ────────────────────────────────────────
     if (bufW > 0.05) {
       dimH(XBF, XBUF, DY1, `${bufW.toFixed(2)} m`, 'BUFFER');
-      dimH(XBUF, XSW, DY1, `${SIDEWALK_W.toFixed(2)} m`, 'SIDEWALK');
+      dimH(XBUF, XSW, DY1, `${_csSW.toFixed(2)} m`, 'SIDEWALK');
     } else {
-      dimH(XBF, XSW, DY1, `${SIDEWALK_W.toFixed(2)} m`, 'SIDEWALK');
+      dimH(XBF, XSW, DY1, `${_csSW.toFixed(2)} m`, 'SIDEWALK');
     }
-    dimH(XSW, XPK, DY1, `${designParkletWidth.toFixed(2)} m`, 'PARKLET');
+    dimH(XSW, XPK, DY1, `${_csPkW.toFixed(2)} m`, 'PARKLET');
     if (bld > 0.05) {
       const blOk2 = designBikeLaneW >= bikeLaneMinW() - 0.001;
       const blSub2 = blOk2 ? `BL >=​${bikeLaneMinW().toFixed(1)}m ✓` : `BL <${bikeLaneMinW().toFixed(1)}m ✗`;
@@ -4230,7 +4289,7 @@ function renderCrossSection() {
     dimH(XBL, XLN_actual, DY1, `${laneW.toFixed(2)} m${_tln > 1 ? ' /LN' : ''}`, laneSubLabel, laneOk ? null : '#c03030');
 
     // ── Overall carriageway (outer chain) ─────────────────────────────
-    dimH(XSW, XLN_actual, DY2, `${TOTAL_ROAD.toFixed(2)} m`, 'CARRIAGEWAY');
+    dimH(XSW, XLN_actual, DY2, `${_csRoad.toFixed(2)} m`, 'CARRIAGEWAY');
 
     // ── Vertical dims: heights at right margin ─────────────────────────
     const curbTopY = GY - CURB_H;
@@ -4376,8 +4435,7 @@ function getFurnitureCorners(inst) {
 // ── SNAP HELPERS ─────────────────────────────────────────────────────────────
 function collectSnapTargets() {
   var targets = [];
-  var pW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.65;
-  var pL = typeof designParkletLength !== 'undefined' ? designParkletLength : 8.0;
+  var pW = _dmCurrent().parklet.width, pL = _dmCurrent().parklet.length;
   targets.push({wx:0,     wz:0,    type:'parklet',label:'PK corner'});
   targets.push({wx:pW,    wz:0,    type:'parklet',label:'PK corner'});
   targets.push({wx:0,     wz:pL,   type:'parklet',label:'PK corner'});
@@ -4470,8 +4528,7 @@ var WM = (function() {
 
   // ── Parklet world anchors ───────────────────────────────────────────────
   function _anchors() {
-    var W = typeof designParkletWidth  !== 'undefined' ? parseFloat(designParkletWidth)  || 2 : 2;
-    var L = typeof designParkletLength !== 'undefined' ? parseFloat(designParkletLength) || 6 : 6;
+    var W = _dmCurrent().parklet.width, L = _dmCurrent().parklet.length;
     return {
       SW:   { wx: 0,   wz: 0,   label: 'PARKLET CORNER SW' },
       SE:   { wx: W,   wz: 0,   label: 'PARKLET CORNER SE' },
@@ -4521,7 +4578,7 @@ var WM = (function() {
   // ── Site-object canonical transforms (adapters for legacy state shapes) ──
   // Manholes: {xM = along Z, yF = fraction of PK_H → world X = yF * parkletWidth}
   function _getMH(mh) {
-    var W = typeof designParkletWidth !== 'undefined' ? parseFloat(designParkletWidth) || 2 : 2;
+    var W = _dmCurrent().parklet.width;
     var xCross = typeof mh.xCross === 'number' ? mh.xCross
                : (typeof mh.yF    === 'number' ? mh.yF * W : W * 0.5);
     return { position: { x: xCross, y: 0, z: mh.xM || 0 }, rotation: { x:0, y:0, z:0 } };
@@ -4936,21 +4993,17 @@ function renderPlanView() {
   const pvDTCK = 2.5 * pvZS, pvDGAP = 1.5 * pvZS;
   const SF = 'font-family="Helvetica Neue, Arial, sans-serif"';
   const MF = 'font-family="Courier New, monospace"';
-  const SHOWN_M = Math.max(34, designParkletLength + 14), HS = VW / SHOWN_M;
+  // Every metre value below comes from DESIGN_MODEL (built here so it is never stale).
+  const _pvDM = buildDesignModel(), _pvLM = _pvDM.landmarks;
+  const SHOWN_M = Math.max(34, _pvDM.parklet.length + 14), HS = VW / SHOWN_M;
   const T_PAD = 18, pvSC = 20;
-  const SW_H = Math.max(20, Math.round(SIDEWALK_W * pvSC));
+  const SW_H = Math.max(20, Math.round(_pvLM.sidewalkW * pvSC));
   const SW_Y = T_PAD, CURB_Y = SW_Y + SW_H;
   const PK_Y = CURB_Y;
-  // Derive band heights from DESIGN_MODEL.crossSection (canonical source).
-  // This ensures the Plan always shows the same geometry as Section and 3D.
-  const _pvXS    = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.crossSection && DESIGN_MODEL.crossSection.length > 0)
-    ? DESIGN_MODEL.crossSection : null;
-  const _pvPkSeg = _pvXS && _pvXS.find(function(s){ return s.type === 'parklet'; });
-  const _pvPkW   = _pvPkSeg ? _pvPkSeg.width : designParkletWidth;
-  const _pvBLSegs = _pvXS ? _pvXS.filter(function(s){ return s.type === 'bike-lane' || s.type === 'buf-pk' || s.type === 'buf-bl'; }) : null;
-  const _pvLNSegs = _pvXS ? _pvXS.filter(function(s){ return s.type === 'travel-lane'; }) : null;
-  const pvBLD    = _pvBLSegs ? _pvBLSegs.reduce(function(a,s){ return a+s.width; }, 0) : getBikeLaneD();
-  const _pvCarW  = _pvLNSegs ? _pvLNSegs.reduce(function(a,s){ return a+s.width; }, 0) : Math.max(0, TOTAL_ROAD - designParkletWidth - getBikeLaneD());
+  const _pvXS    = _pvDM.crossSection;
+  const _pvPkW   = _pvLM.deckW;
+  const pvBLD    = _pvXS.filter(function(s){ return s.type === 'bike-lane' || s.type === 'buf-pk' || s.type === 'buf-bl'; }).reduce(function(a,s){ return a+s.width; }, 0);
+  const _pvCarW  = _pvXS.filter(function(s){ return s.type === 'travel-lane'; }).reduce(function(a,s){ return a+s.width; }, 0);
   const pvResidual = pvBLD + _pvCarW;
   const pvPkH    = Math.max(24, Math.round(_pvPkW * pvSC));
   const pvBikeH  = pvBLD > 0.05 ? Math.max(12, Math.round(pvBLD * pvSC)) : 0;
@@ -4959,13 +5012,11 @@ function renderPlanView() {
   const ROAD_BOTTOM = LN_Y + pvLnH + pvBikeH;
   const VH = ROAD_BOTTOM;
   _planVH = VH;
-  const _pvBL0 = BLDG_L.buildings.length > 0 ? BLDG_L.buildings[0] : {depth:4,setback:0};
-  const _pvBR0 = BLDG_R.buildings.length > 0 ? BLDG_R.buildings[0] : {depth:4,setback:0};
-  const CTX_TOP = Math.max(30, Math.round(((_pvBL0.setback||0)+(_pvBL0.depth||4)) * pvSC));
-  const OPP_SW_H = Math.max(22, Math.round(SIDEWALK_W * pvSC));
-  const OPP_BH = Math.max(20, Math.round(((_pvBR0.setback||0)+(_pvBR0.depth||4)) * pvSC));
+  const CTX_TOP = Math.max(30, Math.round(_pvLM.buildingL.depth * pvSC));
+  const OPP_SW_H = Math.max(22, Math.round(_pvLM.sidewalkW * pvSC));
+  const OPP_BH = Math.max(20, Math.round(_pvLM.buildingR.depth * pvSC));
   const OPP_BOTTOM = VH + 5 + OPP_SW_H + OPP_BH;
-  const PARKLET_M = designParkletLength;
+  const PARKLET_M = _pvDM.parklet.length;
   const WS_M = 1.1;
  
 // wheel-stop overhang per end (fixed)  
@@ -4996,7 +5047,7 @@ const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
   const _useCS = _pkShp && _pkShp.active && _pkShp.closed && _pkShp.verts && _pkShp.verts.length >= 3;
   let _clipD = '';
   if (_useCS) {
-    const _sX2 = PK_W / designParkletLength, _sY2 = pvPkH / designParkletWidth;
+    const _sX2 = PK_W / _pvDM.parklet.length, _sY2 = pvPkH / _pvDM.parklet.width;
     _clipD = buildPlanShapePath(_pkShp, PK_X, PK_Y, _sX2, _sY2);
   }
   let _defsStr = `<defs><pattern id='hPV' patternUnits='userSpaceOnUse' width='5' height='5' patternTransform='rotate(45 0 0)'><line x1='0' y1='0' x2='0' y2='5' stroke='rgba(0,0,0,.25)' stroke-width='1.1'/></pattern>`;
@@ -5467,8 +5518,8 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     const _carW = _pvCarW;
     const _carLbl = getTotalLanes()>1 ? `LANE \xd7${getTotalLanes()}` : 'LANE';
     const _rmItems = [
-      {y1:SW_Y,    y2:CURB_Y,        val:`${SIDEWALK_W.toFixed(2)} m`,        lbl:'SIDEWALK'},
-      {y1:PK_Y,    y2:PK_Y+pvPkH,    val:`${designParkletWidth.toFixed(2)} m`, lbl:'PARKLET'},
+      {y1:SW_Y,    y2:CURB_Y,        val:`${_pvLM.sidewalkW.toFixed(2)} m`,   lbl:'SIDEWALK'},
+      {y1:PK_Y,    y2:PK_Y+pvPkH,    val:`${_pvPkW.toFixed(2)} m`,            lbl:'PARKLET'},
       ...(pvBikeH>0?[{y1:LN_Y,y2:LN_Y+pvBikeH,val:`${getBikeLaneD().toFixed(2)} m`,lbl:'BIKE LANE'}]:[]),
       {y1:LN_Y+pvBikeH, y2:ROAD_BOTTOM, val:`${_carW.toFixed(2)} m`,          lbl:_carLbl},
     ];
@@ -5477,11 +5528,10 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     pvSeg(_bnd[0], _bnd[_bnd.length-1]);
     _rmItems.forEach(d => pvRLbl(d.y1,d.y2,d.val,d.lbl));
     // Opposite sidewalk (separate short chain)
-    const _oppSWH = Math.max(22, Math.round(SIDEWALK_W*pvSC));
-    const _oy1=VH+5, _oy2=VH+5+_oppSWH;
+    const _oy1=VH+5, _oy2=VH+5+OPP_SW_H;
     [_oy1,_oy2].forEach(y => { pvExt(y); pvTk(y); });
     pvSeg(_oy1,_oy2);
-    pvRLbl(_oy1,_oy2,`${SIDEWALK_W.toFixed(2)} m`,'OPP SW');
+    pvRLbl(_oy1,_oy2,`${_pvLM.sidewalkW.toFixed(2)} m`,'OPP SW');
 
     // Building depth dims — second column further right
     const RX2 = RX + 24 * pvZS;
@@ -5497,14 +5547,14 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       if(lbl && span >= pvDFV*2) s += `<text x='${_lx2.toFixed(1)}' y='${(my+pvDFL*0.55).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_lFS}' letter-spacing='.08em' fill='#777'>${lbl}</text>`;
     };
     // Near building depth: -CTX_TOP to 0
-    const _nBldD = ((_pvBL0.setback||0)+(_pvBL0.depth||4)).toFixed(2);
+    const _nBldD = _pvLM.buildingL.depth.toFixed(2);
     pvExt2(-CTX_TOP); pvTk2(-CTX_TOP);
     pvExt2(0); pvTk2(0);
     pvSeg2(-CTX_TOP, 0);
     pvRLbl2(-CTX_TOP, 0, `${_nBldD} m`, 'NEAR BLDG');
     // Opposite building depth: OPP_Y0+5+OPP_SW_H to OPP_BOTTOM
     const _oBldY1 = VH+5+OPP_SW_H, _oBldY2 = OPP_BOTTOM;
-    const _oBldD = ((_pvBR0.setback||0)+(_pvBR0.depth||4)).toFixed(2);
+    const _oBldD = _pvLM.buildingR.depth.toFixed(2);
     pvExt2(_oBldY1); pvTk2(_oBldY1);
     pvExt2(_oBldY2); pvTk2(_oBldY2);
     pvSeg2(_oBldY1, _oBldY2);
@@ -5516,7 +5566,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     pvExt2(ROAD_BOTTOM); pvTk2(ROAD_BOTTOM);
     s += `<line x1='${RX2.toFixed(1)}' y1='${(CURB_Y+pvDGAP).toFixed(1)}' x2='${RX2.toFixed(1)}' y2='${(ROAD_BOTTOM-pvDGAP).toFixed(1)}' stroke='#111' stroke-width='${_rmTK3}'/>`;
     const _c2cMY = (CURB_Y+ROAD_BOTTOM)/2;
-    s += `<text x='${_lx2.toFixed(1)}' y='${(_c2cMY-pvDFV*0.3).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_vFS}' font-weight='600' fill='#111'>${TOTAL_ROAD.toFixed(2)} m</text>`;
+    s += `<text x='${_lx2.toFixed(1)}' y='${(_c2cMY-pvDFV*0.3).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_vFS}' font-weight='600' fill='#111'>${_pvDM.totalRoad.toFixed(2)} m</text>`;
     s += `<text x='${_lx2.toFixed(1)}' y='${(_c2cMY+pvDFL*0.55).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_lFS}' letter-spacing='.08em' fill='#555'>CURB–CURB</text>`;
 
     s += `</g>`;
@@ -5545,7 +5595,7 @@ const manholes = state['manholes'] || [];
   const OPP_Y0 = VH;
   { const _T = DS.t(), _tech = DS.mode()==='technical';
     const _wallT = Math.max(2.5, 0.3 * pvSC);
-    const _nSb = (_pvBL0.setback||0) * pvSC, _oSb = (_pvBR0.setback||0) * pvSC;
+    const _nSb = _pvLM.buildingL.setback * pvSC, _oSb = _pvLM.buildingR.setback * pvSC;
     const _faceN = SW_Y - _nSb;
     s += `<rect x='0' y='${-CTX_TOP}' width='${VW}' height='${CTX_TOP + SW_Y}' fill='${_tech?'#FFFFFF':'#F2EEE6'}'/>`;
     if (_nSb > 0.5) s += `<rect x='0' y='${_faceN.toFixed(1)}' width='${VW}' height='${_nSb.toFixed(1)}' fill='${_T.sidewalk}' opacity='0.6'/>`;
@@ -5692,15 +5742,22 @@ const CF_DEFAULT_YM = {H: -0.75, P: -0.76, S: -1.00};
 // Updated by renderPlanView so nearMH and placement use the live VH
 let _planVH = 215;
 
+// Read-only view of the model for interaction handlers (mousemove etc.): reuses the
+// model the last render built instead of rebuilding it on every event.
+function _dmCurrent() {
+  return (DESIGN_MODEL && DESIGN_MODEL.landmarks) ? DESIGN_MODEL : buildDesignModel();
+}
+
 function planMetrics() {
-  const SHOWN_M = Math.max(34, designParkletLength + 14), HS = 760 / SHOWN_M;
-  const CONTEXT_M = Math.max(2, (SHOWN_M - designParkletLength) / 2);
-  const PK_X = Math.round(CONTEXT_M * HS), PK_W = Math.round(designParkletLength * HS);
+  const _DM = _dmCurrent(), _LM = _DM.landmarks;
+  const SHOWN_M = Math.max(34, _DM.parklet.length + 14), HS = 760 / SHOWN_M;
+  const CONTEXT_M = Math.max(2, (SHOWN_M - _DM.parklet.length) / 2);
+  const PK_X = Math.round(CONTEXT_M * HS), PK_W = Math.round(_DM.parklet.length * HS);
   const pvSC2 = 20;
-  const SW_H = Math.max(20, Math.round(SIDEWALK_W * pvSC2));
+  const SW_H = Math.max(20, Math.round(_LM.sidewalkW * pvSC2));
   const SW_Y = 18, CURB_Y = SW_Y + SW_H;
   const PK_Y = CURB_Y;
-  const PK_H = Math.max(24, Math.round(designParkletWidth * pvSC2));
+  const PK_H = Math.max(24, Math.round(_LM.deckW * pvSC2));
   return {HS, PK_X, PK_W, PK_Y, PK_H, CONTEXT_M, CURB_Y, pvSC: pvSC2, SW_H, SW_Y};
 }
 
@@ -5885,7 +5942,7 @@ function planMM(e) {
       var _coffZ = _clL * Math.cos(_cry) - _clD * Math.sin(_cry);
       var _cfnx = _cnewWx - _coffX;
       var _cfnz = _cnewWz - _coffZ;
-      _cfnx = Math.max(0.05, Math.min(_cfnx, (typeof designParkletWidth!=='undefined'?designParkletWidth-0.05:2.6)));
+      _cfnx = Math.max(0.05, Math.min(_cfnx, (_dmCurrent().parklet.width-0.05)));
       _cfdi.x = _cfnx; _cfdi.z = _cfnz;
       if (_cfdi.mesh) _cfdi.mesh.position.set(_cfnx, FL3D.DECK_H, _cfnz);
       var _cfxIn = document.getElementById('fl3DInstX'), _cfzIn = document.getElementById('fl3DInstZ');
@@ -5914,8 +5971,7 @@ function planMM(e) {
     var _fnz = _ancWz - (_pvFurnDragging.grabOffZ || 0);
     // Alignment guides (center-to-center)
     _alignGuides = [];
-    var _pW2 = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.65;
-    var _pL2 = typeof designParkletLength !== 'undefined' ? designParkletLength : 8.0;
+    var _pW2 = _dmCurrent().parklet.width, _pL2 = _dmCurrent().parklet.length;
     var ALN_TOL = 0.15;
     if (window.FL3D && window.FL3D.placed) {
       window.FL3D.placed.forEach(function(other) {
@@ -6400,16 +6456,19 @@ function resize3DViewport() {
 
 function renderMassView() {
   if (!window.THREE) return;
-  const PW  = designParkletWidth;
-  const L   = designParkletLength;
-  const LW  = parseFloat((TOTAL_ROAD - PW).toFixed(4));
-  const SW  = SIDEWALK_W;
+  // Build the canonical model first -- every metre value below reads from it, not from globals.
+  const _dm3d = buildDesignModel();
+  const _LM   = _dm3d.landmarks;
+  const PW  = _dm3d.parklet.width;
+  const L   = _dm3d.parklet.length;
+  const LW  = parseFloat((_dm3d.totalRoad - PW).toFixed(4));
+  const SW  = _LM.sidewalkW;
   const bld = getBikeLaneD();
   window._last3DGeometryState = {
     parkletWidth:  PW,
     parkletLength: L,
     sidewalkWidth: SW,
-    totalRoad:     typeof TOTAL_ROAD          !== 'undefined' ? TOTAL_ROAD          : null,
+    totalRoad:     _dm3d.totalRoad,
     bikeLaneWidth: bld,
     bikeLaneType:  typeof designBikeLane      !== 'undefined' ? designBikeLane      : null,
     bufferEnabled: typeof designBufferEnabled  !== 'undefined' ? designBufferEnabled  : false,
@@ -6423,7 +6482,6 @@ function renderMassView() {
   try { if (typeof _syncOverlayUpdate === 'function') _syncOverlayUpdate(window._last3DGeometryState); } catch(_e) {}
   const carLW = parseFloat((LW - bld).toFixed(4));
   // Build canonical model â€” all geometry below reads from _s3d, not from globals.
-  const _dm3d  = buildDesignModel();
   const _s3d   = _dm3d.crossSection;
   const _lnS   = _s3d.filter(function(sg){ return sg.type === 'travel-lane'; });
   const _blS   = _s3d.find(function(sg){ return sg.type === 'bike-lane'; });
@@ -6433,7 +6491,7 @@ function renderMassView() {
   const reqLane = getReqLane();
   const laneW = carLW / getTotalLanes();
   const passing = laneW >= reqLane - 0.0001;
-  const bufW = designBufferEnabled ? designBufferW : 0;
+  const bufW = _LM.bufferW;
   const container = document.getElementById('threeWrap');
   if (!container) return;
   
@@ -6568,18 +6626,15 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   
 }
   // Scene layout: X positions come from DESIGN_MODEL.landmarks (computed once in buildDesignModel).
-  // Fallbacks retain the old local derivation so rendering still works during first-call setup.
   const PAD = 5.0;
-  const _LM  = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL && DESIGN_MODEL.landmarks) ? DESIGN_MODEL.landmarks : null;
-  const XCL  = _LM ? _LM.roadLeft     : 0;
-  const XCR  = _LM ? _LM.roadRight    : (_roadS.length > 0 ? _roadS[_roadS.length-1].x1 : TOTAL_ROAD);
-  const XSWL = _LM ? _LM.sidewalkL.x0 : -SW;
-  const XSWR = _LM ? _LM.sidewalkR.x1 : (XCR + SW);
+  const XCL  = _LM.roadLeft;
+  const XCR  = _LM.roadRight;
+  const XSWL = _LM.sidewalkL.x0;
+  const XSWR = _LM.sidewalkR.x1;
   const ZS = -PAD, ZE = L + PAD;
 
   // Helper: render one side's buildings (free position via zOffset + length)
-  const renderSide = function(bldgState, sideEdgeX, isLeft) {
-    const buildings = bldgState.buildings;
+  const renderSide = function(buildings, sideEdgeX, isLeft) {
     buildings.forEach(function(b) {
       const sb = b.setback !== undefined ? b.setback : 0;
       const z0 = b.zOffset !== undefined ? b.zOffset : ZS;
@@ -6600,12 +6655,12 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   };
 
   // Compute ground extent (cover all building footprints)
-  const lMaxSD = BLDG_L.buildings.reduce(function(m, b) { return Math.max(m, (b.setback||0) + b.depth); }, 2);
-  const rMaxSD = BLDG_R.buildings.reduce(function(m, b) { return Math.max(m, (b.setback||0) + b.depth); }, 2);
-  const gndX0 = XSWL - bufW - lMaxSD - 1;
-  const gndX1 = XSWR + rMaxSD + 1;
+  const lMaxSD = _LM.buildingL.depth;
+  const rMaxSD = _LM.buildingR.depth;
+  const gndX0 = _LM.sceneMinX;
+  const gndX1 = _LM.sceneMaxX;
   let gndZ0 = ZS - 1, gndZ1 = ZE + 1;
-  [BLDG_L.buildings, BLDG_R.buildings].forEach(function(blist) {
+  [_dm3d.buildings.L, _dm3d.buildings.R].forEach(function(blist) {
     blist.forEach(function(b) {
       const bz0 = b.zOffset !== undefined ? b.zOffset : ZS;
       const bz1 = bz0 + (b.length !== undefined ? b.length : ZE - ZS);
@@ -6618,7 +6673,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   mplane(gndX0, gndZ0, gndX1, gndZ1, -0.005, 0xe0ddd6, 0.98);
 
   // Left buildings (face at XSWL - bufW, outside sidewalk)
-  renderSide(BLDG_L, XSWL - bufW, true);
+  renderSide(_dm3d.buildings.L, _LM.buildingL.innerFaceX, true);
 
   // Vegetated buffer strip (between building face and sidewalk)
   if (bufW > 0.05) {
@@ -6815,7 +6870,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   mplane(XCR + 0.08, ZS, XSWR, ZE, 0.001, 0xd4d0c8, 0.97);
 
   // Right buildings
-  renderSide(BLDG_R, XSWR, false);
+  renderSide(_dm3d.buildings.R, _LM.buildingR.innerFaceX, false);
 
   // Curb features in 3D (H/P/S — at left curb, Z = feature.xM)
   const cf3d = state[`curb_features`] || [];
@@ -6889,7 +6944,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // X: behind near building back wall + 2 m clearance so it is fully visible.
     // Z: south of ZS to see the near end of the deck.
     // H: tall enough to clear buildings and see deck surfaces.
-    const _lmBX = _LM ? _LM.buildingL.outerFaceX : (XSWL - (bufW || 0) - lMaxSD);
+    const _lmBX = _LM.buildingL.outerFaceX;
     const _camClear = Math.max(2.0, SW * 0.5);
     const camX = _lmBX - _camClear;
     const camZ = ZS - Math.max(L * 0.2, 2.5);
@@ -8612,7 +8667,7 @@ function _fl3DAlignX(side) {
   if (!window.FL3D || window.FL3D.selId === null) return;
   var inst = window.FL3D.placed.find(function(i){ return i.id === window.FL3D.selId; });
   if (!inst) return;
-  var pkW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.65;
+  var pkW = _dmCurrent().parklet.width;
   var dims = (typeof _flGetDims === 'function') ? _flGetDims(inst.objId) : {l:1.5, d:0.5};
   var hd = dims.d / 2;
   var nx;
@@ -8666,8 +8721,8 @@ function _pvPlanClick(e) {
     ? findBestSnap(wc.x, wc.z, collectSnapTargets(), 0.35) : null;
   var fx = _snp ? _snp.wx : snapToGrid(wc.x, _gridSpacing);
   var fz = _snp ? _snp.wz : snapToGrid(wc.z, _gridSpacing);
-  if (fz < -2 || fz > (typeof designParkletLength !== 'undefined' ? designParkletLength + 2 : 20)) return;
-  fl3DPlaceAt(FL3D.placing, Math.max(0.05, Math.min(fx, (typeof designParkletWidth !== 'undefined' ? designParkletWidth - 0.05 : 2.6))), fz);
+  if (fz < -2 || fz > (_dmCurrent().parklet.length + 2)) return;
+  fl3DPlaceAt(FL3D.placing, Math.max(0.05, Math.min(fx, (_dmCurrent().parklet.width - 0.05))), fz);
   _pvActiveSnap = null;
   _planMode = 'select';
   var plBtn = document.getElementById('pvFurnPlaceBtn');
@@ -9090,9 +9145,10 @@ function _rpR(label,val,unit) {
 function _rpS(t) { return '<div class="rp-sec">'+t+'</div>'; }
 
 function renderParkletProps() {
-  var W=(typeof designParkletWidth!=='undefined'?designParkletWidth:2.2).toFixed(3);
-  var L=(typeof designParkletLength!=='undefined'?designParkletLength:9).toFixed(1);
-  var road=(typeof TOTAL_ROAD!=='undefined'?TOTAL_ROAD:6);
+  var _DM=_dmCurrent();
+  var W=_DM.parklet.width.toFixed(3);
+  var L=_DM.parklet.length.toFixed(1);
+  var road=_DM.totalRoad;
   var area=(parseFloat(W)*parseFloat(L)).toFixed(2);
   var laneW=(road-parseFloat(W)).toFixed(3);
   var minL=(typeof ROUTE_TYPE!=='undefined'&&ROUTE_TYPE==='bus_truck')?3.2:3.0;
@@ -9255,17 +9311,8 @@ function pvHandleClick(e) {
   var pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
   var sp=pt.matrixTransform(ctm.inverse());
   var x=sp.x, y=sp.y;
-  // Reconstruct layout vars to match renderPlanView
-  var pkL=typeof designParkletLength!=='undefined'?designParkletLength:9;
-  var pkW=typeof designParkletWidth!=='undefined'?designParkletWidth:2.2;
-  var SW=typeof SIDEWALK_W!=='undefined'?SIDEWALK_W:2;
-  var VW=760, pvSC=20;
-  var SHOWN_M=Math.max(34,pkL+14);
-  var HS=VW/SHOWN_M;
-  var CONTEXT_M=Math.max(2,(SHOWN_M-pkL)/2);
-  var PK_X=Math.round(CONTEXT_M*HS), PK_W=Math.round(pkL*HS);
-  var SW_H=Math.max(20,Math.round(SW*pvSC));
-  var PK_Y=18+SW_H, pvPkH=Math.max(24,Math.round(pkW*pvSC));
+  var _pm=planMetrics();
+  var HS=_pm.HS, pvSC=_pm.pvSC, PK_X=_pm.PK_X, PK_W=_pm.PK_W, PK_Y=_pm.PK_Y, pvPkH=_pm.PK_H;
   // Hit-test furniture footprints
   if (typeof FL3D!=='undefined'&&FL3D.placed) {
     for (var i=0;i<FL3D.placed.length;i++) {
@@ -9677,10 +9724,8 @@ async function generatePDF() {
     var dateStr = now.toLocaleDateString('en-CA', {year:'numeric', month:'long', day:'numeric'});
     var dateShort = now.toISOString().slice(0, 10);
 
-    var pkW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 0;
-    var pkL = typeof designParkletLength !== 'undefined' ? designParkletLength : 0;
-    var roadW = typeof TOTAL_ROAD !== 'undefined' ? TOTAL_ROAD : 0;
-    var swW = typeof SIDEWALK_W !== 'undefined' ? SIDEWALK_W : 0;
+    var _DM = buildDesignModel();
+    var pkW = _DM.parklet.width, pkL = _DM.parklet.length, roadW = _DM.totalRoad, swW = _DM.landmarks.sidewalkW;
     var blType = typeof designBikeLane !== 'undefined' ? designBikeLane : 'none';
     var blW = typeof designBikeLaneW !== 'undefined' ? designBikeLaneW : 0;
     var bufOn = typeof designBufferEnabled !== 'undefined' ? designBufferEnabled : false;
@@ -10265,8 +10310,7 @@ function getParkletBoundarySegments() {
   if (typeof customParkletBoundary !== 'undefined' && Array.isArray(customParkletBoundary) && customParkletBoundary.length) {
     return customParkletBoundary;
   }
-  var pW = typeof designParkletWidth  !== 'undefined' ? parseFloat(designParkletWidth)  || 2.65 : 2.65;
-  var pL = typeof designParkletLength !== 'undefined' ? parseFloat(designParkletLength) || 8.0  : 8.0;
+  var pW = _dmCurrent().parklet.width, pL = _dmCurrent().parklet.length;
   return [
     {a:{x:0,  z:0 }, b:{x:0,  z:pL}, edge:'west',  label:'WEST EDGE' },
     {a:{x:pW, z:0 }, b:{x:pW, z:pL}, edge:'east',  label:'EAST EDGE' },
@@ -10283,8 +10327,7 @@ function getParkletBoundarySegments() {
 //   4 = furniture       (other pieces)
 //   5 = grid            (lowest geometric)
 function getSnapGeometry() {
-  var pW = typeof designParkletWidth  !== 'undefined' ? parseFloat(designParkletWidth)  || 2.65 : 2.65;
-  var pL = typeof designParkletLength !== 'undefined' ? parseFloat(designParkletLength) || 8.0  : 8.0;
+  var pW = _dmCurrent().parklet.width, pL = _dmCurrent().parklet.length;
   var points   = [];
   var segments = [];
 
@@ -10963,20 +11006,11 @@ document.addEventListener('keydown', function(e) {
     pt.x = e.clientX; pt.y = e.clientY;
     var sp = pt.matrixTransform(ctm.inverse());
     var x = sp.x, y = sp.y;
-    var pkL = typeof designParkletLength !== 'undefined' ? designParkletLength : 9;
-    var pkW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.2;
-    var SW = typeof SIDEWALK_W !== 'undefined' ? SIDEWALK_W : 2;
-    var VW = 760, pvSC = 20;
-    var SHOWN_M = Math.max(34, pkL+14);
-    var HS = VW / SHOWN_M;
-    var CONTEXT_M = Math.max(2, (SHOWN_M-pkL)/2);
-    var PK_X = Math.round(CONTEXT_M * HS), PK_W = Math.round(pkL * HS);
-    var SW_H = Math.max(20, Math.round(SW * pvSC));
-    var PK_Y = 18 + SW_H, pvPkH = Math.max(24, Math.round(pkW * pvSC));
-    if (x < PK_X || x > PK_X+PK_W || y < PK_Y || y > PK_Y+pvPkH) return;
-    var posX = (x - PK_X - PK_W/2) / HS;
-    var posZ = (y - PK_Y - pvPkH/2) / pvSC;
-    if (typeof fl3DPlaceAt === 'function') fl3DPlaceAt(window.FL3D.placing, posX, posZ);
+    var _pm = planMetrics();
+    if (x < _pm.PK_X || x > _pm.PK_X+_pm.PK_W || y < _pm.PK_Y || y > _pm.PK_Y+_pm.PK_H) return;
+    // Plan horizontal = world z (along street), vertical = world x (across street).
+    var _w = planToWorld(x, y);
+    if (typeof fl3DPlaceAt === 'function') fl3DPlaceAt(window.FL3D.placing, _w.x, _w.z);
     if (typeof fl3DCancelPlace === 'function') fl3DCancelPlace();
     _cadCancelPlacing();
     e.stopPropagation();
@@ -11690,14 +11724,10 @@ var FURN_DRAG = {
 // ── Section metrics helper ────────────────────────────────────
 function _fdGetSectionMetrics() {
   var VW = 760, FACADE_W = 28, TAIL_W = 32;
-  var totalRoad = typeof TOTAL_ROAD !== 'undefined' ? TOTAL_ROAD : 6;
-  var swW = typeof SIDEWALK_W !== 'undefined' ? SIDEWALK_W : 2;
-  var SC = (VW - FACADE_W - TAIL_W) / (swW + totalRoad);
-  var bufW = (typeof designBufferEnabled !== 'undefined' && designBufferEnabled)
-    ? (typeof designBufferW !== 'undefined' ? designBufferW : 0) : 0;
-  var XSW = FACADE_W + (bufW + swW) * SC;
-  var pkW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.2;
-  var XPK = XSW + pkW * SC;
+  var _DM = _dmCurrent(), _LM = _DM.landmarks;
+  var SC = (VW - FACADE_W - TAIL_W) / (_LM.sidewalkW + _DM.totalRoad);
+  var XSW = FACADE_W + (_LM.bufferW + _LM.sidewalkW) * SC;
+  var XPK = XSW + _LM.deckW * SC;
   return { SC: SC, XSW: XSW, XPK: XPK };
 }
 
@@ -11781,7 +11811,7 @@ function _fdGetSectionWorld(e) {
   if (sp.x < m.XSW || sp.x > m.XPK) return { valid: false };
   var wx = (sp.x - m.XSW) / m.SC;
   var wz = (typeof getSectionCutWorldZ === 'function') ? getSectionCutWorldZ() :
-            (typeof designParkletLength !== 'undefined' ? designParkletLength / 2 : 4);
+            _dmCurrent().parklet.length / 2;
   return { valid: true, wx: wx, wz: wz };
 }
 
