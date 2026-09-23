@@ -1494,6 +1494,7 @@ function _dmSyncObject(inst) {
     rotationY:   typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)
   };
   // Archetype instances carry their own numbers and finishes; Plan draws from these.
+  if (inst.mesh && inst.archetype && typeof flBaseY === 'function') inst.mesh.position.y = flBaseY(inst);
   if (inst.archetype) {
     data.archetype = inst.archetype;
     data.params    = Object.assign({}, inst.params);
@@ -3397,10 +3398,13 @@ document.addEventListener('mouseup', function() {
           // Archetype pieces: the elevation of the same parts Plan and 3D draw.
           var _sInst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return i.id === obj.id; }) : null;
           var _sSpec = _sInst ? flInstSpec(_sInst) : null;
+          // Entourage is drawn only where the A-A plane cuts it, standing on the surface under it.
+          if (_sSpec && flIsEntourage(_sSpec.type) && obj.isBeyond) return;
+          var _sBase = (_sSpec && flBaseY(_sInst) === 0) ? ((_sInst.x || 0) < 0 ? GROUND_Y - SW_RAISE : GROUND_Y) : pkSurface;
           if (_sSpec) {
             sv += flSectionArchetype(_sSpec.type, _sSpec.params, {mats:_sSpec.mats, x:_sInst.x || 0,
               rot:(typeof _sInst.userRotation === 'number' ? _sInst.userRotation : (_sInst.rotationY || 0)),
-              xToPx:function(wx) { return pkLeft + wx * SC; }, yDeck:pkSurface, SC:SC, isBeyond:!!obj.isBeyond, tech:!!isTech, id:_sInst.id});
+              xToPx:function(wx) { return pkLeft + wx * SC; }, yDeck:_sBase, SC:SC, isBeyond:!!obj.isBeyond, tech:!!isTech, id:_sInst.id});
             if (!obj.isBeyond && fW > 18) {
               var _lbl = FL_ARCHETYPES[_sSpec.type].label;
               sv += '<text x="' + Math.round(fxL+fW/2) + '" y="' + Math.round(fyTop+fHpx/2+2) + '" text-anchor="middle" font-family="Helvetica Neue,Arial,sans-serif" font-size="5.5" fill="' + (isTech?'#222':'#4a2810') + '" letter-spacing="' + (isTech?'0.5':'0') + '" dominant-baseline="middle">' + _lbl.toUpperCase() + '</text>';
@@ -4438,10 +4442,12 @@ function renderCrossSection() {
     if (fw < 1 || fh < 1) return;
     const _cInst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return i.id === furn.id; }) : null;
     const _cSpec = _cInst ? flInstSpec(_cInst) : null;
+    if (_cSpec && flIsEntourage(_cSpec.type) && furn.isBeyond) return;   // entourage only where cut
+    const _cBase = (_cSpec && flBaseY(_cInst) === 0) ? ((_cInst.x || 0) < 0 ? GY - CURB_H : GY) : DECK_Y;
     if (_cSpec) {
       s += flSectionArchetype(_cSpec.type, _cSpec.params, {mats:_cSpec.mats, x:_cInst.x || 0,
         rot:(typeof _cInst.userRotation === 'number' ? _cInst.userRotation : (_cInst.rotationY || 0)),
-        xToPx:_x3D, yDeck:DECK_Y, SC:SC, isBeyond:!!furn.isBeyond, tech:DS.mode() === 'technical', id:_cInst.id});
+        xToPx:_x3D, yDeck:_cBase, SC:SC, isBeyond:!!furn.isBeyond, tech:DS.mode() === 'technical', id:_cInst.id});
       if (!furn.isBeyond && fw > 18) {
         const _nm = FL_ARCHETYPES[_cSpec.type].label.toUpperCase();
         s += `<text x='${((fx0+fx1)/2).toFixed(1)}' y='${((fy_top+fy_bot)/2).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='5' fill='#444' dominant-baseline='middle'>${_nm}</text>`;
@@ -6210,7 +6216,8 @@ function planMM(e) {
       });
     }
     if (Math.abs(_fnx - _pW2/2) < ALN_TOL) { _alignGuides.push({type:'X', value:_pW2/2}); _fnx = _pW2/2; }
-    _fnx = Math.max(0.05, Math.min(_fnx, _pW2 - 0.05));
+    var _xr = flXRange((window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }) || {}).archetype);
+    _fnx = Math.max(_xr[0], Math.min(_fnx, _xr[1]));
     // Live distances
     _pvDragDistances = {left:_fnx, right:_pW2-_fnx, front:_fnz, back:_pL2-_fnz};
     const _fdi = window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; });
@@ -6311,6 +6318,8 @@ function planMM(e) {
 
 function planMU() {
   if (_pvFurnDragging || _pvFurnCornerDragging) {
+    var _muInst = (_pvFurnDragging && window.FL3D) ? window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }) : null;
+    if (_muInst && _muInst.archetype && flSnapSeat(_muInst)) { flRebuildInstMesh(_muInst); _dmSyncObject(_muInst); }
     _pvFurnDragging = null;
     _pvFurnCornerDragging = null;
     _pvActiveSnap = null;
@@ -6796,7 +6805,7 @@ while (_3d.group.children.length) {
       try {
         var newMesh = fl3DBuildInst(inst);
         if (!newMesh) return;
-        newMesh.position.set(inst.x || 0, window.FL3D.DECK_H, inst.z || 0);
+        newMesh.position.set(inst.x || 0, flBaseY(inst), inst.z || 0);
         inst.userRotation = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
         inst.rotationY = inst.userRotation;
         inst.mesh = newMesh;
@@ -7787,9 +7796,9 @@ function switchMode(mode) {
 let _flBuilt = false;
 let _flCurFilt = 'all', _flCurSearch = '';
 
-const FL_CATS = {seating:'Seating',table:'Table',combo:'Table + Bench',planter:'Planter',bin:'Waste Bin',bikerack:'Bike Rack',edge:'Edge / Safety',shelter:'Shade / Shelter',deck:'Deck / Structure',amenity:'Amenity',play:'Play / Misc',system:'Combined System'};
-const FL_SEC_ORDER = ['seating','table','combo','planter','shelter','edge','deck','bin','bikerack','amenity','play','system'];
-const FL_SEC_TITLE = {seating:'Seating',table:'Tables',combo:'Table + Bench Combos',planter:'Planters',bin:'Waste & Recycling Bins',bikerack:'Bike Racks',edge:'Edge / Safety',shelter:'Shade / Shelter',deck:'Deck / Structure',amenity:'Amenities',play:'Play / Misc',system:'Combined Parklet Systems'};
+const FL_CATS = {seating:'Seating',table:'Table',combo:'Table + Bench',planter:'Planter',bin:'Waste Bin',bikerack:'Bike Rack',edge:'Edge / Safety',shelter:'Shade / Shelter',deck:'Deck / Structure',amenity:'Amenity',play:'Play / Misc',entourage:'Entourage',system:'Combined System'};
+const FL_SEC_ORDER = ['seating','table','combo','planter','shelter','edge','deck','bin','bikerack','amenity','play','entourage','system'];
+const FL_SEC_TITLE = {seating:'Seating',table:'Tables',combo:'Table + Bench Combos',planter:'Planters',bin:'Waste & Recycling Bins',bikerack:'Bike Racks',edge:'Edge / Safety',shelter:'Shade / Shelter',deck:'Deck / Structure',amenity:'Amenities',play:'Play / Misc',entourage:'Entourage (people + vehicles)',system:'Combined Parklet Systems'};
 
 // == FURNITURE MATERIALS (data only) ====================================================
 // ONE table for all three views. color = base colour (sRGB hex); rough/metal feed the 3D
@@ -7838,6 +7847,13 @@ const FL_MATERIALS = [
   {id:'grass',           label:'Grasses',            group:'fixed',   color:'#8FA85C', rough:1,    metal:0},
   {id:'bark',            label:'Bark',               group:'fixed',   color:'#5A4636', rough:1,    metal:0},
   {id:'safety_yellow',   label:'Safety yellow',      group:'fixed',   color:'#F2C200', rough:0.5,  metal:0},
+  {id:'figure_slate',    label:'Figure, slate',      group:'figure',  color:'#6F7A86', rough:0.9,  metal:0},
+  {id:'figure_sand',     label:'Figure, sand',       group:'figure',  color:'#B8A48A', rough:0.9,  metal:0},
+  {id:'figure_sage',     label:'Figure, sage',       group:'figure',  color:'#8A9A82', rough:0.9,  metal:0},
+  {id:'figure_rust',     label:'Figure, rust',       group:'figure',  color:'#A8664A', rough:0.9,  metal:0},
+  {id:'figure_ink',      label:'Figure, ink',        group:'figure',  color:'#3C4046', rough:0.9,  metal:0},
+  {id:'tyre',            label:'Tyre',               group:'fixed',   color:'#26282A', rough:0.9,  metal:0},
+  {id:'glazing',         label:'Vehicle glazing',    group:'fixed',   color:'#8FA6B2', rough:0.2,  metal:0},
   {id:'lamp',            label:'Lamp',               group:'fixed',   color:'#FFE9B0', rough:0.3,  metal:0, emissive:0.9}
 ];
 
@@ -7977,6 +7993,48 @@ const FL_ARCHETYPES = {
                    adjust:['l','d','h','game'], parts:{frame:'metal powder mineral|concrete', top:'mineral other powder|granite'}},
   book_box:       {label:'Book box', cat:'play', params:{l:[0.5,0.4,0.7], d:[0.4,0.3,0.5], h:[1.5,1.2,1.8]},
                    adjust:['l','d','h'], parts:{body:'wood powder|thermowood', post:'metal powder wood|black_steel'}},
+  // -- Entourage: people and vehicles, schematic massing only (placed and drawn like any piece) -----
+  // ent: 'person' | 'vehicle'. labelDim: the param the library label shows. snap: where a fresh
+  // vehicle goes ('lane' = centre of the nearest travel lane, heading from its dirZ; 'bike' =
+  // nearest bike lane, else travel lane). seatSnap: seat height follows the piece underneath.
+  person_standing:{label:'Person, standing', cat:'entourage', ent:'person', labelDim:'h', params:{h:[1.75,1.0,2.1]},
+                   adjust:['h'], parts:{body:'figure|figure_slate'}},
+  person_walking: {label:'Person, walking', cat:'entourage', ent:'person', labelDim:'h', params:{h:[1.75,1.0,2.1], pose:{def:'walking', opts:['walking','standing']}},
+                   adjust:['h','pose'], parts:{body:'figure|figure_sand'}},
+  person_seated:  {label:'Person, seated', cat:'entourage', ent:'person', labelDim:'h', seatSnap:true, params:{h:[1.75,1.0,2.1], seatH:[0.45,0.3,1.2]},
+                   adjust:['h','seatH'], parts:{body:'figure|figure_sage'}},
+  person_cycling: {label:'Person, cycling', cat:'entourage', ent:'person', labelDim:'h', snap:'bike', params:{h:[1.75,1.3,2.1]},
+                   adjust:['h'], parts:{body:'figure|figure_rust', frame:'powder metal|ral_9005', tyre:'fixed|tyre'}},
+  child:          {label:'Child', cat:'entourage', ent:'person', labelDim:'h', params:{h:[1.2,0.8,1.6]},
+                   adjust:['h'], parts:{body:'figure|figure_sand'}},
+  wheelchair_user:{label:'Wheelchair user', cat:'entourage', ent:'person', labelDim:'h', params:{h:[1.75,1.0,2.1]},
+                   adjust:['h'], parts:{body:'figure|figure_slate', frame:'powder metal|ral_9005', tyre:'fixed|tyre'}},
+  person_with_stroller:{label:'Person with stroller', cat:'entourage', ent:'person', labelDim:'h', params:{h:[1.75,1.0,2.1]},
+                   adjust:['h'], parts:{body:'figure|figure_ink', frame:'powder metal|ral_7016', tyre:'fixed|tyre'}},
+  group_2:        {label:'Group of 2', cat:'entourage', ent:'person', labelDim:'h', params:{h:[1.75,1.0,2.1]},
+                   adjust:['h'], parts:{body:'figure|figure_slate', accent:'figure|figure_sand'}},
+  group_3:        {label:'Group of 3', cat:'entourage', ent:'person', labelDim:'h', params:{h:[1.75,1.0,2.1]},
+                   adjust:['h'], parts:{body:'figure|figure_slate', accent:'figure|figure_rust'}},
+  car_small:      {label:'Car, small', cat:'entourage', ent:'vehicle', snap:'lane', params:{l:[4.2,3.5,4.6], d:[1.8,1.6,1.9], h:[1.45,1.3,1.6]},
+                   adjust:['l','d','h'], parts:{body:'powder|ral_9016', glass:'fixed|glazing', tyre:'fixed|tyre'}},
+  car_suv:        {label:'SUV', cat:'entourage', ent:'vehicle', snap:'lane', params:{l:[4.8,4.3,5.2], d:[1.9,1.8,2.0], h:[1.75,1.6,1.9]},
+                   adjust:['l','d','h'], parts:{body:'powder|ral_7016', glass:'fixed|glazing', tyre:'fixed|tyre'}},
+  pickup:         {label:'Pickup truck', cat:'entourage', ent:'vehicle', snap:'lane', params:{l:[5.5,5.0,6.2], d:[2.0,1.9,2.1], h:[1.85,1.7,2.0]},
+                   adjust:['l','d','h'], parts:{body:'powder|ral_5010', glass:'fixed|glazing', tyre:'fixed|tyre'}},
+  van:            {label:'Van', cat:'entourage', ent:'vehicle', snap:'lane', params:{l:[5.2,4.6,6.5], d:[2.0,1.9,2.1], h:[2.1,1.9,2.8]},
+                   adjust:['l','d','h'], parts:{body:'powder|ral_9016', glass:'fixed|glazing', tyre:'fixed|tyre'}},
+  bus_standard:   {label:'Bus', cat:'entourage', ent:'vehicle', snap:'lane', params:{l:[12.2,10.5,12.5], d:[2.55,2.5,2.6], h:[3.2,3.0,3.5]},
+                   adjust:['l','h'], parts:{body:'powder|ral_3020', glass:'fixed|glazing', tyre:'fixed|tyre'}},
+  bus_articulated:{label:'Articulated bus', cat:'entourage', ent:'vehicle', snap:'lane', params:{l:[18,17,18.7], d:[2.55,2.5,2.6], h:[3.2,3.0,3.5]},
+                   adjust:['l','h'], parts:{body:'powder|ral_3020', glass:'fixed|glazing', tyre:'fixed|tyre'}},
+  delivery_truck: {label:'Delivery truck', cat:'entourage', ent:'vehicle', snap:'lane', params:{l:[7,6,8.5], d:[2.4,2.2,2.55], h:[3.3,2.8,3.8]},
+                   adjust:['l','d','h'], parts:{body:'powder|ral_9016', glass:'fixed|glazing', tyre:'fixed|tyre'}},
+  bike:           {label:'Bike', cat:'entourage', ent:'vehicle', snap:'bike', params:{l:[1.8,1.5,2.0], d:[0.6,0.45,0.75], h:[1.1,0.9,1.2]},
+                   adjust:['l','d','h'], parts:{frame:'powder metal|ral_5010', tyre:'fixed|tyre'}},
+  cargo_bike:     {label:'Cargo bike', cat:'entourage', ent:'vehicle', snap:'bike', params:{l:[2.5,2.2,2.8], d:[0.8,0.6,0.9], h:[1.1,0.9,1.2]},
+                   adjust:['l','d','h'], parts:{frame:'powder metal|ral_6009', body:'powder wood other|thermowood', tyre:'fixed|tyre'}},
+  scooter:        {label:'E-scooter', cat:'entourage', ent:'vehicle', snap:'bike', params:{l:[1.1,0.9,1.3], d:[0.5,0.4,0.6], h:[1.2,1.0,1.3]},
+                   adjust:['l','d','h'], parts:{frame:'powder metal|ral_2004', tyre:'fixed|tyre'}},
   // -- Combined systems -------------------------------------------------------------------------
   platform_system:{label:'Platform system', cat:'system', params:{l:[1.9,1.2,4], d:[2.4,1.5,3], deckH:[0.22,0.1,0.35], h:[1.2,0.9,1.3], bench:true},
                    adjust:['l','d','deckH','h','bench'], parts:{deck:'wood other|thermowood', rail:'metal powder|galvanized', seat:'wood other|thermowood'}, tags:{bench:['with bench','']}}
@@ -8553,6 +8611,108 @@ function _flKit() {
   return K;
 }
 
+// -- Entourage building blocks (schematic: capsules and boxes, flat tints, no faces) --------------
+// Capsule figure standing on y = 0 at (cx, cz), facing +x, total height h. pose 'standing' |
+// 'walking' (legs apart along x) | 'seated' (hips at seatH, thighs forward, shins to the ground).
+function _flFig(K, cx, cz, h, pose, role, seatH) {
+  var s = h / 1.75, hr = 0.105 * s, tr = 0.13 * s, tw = 0.2 * s, lr = 0.06 * s;
+  var shSt = h - 2 * hr - 0.04 * s, hip = pose === 'seated' ? seatH : 0.5 * h, sh = hip + shSt - 0.5 * h;
+  if (pose === 'seated') {
+    K.box(role, cx, cx + 0.44 * s, hip - 0.13 * s, hip + 0.02 * s, cz - 0.15 * s, cz + 0.15 * s);
+    K.cyl(role, cx + 0.4 * s, cz - 0.08 * s, lr, 0, hip - 0.13 * s); K.cyl(role, cx + 0.4 * s, cz + 0.08 * s, lr, 0, hip - 0.13 * s);
+  } else {
+    var st = pose === 'walking' ? 0.13 * s : 0;
+    K.cyl(role, cx + st, cz - 0.08 * s, lr, 0, hip); K.cyl(role, cx - st, cz + 0.08 * s, lr, 0, hip);
+  }
+  var t = K.cyl(role, cx, cz, tr, hip, sh); t.z0 = cz - tw; t.z1 = cz + tw;       // torso, wider across the shoulders
+  K.sph(role, cx, sh, cz, tr, 0.07 * s, tw);                                     // rounded shoulders
+  K.sph(role, cx, sh + 0.04 * s + hr, cz, hr * 0.9, hr, hr * 0.9);              // head
+}
+// Car-type vehicle, front at +x: four wheels, lower body to the belt line, a glazed cabin over
+// cab = [x0, x1] (fractions of l) with a rounded roof; bed = open load bed behind the cabin.
+function _flCar(K, p, cab, bed) {
+  var hx = p.l / 2, hz = p.d / 2, r = Math.min(0.36, p.h * 0.23), wb = hx - Math.max(0.7, p.l * 0.17), belt = p.h * 0.55;
+  [-wb, wb].forEach(function(x) { K.rod('tyre', 'z', -hz, -hz + 0.22, x, r, r); K.rod('tyre', 'z', hz - 0.22, hz, x, r, r); });
+  K.box('body', -hx, hx, r * 0.55, belt, -hz + 0.02, hz - 0.02);
+  var c0 = cab[0] * p.l, c1 = cab[1] * p.l, rf = (p.h - belt) * 0.35;
+  K.box('glass', c0, c1, belt, p.h - rf, -hz + 0.1, hz - 0.1);
+  var roof = K.rod('body', 'x', c0, c1, 0, p.h - rf, rf); roof.z0 = -hz + 0.1; roof.z1 = hz - 0.1;
+  if (bed) {
+    K.box('body', -hx, c0, belt, belt + 0.14, -hz + 0.02, -hz + 0.08); K.box('body', -hx, c0, belt, belt + 0.14, hz - 0.08, hz - 0.02);
+    K.box('body', -hx, -hx + 0.06, belt, belt + 0.14, -hz + 0.08, hz - 0.08);
+  }
+}
+// One rigid bus body from x0 to x1 (front at +x): wheels at the axles, lower panel, window band, roof.
+function _flBus(K, x0, x1, p, axles) {
+  var hz = p.d / 2, r = 0.5;
+  axles.forEach(function(x) { K.rod('tyre', 'z', -hz, -hz + 0.28, x, r, r); K.rod('tyre', 'z', hz - 0.28, hz, x, r, r); });
+  K.box('body', x0, x1, 0.3, 1.05, -hz + 0.02, hz - 0.02);
+  K.box('glass', x0, x1, 1.05, p.h - 0.35, -hz + 0.02, hz - 0.02);
+  K.box('body', x0, x1, p.h - 0.35, p.h, -hz + 0.02, hz - 0.02);
+}
+// Bicycle, front wheel at +x: two wheels, simplified frame, saddle, handlebar across width d.
+function _flBike(K, l, d, h) {
+  var hx = l / 2, r = Math.min(0.34, l * 0.19), fx = hx - r, bx = -hx + r;
+  K.rod('tyre', 'z', -0.02, 0.02, bx, r, r); K.rod('tyre', 'z', -0.02, 0.02, fx, r, r);
+  K.box('frame', bx, fx, r - 0.02, r + 0.02, -0.015, 0.015);
+  K.box('frame', bx + r * 0.6, fx - r * 0.4, h * 0.72, h * 0.76, -0.015, 0.015);
+  K.box('frame', bx + r * 0.6, bx + r * 0.6 + 0.03, r, h * 0.82, -0.015, 0.015);
+  K.box('frame', bx + r * 0.3, bx + r * 0.9 + 0.05, h * 0.82, h * 0.85, -0.07, 0.07);
+  K.box('frame', fx - 0.1, fx - 0.07, r, h - 0.02, -0.015, 0.015);
+  K.rod('frame', 'z', -d / 2, d / 2, fx - 0.085, h - 0.02, 0.02);
+}
+function flIsEntourage(type) { return !!(FL_ARCHETYPES[type] && FL_ARCHETYPES[type].cat === 'entourage'); }
+// Height of the surface a piece stands on (3D metres): furniture sits on the deck; entourage on
+// the deck when it is over it, otherwise on the road / sidewalk plane.
+function flBaseY(inst) {
+  if (!inst || !flIsEntourage(inst.archetype)) return FL3D.DECK_H;
+  var LM = DESIGN_MODEL.landmarks, P = _dmCurrent().parklet, x = inst.x || 0, z = inst.z || 0;
+  return (x >= LM.deckX0 && x <= LM.deckX1 && z >= 0 && z <= P.length) ? FL3D.DECK_H : 0;
+}
+// Fresh vehicles: centre on the nearest travel lane (bikes: bike lane first), heading from its dirZ.
+function flSnapToLane(inst) {
+  var a = FL_ARCHETYPES[inst.archetype], pick = null;
+  if (!a || !a.snap) return;
+  function near(type) {
+    _dmCurrent().crossSection.forEach(function(s) {
+      if (s.type !== type) return;
+      var c = (s.x0 + s.x1) / 2;
+      if (!pick || Math.abs(c - inst.x) < Math.abs(pick.c - inst.x)) pick = {c:c, s:s};
+    });
+  }
+  if (a.snap === 'bike') near('bike-lane');
+  if (!pick) near('travel-lane');
+  if (!pick) return;
+  inst.x = pick.c;
+  inst.userRotation = inst.rotationY = pick.s.dirZ < 0 ? Math.PI : 0;
+}
+// Seated figures take the seat height of the piece they sit on (its seatH, or h for pieces whose
+// h is the seat). Returns true when it changed.
+function flSnapSeat(inst) {
+  var a = FL_ARCHETYPES[inst.archetype], best = null;
+  if (!a || !a.seatSnap || typeof FL3D === 'undefined') return false;
+  FL3D.placed.forEach(function(o) {
+    if (o === inst || o.id === inst.id || !o.archetype || flIsEntourage(o.archetype)) return;
+    var sp = flInstSpec(o);
+    if (!sp) return;
+    var seat = sp.params.seatH != null ? sp.params.seatH : (FL_SEAT_H.indexOf(sp.type) >= 0 ? sp.params.h : null);
+    if (seat == null) return;
+    var th = o.userRotation || 0, dx = inst.x - o.x, dz = inst.z - o.z, d = flInstDims(o);
+    var lc = dx * Math.sin(th) + dz * Math.cos(th), dc = dx * Math.cos(th) - dz * Math.sin(th);   // inverse of getFurnitureCorners
+    if (Math.abs(lc) <= d.l / 2 && Math.abs(dc) <= d.d / 2) best = seat;
+  });
+  if (best == null || Math.abs(best - inst.params.seatH) < 0.001) return false;
+  inst.params = flResolveParams(inst.archetype, Object.assign({}, inst.params, {seatH:best}));
+  return true;
+}
+// Where a piece may be dragged across the street: furniture stays on the deck, entourage may go
+// anywhere from the sidewalk to the far side of the roadway.
+function flXRange(archetype) {
+  var LM = DESIGN_MODEL.landmarks;
+  if (flIsEntourage(archetype)) return [LM.sidewalkL.x0 + 0.05, LM.roadRight - 0.05];
+  return [0.05, _dmCurrent().parklet.width - 0.05];
+}
+
 // One geometry function per archetype. Honest massing only: boxes, cylinders, slats.
 var FL_GEOM = {
   // -- Seating --------------------------------------------------------------------------------
@@ -8916,6 +9076,78 @@ var FL_GEOM = {
     K.cyl('post', 0, 0, 0.04, 0, yb); K.box('body', -hx, hx, yb, p.h - 0.06, -hz, hz);
     K.wedge('body', -hx, 0, p.h - 0.06, p.h, -hz, hz, '+x'); K.wedge('body', 0, hx, p.h - 0.06, p.h, -hz, hz, '-x');
   },
+  // -- Entourage ----------------------------------------------------------------------------------
+  person_standing: function(p, K) { _flFig(K, 0, 0, p.h, 'standing', 'body'); },
+  person_walking: function(p, K) { _flFig(K, 0, 0, p.h, p.pose, 'body'); },
+  person_seated: function(p, K) { _flFig(K, 0, 0, p.h, 'seated', 'body', p.seatH); K.recentre(); },
+  person_cycling: function(p, K) {
+    _flBike(K, 1.75, 0.55, 1.05);
+    _flFig(K, -0.2, 0, p.h, 'seated', 'body', 0.9 * p.h / 1.75);
+    K.recentre();
+  },
+  child: function(p, K) { _flFig(K, 0, 0, p.h, 'standing', 'body'); },
+  wheelchair_user: function(p, K) {
+    [-1, 1].forEach(function(k) {
+      K.rod('tyre', 'z', k < 0 ? -0.34 : 0.31, k < 0 ? -0.31 : 0.34, -0.1, 0.3, 0.3);    // push wheels
+      K.rod('tyre', 'z', k < 0 ? -0.25 : 0.22, k < 0 ? -0.22 : 0.25, 0.35, 0.08, 0.08);  // casters
+    });
+    K.box('frame', -0.2, 0.25, 0.44, 0.48, -0.25, 0.25);
+    K.box('frame', -0.26, -0.22, 0.48, 0.92, -0.25, 0.25);
+    K.box('frame', 0.36, 0.52, 0.1, 0.13, -0.18, 0.18);
+    _flFig(K, -0.12, 0, p.h, 'seated', 'body', 0.5);
+    K.recentre();
+  },
+  person_with_stroller: function(p, K) {
+    _flFig(K, -0.4, 0, p.h, 'walking', 'body');
+    K.box('frame', 0.15, 0.75, 0.3, 0.72, -0.22, 0.22);
+    K.box('frame', 0.02, 0.06, 0.3, 0.95, -0.2, -0.17); K.box('frame', 0.02, 0.06, 0.3, 0.95, 0.17, 0.2);
+    K.rod('frame', 'z', -0.2, 0.2, 0.04, 0.95, 0.015);
+    [0.2, 0.7].forEach(function(x) { K.rod('tyre', 'z', -0.24, -0.2, x, 0.1, 0.1); K.rod('tyre', 'z', 0.2, 0.24, x, 0.1, 0.1); });
+    K.recentre();
+  },
+  group_2: function(p, K) { _flFig(K, 0, -0.3, p.h, 'standing', 'body'); _flFig(K, 0.05, 0.3, p.h * 0.94, 'standing', 'accent'); K.recentre(); },
+  group_3: function(p, K) {
+    _flFig(K, 0, -0.55, p.h, 'standing', 'body'); _flFig(K, 0.1, 0, p.h * 0.93, 'walking', 'accent'); _flFig(K, -0.05, 0.55, p.h * 0.97, 'standing', 'body');
+    K.recentre();
+  },
+  car_small: function(p, K) { _flCar(K, p, [-0.3, 0.2]); },
+  car_suv: function(p, K) { _flCar(K, p, [-0.42, 0.2]); },
+  pickup: function(p, K) { _flCar(K, p, [-0.05, 0.25], true); },
+  van: function(p, K) { _flCar(K, p, [-0.47, 0.3]); },
+  bus_standard: function(p, K) { var hx = p.l / 2; _flBus(K, -hx, hx, p, [-hx + 2.6, hx - 2.4]); },
+  bus_articulated: function(p, K) {
+    var hx = p.l / 2, j0 = hx - 11.9, j1 = hx - 11;
+    _flBus(K, j1, hx, p, [hx - 2.4, j1 + 1.6]);
+    K.box('tyre', j0, j1, 0.4, p.h - 0.15, -p.d / 2 + 0.2, p.d / 2 - 0.2);                   // bellows
+    _flBus(K, -hx, j0, p, [-hx + 2.0]);
+  },
+  delivery_truck: function(p, K) {
+    var hx = p.l / 2, hz = p.d / 2, r = 0.45, c = hx - 1.9;
+    [c + 0.9, -hx + 1.3].forEach(function(x) { K.rod('tyre', 'z', -hz, -hz + 0.28, x, r, r); K.rod('tyre', 'z', hz - 0.28, hz, x, r, r); });
+    K.box('body', c, hx, 0.45, 1.3, -hz + 0.1, hz - 0.1);
+    K.box('glass', c + 0.05, hx, 1.3, 2.3, -hz + 0.1, hz - 0.1);
+    K.box('body', c, hx - 0.1, 2.3, 2.6, -hz + 0.1, hz - 0.1);
+    K.box('body', -hx, c - 0.1, 0.9, p.h, -hz + 0.02, hz - 0.02);
+    K.box('body', -hx + 0.3, c + 0.2, 0.55, 0.9, -0.4, 0.4);
+  },
+  bike: function(p, K) { _flBike(K, p.l, p.d, p.h); },
+  cargo_bike: function(p, K) {
+    var hx = p.l / 2, r = 0.3, rw = 0.25, st = hx - 2 * rw - 0.83;
+    K.rod('tyre', 'z', -0.02, 0.02, -hx + r, r, r); K.rod('tyre', 'z', -0.02, 0.02, hx - rw, rw, rw);
+    K.box('frame', -hx + r, hx - rw, 0.22, 0.28, -0.02, 0.02);
+    K.box('body', st + 0.05, hx - 2 * rw - 0.02, 0.3, 0.75, -p.d / 2 + 0.1, p.d / 2 - 0.1);
+    K.box('frame', -hx + r + 0.15, -hx + r + 0.18, 0.28, p.h * 0.85, -0.015, 0.015);
+    K.box('frame', -hx + r + 0.05, -hx + r + 0.3, p.h * 0.85, p.h * 0.88, -0.07, 0.07);
+    K.box('frame', st, st + 0.03, 0.28, p.h - 0.02, -0.015, 0.015);
+    K.rod('frame', 'z', -p.d / 2, p.d / 2, st + 0.015, p.h - 0.02, 0.02);
+  },
+  scooter: function(p, K) {
+    var hx = p.l / 2, r = 0.1;
+    K.rod('tyre', 'z', -0.03, 0.03, -hx + r, r, r); K.rod('tyre', 'z', -0.03, 0.03, hx - r, r, r);
+    K.box('frame', -hx + r, hx - r - 0.05, 0.08, 0.13, -0.08, 0.08);
+    K.box('frame', hx - r - 0.03, hx - r, 0.13, p.h - 0.02, -0.02, 0.02);
+    K.rod('frame', 'z', -p.d / 2, p.d / 2, hx - r - 0.015, p.h - 0.02, 0.02);
+  },
   // -- Combined systems ------------------------------------------------------------------------------
   platform_system: function(p, K) {
     var hx = p.l/2, hz = p.d/2, dh = p.deckH, r = 0.04;
@@ -9021,7 +9253,7 @@ function flArchLabel(type, params) {
   if (!a) return type;
   var p = flResolveParams(type, params), e = flEnvelope(flParts(type, p));
   var round = p.shape === 'round' || (a.params.l && !a.params.d && type !== 'ramp');
-  var s = a.label + ' ' + (round ? '⌀' : '') + _flFmtM(e.l) + ' m';
+  var s = a.label + ' ' + (round ? '⌀' : '') + _flFmtM(a.labelDim ? p[a.labelDim] : e.l) + ' m';
   if (a.tags) Object.keys(a.tags).forEach(function(k) { var t = a.tags[k][p[k] ? 0 : 1]; if (t) s += ', ' + t; });
   return s;
 }
@@ -9168,11 +9400,12 @@ function _flPartMesh(q, mat) {
 }
 // type + params (+ materials by role) -> THREE.Group, length along local +X, base at y = 0.
 function fl3DArchetype(type, params, mats) {
-  var inst = {archetype:type, materials:mats || {}}, parts = flParts(type, params), e = flEnvelope(parts), g = new THREE.Group();
+  var inst = {archetype:type, materials:mats || {}}, parts = flParts(type, params), e = flEnvelope(parts), g = new THREE.Group(), ent = flIsEntourage(type);
   parts.forEach(function(q) {
     var m = _flPartMesh(q, flMat(q.role, inst));
     m.userData.flRole = q.role;
     if (q.veg) m.userData.flVeg = true;
+    if (ent) m.receiveShadow = false;   // large flat vehicle panels show shadow acne; entourage still casts
     g.add(m);
   });
   g.userData = {fl3d:true, archetype:type, label:flArchLabel(type, params), l:e.l, d:e.d, h:e.h, w:e.l};
@@ -9436,20 +9669,24 @@ function fl3DHandleClick(e) {
 // meshUrl} from a save or a duplicate; otherwise the key's defaults are copied onto the instance.
 function fl3DPlaceAt(objId, wx, wz, over) {
   if (!_3d || !_3d.group) return;
-  var _newInst = {id: null, objId: objId, mesh: null, x: wx, z: wz, rotationY: 0, userRotation: 0};
-  if (!flInitInstSpec(_newInst, over) && !FL3D_FACTORY[objId]) return;
-  const mesh = fl3DBuildInst(_newInst);
-  if (!mesh) return;
   if (typeof snapToGrid === 'function' && typeof _snapEnabled !== 'undefined' && _snapEnabled) {
     wx = snapToGrid(wx, _gridSpacing);
     wz = snapToGrid(wz, _gridSpacing);
   }
-  // Place at deck surface; group-to-world is identity if group is at origin
-  mesh.position.set(wx, FL3D.DECK_H, wz);
+  var _newInst = {id: null, objId: objId, mesh: null, x: wx, z: wz, rotationY: 0, userRotation: 0};
+  if (!flInitInstSpec(_newInst, over) && !FL3D_FACTORY[objId]) return;
+  // A fresh entourage piece is positioned through the model: vehicles onto the nearest lane
+  // centre with that lane's heading, a seated person onto the seat of the piece underneath.
+  // Restored or duplicated pieces (over) keep what they were given.
+  if (!over && _newInst.archetype) { flSnapToLane(_newInst); flSnapSeat(_newInst); }
+  const mesh = fl3DBuildInst(_newInst);
+  if (!mesh) return;
+  // Stand on the surface under it: the deck for furniture; deck or road for entourage.
+  mesh.position.set(_newInst.x, flBaseY(_newInst), _newInst.z);
   _3d.group.add(mesh);
   const id = ++_fl3DInstId;
   mesh.userData.fl3dInstId = id;
-  _newInst.id = id; _newInst.mesh = mesh; _newInst.x = wx; _newInst.z = wz;
+  _newInst.id = id; _newInst.mesh = mesh;
   applyFurnitureTransform(_newInst);
   FL3D.placed.push(_newInst);
   _dmSyncObject(_newInst);
@@ -9629,7 +9866,8 @@ function _pvPlanClick(e) {
   var fx = _snp ? _snp.wx : snapToGrid(wc.x, _gridSpacing);
   var fz = _snp ? _snp.wz : snapToGrid(wc.z, _gridSpacing);
   if (fz < -2 || fz > (_dmCurrent().parklet.length + 2)) return;
-  fl3DPlaceAt(FL3D.placing, Math.max(0.05, Math.min(fx, (_dmCurrent().parklet.width - 0.05))), fz);
+  var _pxr = flXRange((flSpecFromKey(FL3D.placing) || {}).type);
+  fl3DPlaceAt(FL3D.placing, Math.max(_pxr[0], Math.min(fx, _pxr[1])), fz);
   _pvActiveSnap = null;
   _planMode = 'select';
   var plBtn = document.getElementById('pvFurnPlaceBtn');
@@ -9638,7 +9876,7 @@ function _pvPlanClick(e) {
 
 // ── TRAY UI ───────────────────────────────────────────────────────────────
 // 3D tray: one button per generic archetype, in library order (presets live in the library panels).
-const FL3D_TRAY_ICO = {seating:'▬', table:'▭', planter:'▢', shelter:'⌂', edge:'●', deck:'▤', bin:'▮', bikerack:'⊓', amenity:'◦', play:'◆', system:'▩'};
+const FL3D_TRAY_ICO = {seating:'▬', table:'▭', planter:'▢', shelter:'⌂', edge:'●', deck:'▤', bin:'▮', bikerack:'⊓', amenity:'◦', play:'◆', entourage:'☺', system:'▩'};
 const FL3D_TRAY_ITEMS = flLibraryItems({}).map(function(it) {
   return {objId:it.key, ico:FL3D_TRAY_ICO[it.cat] || '▪', lbl:FL_ARCHETYPES[it.archetype].label};
 });
@@ -11261,6 +11499,7 @@ function moveFurnitureWorld(inst, dx, dy, dz) {
     if (typeof dx === 'number') inst.mesh.position.x = inst.x;
     if (typeof dz === 'number') inst.mesh.position.z = inst.z;
   }
+  if (inst.archetype && typeof flSnapSeat === 'function' && flSnapSeat(inst)) flRebuildInstMesh(inst);
   if (typeof _dmSyncObject === 'function') _dmSyncObject(inst);
   if (typeof WM !== 'undefined') WM.updateAll();
   else {
