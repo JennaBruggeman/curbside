@@ -130,6 +130,9 @@ $html = $html.Replace($old, $new)
 - No offline save queue (last cloud save is restored on reload)
 - Single-tab only (no conflict detection if same design open in two tabs)
 
+## Known dead code
+- `#csToolbar` + `#crossSection` static SVG - superseded by the section editor, hidden, candidate for deletion.
+
 ## Style system
 - Dark charcoal sidebar, `#c03030` red accent (`var(--acc)`)
 - Font: DM Sans
