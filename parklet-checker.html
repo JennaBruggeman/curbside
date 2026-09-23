@@ -452,15 +452,8 @@
         </div>
         <div id='lhsFwBody' style='display:none;margin-top:6px;'>
           <input type='search' id='lhsFwSearch' placeholder='Search furniture...' oninput='lhsFwSearchFn(this.value)' style='width:100%;font-size:10px;padding:3px 7px;margin-bottom:5px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--ink);box-sizing:border-box;outline:none;'>
-          <div id='lhsFwCats' style='display:flex;flex-wrap:wrap;gap:2px;margin-bottom:5px;'>
-            <button class='fpop-cat active' data-f='all' onclick='lhsFwFilter(this,"all")'>All</button>
-            <button class='fpop-cat' data-f='seating' onclick='lhsFwFilter(this,"seating")'>Seating</button>
-            <button class='fpop-cat' data-f='table' onclick='lhsFwFilter(this,"table")'>Tables</button>
-            <button class='fpop-cat' data-f='combo' onclick='lhsFwFilter(this,"combo")'>Combo</button>
-            <button class='fpop-cat' data-f='planter' onclick='lhsFwFilter(this,"planter")'>Planters</button>
-            <button class='fpop-cat' data-f='bin' onclick='lhsFwFilter(this,"bin")'>Bins</button>
-            <button class='fpop-cat' data-f='bikerack' onclick='lhsFwFilter(this,"bikerack")'>Bike Racks</button>
-          </div>
+          <label style='display:flex;align-items:center;gap:5px;font-size:9.5px;color:var(--muted);margin-bottom:5px;cursor:pointer;user-select:none;'><input type='checkbox' id='lhsFwPresets' onchange='flSetShowPresets(this.checked)' style='margin:0;'> Manufacturer presets</label>
+          <div id='lhsFwCats' style='display:flex;flex-wrap:wrap;gap:2px;margin-bottom:5px;'></div>
           <div id='lhsFwGrid' style='display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-height:360px;overflow-y:auto;'></div>
           <div id='lhsFwPlacingInd' style='display:none;padding:3px 8px;background:rgba(6,150,215,.12);border:1px solid rgba(6,150,215,.3);border-radius:3px;font-size:9px;color:var(--acc);margin-top:5px;'></div>
           <button class='ctx-btn ctx-btn-full' style='margin-top:6px;font-size:9px;' onclick='appSetMode("furniture")'>&#8594; Full Furniture Library</button>
@@ -645,7 +638,9 @@
 </div>
 <div id='libraryCanvas' style='display:none;flex-direction:column;flex:1;overflow:hidden'><div class='fl-topbar-new' id='flTopbar'>
   <span style='font-size:11px;font-weight:600;color:var(--ink)'>Furniture Library</span>
-  <span style='font-size:10px;color:var(--muted);margin-left:4px'>Vestre 2024/25 &middot; mmcit&eacute; Kup&eacute;</span>
+  <span style='font-size:10px;color:var(--muted);margin-left:4px'>Generic archetypes &middot; presets: Vestre 2024/25, mmcit&eacute; Kup&eacute;</span>
+  <input type='search' id='flSrch' placeholder='Search furniture...' oninput='flBuildVisualLibrary()' style='margin-left:12px;width:170px;font-size:10px;padding:3px 7px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--ink);outline:none;'>
+  <label style='display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);margin-left:10px;cursor:pointer;user-select:none;white-space:nowrap;'><input type='checkbox' id='flPresetsToggle' onchange='flSetShowPresets(this.checked)' style='margin:0;'> Manufacturer presets</label>
   <div id='flCatBar' style='display:flex;gap:0;overflow-x:auto;margin-left:12px;flex:1'></div>
 </div>
 <div id='flLeg' style='background:#fff;border-bottom:1px solid var(--rule);padding:4px 18px;display:flex;gap:12px;flex-wrap:wrap;flex-shrink:0'>
@@ -8145,67 +8140,79 @@ function flValidateArchetypes() {
 flValidateArchetypes();
 
 const FL_OBJ = [
-{id:'VS-APR-CH01',name:'April Chair',family:'April',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.173 area',desc:'Single outdoor chair with galvanized steel frame and FSC pine seat.',dims:[{l:'Width',v:'~786 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'},{l:'Bar chair seat H',v:'~700 mm',lv:'SF',n:'bar stool variant'}],mats:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Seat / back',v:'FSC pine, linseed oil treated',lv:'SF'}],install:'Anchored — suffix A/B/C/D in article number [SF]',weight:null,access:'Seat H 450 mm standard [SF].',param:'fixed',modNote:null,relIds:['VS-APR-BN01','VS-APR-TL01'],notes:[]},
-{id:'VS-APR-BN01',name:'April Bench',family:'April',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.173 area',desc:'Two-person bench matching April Chair.',dims:[{l:'Width',v:'~1514 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'},{l:'Seats',v:'2',lv:'CALC',n:'1514 / ~757 per seat'}],mats:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Slats',v:'FSC pine, linseed oil treated',lv:'SF'}],install:'Anchored — suffix A/B/C/D [SF]',weight:null,access:'Seat H 450 mm [SF].',param:'fixed',modNote:null,relIds:['VS-APR-CH01','VS-APR-TL01'],notes:[]},
-{id:'VS-AGO-CH01',name:'April GO Lounge Chair',family:'April GO',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Folding / rearrangeable lounge chair. GO series implies portability.',dims:[{l:'Width',v:'715 mm',lv:'SF'},{l:'Depth',v:'627 mm',lv:'SF'},{l:'Height (adj.)',v:'402–550 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Seat',v:'Wood slats — species not specified',lv:'DI'}],install:'Freestanding / movable — GO series [DI]',weight:null,access:'Adjustable H 402–550 mm [SF].',param:'fixed',modNote:null,relIds:['VS-AGO-TL01','VS-AGO-PL01'],notes:['GO suffix denotes rearrangeable / folding furniture for flexible parklet programming [DI].']},
-{id:'VS-ATL-BN01',name:'Atlas Bench',family:'Atlas',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.179 area',desc:'Modular outdoor bench system. Start, middle, end modules.',dims:[{l:'2-seat width',v:'1806 mm',lv:'SF'},{l:'3-seat width',v:'2409 mm',lv:'SF'},{l:'Width per added seat',v:'~603 mm',lv:'CALC',n:'2409-1806'},{l:'Seat height',v:'~450 mm',lv:'SF'}],mats:[{l:'Frame',v:'Galv steel + powder coat [DI]',lv:'DI'},{l:'Slats',v:'Wood — not specified',lv:'DI'}],install:'Anchored; modular bolt-down [DI]',weight:null,access:'Seat H ~450 mm [SF].',param:'modular',modNote:'Start / middle / end modules; 2-seat and 3-seat confirmed.',relIds:[],notes:[]},
-{id:'VS-AIR-BN01',name:'Air Bench',family:'Air',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Contemporary outdoor bench. Height range may reflect backrest.',dims:[{l:'Width',v:'1390 mm',lv:'SF'},{l:'Depth',v:'393–464 mm',lv:'SF'},{l:'Height',v:'754–797 mm',lv:'SF',n:'to top of backrest'}],mats:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'},{l:'Slats',v:'Wood — not extracted',lv:'DI'}],install:'Anchored or freestanding [DI]',weight:null,access:'Seat height not stated [—].',param:'fixed',modNote:null,relIds:['VS-AIR-TL01'],notes:[]},
-{id:'VS-BLC-ST01',name:'Bloc Seat',family:'Bloc',brand:'Vestre',cat:'seating',art:'1516-900 (single); 1517-900 (armrests); modules: 1553–1559',src:'Vestre Catalogue 2024/25, Art. 1516-900',desc:'Robust single seat / modular bench. Start / add-on / end modules compose runs.',dims:[{l:'Width (single)',v:'~670 mm',lv:'SF'},{l:'Height',v:'~790 mm',lv:'SF'},{l:'Depth',v:'~460 mm',lv:'SF'},{l:'With armrests',v:'~+180 mm width',lv:'SF'},{l:'Add-on module W',v:'~1740 mm',lv:'SF',n:'Art. 1554'}],mats:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Anchored [SF]',weight:'87 kg (Art. 1516-900) [SF]',access:'Armrest option (Art. 1517) aids accessibility [SF].',param:'modular',modNote:'Single (1516), start (1553), add-on (1554, W~1740mm), end (1555). Armrest variants 1556–1559.',relIds:['VS-BLC-BB01','VS-BLC-SB01','VS-BLC-TL01'],notes:[]},
-{id:'VS-BLC-BB01',name:'Bloc Seat Double Back-to-Back',family:'Bloc',brand:'Vestre',cat:'seating',art:'1532-900; 1534-900 (armrests)',src:'Vestre Catalogue 2024/25, Art. 1532-900',desc:'Back-to-back double seating. Both sides accessible. Center-parklet placement.',dims:[{l:'Width (double)',v:'~1382 mm',lv:'SF'},{l:'Add-on W',v:'~300 mm',lv:'SF',n:'Art. 1572-900'}],mats:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'200 kg [SF]',access:'Armrest variant Art. 1534-900 [SF].',param:'modular',modNote:'Add-on (Art. 1572, ~300mm) extends the back-to-back run.',relIds:['VS-BLC-ST01'],notes:['200 kg: significant for elevated platform structural check [DI].']},
-{id:'VS-BLC-SB01',name:'Bloc Sun Bench',family:'Bloc',brand:'Vestre',cat:'seating',art:'1566-900; modules: 1567/1568/1569',src:'Vestre Catalogue 2024/25, Art. 1566-900',desc:'Reclining sun bench / lounger with adjustable backrest angle.',dims:[{l:'Width',v:'~868 mm',lv:'SF'},{l:'Height range',v:'~389–1356 mm',lv:'SF',n:'reclined to upright'}],mats:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'134 kg [SF]',access:'Reclining may not suit all mobility levels [DI].',param:'modular',modNote:'Start (1567, 139kg), add-on (1568, 97kg), end (1569). Back connection Art. 1560-900 for back-to-back runs.',relIds:['VS-BLC-ST01'],notes:[]},
-{id:'VS-DLG-BN01',name:'Dialog Bench',family:'Dialog',brand:'Vestre',cat:'seating',art:'1406-932 (Kebony); 1406-942 (oak)',src:'Vestre Catalogue 2024/25, pp.230–231',desc:'Minimalist bench in Kebony or oiled oak.',dims:[{l:'Width',v:'~1840 mm',lv:'SF'},{l:'Seat height',v:'~400–450 mm',lv:'SF'}],mats:[{l:'Slats',v:'Kebony (Art. -932) or oiled oak (Art. -942)',lv:'SF'},{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored [DI]; 31 kg may allow gravity freestanding [DI]',weight:'31 kg [SF]',access:'Seat H ~400 mm may be below accessible range [DI].',param:'fixed',modNote:null,relIds:['VS-DLG-WB01'],notes:[]},
-{id:'VS-EDO-BN01',name:'Edo Bench with Marble Table',family:'Edo',brand:'Vestre',cat:'seating',art:'4308-930/940/950',src:'Vestre Catalogue 2024/25, p.231',desc:'Bench with integrated marble side table. By Anderssen & Voll.',dims:[{l:'Width',v:'~1800 mm',lv:'SF'},{l:'Depth',v:'~315 mm',lv:'SF'},{l:'Total height',v:'~447–634 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'}],mats:[{l:'Slats',v:'Kebony, oiled oak, or oiled ash',lv:'SF'},{l:'Table surface',v:'Marble (integrated)',lv:'SF'},{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'30 kg (Kebony) [SF]',access:'Seat H ~450 mm [SF].',param:'fixed',modNote:null,relIds:[],notes:['Designer: Anderssen &amp; Voll [SF].']},
-{id:'VS-FLK-BN01',name:'Folk Bench',family:'Folk',brand:'Vestre',cat:'seating',art:'4904-904A',src:'Vestre Catalogue 2024/25, pp.232–234',desc:'Aluminum bench / terraced element by Front. Stepped height profile.',dims:[{l:'Width / depth',v:'~672 mm',lv:'SF',n:'may be depth; see note'},{l:'Height range',v:'~222–450 mm',lv:'SF',n:'stepped profile'},{l:'Folk seat W',v:'~807 mm',lv:'SF',n:'Art. 4914'}],mats:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'22 kg (bench); 29 kg (seat) [SF]',access:'Low H 222 mm below standard; may serve as step [DI].',param:'fixed',modNote:null,relIds:['VS-FLK-TL01'],notes:['W 672 mm is likely depth of terraced element [DI]. Designer: Front [SF].']},
-{id:'VS-FRM-BN01',name:'Forum Bench',family:'Forum',brand:'Vestre',cat:'seating',art:'2502-900 (1m); 2503-900 (2m); 2504-900 (3m)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Freestanding bench in 1m, 2m, 3m. Backrest accessory for 1m and 2m.',dims:[{l:'1m',v:'~1015 mm',lv:'SF'},{l:'2m',v:'~2000 mm',lv:'SF'},{l:'3m',v:'~2990 mm',lv:'SF'},{l:'Seat height',v:'~450–490 mm',lv:'SF'},{l:'Backrest H',v:'~434–440 mm',lv:'SF',n:'Art. 2522'}],mats:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Freestanding — suffix -900 [SF]; anchored variants available',weight:'55 kg (1m) / 77 kg (2m) / 101 kg (3m) [SF]',access:'Seat H ~450–490 mm [SF].',param:'parametric',modNote:'1m / 2m / 3m. Backrest Art. 2522 for 1m and 2m.',relIds:['VS-FRM-TL01','VS-FRM-WB01'],notes:[]},
-{id:'VS-HVL-BN01',name:'Hvilan Bench',family:'Hvilan',brand:'Vestre',cat:'seating',art:'106-900',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Classic outdoor bench, generous depth. Seat variant Art. 116 has taller back.',dims:[{l:'Width',v:'~2000 mm',lv:'SF'},{l:'Height',v:'~470 mm',lv:'SF'},{l:'Depth',v:'~635 mm',lv:'SF'},{l:'Seat variant H',v:'~714 mm',lv:'SF',n:'Art. 116-900'}],mats:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:'43 kg (106) / 59 kg (116) [SF]',access:'H ~470 mm within accessible range [SF].',param:'fixed',modNote:null,relIds:['VS-HVL-TL01','VS-HVL-PT01'],notes:[]},
-{id:'VS-APR-TL01',name:'April Wheelchair Table',family:'April',brand:'Vestre',cat:'table',art:'not extracted',src:'Vestre Catalogue 2024/25, p.173 area',desc:'Wheelchair-accessible table with open-sided cutout.',dims:[{l:'Width',v:'~1800 mm',lv:'SF'},{l:'Depth',v:'~695 mm',lv:'SF'},{l:'Table height',v:'~750 mm',lv:'DI',n:'standard; not stated in source'}],mats:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:null,access:'Wheelchair-adapted cutout [SF].',param:'fixed',modNote:null,relIds:['VS-APR-CH01'],notes:[]},
-{id:'VS-AGO-TL01',name:'April GO Folding Table',family:'April GO',brand:'Vestre',cat:'table',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Portable folding table, GO series. Rectangular and round variants.',dims:[{l:'Rect. width',v:'~695 mm',lv:'SF'},{l:'Rect. depth',v:'~650 mm',lv:'SF'},{l:'Round diameter',v:'~860 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Top',v:'Not specified',lv:'—'}],install:'Freestanding / movable [DI]',weight:null,access:'Not stated.',param:'fixed',modNote:'Rectangular (695×650) and round (⌀860mm).',relIds:['VS-AGO-CH01'],notes:[]},
-{id:'VS-AIR-TL01',name:'Air Table',family:'Air',brand:'Vestre',cat:'table',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Outdoor table matching Air Bench.',dims:[{l:'Width',v:'~1640 mm',lv:'SF'},{l:'Depth',v:'~652 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored or freestanding [DI]',weight:null,access:'Not stated.',param:'fixed',modNote:null,relIds:['VS-AIR-BN01'],notes:[]},
-{id:'VS-BLC-TL01',name:'Bloc Table',family:'Bloc',brand:'Vestre',cat:'table',art:'1530-900; 1536-900 (tall); modules: 1537–1539',src:'Vestre Catalogue 2024/25, Art. 1530-900',desc:'Standard and tall/standing-height table in Bloc family. Modular.',dims:[{l:'Standard W',v:'~775 mm',lv:'SF'},{l:'Standard weight',v:'60 kg',lv:'SF'},{l:'Tall variant W',v:'~740 mm',lv:'SF'},{l:'Tall total H',v:'~1740 mm',lv:'SF',n:'Art. 1536'},{l:'Tall weight',v:'102 kg',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'60–102 kg [SF]',access:'Not stated.',param:'modular',modNote:'Standard (1530) and tall (1536); each has start/add-on/end modules.',relIds:['VS-BLC-ST01'],notes:[]},
-{id:'VS-FLK-TL01',name:'Folk Table',family:'Folk',brand:'Vestre',cat:'table',art:'4933-904A',src:'Vestre Catalogue 2024/25, pp.232–234',desc:'Aluminum table, Forum family.',dims:[{l:'Width',v:'~1850 mm',lv:'SF'}],mats:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'38 kg [SF]',access:'Not stated.',param:'fixed',modNote:null,relIds:['VS-FLK-BN01'],notes:[]},
-{id:'VS-FRM-TL01',name:'Forum Table',family:'Forum',brand:'Vestre',cat:'table',art:'2532-900 (1m); 2533-900 (2m); 2534-900 (3m)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Freestanding table in 1m, 2m, 3m. Matches Forum Bench dimensions.',dims:[{l:'1m',v:'~1015 mm',lv:'SF'},{l:'2m',v:'~2000 mm',lv:'SF'},{l:'3m',v:'~2990 mm',lv:'SF'},{l:'Narrow W500',v:'~750 mm',lv:'SF',n:'Art. 2536, 145kg'}],mats:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'}],install:'Freestanding [SF]',weight:'32–145 kg [SF]',access:'Not stated.',param:'parametric',modNote:'1m / 2m / 3m. W500 narrow variant (750mm).',relIds:['VS-FRM-BN01'],notes:[]},
-{id:'VS-HVL-TL01',name:'Hvilan Table',family:'Hvilan',brand:'Vestre',cat:'table',art:'133-900',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Classic outdoor table to pair with Hvilan bench.',dims:[{l:'Width',v:'~720 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Top',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:'59 kg [SF]',access:'Not stated.',param:'fixed',modNote:null,relIds:['VS-HVL-BN01','VS-HVL-PT01'],notes:[]},
-{id:'VS-HVL-PT01',name:'Hvilan Picnic Table',family:'Hvilan',brand:'Vestre',cat:'table',art:'122-900; 122-900HC (wheelchair)',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Picnic table with integrated benches. HC wheelchair variant available.',dims:[{l:'Width',v:'~1718 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Top/benches',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:'88 kg (standard); 93 kg (HC) [SF]',access:'HC wheelchair-adapted Art. 122-900HC [SF].',param:'fixed',modNote:'Standard and HC variants.',relIds:['VS-HVL-BN01'],notes:[]},
-{id:'VS-BUZ-TB01',name:'Buzz Combined Table+Bench',family:'Buzz',brand:'Vestre',cat:'combo',art:'3316-900 (HPL); 3317-900 (steel+wood); 3316-900HC',src:'Vestre Catalogue 2024/25, p.218',desc:'Circular combined table-and-bench. MUST be bolted to ground.',dims:[{l:'Diameter',v:'~938 mm',lv:'SF'},{l:'Seat height',v:'~460 mm',lv:'SF'},{l:'Table height',v:'~740 mm',lv:'SF'}],mats:[{l:'Top',v:'HPL (3316) or steel+wood (3317)',lv:'SF'},{l:'Frame',v:'Galv steel + powder coat [DI]',lv:'DI'}],install:'Must be bolted to ground [SF]',weight:'59–80 kg [SF]',access:'HC wheelchair variant Art. 3316-900HC [SF].',param:'fixed',modNote:'HPL or steel+wood top; HC variant.',relIds:[],notes:['Circular footprint suits small parklet bays. HPL top graphic printing available [SF].']},
-{id:'VS-BRG-PT01',name:'Berg Picnic Table',family:'Berg',brand:'Vestre',cat:'combo',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Traditional picnic table with integrated benches.',dims:[{l:'Width',v:'~2100 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'},{l:'Top/benches',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:null,access:'Wheelchair-adapted variant available [SF].',param:'fixed',modNote:'Standard and wheelchair-adapted variants.',relIds:['VS-BRG-BR01'],notes:[]},
-{id:'VS-CDT-TB01',name:'Code Tilt Table+Bench',family:'Code Tilt',brand:'Vestre',cat:'combo',art:'2622-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Angled bench-and-table combined. Four tilt orientations.',dims:[{l:'Width',v:'~1040 mm',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat [SF]',lv:'SF'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'110 kg [SF]',access:'Not stated.',param:'fixed',modNote:'4 tilt orientations: Art. 2606–2609.',relIds:[],notes:['Bridge module Art. 2637-900 (W~600mm, H~1507mm) connects units [SF].']},
-{id:'VS-AGO-PL01',name:'April GO Planter',family:'April GO',brand:'Vestre',cat:'planter',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Freestanding / portable planter, GO series. Multiple heights.',dims:[{l:'Height range',v:'570–900 mm',lv:'SF'},{l:'Width',v:'not extracted',lv:'—'}],mats:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Freestanding / movable [DI]',weight:null,access:'n/a',param:'parametric',modNote:'Multiple height variants.',relIds:['VS-AGO-CH01'],notes:[]},
-{id:'VS-BLC-PL01',name:'Bloc Planter 45L',family:'Bloc',brand:'Vestre',cat:'planter',art:'1581-900',src:'Vestre Catalogue 2024/25, Art. 1581-900',desc:'Small Bloc-family planter, 45L.',dims:[{l:'Width',v:'~600 mm',lv:'SF'},{l:'Volume',v:'45 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'59 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-ST01'],notes:[]},
-{id:'VS-BLC-PL02',name:'Bloc Planter 200L',family:'Bloc',brand:'Vestre',cat:'planter',art:'1582-900',src:'Vestre Catalogue 2024/25, Art. 1582-900',desc:'Medium Bloc planter, 200L.',dims:[{l:'Width',v:'~900 mm',lv:'SF'},{l:'Volume',v:'200 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'130 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL01'],notes:[]},
-{id:'VS-BLC-PL03',name:'Bloc Planter 520L',family:'Bloc',brand:'Vestre',cat:'planter',art:'1583-900',src:'Vestre Catalogue 2024/25, Art. 1583-900',desc:'Large Bloc planter, 520L. Weight provides meaningful traffic barrier mass.',dims:[{l:'Width',v:'~1200 mm',lv:'SF'},{l:'Volume',v:'520 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'227 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL04'],notes:['227 kg approaches mass needed for perimeter protection [DI — vehicle rating not in source].']},
-{id:'VS-BLC-PL04',name:'Bloc Planter 1250L',family:'Bloc',brand:'Vestre',cat:'planter',art:'1584-900',src:'Vestre Catalogue 2024/25, Art. 1584-900',desc:'Largest Bloc planter, 379 kg. Heaviest freestanding item in library.',dims:[{l:'Width',v:'~1600 mm',lv:'SF'},{l:'Volume',v:'1250 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'379 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL03'],notes:['Structural review required for elevated platforms [DI].']},
-{id:'VS-BOB-PL01',name:'Boboli Planter (family)',family:'Boboli',brand:'Vestre',cat:'planter',art:'bob 065-070 / 090-038 / 090-070 / 090-090 / 120-070 / 180-038',src:'Vestre Catalogue 2024/25, p.216',desc:'Wide planter range by Philippe Thebaud. 150L to 760L. All include irrigation/drainage options.',dims:[{l:'150L: W×H',v:'~650×380 mm',lv:'SF'},{l:'170L: W×H',v:'~700×380 mm',lv:'SF'},{l:'380L: W×H',v:'~900×380 mm',lv:'SF'},{l:'500L: H',v:'~900 mm',lv:'SF'},{l:'560L: W×H',v:'~1200×700 mm',lv:'SF'},{l:'760L: W',v:'~1800 mm',lv:'SF'}],mats:[{l:'Material',v:'Not specified in source',lv:'—'}],install:'Freestanding [DI]',weight:'35–80 kg [SF]',access:'n/a',param:'parametric',modNote:'6 sizes; choose by volume and height.',relIds:[],notes:['All variants: irrigation, lifting hooks, anti-graffiti, drainage [SF]. Designer: Philippe Thebaud [SF].']},
-{id:'VS-CDQ-PL01',name:'Code Square Planter 250L',family:'Code Square',brand:'Vestre',cat:'planter',art:'2640-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Medium Code Square planter, 250L.',dims:[{l:'Width × Depth',v:'~800×826 mm',lv:'SF'},{l:'Volume',v:'250 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'30 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-CDQ-PL02'],notes:[]},
-{id:'VS-CDQ-PL02',name:'Code Square Planter 500L',family:'Code Square',brand:'Vestre',cat:'planter',art:'2646-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Large Code Square planter, 500L.',dims:[{l:'Width',v:'~800 mm',lv:'SF'},{l:'Volume',v:'500 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'60 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-CDQ-PL01'],notes:[]},
-{id:'VS-BLC-WB01',name:'Bloc Litter Bin 100L',family:'Bloc',brand:'Vestre',cat:'bin',art:'1542-900; 1543-900 (ashtray)',src:'Vestre Catalogue 2024/25, Art. 1542-900',desc:'Bloc-family waste bin, 100L.',dims:[{l:'W×D',v:'~300×550 mm',lv:'SF'},{l:'Height',v:'~922 mm',lv:'SF'},{l:'Volume',v:'100 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Anchored [DI]',weight:'71–72 kg [SF]',access:'n/a',param:'fixed',modNote:'Standard (1542) or with ashtray (1543).',relIds:['VS-BLC-ST01'],notes:[]},
-{id:'VS-BLC-WB02',name:'Bloc Litter Bin 140L',family:'Bloc',brand:'Vestre',cat:'bin',art:'1544-900',src:'Vestre Catalogue 2024/25, Art. 1544-900',desc:'Larger Bloc bin, 140L.',dims:[{l:'W×D',v:'~450×550 mm',lv:'SF'},{l:'Volume',v:'140 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Anchored [DI]',weight:'99–100 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-WB01'],notes:[]},
-{id:'VS-CTY-WB01',name:'City Litter Bin 50L',family:'City',brand:'Vestre',cat:'bin',art:'241-900 (flat); 251-900 (domed)',src:'Vestre Catalogue 2024/25, pp.219–225',desc:'Pole-mounted or ground-anchored bin, 50L.',dims:[{l:'Width',v:'~390 mm',lv:'SF'},{l:'Height',v:'~650–1688 mm',lv:'SF',n:'range: ground vs pole mount'},{l:'Volume',v:'50 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Ground-anchor or pole-mount (Art. 292-900A, D=76mm, H~1050mm) [SF]',weight:'28 kg [SF]',access:'n/a',param:'fixed',modNote:'Flat (241) or domed (251) top; 70L variant Art. 242/252.',relIds:['VS-CTY-WB02'],notes:[]},
-{id:'VS-CTY-WB02',name:'City Litter Bin 70L',family:'City',brand:'Vestre',cat:'bin',art:'242-900 (flat); 252-900 (domed)',src:'Vestre Catalogue 2024/25, pp.219–225',desc:'City bin, 70L. Same mounting options as 50L.',dims:[{l:'Width',v:'~390–400 mm',lv:'SF'},{l:'Height',v:'~900–1688 mm',lv:'SF'},{l:'Volume',v:'70 L',lv:'SF'}],mats:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Ground-anchor or pole-mount [SF]',weight:'36 kg [SF]',access:'n/a',param:'fixed',modNote:'Flat (242) or domed (252).',relIds:['VS-CTY-WB01'],notes:[]},
-{id:'VS-DLG-WB01',name:'Dialog Litter Bin 100L',family:'Dialog',brand:'Vestre',cat:'bin',art:'1442-900',src:'Vestre Catalogue 2024/25, pp.230–231',desc:'Dialog-family waste bin, slim footprint.',dims:[{l:'W×D',v:'~260×560 mm',lv:'SF'},{l:'Volume',v:'100 L',lv:'SF'}],mats:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'84 kg [SF]',access:'n/a',param:'fixed',modNote:'Recycling: Art. 1448-900 (3×55L) or Art. 1444-900 (3×90L) [SF].',relIds:['VS-DLG-BN01'],notes:[]},
-{id:'VS-FRM-WB01',name:'Forum Litter Bin 130L',family:'Forum',brand:'Vestre',cat:'bin',art:'2542-900; 2546-900 (side-opening)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Forum-family bin, 130L. Side-opening variant available.',dims:[{l:'Width',v:'~420–440 mm',lv:'SF'},{l:'Height',v:'~750 mm',lv:'SF'},{l:'Volume',v:'130 L',lv:'SF'}],mats:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'84–85 kg [SF]',access:'n/a',param:'fixed',modNote:'Top-opening (2542) or side-opening (2546).',relIds:['VS-FRM-BN01'],notes:[]},
-{id:'VS-BRG-BR01',name:'Berg Cycle Rack',family:'Berg',brand:'Vestre',cat:'bikerack',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Wide cycle rack, adjustable/modular width.',dims:[{l:'Width range',v:'700–1448 mm',lv:'SF'},{l:'Height',v:'~775 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'}],install:'Anchored [DI]',weight:null,access:'n/a',param:'parametric',modNote:'Width adjustable 700–1448mm.',relIds:['VS-BRG-PT01'],notes:[]},
-{id:'VS-BOY-BR01',name:'Boy Cycle Rack',family:'Boy',brand:'Vestre',cat:'bikerack',art:'388-900',src:'Vestre Catalogue 2024/25, p.218',desc:'Low-profile cycle rack.',dims:[{l:'Width',v:'~718 mm',lv:'SF'},{l:'Anchor H',v:'~150–156 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'12 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:[],notes:[]},
-{id:'VS-CYC-BR01',name:'Cycle Rack (2 bikes)',family:'Cycle',brand:'Vestre',cat:'bikerack',art:'4886-900A',src:'Vestre Catalogue 2024/25, p.230',desc:'Stand-alone two-bicycle rack.',dims:[{l:'Width',v:'~1155 mm',lv:'SF'},{l:'Height',v:'~1010 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'}],install:'Anchoring A [SF]',weight:'16 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:[],notes:[]},
-{id:'VS-FLK-BR01',name:'Folk Bicycle Rack',family:'Folk',brand:'Vestre',cat:'bikerack',art:'4986-904A (large); 4987-904A (small)',src:'Vestre Catalogue 2024/25, pp.232–234',desc:'Aluminum bike rack, two sizes.',dims:[{l:'Large width',v:'~800 mm',lv:'SF'},{l:'Small width',v:'~465 mm',lv:'SF'},{l:'Small height',v:'~450 mm',lv:'SF'}],mats:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'not extracted',access:'n/a',param:'fixed',modNote:'Large (4986) and small (4987).',relIds:['VS-FLK-BN01'],notes:[]},
-{id:'VS-FRM-BR01',name:'Forum Bicycle Rack',family:'Forum',brand:'Vestre',cat:'bikerack',art:'2586-904A (large); 2584-904A (small)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Aluminum bike rack matching Forum family.',dims:[{l:'Width range',v:'~350–700 mm',lv:'SF'},{l:'Height',v:'~185 mm',lv:'SF',n:'anchor'}],mats:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'25–30 kg [SF]',access:'n/a',param:'fixed',modNote:'Large (2586) and small (2584).',relIds:['VS-FRM-BN01'],notes:[]},
-{id:'VS-KLP-BR01',name:'Klips Bicycle Rack',family:'Klips',brand:'Vestre',cat:'bikerack',art:'2786-900A',src:'Vestre Catalogue 2024/25, p.239',desc:'Bicycle rack; dimensions partially extracted — refer to catalogue p.239.',dims:[{l:'Width',v:'not fully extracted',lv:'—'}],mats:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'}],install:'Anchoring A [SF]',weight:'not extracted',access:'n/a',param:'fixed',modNote:null,relIds:[],notes:['Refer to Vestre Catalogue p.239 for full dimensions.']},
-{id:'VS-HVL-BL01',name:'Hvilan Bollard',family:'Hvilan',brand:'Vestre',cat:'edge',art:'185-900A',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Impact-rated bollard for vehicle exclusion. Three diameter options.',dims:[{l:'Diameter options',v:'244.5 / 500 / 590 mm',lv:'SF'},{l:'Height',v:'~800 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchoring A [SF]',weight:'not extracted',access:'n/a',param:'parametric',modNote:'3 diameter options.',relIds:['VS-HVL-BN01'],notes:['Source states rated to stop vehicles — specific impact class not captured; refer to Vestre datasheet [SF].']},
-{id:'VS-CVR-SH01',name:'Cover Roof',family:'Cover',brand:'Vestre',cat:'shelter',art:'4701-900A (steel); 4702-900A (glass); 4703-900A (sedum)',src:'Vestre Catalogue 2024/25, pp.228–229',desc:'Large outdoor roof structure. Steel plate, glass, or sedum deck. LED/WiFi/solar options.',dims:[{l:'Width',v:'~4620 mm',lv:'SF'},{l:'Depth',v:'~2312 mm',lv:'SF'}],mats:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'},{l:'Roof',v:'Steel plate / Glass / Sedum',lv:'SF'}],install:'Anchoring A [SF]',weight:'660 kg (steel plate) [SF]',access:'Open underside [DI].',param:'fixed',modNote:'3 roof materials; LED/WiFi/solar by quote [SF].',relIds:[],notes:['Engineering review required for anchor loads [DI].']},
-{id:'MC-KPE-SY109',name:'Platform Kupé PLF109',family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF109',src:'mmcité Platform Kupé PLF109 Technical Data Sheet',desc:'Smallest Kupé platform. 3 segments, U-shape with corner returns. Integrated bench + railing.',dims:[{l:'Length',v:'1900 mm',lv:'SF'},{l:'Depth',v:'2415 mm',lv:'SF'},{l:'Height',v:'1200 mm',lv:'SF',n:'incl. railing'},{l:'PLF51m',v:'1110 mm — railing + bench',lv:'SF'},{l:'PLF55m (L corner)',v:'658 mm',lv:'SF'},{l:'PLF56m (R corner)',v:'658 mm',lv:'SF'},{l:'Table PIX911-PLF',v:'20 kg pedestal',lv:'SF'}],mats:[{l:'Frame',v:'Steel — zinc (galv) + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'},{l:'Bench slats',v:'Robinia or European larch',lv:'SF'},{l:'Legs',v:'Adjustable stainless steel',lv:'SF'}],install:'Freestanding on adjustable SS legs — NOT anchored to street [SF]',weight:'481 kg total [SF]',access:'Railing 1200 mm [SF]. Accessible entry ramp not shown in source [—].',param:'fixed',modNote:'Standard configuration; segment mix fixed for PLF109.',relIds:['MC-KPE-SY110','MC-KPE-SY111','MC-KPE-SY112'],notes:['CRITICAL: Min subgrade bearing capacity 100 kPa required [SF].','Freestanding — NOT anchored to road surface [SF].']},
-{id:'MC-KPE-SY110',name:'Platform Kupé PLF110',family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF110',src:'mmcité Platform Kupé PLF110 Technical Data Sheet',desc:'2.8m Kupé platform. Open (no railing) and benched railing segments.',dims:[{l:'Length',v:'2800 mm',lv:'SF'},{l:'Depth',v:'2415 mm',lv:'SF'},{l:'Height',v:'1200 mm',lv:'SF'},{l:'PLF31s (open)',v:'1100 mm — no railing',lv:'SF'},{l:'PLF51s (bench)',v:'1100 mm — railing+bench',lv:'SF'},{l:'PLF55s/PLF56s',v:'2× 658 mm corners',lv:'SF'}],mats:[{l:'Frame',v:'Steel — zinc + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'}],install:'Freestanding on adjustable SS legs [SF]',weight:'704 kg total [SF]',access:'Open segments allow street-side access [DI].',param:'fixed',modNote:'1× PLF31s + 1× PLF51s + 2× PLF55s + 2× PLF56s.',relIds:['MC-KPE-SY109'],notes:['Min 100 kPa bearing capacity [SF].']},
-{id:'MC-KPE-SY111',name:'Platform Kupé PLF111',family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF111',src:'mmcité Platform Kupé PLF111 Technical Data Sheet',desc:'Open platform, all open segments. 2 pedestal tables. Dining / flexible use.',dims:[{l:'Length',v:'2800 mm',lv:'SF'},{l:'Depth',v:'2415 mm',lv:'SF'},{l:'Height',v:'1200 mm',lv:'SF'},{l:'2× PLF31s (open)',v:'1100 mm each',lv:'SF'},{l:'2× PIX911-PLF tables',v:'20 kg each, pedestal',lv:'SF'}],mats:[{l:'Frame',v:'Steel — zinc + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'}],install:'Freestanding on adjustable SS legs [SF]',weight:'684 kg total [SF]',access:'No integrated railing — supplementary edge protection may be required [DI].',param:'fixed',modNote:'Tables only, no integrated bench. Best for dining.',relIds:['MC-KPE-SY109'],notes:['Min 100 kPa bearing capacity [SF].']},
-{id:'MC-KPE-SY112',name:'Platform Kupé PLF112',family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF112',src:'mmcité Platform Kupé PLF112 Technical Data Sheet',desc:'Shallower Kupé (1875mm depth) with integrated cylindrical planter. For narrower bays.',dims:[{l:'Length',v:'2800 mm',lv:'SF'},{l:'Depth',v:'1875 mm',lv:'SF',n:'shallower than others'},{l:'Height',v:'1200 mm',lv:'SF'},{l:'PLF34s planter',v:'1387×602 mm cylindrical Polys',lv:'SF'},{l:'Planter irrigation',v:'integrated',lv:'SF'}],mats:[{l:'Frame',v:'Steel — zinc + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'},{l:'Planter',v:'Polys cylindrical + irrigation',lv:'SF'}],install:'Freestanding on adjustable SS legs [SF]',weight:'684 kg total [SF]',access:'Planter edge defines perimeter [DI].',param:'fixed',modNote:'1875mm depth suits narrower stalls.',relIds:['MC-KPE-SY109'],notes:['Min 100 kPa bearing capacity [SF].','1875mm depth suits narrower ROW constraints [DI].']}
+{id:'VS-APR-CH01',name:'April Chair',archetype:'chair',params:{l:0.786,d:0.56,h:0.45,backH:0.82},materials:{frame:'galvanized',seat:'pine'},est:['d','backH'],family:'April',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.173 area',desc:'Single outdoor chair with galvanized steel frame and FSC pine seat.',specs:[{l:'Width',v:'~786 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'},{l:'Bar chair seat H',v:'~700 mm',lv:'SF',n:'bar stool variant'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Seat / back',v:'FSC pine, linseed oil treated',lv:'SF'}],install:'Anchored — suffix A/B/C/D in article number [SF]',weight:null,access:'Seat H 450 mm standard [SF].',param:'fixed',modNote:null,relIds:['VS-APR-BN01','VS-APR-TL01'],notes:[]},
+{id:'VS-APR-BN01',name:'April Bench',archetype:'bench',params:{l:1.514,d:0.55,h:0.45,backH:0.82},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['d','backH'],family:'April',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.173 area',desc:'Two-person bench matching April Chair.',specs:[{l:'Width',v:'~1514 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'},{l:'Seats',v:'2',lv:'CALC',n:'1514 / ~757 per seat'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Slats',v:'FSC pine, linseed oil treated',lv:'SF'}],install:'Anchored — suffix A/B/C/D [SF]',weight:null,access:'Seat H 450 mm [SF].',param:'fixed',modNote:null,relIds:['VS-APR-CH01','VS-APR-TL01'],notes:[]},
+{id:'VS-AGO-CH01',name:'April GO Lounge Chair',archetype:'armchair',params:{l:0.715,d:0.627,h:0.35,backH:0.55},materials:{frame:'black_steel',seat:'oak'},est:['h'],family:'April GO',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Folding / rearrangeable lounge chair. GO series implies portability.',specs:[{l:'Width',v:'715 mm',lv:'SF'},{l:'Depth',v:'627 mm',lv:'SF'},{l:'Height (adj.)',v:'402–550 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Seat',v:'Wood slats — species not specified',lv:'DI'}],install:'Freestanding / movable — GO series [DI]',weight:null,access:'Adjustable H 402–550 mm [SF].',param:'fixed',modNote:null,relIds:['VS-AGO-TL01','VS-AGO-PL01'],notes:['GO suffix denotes rearrangeable / folding furniture for flexible parklet programming [DI].']},
+{id:'VS-ATL-BN01',name:'Atlas Bench',archetype:'bench',params:{l:1.806,d:0.55,h:0.45,backH:0.8},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['d','backH'],family:'Atlas',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.179 area',desc:'Modular outdoor bench system. Start, middle, end modules.',specs:[{l:'2-seat width',v:'1806 mm',lv:'SF'},{l:'3-seat width',v:'2409 mm',lv:'SF'},{l:'Width per added seat',v:'~603 mm',lv:'CALC',n:'2409-1806'},{l:'Seat height',v:'~450 mm',lv:'SF'}],finish:[{l:'Frame',v:'Galv steel + powder coat [DI]',lv:'DI'},{l:'Slats',v:'Wood — not specified',lv:'DI'}],install:'Anchored; modular bolt-down [DI]',weight:null,access:'Seat H ~450 mm [SF].',param:'modular',modNote:'Start / middle / end modules; 2-seat and 3-seat confirmed.',relIds:[],notes:[]},
+{id:'VS-AIR-BN01',name:'Air Bench',archetype:'bench',params:{l:1.39,d:0.464,h:0.45,backH:0.797},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['h'],family:'Air',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Contemporary outdoor bench. Height range may reflect backrest.',specs:[{l:'Width',v:'1390 mm',lv:'SF'},{l:'Depth',v:'393–464 mm',lv:'SF'},{l:'Height',v:'754–797 mm',lv:'SF',n:'to top of backrest'}],finish:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'},{l:'Slats',v:'Wood — not extracted',lv:'DI'}],install:'Anchored or freestanding [DI]',weight:null,access:'Seat height not stated [—].',param:'fixed',modNote:null,relIds:['VS-AIR-TL01'],notes:[]},
+{id:'VS-BLC-ST01',name:'Bloc Seat',archetype:'bench',params:{l:0.67,d:0.46,h:0.46,backH:0.79,ends:'plinth'},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['h'],family:'Bloc',brand:'Vestre',cat:'seating',art:'1516-900 (single); 1517-900 (armrests); modules: 1553–1559',src:'Vestre Catalogue 2024/25, Art. 1516-900',desc:'Robust single seat / modular bench. Start / add-on / end modules compose runs.',specs:[{l:'Width (single)',v:'~670 mm',lv:'SF'},{l:'Height',v:'~790 mm',lv:'SF'},{l:'Depth',v:'~460 mm',lv:'SF'},{l:'With armrests',v:'~+180 mm width',lv:'SF'},{l:'Add-on module W',v:'~1740 mm',lv:'SF',n:'Art. 1554'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Anchored [SF]',weight:'87 kg (Art. 1516-900) [SF]',access:'Armrest option (Art. 1517) aids accessibility [SF].',param:'modular',modNote:'Single (1516), start (1553), add-on (1554, W~1740mm), end (1555). Armrest variants 1556–1559.',relIds:['VS-BLC-BB01','VS-BLC-SB01','VS-BLC-TL01'],notes:[]},
+{id:'VS-BLC-BB01',name:'Bloc Seat Double Back-to-Back',archetype:'bench',params:{l:1.382,d:0.92,h:0.46,backH:0.62,double:true,ends:'plinth'},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['d','h','backH'],family:'Bloc',brand:'Vestre',cat:'seating',art:'1532-900; 1534-900 (armrests)',src:'Vestre Catalogue 2024/25, Art. 1532-900',desc:'Back-to-back double seating. Both sides accessible. Center-parklet placement.',specs:[{l:'Width (double)',v:'~1382 mm',lv:'SF'},{l:'Add-on W',v:'~300 mm',lv:'SF',n:'Art. 1572-900'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'200 kg [SF]',access:'Armrest variant Art. 1534-900 [SF].',param:'modular',modNote:'Add-on (Art. 1572, ~300mm) extends the back-to-back run.',relIds:['VS-BLC-ST01'],notes:['200 kg: significant for elevated platform structural check [DI].']},
+{id:'VS-BLC-SB01',name:'Bloc Sun Bench',archetype:'sun_lounger',params:{l:0.868,d:1.9,h:0.39,backH:1},materials:{frame:'galvanized',seat:'pine'},est:['d'],family:'Bloc',brand:'Vestre',cat:'seating',art:'1566-900; modules: 1567/1568/1569',src:'Vestre Catalogue 2024/25, Art. 1566-900',desc:'Reclining sun bench / lounger with adjustable backrest angle.',specs:[{l:'Width',v:'~868 mm',lv:'SF'},{l:'Height range',v:'~389–1356 mm',lv:'SF',n:'reclined to upright'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'134 kg [SF]',access:'Reclining may not suit all mobility levels [DI].',param:'modular',modNote:'Start (1567, 139kg), add-on (1568, 97kg), end (1569). Back connection Art. 1560-900 for back-to-back runs.',relIds:['VS-BLC-ST01'],notes:[]},
+{id:'VS-DLG-BN01',name:'Dialog Bench',archetype:'backless_bench',params:{l:1.84,d:0.38,h:0.42},materials:{frame:'galvanized',seat:'oak'},est:['d'],family:'Dialog',brand:'Vestre',cat:'seating',art:'1406-932 (Kebony); 1406-942 (oak)',src:'Vestre Catalogue 2024/25, pp.230–231',desc:'Minimalist bench in Kebony or oiled oak.',specs:[{l:'Width',v:'~1840 mm',lv:'SF'},{l:'Seat height',v:'~400–450 mm',lv:'SF'}],finish:[{l:'Slats',v:'Kebony (Art. -932) or oiled oak (Art. -942)',lv:'SF'},{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored [DI]; 31 kg may allow gravity freestanding [DI]',weight:'31 kg [SF]',access:'Seat H ~400 mm may be below accessible range [DI].',param:'fixed',modNote:null,relIds:['VS-DLG-WB01'],notes:[]},
+{id:'VS-EDO-BN01',name:'Edo Bench with Marble Table',archetype:'backless_bench',params:{l:1.8,d:0.315,h:0.45},materials:{frame:'galvanized',seat:'oak'},est:[],family:'Edo',brand:'Vestre',cat:'seating',art:'4308-930/940/950',src:'Vestre Catalogue 2024/25, p.231',desc:'Bench with integrated marble side table. By Anderssen & Voll.',specs:[{l:'Width',v:'~1800 mm',lv:'SF'},{l:'Depth',v:'~315 mm',lv:'SF'},{l:'Total height',v:'~447–634 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'}],finish:[{l:'Slats',v:'Kebony, oiled oak, or oiled ash',lv:'SF'},{l:'Table surface',v:'Marble (integrated)',lv:'SF'},{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'30 kg (Kebony) [SF]',access:'Seat H ~450 mm [SF].',param:'fixed',modNote:null,relIds:[],notes:['Designer: Anderssen &amp; Voll [SF].']},
+{id:'VS-FLK-BN01',name:'Folk Bench',archetype:'bleacher_step',params:{l:0.807,rows:2,rowD:0.336,rowH:0.225},materials:{body:'aluminium',seat:'aluminium'},est:['rows'],family:'Folk',brand:'Vestre',cat:'seating',art:'4904-904A',src:'Vestre Catalogue 2024/25, pp.232–234',desc:'Aluminum bench / terraced element by Front. Stepped height profile.',specs:[{l:'Width / depth',v:'~672 mm',lv:'SF',n:'may be depth; see note'},{l:'Height range',v:'~222–450 mm',lv:'SF',n:'stepped profile'},{l:'Folk seat W',v:'~807 mm',lv:'SF',n:'Art. 4914'}],finish:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'22 kg (bench); 29 kg (seat) [SF]',access:'Low H 222 mm below standard; may serve as step [DI].',param:'fixed',modNote:null,relIds:['VS-FLK-TL01'],notes:['W 672 mm is likely depth of terraced element [DI]. Designer: Front [SF].']},
+{id:'VS-FRM-BN01',name:'Forum Bench',archetype:'backless_bench',params:{l:2,d:0.42,h:0.47},materials:{frame:'galvanized',seat:'pine'},est:['d'],family:'Forum',brand:'Vestre',cat:'seating',art:'2502-900 (1m); 2503-900 (2m); 2504-900 (3m)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Freestanding bench in 1m, 2m, 3m. Backrest accessory for 1m and 2m.',specs:[{l:'1m',v:'~1015 mm',lv:'SF'},{l:'2m',v:'~2000 mm',lv:'SF'},{l:'3m',v:'~2990 mm',lv:'SF'},{l:'Seat height',v:'~450–490 mm',lv:'SF'},{l:'Backrest H',v:'~434–440 mm',lv:'SF',n:'Art. 2522'}],finish:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Freestanding — suffix -900 [SF]; anchored variants available',weight:'55 kg (1m) / 77 kg (2m) / 101 kg (3m) [SF]',access:'Seat H ~450–490 mm [SF].',param:'parametric',modNote:'1m / 2m / 3m. Backrest Art. 2522 for 1m and 2m.',relIds:['VS-FRM-TL01','VS-FRM-WB01'],notes:[]},
+{id:'VS-HVL-BN01',name:'Hvilan Bench',archetype:'bench',params:{l:2,d:0.635,h:0.47,backH:0.714},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:[],family:'Hvilan',brand:'Vestre',cat:'seating',art:'106-900',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Classic outdoor bench, generous depth. Seat variant Art. 116 has taller back.',specs:[{l:'Width',v:'~2000 mm',lv:'SF'},{l:'Height',v:'~470 mm',lv:'SF'},{l:'Depth',v:'~635 mm',lv:'SF'},{l:'Seat variant H',v:'~714 mm',lv:'SF',n:'Art. 116-900'}],finish:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:'43 kg (106) / 59 kg (116) [SF]',access:'H ~470 mm within accessible range [SF].',param:'fixed',modNote:null,relIds:['VS-HVL-TL01','VS-HVL-PT01'],notes:[]},
+{id:'VS-APR-TL01',name:'April Wheelchair Table',archetype:'table',params:{l:1.8,d:0.695,h:0.75},materials:{frame:'galvanized',top:'hpl_grey'},est:['h'],family:'April',brand:'Vestre',cat:'table',art:'not extracted',src:'Vestre Catalogue 2024/25, p.173 area',desc:'Wheelchair-accessible table with open-sided cutout.',specs:[{l:'Width',v:'~1800 mm',lv:'SF'},{l:'Depth',v:'~695 mm',lv:'SF'},{l:'Table height',v:'~750 mm',lv:'DI',n:'standard; not stated in source'}],finish:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:null,access:'Wheelchair-adapted cutout [SF].',param:'fixed',modNote:null,relIds:['VS-APR-CH01'],notes:[]},
+{id:'VS-AGO-TL01',name:'April GO Folding Table',archetype:'table',params:{l:0.695,d:0.65,h:0.73},materials:{frame:'galvanized',top:'pine'},est:['h'],family:'April GO',brand:'Vestre',cat:'table',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Portable folding table, GO series. Rectangular and round variants.',specs:[{l:'Rect. width',v:'~695 mm',lv:'SF'},{l:'Rect. depth',v:'~650 mm',lv:'SF'},{l:'Round diameter',v:'~860 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Top',v:'Not specified',lv:'—'}],install:'Freestanding / movable [DI]',weight:null,access:'Not stated.',param:'fixed',modNote:'Rectangular (695×650) and round (⌀860mm).',relIds:['VS-AGO-CH01'],notes:[]},
+{id:'VS-AIR-TL01',name:'Air Table',archetype:'table',params:{l:1.64,d:0.652,h:0.75},materials:{frame:'galvanized',top:'pine'},est:['h'],family:'Air',brand:'Vestre',cat:'table',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Outdoor table matching Air Bench.',specs:[{l:'Width',v:'~1640 mm',lv:'SF'},{l:'Depth',v:'~652 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored or freestanding [DI]',weight:null,access:'Not stated.',param:'fixed',modNote:null,relIds:['VS-AIR-BN01'],notes:[]},
+{id:'VS-BLC-TL01',name:'Bloc Table',archetype:'table',params:{l:0.775,h:0.75,shape:'square'},materials:{frame:'galvanized',top:'pine'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'table',art:'1530-900; 1536-900 (tall); modules: 1537–1539',src:'Vestre Catalogue 2024/25, Art. 1530-900',desc:'Standard and tall/standing-height table in Bloc family. Modular.',specs:[{l:'Standard W',v:'~775 mm',lv:'SF'},{l:'Standard weight',v:'60 kg',lv:'SF'},{l:'Tall variant W',v:'~740 mm',lv:'SF'},{l:'Tall total H',v:'~1740 mm',lv:'SF',n:'Art. 1536'},{l:'Tall weight',v:'102 kg',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'60–102 kg [SF]',access:'Not stated.',param:'modular',modNote:'Standard (1530) and tall (1536); each has start/add-on/end modules.',relIds:['VS-BLC-ST01'],notes:[]},
+{id:'VS-FLK-TL01',name:'Folk Table',archetype:'table',params:{l:1.85,d:0.8,h:0.75},materials:{frame:'aluminium',top:'aluminium'},est:['d','h'],family:'Folk',brand:'Vestre',cat:'table',art:'4933-904A',src:'Vestre Catalogue 2024/25, pp.232–234',desc:'Aluminum table, Forum family.',specs:[{l:'Width',v:'~1850 mm',lv:'SF'}],finish:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'38 kg [SF]',access:'Not stated.',param:'fixed',modNote:null,relIds:['VS-FLK-BN01'],notes:[]},
+{id:'VS-FRM-TL01',name:'Forum Table',archetype:'table',params:{l:2,d:0.65,h:0.73},materials:{frame:'galvanized',top:'hpl_grey'},est:['d','h'],family:'Forum',brand:'Vestre',cat:'table',art:'2532-900 (1m); 2533-900 (2m); 2534-900 (3m)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Freestanding table in 1m, 2m, 3m. Matches Forum Bench dimensions.',specs:[{l:'1m',v:'~1015 mm',lv:'SF'},{l:'2m',v:'~2000 mm',lv:'SF'},{l:'3m',v:'~2990 mm',lv:'SF'},{l:'Narrow W500',v:'~750 mm',lv:'SF',n:'Art. 2536, 145kg'}],finish:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'}],install:'Freestanding [SF]',weight:'32–145 kg [SF]',access:'Not stated.',param:'parametric',modNote:'1m / 2m / 3m. W500 narrow variant (750mm).',relIds:['VS-FRM-BN01'],notes:[]},
+{id:'VS-HVL-TL01',name:'Hvilan Table',archetype:'table',params:{l:0.72,h:0.72,shape:'square'},materials:{frame:'galvanized',top:'pine'},est:['d','h'],family:'Hvilan',brand:'Vestre',cat:'table',art:'133-900',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Classic outdoor table to pair with Hvilan bench.',specs:[{l:'Width',v:'~720 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Top',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:'59 kg [SF]',access:'Not stated.',param:'fixed',modNote:null,relIds:['VS-HVL-BN01','VS-HVL-PT01'],notes:[]},
+{id:'VS-HVL-PT01',name:'Hvilan Picnic Table',archetype:'picnic',params:{l:1.718,d:1.61,h:0.74,seatH:0.45},materials:{frame:'galvanized',top:'pine',seat:'pine'},est:['d','h','seatH'],family:'Hvilan',brand:'Vestre',cat:'table',art:'122-900; 122-900HC (wheelchair)',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Picnic table with integrated benches. HC wheelchair variant available.',specs:[{l:'Width',v:'~1718 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel [DI]',lv:'DI'},{l:'Top/benches',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:'88 kg (standard); 93 kg (HC) [SF]',access:'HC wheelchair-adapted Art. 122-900HC [SF].',param:'fixed',modNote:'Standard and HC variants.',relIds:['VS-HVL-BN01'],notes:[]},
+{id:'VS-BUZ-TB01',name:'Buzz Combined Table+Bench',archetype:'picnic',params:{l:0.938,h:0.74,seatH:0.46,shape:'round'},materials:{frame:'galvanized',top:'hpl_grey',seat:'hpl_grey'},est:[],family:'Buzz',brand:'Vestre',cat:'combo',art:'3316-900 (HPL); 3317-900 (steel+wood); 3316-900HC',src:'Vestre Catalogue 2024/25, p.218',desc:'Circular combined table-and-bench. MUST be bolted to ground.',specs:[{l:'Diameter',v:'~938 mm',lv:'SF'},{l:'Seat height',v:'~460 mm',lv:'SF'},{l:'Table height',v:'~740 mm',lv:'SF'}],finish:[{l:'Top',v:'HPL (3316) or steel+wood (3317)',lv:'SF'},{l:'Frame',v:'Galv steel + powder coat [DI]',lv:'DI'}],install:'Must be bolted to ground [SF]',weight:'59–80 kg [SF]',access:'HC wheelchair variant Art. 3316-900HC [SF].',param:'fixed',modNote:'HPL or steel+wood top; HC variant.',relIds:[],notes:['Circular footprint suits small parklet bays. HPL top graphic printing available [SF].']},
+{id:'VS-BRG-PT01',name:'Berg Picnic Table',archetype:'picnic',params:{l:2.1,d:1.6,h:0.75},materials:{frame:'galvanized',top:'pine',seat:'pine'},est:['d','h'],family:'Berg',brand:'Vestre',cat:'combo',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Traditional picnic table with integrated benches.',specs:[{l:'Width',v:'~2100 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'},{l:'Top/benches',v:'Wood [DI]',lv:'DI'}],install:'Freestanding or anchored [DI]',weight:null,access:'Wheelchair-adapted variant available [SF].',param:'fixed',modNote:'Standard and wheelchair-adapted variants.',relIds:['VS-BRG-BR01'],notes:[]},
+{id:'VS-CDT-TB01',name:'Code Tilt Table+Bench',archetype:'picnic',params:{l:1.04,d:1.3,h:0.75},materials:{frame:'galvanized',top:'pine',seat:'pine'},est:['d','h'],family:'Code Tilt',brand:'Vestre',cat:'combo',art:'2622-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Angled bench-and-table combined. Four tilt orientations.',specs:[{l:'Width',v:'~1040 mm',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat [SF]',lv:'SF'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'110 kg [SF]',access:'Not stated.',param:'fixed',modNote:'4 tilt orientations: Art. 2606–2609.',relIds:[],notes:['Bridge module Art. 2637-900 (W~600mm, H~1507mm) connects units [SF].']},
+{id:'VS-AGO-PL01',name:'April GO Planter',archetype:'planter_tall',params:{l:0.45,d:0.45,h:0.9},materials:{body:'galvanized'},est:['l','d'],family:'April GO',brand:'Vestre',cat:'planter',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Freestanding / portable planter, GO series. Multiple heights.',specs:[{l:'Height range',v:'570–900 mm',lv:'SF'},{l:'Width',v:'not extracted',lv:'—'}],finish:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Freestanding / movable [DI]',weight:null,access:'n/a',param:'parametric',modNote:'Multiple height variants.',relIds:['VS-AGO-CH01'],notes:[]},
+{id:'VS-BLC-PL01',name:'Bloc Planter 45L',archetype:'planter',params:{l:0.6,d:0.6,h:0.42},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1581-900',src:'Vestre Catalogue 2024/25, Art. 1581-900',desc:'Small Bloc-family planter, 45L.',specs:[{l:'Width',v:'~600 mm',lv:'SF'},{l:'Volume',v:'45 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'59 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-ST01'],notes:[]},
+{id:'VS-BLC-PL02',name:'Bloc Planter 200L',archetype:'planter',params:{l:0.9,d:0.6,h:0.52},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1582-900',src:'Vestre Catalogue 2024/25, Art. 1582-900',desc:'Medium Bloc planter, 200L.',specs:[{l:'Width',v:'~900 mm',lv:'SF'},{l:'Volume',v:'200 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'130 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL01'],notes:[]},
+{id:'VS-BLC-PL03',name:'Bloc Planter 520L',archetype:'planter',params:{l:1.2,d:0.6,h:0.62},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1583-900',src:'Vestre Catalogue 2024/25, Art. 1583-900',desc:'Large Bloc planter, 520L. Weight provides meaningful traffic barrier mass.',specs:[{l:'Width',v:'~1200 mm',lv:'SF'},{l:'Volume',v:'520 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'227 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL04'],notes:['227 kg approaches mass needed for perimeter protection [DI — vehicle rating not in source].']},
+{id:'VS-BLC-PL04',name:'Bloc Planter 1250L',archetype:'planter',params:{l:1.6,d:0.6,h:0.72},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1584-900',src:'Vestre Catalogue 2024/25, Art. 1584-900',desc:'Largest Bloc planter, 379 kg. Heaviest freestanding item in library.',specs:[{l:'Width',v:'~1600 mm',lv:'SF'},{l:'Volume',v:'1250 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'379 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL03'],notes:['Structural review required for elevated platforms [DI].']},
+{id:'VS-BOB-PL01',name:'Boboli Planter (family)',archetype:'planter',params:{l:0.9,d:0.45,h:0.38},materials:{body:'black_steel'},est:['d'],family:'Boboli',brand:'Vestre',cat:'planter',art:'bob 065-070 / 090-038 / 090-070 / 090-090 / 120-070 / 180-038',src:'Vestre Catalogue 2024/25, p.216',desc:'Wide planter range by Philippe Thebaud. 150L to 760L. All include irrigation/drainage options.',specs:[{l:'150L: W×H',v:'~650×380 mm',lv:'SF'},{l:'170L: W×H',v:'~700×380 mm',lv:'SF'},{l:'380L: W×H',v:'~900×380 mm',lv:'SF'},{l:'500L: H',v:'~900 mm',lv:'SF'},{l:'560L: W×H',v:'~1200×700 mm',lv:'SF'},{l:'760L: W',v:'~1800 mm',lv:'SF'}],finish:[{l:'Material',v:'Not specified in source',lv:'—'}],install:'Freestanding [DI]',weight:'35–80 kg [SF]',access:'n/a',param:'parametric',modNote:'6 sizes; choose by volume and height.',relIds:[],notes:['All variants: irrigation, lifting hooks, anti-graffiti, drainage [SF]. Designer: Philippe Thebaud [SF].']},
+{id:'VS-CDQ-PL01',name:'Code Square Planter 250L',archetype:'planter',params:{l:0.8,d:0.826,h:0.6},materials:{body:'galvanized'},est:['h'],family:'Code Square',brand:'Vestre',cat:'planter',art:'2640-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Medium Code Square planter, 250L.',specs:[{l:'Width × Depth',v:'~800×826 mm',lv:'SF'},{l:'Volume',v:'250 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'30 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-CDQ-PL02'],notes:[]},
+{id:'VS-CDQ-PL02',name:'Code Square Planter 500L',archetype:'planter_tall',params:{l:0.8,d:0.8,h:0.9},materials:{body:'galvanized'},est:['d','h'],family:'Code Square',brand:'Vestre',cat:'planter',art:'2646-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Large Code Square planter, 500L.',specs:[{l:'Width',v:'~800 mm',lv:'SF'},{l:'Volume',v:'500 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'60 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-CDQ-PL01'],notes:[]},
+{id:'VS-BLC-WB01',name:'Bloc Litter Bin 100L',archetype:'bin',params:{l:0.3,d:0.55,h:0.922},materials:{body:'galvanized',lid:'ral_7016'},est:[],family:'Bloc',brand:'Vestre',cat:'bin',art:'1542-900; 1543-900 (ashtray)',src:'Vestre Catalogue 2024/25, Art. 1542-900',desc:'Bloc-family waste bin, 100L.',specs:[{l:'W×D',v:'~300×550 mm',lv:'SF'},{l:'Height',v:'~922 mm',lv:'SF'},{l:'Volume',v:'100 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Anchored [DI]',weight:'71–72 kg [SF]',access:'n/a',param:'fixed',modNote:'Standard (1542) or with ashtray (1543).',relIds:['VS-BLC-ST01'],notes:[]},
+{id:'VS-BLC-WB02',name:'Bloc Litter Bin 140L',archetype:'bin',params:{l:0.45,d:0.55,h:0.95},materials:{body:'galvanized',lid:'ral_7016'},est:['h'],family:'Bloc',brand:'Vestre',cat:'bin',art:'1544-900',src:'Vestre Catalogue 2024/25, Art. 1544-900',desc:'Larger Bloc bin, 140L.',specs:[{l:'W×D',v:'~450×550 mm',lv:'SF'},{l:'Volume',v:'140 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Anchored [DI]',weight:'99–100 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-WB01'],notes:[]},
+{id:'VS-CTY-WB01',name:'City Litter Bin 50L',archetype:'bin',params:{l:0.39,d:0.39,h:0.65,shape:'round'},materials:{body:'galvanized',lid:'ral_7016'},est:[],family:'City',brand:'Vestre',cat:'bin',art:'241-900 (flat); 251-900 (domed)',src:'Vestre Catalogue 2024/25, pp.219–225',desc:'Pole-mounted or ground-anchored bin, 50L.',specs:[{l:'Width',v:'~390 mm',lv:'SF'},{l:'Height',v:'~650–1688 mm',lv:'SF',n:'range: ground vs pole mount'},{l:'Volume',v:'50 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Ground-anchor or pole-mount (Art. 292-900A, D=76mm, H~1050mm) [SF]',weight:'28 kg [SF]',access:'n/a',param:'fixed',modNote:'Flat (241) or domed (251) top; 70L variant Art. 242/252.',relIds:['VS-CTY-WB02'],notes:[]},
+{id:'VS-CTY-WB02',name:'City Litter Bin 70L',archetype:'bin',params:{l:0.4,d:0.4,h:0.9,shape:'round'},materials:{body:'galvanized',lid:'ral_7016'},est:[],family:'City',brand:'Vestre',cat:'bin',art:'242-900 (flat); 252-900 (domed)',src:'Vestre Catalogue 2024/25, pp.219–225',desc:'City bin, 70L. Same mounting options as 50L.',specs:[{l:'Width',v:'~390–400 mm',lv:'SF'},{l:'Height',v:'~900–1688 mm',lv:'SF'},{l:'Volume',v:'70 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Ground-anchor or pole-mount [SF]',weight:'36 kg [SF]',access:'n/a',param:'fixed',modNote:'Flat (242) or domed (252).',relIds:['VS-CTY-WB01'],notes:[]},
+{id:'VS-DLG-WB01',name:'Dialog Litter Bin 100L',archetype:'bin',params:{l:0.26,d:0.56,h:0.9},materials:{body:'galvanized',lid:'ral_7016'},est:['h'],family:'Dialog',brand:'Vestre',cat:'bin',art:'1442-900',src:'Vestre Catalogue 2024/25, pp.230–231',desc:'Dialog-family waste bin, slim footprint.',specs:[{l:'W×D',v:'~260×560 mm',lv:'SF'},{l:'Volume',v:'100 L',lv:'SF'}],finish:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'84 kg [SF]',access:'n/a',param:'fixed',modNote:'Recycling: Art. 1448-900 (3×55L) or Art. 1444-900 (3×90L) [SF].',relIds:['VS-DLG-BN01'],notes:[]},
+{id:'VS-FRM-WB01',name:'Forum Litter Bin 130L',archetype:'bin',params:{l:0.43,d:0.43,h:0.75},materials:{body:'galvanized',lid:'ral_7016'},est:['d'],family:'Forum',brand:'Vestre',cat:'bin',art:'2542-900; 2546-900 (side-opening)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Forum-family bin, 130L. Side-opening variant available.',specs:[{l:'Width',v:'~420–440 mm',lv:'SF'},{l:'Height',v:'~750 mm',lv:'SF'},{l:'Volume',v:'130 L',lv:'SF'}],finish:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'84–85 kg [SF]',access:'n/a',param:'fixed',modNote:'Top-opening (2542) or side-opening (2546).',relIds:['VS-FRM-BN01'],notes:[]},
+{id:'VS-BRG-BR01',name:'Berg Cycle Rack',archetype:'bike_rack',params:{l:1.448,h:0.775,type:'u',count:2},materials:{frame:'galvanized'},est:['count'],family:'Berg',brand:'Vestre',cat:'bikerack',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Wide cycle rack, adjustable/modular width.',specs:[{l:'Width range',v:'700–1448 mm',lv:'SF'},{l:'Height',v:'~775 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'}],install:'Anchored [DI]',weight:null,access:'n/a',param:'parametric',modNote:'Width adjustable 700–1448mm.',relIds:['VS-BRG-PT01'],notes:[]},
+{id:'VS-BOY-BR01',name:'Boy Cycle Rack',archetype:'bike_rack',params:{l:0.718,h:0.48,type:'u'},materials:{frame:'galvanized'},est:['h'],family:'Boy',brand:'Vestre',cat:'bikerack',art:'388-900',src:'Vestre Catalogue 2024/25, p.218',desc:'Low-profile cycle rack.',specs:[{l:'Width',v:'~718 mm',lv:'SF'},{l:'Anchor H',v:'~150–156 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'12 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:[],notes:[]},
+{id:'VS-CYC-BR01',name:'Cycle Rack (2 bikes)',archetype:'bike_rack',params:{l:1.155,h:1.01,type:'u',count:2},materials:{frame:'galvanized'},est:[],family:'Cycle',brand:'Vestre',cat:'bikerack',art:'4886-900A',src:'Vestre Catalogue 2024/25, p.230',desc:'Stand-alone two-bicycle rack.',specs:[{l:'Width',v:'~1155 mm',lv:'SF'},{l:'Height',v:'~1010 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel + galv + powder coat [DI]',lv:'DI'}],install:'Anchoring A [SF]',weight:'16 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:[],notes:[]},
+{id:'VS-FLK-BR01',name:'Folk Bicycle Rack',archetype:'bike_rack',params:{l:0.8,h:0.45,type:'u'},materials:{frame:'aluminium'},est:['h'],family:'Folk',brand:'Vestre',cat:'bikerack',art:'4986-904A (large); 4987-904A (small)',src:'Vestre Catalogue 2024/25, pp.232–234',desc:'Aluminum bike rack, two sizes.',specs:[{l:'Large width',v:'~800 mm',lv:'SF'},{l:'Small width',v:'~465 mm',lv:'SF'},{l:'Small height',v:'~450 mm',lv:'SF'}],finish:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'not extracted',access:'n/a',param:'fixed',modNote:'Large (4986) and small (4987).',relIds:['VS-FLK-BN01'],notes:[]},
+{id:'VS-FRM-BR01',name:'Forum Bicycle Rack',archetype:'bike_rack',params:{l:0.7,h:0.8,type:'u'},materials:{frame:'aluminium'},est:['h'],family:'Forum',brand:'Vestre',cat:'bikerack',art:'2586-904A (large); 2584-904A (small)',src:'Vestre Catalogue 2024/25, pp.234–236',desc:'Aluminum bike rack matching Forum family.',specs:[{l:'Width range',v:'~350–700 mm',lv:'SF'},{l:'Height',v:'~185 mm',lv:'SF',n:'anchor'}],finish:[{l:'Material',v:'Aluminum (Art. -904)',lv:'SF'}],install:'Anchoring A [SF]',weight:'25–30 kg [SF]',access:'n/a',param:'fixed',modNote:'Large (2586) and small (2584).',relIds:['VS-FRM-BN01'],notes:[]},
+{id:'VS-KLP-BR01',name:'Klips Bicycle Rack',archetype:'bike_rack',params:{l:0.9,h:0.8,type:'wave'},materials:{frame:'galvanized'},est:['l','h','type'],family:'Klips',brand:'Vestre',cat:'bikerack',art:'2786-900A',src:'Vestre Catalogue 2024/25, p.239',desc:'Bicycle rack; dimensions partially extracted — refer to catalogue p.239.',specs:[{l:'Width',v:'not fully extracted',lv:'—'}],finish:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'}],install:'Anchoring A [SF]',weight:'not extracted',access:'n/a',param:'fixed',modNote:null,relIds:[],notes:['Refer to Vestre Catalogue p.239 for full dimensions.']},
+{id:'VS-HVL-BL01',name:'Hvilan Bollard',archetype:'bollard',params:{l:0.245,h:0.8},materials:{body:'galvanized'},est:[],family:'Hvilan',brand:'Vestre',cat:'edge',art:'185-900A',src:'Vestre Catalogue 2024/25, pp.237–239',desc:'Impact-rated bollard for vehicle exclusion. Three diameter options.',specs:[{l:'Diameter options',v:'244.5 / 500 / 590 mm',lv:'SF'},{l:'Height',v:'~800 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'}],install:'Anchoring A [SF]',weight:'not extracted',access:'n/a',param:'parametric',modNote:'3 diameter options.',relIds:['VS-HVL-BN01'],notes:['Source states rated to stop vehicles — specific impact class not captured; refer to Vestre datasheet [SF].']},
+{id:'VS-CVR-SH01',name:'Cover Roof',archetype:'shelter_roof',params:{l:4.62,d:2.312,h:2.6},materials:{post:'galvanized',roof:'glass_clear'},est:['h'],family:'Cover',brand:'Vestre',cat:'shelter',art:'4701-900A (steel); 4702-900A (glass); 4703-900A (sedum)',src:'Vestre Catalogue 2024/25, pp.228–229',desc:'Large outdoor roof structure. Steel plate, glass, or sedum deck. LED/WiFi/solar options.',specs:[{l:'Width',v:'~4620 mm',lv:'SF'},{l:'Depth',v:'~2312 mm',lv:'SF'}],finish:[{l:'Frame',v:'Steel + powder coat [DI]',lv:'DI'},{l:'Roof',v:'Steel plate / Glass / Sedum',lv:'SF'}],install:'Anchoring A [SF]',weight:'660 kg (steel plate) [SF]',access:'Open underside [DI].',param:'fixed',modNote:'3 roof materials; LED/WiFi/solar by quote [SF].',relIds:[],notes:['Engineering review required for anchor loads [DI].']},
+{id:'MC-KPE-SY109',name:'Platform Kupé PLF109',archetype:'platform_system',params:{l:1.9,d:2.415,h:1.2},materials:{deck:'thermowood',rail:'galvanized',seat:'thermowood'},est:['deckH'],family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF109',src:'mmcité Platform Kupé PLF109 Technical Data Sheet',desc:'Smallest Kupé platform. 3 segments, U-shape with corner returns. Integrated bench + railing.',specs:[{l:'Length',v:'1900 mm',lv:'SF'},{l:'Depth',v:'2415 mm',lv:'SF'},{l:'Height',v:'1200 mm',lv:'SF',n:'incl. railing'},{l:'PLF51m',v:'1110 mm — railing + bench',lv:'SF'},{l:'PLF55m (L corner)',v:'658 mm',lv:'SF'},{l:'PLF56m (R corner)',v:'658 mm',lv:'SF'},{l:'Table PIX911-PLF',v:'20 kg pedestal',lv:'SF'}],finish:[{l:'Frame',v:'Steel — zinc (galv) + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'},{l:'Bench slats',v:'Robinia or European larch',lv:'SF'},{l:'Legs',v:'Adjustable stainless steel',lv:'SF'}],install:'Freestanding on adjustable SS legs — NOT anchored to street [SF]',weight:'481 kg total [SF]',access:'Railing 1200 mm [SF]. Accessible entry ramp not shown in source [—].',param:'fixed',modNote:'Standard configuration; segment mix fixed for PLF109.',relIds:['MC-KPE-SY110','MC-KPE-SY111','MC-KPE-SY112'],notes:['CRITICAL: Min subgrade bearing capacity 100 kPa required [SF].','Freestanding — NOT anchored to road surface [SF].']},
+{id:'MC-KPE-SY110',name:'Platform Kupé PLF110',archetype:'platform_system',params:{l:2.8,d:2.415,h:1.2},materials:{deck:'thermowood',rail:'galvanized',seat:'thermowood'},est:['deckH'],family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF110',src:'mmcité Platform Kupé PLF110 Technical Data Sheet',desc:'2.8m Kupé platform. Open (no railing) and benched railing segments.',specs:[{l:'Length',v:'2800 mm',lv:'SF'},{l:'Depth',v:'2415 mm',lv:'SF'},{l:'Height',v:'1200 mm',lv:'SF'},{l:'PLF31s (open)',v:'1100 mm — no railing',lv:'SF'},{l:'PLF51s (bench)',v:'1100 mm — railing+bench',lv:'SF'},{l:'PLF55s/PLF56s',v:'2× 658 mm corners',lv:'SF'}],finish:[{l:'Frame',v:'Steel — zinc + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'}],install:'Freestanding on adjustable SS legs [SF]',weight:'704 kg total [SF]',access:'Open segments allow street-side access [DI].',param:'fixed',modNote:'1× PLF31s + 1× PLF51s + 2× PLF55s + 2× PLF56s.',relIds:['MC-KPE-SY109'],notes:['Min 100 kPa bearing capacity [SF].']},
+{id:'MC-KPE-SY111',name:'Platform Kupé PLF111',archetype:'platform_system',params:{l:2.8,d:2.415,h:1.2,bench:false},materials:{deck:'thermowood',rail:'galvanized',seat:'thermowood'},est:['deckH'],family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF111',src:'mmcité Platform Kupé PLF111 Technical Data Sheet',desc:'Open platform, all open segments. 2 pedestal tables. Dining / flexible use.',specs:[{l:'Length',v:'2800 mm',lv:'SF'},{l:'Depth',v:'2415 mm',lv:'SF'},{l:'Height',v:'1200 mm',lv:'SF'},{l:'2× PLF31s (open)',v:'1100 mm each',lv:'SF'},{l:'2× PIX911-PLF tables',v:'20 kg each, pedestal',lv:'SF'}],finish:[{l:'Frame',v:'Steel — zinc + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'}],install:'Freestanding on adjustable SS legs [SF]',weight:'684 kg total [SF]',access:'No integrated railing — supplementary edge protection may be required [DI].',param:'fixed',modNote:'Tables only, no integrated bench. Best for dining.',relIds:['MC-KPE-SY109'],notes:['Min 100 kPa bearing capacity [SF].']},
+{id:'MC-KPE-SY112',name:'Platform Kupé PLF112',archetype:'platform_system',params:{l:2.8,d:1.875,h:1.2},materials:{deck:'thermowood',rail:'galvanized',seat:'thermowood'},est:['deckH'],family:'Platform Kupé',brand:'mmcité',cat:'system',art:'PLF112',src:'mmcité Platform Kupé PLF112 Technical Data Sheet',desc:'Shallower Kupé (1875mm depth) with integrated cylindrical planter. For narrower bays.',specs:[{l:'Length',v:'2800 mm',lv:'SF'},{l:'Depth',v:'1875 mm',lv:'SF',n:'shallower than others'},{l:'Height',v:'1200 mm',lv:'SF'},{l:'PLF34s planter',v:'1387×602 mm cylindrical Polys',lv:'SF'},{l:'Planter irrigation',v:'integrated',lv:'SF'}],finish:[{l:'Frame',v:'Steel — zinc + powder coat',lv:'SF'},{l:'Flooring',v:'European larch',lv:'SF'},{l:'Planter',v:'Polys cylindrical + irrigation',lv:'SF'}],install:'Freestanding on adjustable SS legs [SF]',weight:'684 kg total [SF]',access:'Planter edge defines perimeter [DI].',param:'fixed',modNote:'1875mm depth suits narrower stalls.',relIds:['MC-KPE-SY109'],notes:['Min 100 kPa bearing capacity [SF].','1875mm depth suits narrower ROW constraints [DI].']}
 ];
 
 function flTagHtml(lv) {
   return `<span class='fl-stag fl-${lv}'>${lv}</span>`;
 }
 
+// What the model draws for a preset: its archetype, the numbers, and which of them are assumed.
+function flPresetModelHtml(o) {
+  var sp = flSpecFromKey(o.id);
+  if (!sp) return '';
+  var p = flResolveParams(sp.type, sp.params), m = flResolveMats(sp.type, sp.mats), e = flEnvelope(flParts(sp.type, p));
+  var fin = Object.keys(m).filter(function(r) { return !FL_ARCHETYPES[sp.type].parts[r].fixed; }).map(function(r) { return r + ' ' + flMatInfo(m[r]).label; }).join(', ');
+  var est = (o.est || []).length ? `<div class='fl-inf fl-di' style='margin-top:2px'>Assumed (not in the catalogue): ${o.est.join(', ')}</div>` : '';
+  return `<div class='fl-dr'><span class='fl-dl'>Archetype</span><span class='fl-dv'>${FL_ARCHETYPES[sp.type].label}</span></div>` +
+    `<div class='fl-dr'><span class='fl-dl'>L &times; D &times; H</span><span class='fl-dv'>${e.l.toFixed(3)} &times; ${e.d.toFixed(3)} &times; ${e.h.toFixed(3)} m</span></div>` +
+    `<div class='fl-dr'><span class='fl-dl'>Finish</span><span class='fl-dv'>${fin}</span></div>` + est;
+}
+
 function flCardHtml(o) {
-  const dimRows = o.dims.map(d =>
+  const dimRows = o.specs.map(d =>
     `<div class='fl-dr'><span class='fl-dl'>${d.l}</span><span class='fl-dv'>${d.v}</span>${flTagHtml(d.lv)}${d.n ? `<span style='font-size:9.5px;color:var(--muted);font-style:italic'>(${d.n})</span>` : ''}</div>`
   ).join('');
-  const matRows = o.mats.map(m =>
+  const matRows = o.finish.map(m =>
     `<div class='fl-dr'><span class='fl-dl'>${m.l}</span><span class='fl-dv'>${m.v}</span>${flTagHtml(m.lv)}</div>`
   ).join('');
   const pfCls = o.param === 'fixed' ? 'fl-fx' : o.param === 'parametric' ? 'fl-pm' : 'fl-md';
@@ -8213,7 +8220,7 @@ function flCardHtml(o) {
   const rels = o.relIds.length ? `<div class='fl-ds'><h4>Related</h4><div>${o.relIds.map(r => `<span style='font-family:var(--mono);font-size:9px;color:var(--accent);background:var(--accent-light);padding:1px 5px;border-radius:3px;margin-right:3px'>${r}</span>`).join('')}</div></div>` : '';
   const notes = o.notes.map(n => `<div class='fl-inf fl-di' style='margin-top:2px'>${n}</div>`).join('');
   const modInfo = o.modNote ? `<div class='fl-inf' style='font-size:10px;margin-top:2px'><strong style='color:#1a6b3a'>Modularity:</strong> ${o.modNote}</div>` : '';
-  const srchData = (o.id + ' ' + o.name + ' ' + o.family + ' ' + o.brand + ' ' + o.cat + ' ' + o.dims.map(d => d.v).join(' ')).toLowerCase();
+  const srchData = (o.id + ' ' + o.name + ' ' + o.family + ' ' + o.brand + ' ' + o.cat + ' ' + o.archetype + ' ' + o.specs.map(d => d.v).join(' ')).toLowerCase();
   return `<div class='fl-card' data-cat='${o.cat}' data-id='${o.id}' data-search='${srchData}'>
 <div class='fl-ch' onclick='flToggleCard(this)'>
   <div class='fl-cm'><span class='fl-oid'>${o.id}</span><span class='fl-bb'>${o.brand}</span><span class='fl-bb' style='color:var(--ink)'>${o.family}</span><span class='fl-ct'>${FL_CATS[o.cat] || o.cat}</span></div>
@@ -8226,8 +8233,9 @@ function flCardHtml(o) {
     <div class='fl-dr'><span class='fl-dl'>Document</span><span class='fl-dv'>${o.src}</span>${flTagHtml('SF')}</div>
     <div class='fl-dr'><span class='fl-dl'>Article No.</span><span class='fl-dv' style='font-size:9.5px;font-family:var(--mono)'>${o.art}</span>${flTagHtml('SF')}</div>
   </div>
-  <div class='fl-ds'><h4>Dimensions</h4>${dimRows}</div>
-  <div class='fl-ds'><h4>Materials</h4>${matRows}</div>
+  <div class='fl-ds'><h4>Model</h4>${flPresetModelHtml(o)}</div>
+  <div class='fl-ds'><h4>Catalogue dimensions</h4>${dimRows}</div>
+  <div class='fl-ds'><h4>Catalogue materials</h4>${matRows}</div>
   <div class='fl-ds'><h4>Installation</h4><div class='fl-inf fl-sf'>${o.install}</div></div>
   ${o.weight ? `<div class='fl-ds'><h4>Weight</h4><div class='fl-dr'><span class='fl-dv'>${o.weight}</span></div></div>` : ''}
   ${o.access ? `<div class='fl-ds'><h4>Accessibility</h4><div class='fl-inf'>${o.access}</div></div>` : ''}
@@ -8307,7 +8315,7 @@ function flBuildPage() {
   </tr></thead><tbody>${FL_OBJ.map(o => `<tr onclick="flScrollTo('${o.id}')" style='cursor:pointer'>
     <td class='fl-iid'>${o.id}</td><td>${o.name}</td><td>${o.family}</td><td>${o.brand}</td>
     <td>${FL_CATS[o.cat] || o.cat}</td>
-    <td style='font-size:10px;font-family:var(--mono)'>${o.dims[0] ? o.dims[0].l + ': ' + o.dims[0].v : '—'}</td>
+    <td style='font-size:10px;font-family:var(--mono)'>${o.specs[0] ? o.specs[0].l + ': ' + o.specs[0].v : '—'}</td>
     <td><span class='fl-pf ${o.param === 'fixed' ? 'fl-fx' : o.param === 'parametric' ? 'fl-pm' : 'fl-md'}' style='font-size:9px;padding:1px 5px'>${o.param}</span></td>
   </tr>`).join('')}</tbody></table></div>`;
   cnt.appendChild(isec);
@@ -9116,11 +9124,18 @@ function flArchLabel(type, params) {
 }
 
 // -- Specs: catalogue key -> {type, params, mats} ------------------------------------------------
-// Keys are 'GEN-<archetype>' for generic pieces or a manufacturer preset id (FL_PRESETS).
+// Keys are 'GEN-<archetype>' for generic pieces or a manufacturer preset id: an FL_OBJ item,
+// which names its archetype, its catalogue numbers (params) and its catalogue finish (materials).
+var _FL_OBJ_BY_ID = null;
+function flPreset(id) {
+  if (!_FL_OBJ_BY_ID) { _FL_OBJ_BY_ID = {}; FL_OBJ.forEach(function(o) { _FL_OBJ_BY_ID[o.id] = o; }); }
+  return _FL_OBJ_BY_ID[id] || null;
+}
 function flSpecFromKey(key) {
   if (!key) return null;
   if (key.indexOf('GEN-') === 0) { var t = key.slice(4); return FL_ARCHETYPES[t] ? {type:t, params:{}, mats:{}, presetId:null} : null; }
-  var pr = FL_PRESETS[key];
+  var pr = flPreset(key);
+  if (pr && !FL_ARCHETYPES[pr.archetype]) pr = null;
   return pr ? {type:pr.archetype, params:pr.params || {}, mats:pr.materials || {}, presetId:key} : null;
 }
 // Resolved spec of a placed instance (FL3D.placed or DESIGN_MODEL.objects entry); null for street objects.
@@ -9164,6 +9179,32 @@ function flKeyDims(key) {
   if (!sp) return _flStreetDims(key) || {l:1.5, d:0.5, h:0.45};
   var e = flEnvelope(flParts(sp.type, flResolveParams(sp.type, sp.params, {placing:true})));
   return {l:e.l, d:e.d, h:e.h};
+}
+// -- Library ---------------------------------------------------------------------------------------
+// Entries for every library panel: generic archetypes first (by category, then name), then --
+// only with opts.presets -- the manufacturer presets. opts: {cat, search, presets}.
+var FL_SHOW_PRESETS = false;
+function flLibraryItems(opts) {
+  opts = opts || {};
+  var q = (opts.search || '').toLowerCase().trim(), items = [];
+  function catIdx(c) { var i = FL_SEC_ORDER.indexOf(c); return i < 0 ? 99 : i; }
+  Object.keys(FL_ARCHETYPES).forEach(function(t) {
+    var a = FL_ARCHETYPES[t], label = flArchLabel(t, {});
+    items.push({key:'GEN-' + t, label:label, sub:FL_CATS[a.cat], cat:a.cat, generic:true, archetype:t,
+      hay:(label + ' ' + t.replace(/_/g, ' ') + ' ' + FL_CATS[a.cat]).toLowerCase()});
+  });
+  if (opts.presets) FL_OBJ.forEach(function(o) {
+    var d = flKeyDims(o.id), a = FL_ARCHETYPES[o.archetype];
+    items.push({key:o.id, label:o.name, sub:o.brand + ' · ' + _flFmtM(d.l) + ' m', cat:o.cat, generic:false, archetype:o.archetype, brand:o.brand,
+      hay:(o.name + ' ' + o.id + ' ' + o.brand + ' ' + o.family + ' ' + o.archetype.replace(/_/g, ' ') + ' ' + (a ? a.label : '') + ' ' + FL_CATS[o.cat]).toLowerCase()});
+  });
+  return items.filter(function(it) {
+    if (opts.cat && opts.cat !== 'all' && it.cat !== opts.cat && FL_ARCHETYPES[it.archetype].cat !== opts.cat) return false;
+    return !q || it.hay.indexOf(q) >= 0;
+  }).sort(function(a, b) {
+    if (a.generic !== b.generic) return a.generic ? -1 : 1;
+    return catIdx(a.cat) - catIdx(b.cat) || a.label.localeCompare(b.label);
+  });
 }
 function flKeyLabel(key) {
   var o = (typeof FL_OBJ !== 'undefined') ? FL_OBJ.find(function(x) { return x.id === key; }) : null;
@@ -9312,61 +9353,6 @@ function flSectionArchetype(type, params, ctx) {
   return "<g class='fl-sec' data-arch='" + type + "'" + (ctx.id != null ? " data-inst='" + ctx.id + "'" : '') + " data-sc='" + ctx.SC + "'>" + s + '</g>';
 }
 
-// Manufacturer presets: product id -> archetype + catalogue numbers + catalogue finish.
-// (Values in metres from FL_OBJ's catalogue text; see each product's src.)
-var FL_PRESETS = {
-  'VS-APR-CH01': {archetype:'chair',          params:{l:0.786, d:0.56, h:0.45, backH:0.82}, materials:{frame:'galvanized', seat:'pine'}},
-  'VS-APR-BN01': {archetype:'bench',          params:{l:1.514, d:0.55, h:0.45, backH:0.82}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
-  'VS-AGO-CH01': {archetype:'armchair',       params:{l:0.715, d:0.627, h:0.35, backH:0.55}, materials:{frame:'black_steel', seat:'oak'}},
-  'VS-ATL-BN01': {archetype:'bench',          params:{l:1.806, d:0.55, h:0.45, backH:0.8}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
-  'VS-AIR-BN01': {archetype:'bench',          params:{l:1.39, d:0.464, h:0.45, backH:0.797}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
-  'VS-BLC-ST01': {archetype:'bench',          params:{l:0.67, d:0.46, h:0.46, backH:0.79, ends:'plinth'}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
-  'VS-BLC-BB01': {archetype:'bench',          params:{l:1.382, d:0.92, h:0.46, backH:0.62, double:true, ends:'plinth'}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
-  'VS-BLC-SB01': {archetype:'sun_lounger',    params:{l:0.868, d:1.9, h:0.39, backH:1.0}, materials:{frame:'galvanized', seat:'pine'}},
-  'VS-DLG-BN01': {archetype:'backless_bench', params:{l:1.84, d:0.38, h:0.42}, materials:{frame:'galvanized', seat:'oak'}},
-  'VS-EDO-BN01': {archetype:'backless_bench', params:{l:1.8, d:0.315, h:0.45}, materials:{frame:'galvanized', seat:'oak'}},
-  'VS-FLK-BN01': {archetype:'bleacher_step',  params:{l:0.807, rows:2, rowD:0.336, rowH:0.225}, materials:{body:'aluminium', seat:'aluminium'}},
-  'VS-FRM-BN01': {archetype:'backless_bench', params:{l:2.0, d:0.42, h:0.47}, materials:{frame:'galvanized', seat:'pine'}},
-  'VS-HVL-BN01': {archetype:'bench',          params:{l:2.0, d:0.635, h:0.47, backH:0.714}, materials:{frame:'galvanized', seat:'pine', back:'pine'}},
-  'VS-APR-TL01': {archetype:'table',          params:{l:1.8, d:0.695, h:0.75}, materials:{frame:'galvanized', top:'hpl_grey'}},
-  'VS-AGO-TL01': {archetype:'table',          params:{l:0.695, d:0.65, h:0.73}, materials:{frame:'galvanized', top:'pine'}},
-  'VS-AIR-TL01': {archetype:'table',          params:{l:1.64, d:0.652, h:0.75}, materials:{frame:'galvanized', top:'pine'}},
-  'VS-BLC-TL01': {archetype:'table',          params:{l:0.775, h:0.75, shape:'square'}, materials:{frame:'galvanized', top:'pine'}},
-  'VS-FLK-TL01': {archetype:'table',          params:{l:1.85, d:0.8, h:0.75}, materials:{frame:'aluminium', top:'aluminium'}},
-  'VS-FRM-TL01': {archetype:'table',          params:{l:2.0, d:0.65, h:0.73}, materials:{frame:'galvanized', top:'hpl_grey'}},
-  'VS-HVL-TL01': {archetype:'table',          params:{l:0.72, h:0.72, shape:'square'}, materials:{frame:'galvanized', top:'pine'}},
-  'VS-HVL-PT01': {archetype:'picnic',         params:{l:1.718, d:1.61, h:0.74, seatH:0.45}, materials:{frame:'galvanized', top:'pine', seat:'pine'}},
-  'VS-BUZ-TB01': {archetype:'picnic',         params:{l:0.938, h:0.74, seatH:0.46, shape:'round'}, materials:{frame:'galvanized', top:'hpl_grey', seat:'hpl_grey'}},
-  'VS-BRG-PT01': {archetype:'picnic',         params:{l:2.1, d:1.6, h:0.75}, materials:{frame:'galvanized', top:'pine', seat:'pine'}},
-  'VS-CDT-TB01': {archetype:'picnic',         params:{l:1.04, d:1.3, h:0.75}, materials:{frame:'galvanized', top:'pine', seat:'pine'}},
-  'VS-AGO-PL01': {archetype:'planter_tall',   params:{l:0.45, d:0.45, h:0.9}, materials:{body:'galvanized'}},
-  'VS-BLC-PL01': {archetype:'planter',        params:{l:0.6, d:0.6, h:0.42}, materials:{body:'galvanized'}},
-  'VS-BLC-PL02': {archetype:'planter',        params:{l:0.9, d:0.6, h:0.52}, materials:{body:'galvanized'}},
-  'VS-BLC-PL03': {archetype:'planter',        params:{l:1.2, d:0.6, h:0.62}, materials:{body:'galvanized'}},
-  'VS-BLC-PL04': {archetype:'planter',        params:{l:1.6, d:0.6, h:0.72}, materials:{body:'galvanized'}},
-  'VS-BOB-PL01': {archetype:'planter',        params:{l:0.9, d:0.45, h:0.38}, materials:{body:'black_steel'}},
-  'VS-CDQ-PL01': {archetype:'planter',        params:{l:0.8, d:0.826, h:0.6}, materials:{body:'galvanized'}},
-  'VS-CDQ-PL02': {archetype:'planter_tall',   params:{l:0.8, d:0.8, h:0.9}, materials:{body:'galvanized'}},
-  'VS-BLC-WB01': {archetype:'bin',            params:{l:0.3, d:0.55, h:0.922}, materials:{body:'galvanized', lid:'ral_7016'}},
-  'VS-BLC-WB02': {archetype:'bin',            params:{l:0.45, d:0.55, h:0.95}, materials:{body:'galvanized', lid:'ral_7016'}},
-  'VS-CTY-WB01': {archetype:'bin',            params:{l:0.39, d:0.39, h:0.65, shape:'round'}, materials:{body:'galvanized', lid:'ral_7016'}},
-  'VS-CTY-WB02': {archetype:'bin',            params:{l:0.4, d:0.4, h:0.9, shape:'round'}, materials:{body:'galvanized', lid:'ral_7016'}},
-  'VS-DLG-WB01': {archetype:'bin',            params:{l:0.26, d:0.56, h:0.9}, materials:{body:'galvanized', lid:'ral_7016'}},
-  'VS-FRM-WB01': {archetype:'bin',            params:{l:0.43, d:0.43, h:0.75}, materials:{body:'galvanized', lid:'ral_7016'}},
-  'VS-BRG-BR01': {archetype:'bike_rack',      params:{l:1.448, h:0.775, type:'u', count:2}, materials:{frame:'galvanized'}},
-  'VS-BOY-BR01': {archetype:'bike_rack',      params:{l:0.718, h:0.48, type:'u'}, materials:{frame:'galvanized'}},
-  'VS-CYC-BR01': {archetype:'bike_rack',      params:{l:1.155, h:1.01, type:'u', count:2}, materials:{frame:'galvanized'}},
-  'VS-FLK-BR01': {archetype:'bike_rack',      params:{l:0.8, h:0.45, type:'u'}, materials:{frame:'aluminium'}},
-  'VS-FRM-BR01': {archetype:'bike_rack',      params:{l:0.7, h:0.8, type:'u'}, materials:{frame:'aluminium'}},
-  'VS-KLP-BR01': {archetype:'bike_rack',      params:{l:0.9, h:0.8, type:'wave'}, materials:{frame:'galvanized'}},
-  'VS-HVL-BL01': {archetype:'bollard',        params:{l:0.245, h:0.8}, materials:{body:'galvanized'}},
-  'VS-CVR-SH01': {archetype:'shelter_roof',   params:{l:4.62, d:2.312, h:2.6}, materials:{post:'galvanized', roof:'glass_clear'}},
-  'MC-KPE-SY109': {archetype:'platform_system', params:{l:1.9, d:2.415, h:1.2}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}},
-  'MC-KPE-SY110': {archetype:'platform_system', params:{l:2.8, d:2.415, h:1.2}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}},
-  'MC-KPE-SY111': {archetype:'platform_system', params:{l:2.8, d:2.415, h:1.2, bench:false}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}},
-  'MC-KPE-SY112': {archetype:'platform_system', params:{l:2.8, d:1.875, h:1.2}, materials:{deck:'thermowood', rail:'galvanized', seat:'thermowood'}}
-};
-
 // Street objects (manholes, hydrants, poles...) register their own meshes here
 // (_registerStreet3DFactories). Furniture never does: it is all FL_ARCHETYPES.
 var FL3D_FACTORY = {};
@@ -9404,8 +9390,7 @@ function fl3DStartPlace(objId) {
   FL3D.placing = objId;
   FL3D.selId = null;
   fl3DUpdateSelUI(null);
-  const obj = typeof FL_OBJ !== 'undefined' ? FL_OBJ.find(o=>o.id===objId) : null;
-  const lbl = obj ? obj.name : objId.replace(/^__|^VS-|^MC-/g,'').replace(/-/g,' ');
+  const lbl = flKeyLabel(objId);
   const el = document.getElementById('fl3DPlacingLbl');
   if (el) { el.textContent = 'Placing: '+lbl+' — click the parklet deck'; el.style.display = 'block'; }
   if (_3d.renderer) _3d.renderer.domElement.style.cursor = 'crosshair';
@@ -9657,34 +9642,11 @@ function _pvPlanClick(e) {
 }
 
 // ── TRAY UI ───────────────────────────────────────────────────────────────
-const FL3D_TRAY_ITEMS = [
-  {objId:'VS-FRM-BN01', ico:'▬', lbl:'Forum Bench'},
-  {objId:'VS-HVL-BN01', ico:'▬', lbl:'Hvilan Bench'},
-  {objId:'VS-BLC-ST01', ico:'▩', lbl:'Bloc Seat'},
-  {objId:'VS-BLC-BB01', ico:'▬', lbl:'Back-to-Back'},
-  {objId:'VS-APR-CH01', ico:'▤', lbl:'April Chair'},
-  {objId:'VS-DLG-BN01', ico:'▬', lbl:'Dialog Bench'},
-  {objId:'VS-APR-TL01', ico:'▭', lbl:'Table WC'},
-  {objId:'VS-FRM-TL01', ico:'▭', lbl:'Forum Table'},
-  {objId:'VS-HVL-PT01', ico:'╬', lbl:'Picnic Table'},
-  {objId:'VS-BUZ-TB01', ico:'◎', lbl:'Buzz Combo'},
-  {objId:'VS-BLC-PL01', ico:'▢', lbl:'Planter 45L'},
-  {objId:'VS-BLC-PL02', ico:'▢', lbl:'Planter 165L'},
-  {objId:'VS-BLC-PL03', ico:'▢', lbl:'Planter 320L'},
-  {objId:'VS-BLC-PL04', ico:'▢', lbl:'Planter 520L'},
-  {objId:'VS-BOB-PL01', ico:'▢', lbl:'Boboli'},
-  {objId:'VS-AGO-PL01', ico:'▪', lbl:'GO Planter'},
-  {objId:'VS-BOY-BR01', ico:'⊓', lbl:'Bike Rack S'},
-  {objId:'VS-CYC-BR01', ico:'⊓', lbl:'Cycle Rack 2'},
-  {objId:'VS-HVL-BL01', ico:'●', lbl:'Bollard'},
-  {objId:'VS-BLC-WB01', ico:'▮', lbl:'Bloc Bin'},
-  {objId:'VS-CTY-WB01', ico:'○', lbl:'City Bin'},
-  {objId:'VS-CVR-SH01', ico:'⌂', lbl:'Cover Roof'},
-  {objId:'MC-KPE-SY109', ico:'▩', lbl:'Kupé PLF109'},
-  {objId:'GEN-bench', ico:'▬', lbl:'Bench'},
-  {objId:'GEN-table', ico:'▭', lbl:'Table'},
-  {objId:'GEN-chair', ico:'▤', lbl:'Chair'},
-];
+// 3D tray: one button per generic archetype, in library order (presets live in the library panels).
+const FL3D_TRAY_ICO = {seating:'▬', table:'▭', planter:'▢', shelter:'⌂', edge:'●', deck:'▤', bin:'▮', bikerack:'⊓', amenity:'◦', play:'◆', system:'▩'};
+const FL3D_TRAY_ITEMS = flLibraryItems({}).map(function(it) {
+  return {objId:it.key, ico:FL3D_TRAY_ICO[it.cat] || '▪', lbl:FL_ARCHETYPES[it.archetype].label};
+});
 
 function fl3DRenderTray() {
   const div = document.getElementById('fl3DItems');
@@ -9832,12 +9794,12 @@ function flBuildVisualLibrary() {
 
 function _fvRender(wrap) {
   var q = ((document.getElementById('flSrch')||{}).value||'').trim().toLowerCase();
-  var allObjs = (typeof FL_OBJ !== 'undefined') ? FL_OBJ : [];
-
-  var objs = allObjs.filter(function(o) {
-    if (!o.id || !o.name) return false;
-    if (q && !o.name.toLowerCase().includes(q) && !(o.id||'').toLowerCase().includes(q)) return false;
-    return true;
+  // Generic archetypes first, then (with the presets toggle) manufacturer items.
+  var objs = flLibraryItems({search:q, presets:FL_SHOW_PRESETS}).map(function(it) {
+    var d = flKeyDims(it.key);
+    return {id:it.key, name:it.label, brand:it.generic ? '' : it.brand, cat:it.cat,
+      section:(it.generic ? 'Generic · ' : it.brand + ' · ') + (FL_SEC_TITLE[it.cat] || it.cat),
+      dimStr:d.l.toFixed(2) + ' × ' + d.d.toFixed(2) + ' × ' + d.h.toFixed(2) + ' m'};
   });
 
   if (objs.length === 0) {
@@ -9848,7 +9810,7 @@ function _fvRender(wrap) {
   // Group by section label
   var groups = {}, order = [];
   objs.forEach(function(o) {
-    var g = o.section || o.groupLabel || o.cat || 'Other';
+    var g = o.section || 'Other';
     if (!groups[g]) { groups[g] = []; order.push(g); }
     groups[g].push(o);
   });
@@ -9864,9 +9826,7 @@ function _fvRender(wrap) {
     grid.className = 'fv-grid';
     groups[sec].forEach(function(obj) {
       var hasFact = !!flSpecFromKey(obj.id);
-      var dims = obj.dims||{};
-      var W=dims.W||dims.w||'', D=dims.D||dims.d||'', H=dims.H||dims.h||'';
-      var dimStr = [W,D,H].filter(Boolean).join(' x ');
+      var dimStr = obj.dimStr;
       var card = document.createElement('div');
       card.className = 'fv-card';
       card.dataset.objid = obj.id;
@@ -10133,15 +10093,14 @@ function renderStreetObjProps(type,data) {
 
 function renderFurnitureInfoProps(obj) {
   if (!obj) return '';
-  var dims=obj.dims||{};
-  var W=dims.W||dims.w||'—', D=dims.D||dims.d||'—', H=dims.H||dims.h||'—';
-  var hasFact=!!flSpecFromKey(obj.id);
-  return '<div class="rp-obj-name">'+obj.name+'</div>'+(obj.brand?'<div class="rp-obj-sub">'+obj.brand+'</div>':'')+
-    _rpS('OBJECT')+_rpR('ID',obj.id)+(obj.cat?_rpR('Category',obj.cat):'')+
-    (hasFact?'<div class="rp-status rp-pass">✓ 3D geometry</div>':'<div class="rp-status rp-unclear">No 3D geometry</div>')+
-    _rpS('DIMENSIONS')+_rpR('Width',W)+_rpR('Depth',D)+_rpR('Height',H)+
-    (obj.desc?_rpS('DESCRIPTION')+'<div style="font-size:10px;color:#9EA3A8;line-height:1.5;padding:4px 0">'+obj.desc+'</div>':'')+
-    _rpS('ACTIONS')+(hasFact?'<button class="rp-btn" onclick="fvPlaceObj(\''+obj.id+'\')">Place in Design</button>':'<div style="font-size:10px;color:#666">No 3D geometry</div>');
+  var sp = flSpecFromKey(obj.id), pr = flPreset(obj.id), d = flKeyDims(obj.id);
+  var arch = sp ? FL_ARCHETYPES[sp.type] : null, est = pr && pr.est && pr.est.length ? pr.est.join(', ') : '';
+  return '<div class="rp-obj-name">'+obj.name+'</div>'+(obj.brand?'<div class="rp-obj-sub">'+obj.brand+'</div>':'<div class="rp-obj-sub">Generic</div>')+
+    _rpS('OBJECT')+_rpR('ID',obj.id)+(arch?_rpR('Archetype',arch.label):'')+(obj.cat?_rpR('Category',FL_CATS[obj.cat]||obj.cat):'')+
+    _rpS('DIMENSIONS')+_rpR('Length',d.l.toFixed(3),'m')+_rpR('Depth',d.d.toFixed(3),'m')+_rpR('Height',d.h.toFixed(3),'m')+
+    (est?'<div style="font-size:9.5px;color:#9EA3A8;padding:2px 0 4px">Assumed (not in the catalogue): '+est+'</div>':'')+
+    (pr&&pr.desc?_rpS('DESCRIPTION')+'<div style="font-size:10px;color:#9EA3A8;line-height:1.5;padding:4px 0">'+pr.desc+'</div>':'')+
+    _rpS('ACTIONS')+(sp?'<button class="rp-btn" onclick="fvPlaceObj(\''+obj.id+'\')">Place in Design</button>':'<div style="font-size:10px;color:#666">No 3D geometry</div>');
 }
 
 function fvDuplicateSelected() {
@@ -10457,21 +10416,26 @@ function _pdfComplianceRows() {
 function _pdfFurnitureRows() {
   var rows = [];
   if (typeof FL3D === 'undefined' || !FL3D.placed) return rows;
-  var counts = {}, instances = {};
+  // One schedule row per catalogue key + size + finish: two benches of different length are two rows.
+  var counts = {}, instances = {}, order = [];
   FL3D.placed.forEach(function(inst) {
-    if (!counts[inst.objId]) { counts[inst.objId] = 0; instances[inst.objId] = inst; }
-    counts[inst.objId]++;
+    var k = inst.objId + '|' + JSON.stringify(inst.params || {}) + '|' + JSON.stringify(inst.materials || {});
+    if (!counts[k]) { counts[k] = 0; instances[k] = inst; order.push(k); }
+    counts[k]++;
   });
-  Object.keys(counts).forEach(function(oid) {
-    var obj = (typeof FL_OBJ !== 'undefined') ? FL_OBJ.find(function(o){return o.id===oid;}) : null;
-    var catLabel = (obj && typeof FL_CATS !== 'undefined') ? (FL_CATS[obj.cat] || obj.cat) : '';
+  order.forEach(function(k) {
+    var inst = instances[k], oid = inst.objId, obj = flPreset(oid), sp = flInstSpec(inst);
+    var catLabel = sp ? (FL_CATS[FL_ARCHETYPES[sp.type].cat] || '') : (obj ? (FL_CATS[obj.cat] || obj.cat) : '');
+    var d = flInstDims(inst);
+    var mat = sp ? Object.keys(sp.mats).filter(function(r) { return !FL_ARCHETYPES[sp.type].parts[r].fixed; })
+                     .map(function(r) { return r + ' ' + flMatInfo(sp.mats[r]).label; }).join(', ') : '';
     rows.push({
-      objId: oid, qty: counts[oid],
-      name: obj ? obj.name : oid.replace(/^VS-|^MC-/, '').replace(/-/g, ' '),
-      brand: obj ? (obj.brand || '') : '',
+      objId: oid, qty: counts[k],
+      name: obj ? obj.name : (sp ? flArchLabel(sp.type, sp.params) : oid),
+      brand: obj ? (obj.brand || '') : 'Generic',
       cat: catLabel,
-      dim: obj && obj.dims && obj.dims[0] ? (obj.dims[0].l + ': ' + obj.dims[0].v) : '',
-      mat: obj && obj.mats && obj.mats[0] ? obj.mats[0].v.replace(/ \[SF\]| \[DI\]| \[CALC\]/g, '') : '',
+      dim: d.l.toFixed(2) + ' × ' + d.d.toFixed(2) + ' × ' + d.h.toFixed(2) + ' m',
+      mat: mat,
       src: obj ? (obj.src || '') : '',
       thumb: (_FPR && _FPR.cache && _FPR.cache[oid]) ? _FPR.cache[oid] : null
     });
@@ -11970,23 +11934,37 @@ function lhsFwFilter(btn, f) {
   lhsFwRender();
 }
 function lhsFwSearchFn(val) { _lhsFwSearch = val.toLowerCase(); lhsFwRender(); }
+// Show or hide the manufacturer presets in every library panel (generic pieces always show).
+function flSetShowPresets(on) {
+  FL_SHOW_PRESETS = !!on;
+  ['lhsFwPresets', 'flPresetsToggle'].forEach(function(id) { var c = document.getElementById(id); if (c) c.checked = FL_SHOW_PRESETS; });
+  if (_lhsFwRendered) lhsFwRender();
+  var vg = document.getElementById('flVisualGrid');
+  if (vg && typeof flBuildVisualLibrary === 'function' && vg.childElementCount) flBuildVisualLibrary();
+}
 function lhsFwRender() {
   var g = document.getElementById('lhsFwGrid');
-  if (!g || typeof FL_OBJ === 'undefined') return;
+  if (!g) return;
   _lhsFwRendered = true;
-  var items = FL_OBJ.filter(function(o) {
-    if (_lhsFwFilter !== 'all' && o.cat !== _lhsFwFilter) return false;
-    if (_lhsFwSearch && (o.name || '').toLowerCase().indexOf(_lhsFwSearch) < 0) return false;
-    return true;
-  });
-  g.innerHTML = items.map(function(o) {
-    var img = (typeof fprGetDataUrl === 'function') ? fprGetDataUrl(o.id) : '';
-    return '<div class="fpop-card fpop-draggable" data-fid="' + o.id + '" onmousedown="_fdStartDrag(\'' + o.id + '\',event)" title="' + (o.name||o.id) + ' (' + (o.supplier||'') + ')">' +
+  // Category buttons: every category that has a piece to show.
+  var cb = document.getElementById('lhsFwCats');
+  if (cb) {
+    var all = flLibraryItems({presets:FL_SHOW_PRESETS}), has = {};
+    all.forEach(function(it) { has[it.cat] = 1; has[FL_ARCHETYPES[it.archetype].cat] = 1; });
+    if (_lhsFwFilter !== 'all' && !has[_lhsFwFilter]) _lhsFwFilter = 'all';
+    cb.innerHTML = ['all'].concat(FL_SEC_ORDER.filter(function(c) { return has[c]; })).map(function(c) {
+      return '<button class="fpop-cat' + (c === _lhsFwFilter ? ' active' : '') + '" data-f="' + c + '" onclick="lhsFwFilter(this,\'' + c + '\')">' + (c === 'all' ? 'All' : FL_CATS[c]) + '</button>';
+    }).join('');
+  }
+  var items = flLibraryItems({cat:_lhsFwFilter, search:_lhsFwSearch, presets:FL_SHOW_PRESETS});
+  g.innerHTML = items.length ? items.map(function(it) {
+    var img = (typeof fprGetDataUrl === 'function') ? fprGetDataUrl(it.key) : '';
+    return '<div class="fpop-card fpop-draggable" data-fid="' + it.key + '" onmousedown="_fdStartDrag(\'' + it.key + '\',event)" title="' + it.label + (it.generic ? '' : ' (' + it.brand + ')') + '">' +
       (img ? '<img class="fpop-thumb" src="' + img + '" loading="lazy">' :
-        '<div class="fpop-thumb" style="display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--muted);text-align:center;padding:2px;">' + (o.id||'') + '</div>') +
-      '<div class="fpop-name">' + (o.name || o.id) + '</div>' +
-      '<div class="fpop-meta">' + (o.supplier || '') + '</div></div>';
-  }).join('');
+        '<div class="fpop-thumb" style="display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--muted);text-align:center;padding:2px;">' + it.key + '</div>') +
+      '<div class="fpop-name">' + it.label + '</div>' +
+      '<div class="fpop-meta">' + it.sub + '</div></div>';
+  }).join('') : '<div style="grid-column:1/-1;font-size:10px;color:var(--muted);padding:6px 2px;">Nothing matches' + (FL_SHOW_PRESETS ? '' : ' (manufacturer presets are hidden)') + '.</div>';
 }
 
 // ── Settings workspace nav scroll ────────────────────────────────
