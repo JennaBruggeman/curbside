@@ -1642,6 +1642,7 @@ window.checkLandmarkConsistency = function(verbose) {
   if (swSeg) chk('sidewalkW vs sidewalk segment', LM.sidewalkW, swSeg.width);
   chk('totalRoad vs TOTAL_ROAD', DM.totalRoad, TOTAL_ROAD);
   chk('roadRight vs sum of road segments', LM.roadRight, road.reduce(function(a,s){ return a + s.width; }, 0));
+  chk('road segments fill TOTAL_ROAD (far curb)', LM.roadRight, TOTAL_ROAD);
   chk('parklet.width vs designParkletWidth', DM.parklet.width, designParkletWidth);
   chk('parklet.length vs designParkletLength', DM.parklet.length, designParkletLength);
   chk('deckW vs parklet.width', LM.deckW, DM.parklet.width);
@@ -1736,7 +1737,8 @@ window.checkLandmarkConsistency = function(verbose) {
   }
   window._lastSegmentCheck = segRows;
   if (bad.length) {
-    console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL:');
+    console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL: ' +
+      bad.map(function(b){ return b.value; }).join('; '));
     console.table(bad);
   } else if (verbose !== false) {
     console.log('[checkLandmarkConsistency] OK -- landmarks, globals and Plan helpers agree.');
@@ -1910,10 +1912,8 @@ function onRoadWidthChange() {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 
 }
 function onSidewalkWidthChange() {
@@ -1921,10 +1921,8 @@ function onSidewalkWidthChange() {
   if (isNaN(v) || v < 0.3) return;
   SIDEWALK_W = v;
   saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function getTotalLanes() {
   return ROAD_DIR === 'twoway' ? LANES_A + LANES_B : NUM_LANES;
@@ -1936,10 +1934,8 @@ function onLaneCountChange() {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function onRoadDirChange(dir) {
   ROAD_DIR = dir;
@@ -1953,10 +1949,8 @@ function onRoadDirChange(dir) {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function onLanesAChange() {
   const v = parseInt(document.getElementById('lanesA').value, 10);
@@ -1965,10 +1959,8 @@ function onLanesAChange() {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function onLanesBChange() {
   const v = parseInt(document.getElementById('lanesB').value, 10);
@@ -1977,10 +1969,8 @@ function onLanesBChange() {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function renderBldgControls() {
   const sec = document.getElementById('contextSection');
@@ -2279,11 +2269,8 @@ function onWidthSlider(val) {
   designParkletWidth = parseFloat(val);
   document.getElementById('widthReadout').textContent = designParkletWidth.toFixed(3) + ' m';
   updateMinRoadNote();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
-  if (typeof seSyncFromGlobals === 'function') seSyncFromGlobals();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function onLengthSlider(val) {
   designParkletLength = parseFloat(val);
@@ -2321,11 +2308,8 @@ function onBikeLaneType(type) {
   clampParkletWidth();
   saveSettings();
   updateBikeBufUI();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
-  if (typeof seSyncFromGlobals === 'function') seSyncFromGlobals();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function onBikeLaneWidth(val) {
   const v = parseFloat(val);
@@ -2337,11 +2321,8 @@ function onBikeLaneWidth(val) {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  renderCrossSection();
-  renderPlanView();
-  renderMassView();
-  updateC02Status();
-  if (typeof seSyncFromGlobals === 'function') seSyncFromGlobals();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function onBufferToggle(enabled) {
   designBufferEnabled = enabled;
@@ -2406,9 +2387,8 @@ function onBufType(loc, type) {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  if (typeof seSyncFromGlobals === 'function') seSyncFromGlobals();
-  renderCrossSection(); renderPlanView(); renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function onBufWidth(loc, val) {
   const type = loc === 'PK' ? bufPKType : bufBLType;
@@ -2422,8 +2402,8 @@ function onBufWidth(loc, val) {
   updateWidthSliderMax();
   clampParkletWidth();
   saveSettings();
-  renderCrossSection(); renderPlanView(); renderMassView();
-  updateC02Status();
+  // Cross-section inputs go through the one update path: resync segments, rebuild the model, render all views.
+  syncDesignModel('sidebar');
 }
 function autoSolveWidth() {
   const maxW = parseFloat((TOTAL_ROAD - getBikeLaneD() - getReqLane() * getTotalLanes()).toFixed(3));
@@ -13877,9 +13857,9 @@ function pkClearAllFurniture() {
 
 // ─── Full re-render ───────────────────────────────────────────────
 function pkReRenderAll() {
-  try { if (typeof renderPlanView    === 'function') renderPlanView();    } catch(e) {}
-  try { if (typeof renderCrossSection=== 'function') renderCrossSection();} catch(e) {}
-  try { if (typeof renderMassView    === 'function') renderMassView();    } catch(e) {}
+  // A loaded design set new globals: resync the Section editor's segments from them and
+  // render every view from the rebuilt model (the one update path).
+  try { if (typeof syncDesignModel === 'function') syncDesignModel('load'); } catch(e) {}
   try { if (typeof updateChecklist   === 'function') updateChecklist();   } catch(e) {}
   try { if (typeof updateManholeCrit === 'function') updateManholeCrit(); } catch(e) {}
   try { if (typeof updateCurbFeatureDists === 'function') updateCurbFeatureDists(); } catch(e) {}
