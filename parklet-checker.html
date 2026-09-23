@@ -4438,15 +4438,21 @@ function snapToGrid(v, spacing) {
 // Plan is a true top-down projection of the right-handed Three.js world: with +X
 // (toward the road) running DOWN the page, +Z (along street, south) must run LEFT.
 // _pvPKX is the SVG x of world z=0, which is the parklet rectangle's right edge.
-function worldToPlan(wx, wz) {
-  return { px: _pvPKX - wz * _pvHS, py: _pvPKY + wx * _pvSC };
+// Optional frame f = {x0, y0, hs, vs} (SVG x of z=0, SVG y of x=0, px/m along, px/m across)
+// lets another top-down canvas (the deck sketch editor) share this exact mapping at its
+// own scale; omitted, it is the Plan's frame cached by renderPlanView.
+function _planFrame(f) { return f || { x0: _pvPKX, y0: _pvPKY, hs: _pvHS, vs: _pvSC }; }
+function worldToPlan(wx, wz, f) {
+  f = _planFrame(f);
+  return { px: f.x0 - wz * f.hs, py: f.y0 + wx * f.vs };
 }
-function planToWorld(px, py) {
-  return { x: (py - _pvPKY) / _pvSC, z: (_pvPKX - px) / _pvHS };
+function planToWorld(px, py, f) {
+  f = _planFrame(f);
+  return { x: (py - f.y0) / f.vs, z: (f.x0 - px) / f.hs };
 }
 // Screen-space drag delta -> world delta, via the canonical inverse (no origin term).
-function planDeltaToWorld(dpx, dpy) {
-  var a = planToWorld(0, 0), b = planToWorld(dpx, dpy);
+function planDeltaToWorld(dpx, dpy, f) {
+  var a = planToWorld(0, 0, f), b = planToWorld(dpx, dpy, f);
   return { x: b.x - a.x, z: b.z - a.z };
 }
 // SVG matrix() that places a local drawing at world (wx,wz) with rotation rot.
@@ -7207,70 +7213,62 @@ function initDefaultSkShape() {
   };
 }
 
+// Deck sketch editor canvas. It is a top-down view like Plan, so it uses the same
+// worldToPlan/planToWorld mapping with its own frame (skF): world z=0 at the right edge
+// of the deck box, uniform scale sc. Sketch vertex {x, y} = world {z: x, x: y}.
 function sketchTransform() {
-  const L = designParkletLength, W = designParkletWidth;
+  const L = _dmCurrent().parklet.length, W = _dmCurrent().parklet.width;
   const SW = 760, SH = 280, PL = 56, PR = 34, PT = 36, PB = 44;
   const avW = SW - PL - PR, avH = SH - PT - PB;
   const sc = Math.min(avW / L, avH / W);
   const cW = L * sc, cH = W * sc;
-  return {ox: PL + (avW-cW)/2, oy: PT + (avH-cH)/2, sc, SW, SH, L, W};
+  const ox = PL + (avW-cW)/2, oy = PT + (avH-cH)/2;
+  return {ox, oy, sc, SW, SH, L, W, skF: {x0: ox + cW, y0: oy, hs: sc, vs: sc}};
 }
 
-function mToP(mx, my, ox, oy, sc) { return {px: ox + mx * sc, py: oy + my * sc}; }
-function pToM(px, py, ox, oy, sc) { return {mx: (px-ox)/sc, my: (py-oy)/sc}; }
+// Arc control point of a sketch segment, in sketch-local metres. Same construction the
+// 3D extrusion uses, so sag bulges to the same side of the deck in every view.
+function shapeArcCtrl(v1, v2, sag) {
+  const dx = v2.x - v1.x, dy = v2.y - v1.y, ln = Math.sqrt(dx*dx + dy*dy) || 1;
+  return { x: (v1.x + v2.x) / 2 - (dy / ln) * sag, y: (v1.y + v2.y) / 2 + (dx / ln) * sag };
+}
 
-function buildSketchPath(shape, ox, oy, sc) {
+// Outline of the custom deck on a top-down canvas (Plan when f is omitted, the sketch
+// editor when f = skF). Every point -- vertices and arc control points -- is projected
+// through worldToPlan, so Plan, sketch editor and 3D all show the same shape.
+function buildPlanShapePath(shape, f) {
   if (!shape.verts || shape.verts.length < 2) return '';
   const n = shape.verts.length;
-  const p0 = mToP(shape.verts[0].x, shape.verts[0].y, ox, oy, sc);
+  const tp = v => worldToPlan(v.y, v.x, f);
+  const p0 = tp(shape.verts[0]);
   let d = 'M ' + p0.px.toFixed(1) + ' ' + p0.py.toFixed(1);
   const lim = shape.closed ? n : n - 1;
   for (let i = 0; i < lim; i++) {
-    const v1 = shape.verts[i%n], v2 = shape.verts[(i+1)%n];
-    const seg = (shape.segs && shape.segs[i%n]) || {arc:false,sag:0};
-    const p2 = mToP(v2.x, v2.y, ox, oy, sc);
-    if (!seg.arc || Math.abs(seg.sag||0) < 0.001) {
-      d += ' L ' + p2.px.toFixed(1) + ' ' + p2.py.toFixed(1);
-    } else {
-      const p1 = mToP(v1.x, v1.y, ox, oy, sc);
-      const cmx=(p1.px+p2.px)/2, cmy=(p1.py+p2.py)/2;
-      const dx=p2.px-p1.px, dy=p2.py-p1.py, ln=Math.sqrt(dx*dx+dy*dy)||1;
-      d += ' Q ' + (cmx+(-dy/ln)*(seg.sag*sc)).toFixed(1) + ' ' + (cmy+(dx/ln)*(seg.sag*sc)).toFixed(1) + ' ' + p2.px.toFixed(1) + ' ' + p2.py.toFixed(1);
-    }
-  }
-  if (shape.closed) d += ' Z';
-  return d;
-}
-
-// Plan outline of the custom deck. Sketch vertex (x, y) is world (z = x, x = y), and arc
-// control points are built in world space exactly as the 3D extrusion builds them, then
-// every point is projected through worldToPlan -- so Plan and 3D show the same shape.
-function buildPlanShapePath(shape) {
-  if (!shape.verts || shape.verts.length < 2) return '';
-  const n = shape.verts.length;
-  const tp = v => worldToPlan(v.y, v.x);
-  const p0 = tp(shape.verts[0]);
-  let d = 'M ' + p0.px.toFixed(1) + ' ' + p0.py.toFixed(1);
-  for (let i = 0; i < n; i++) {
     const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
     const seg = (shape.segs && shape.segs[i]) || {arc:false,sag:0};
     const p2 = tp(v2);
     if (!seg.arc || Math.abs(seg.sag||0) < 0.001) {
       d += ' L ' + p2.px.toFixed(1) + ' ' + p2.py.toFixed(1);
     } else {
-      const dx = v2.x - v1.x, dy = v2.y - v1.y, ln = Math.sqrt(dx*dx + dy*dy) || 1;
-      const cp = worldToPlan((v1.y + v2.y) / 2 + (dx / ln) * seg.sag, (v1.x + v2.x) / 2 - (dy / ln) * seg.sag);
+      const cp = tp(shapeArcCtrl(v1, v2, seg.sag));
       d += ' Q ' + cp.px.toFixed(1) + ' ' + cp.py.toFixed(1) + ' ' + p2.px.toFixed(1) + ' ' + p2.py.toFixed(1);
     }
   }
-  d += ' Z';
+  if (shape.closed) d += ' Z';
   return d;
+}
+
+// Screen position of a segment's mid handle (halfway to the arc control point).
+function _skSegHandle(v1, v2, seg, skF) {
+  const sag = (seg.arc && Math.abs(seg.sag||0) > 0.001) ? seg.sag * 0.5 : 0;
+  const c = shapeArcCtrl(v1, v2, sag);
+  return worldToPlan(c.y, c.x, skF);
 }
 
 function renderSketchEditor() {
   const el = document.getElementById('sketchSVG'); if (!el) return;
   const shape = getSkShape();
-  const {ox, oy, sc, SW, SH, L, W} = sketchTransform();
+  const {ox, oy, sc, SW, SH, L, W, skF} = sketchTransform();
   const cW = L*sc, cH = W*sc;
   let s = '';
   const q = "'";
@@ -7281,7 +7279,7 @@ function renderSketchEditor() {
   s += '<line x1=' + q + '0' + q + ' y1=' + q + sc.toFixed(1) + q + ' x2=' + q + sc.toFixed(1) + q + ' y2=' + q + sc.toFixed(1) + q + ' stroke=' + q + 'rgba(0,0,0,.06)' + q + ' stroke-width=' + q + '0.5' + q + '/>';
   s += '</pattern>';
   if (shape.closed && shape.verts && shape.verts.length >= 3) {
-    const cd = buildSketchPath(shape, ox, oy, sc);
+    const cd = buildPlanShapePath(shape, skF);
     s += '<clipPath id=' + q + 'skC' + q + '><path d=' + q + cd + q + '/></clipPath>';
   }
   s += '</defs>';
@@ -7291,14 +7289,14 @@ function renderSketchEditor() {
   s += '<rect x=' + q + ox.toFixed(1) + q + ' y=' + q + oy.toFixed(1) + q + ' width=' + q + cW.toFixed(1) + q + ' height=' + q + cH.toFixed(1) + q + ' fill=' + q + 'url(#skG)' + q + '/>';
 
   // Rulers
-  for (let m = 0; m <= Math.ceil(L); m++) {
-    const px = ox + m*sc; if (px > ox+cW+1) break;
+  for (let m = 0; m <= L + 1e-6; m++) {
+    const px = worldToPlan(0, m, skF).px;
     s += '<line x1=' + q + px.toFixed(1) + q + ' y1=' + q + (oy+cH).toFixed(1) + q + ' x2=' + q + px.toFixed(1) + q + ' y2=' + q + (oy+cH+5).toFixed(1) + q + ' stroke=' + q + '#aaa' + q + ' stroke-width=' + q + '1' + q + '/>';
     s += '<text x=' + q + px.toFixed(1) + q + ' y=' + q + (oy+cH+14).toFixed(1) + q + ' text-anchor=' + q + 'middle' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '8' + q + ' fill=' + q + '#999' + q + '>' + m + '</text>';
   }
   s += '<text x=' + q + (ox+cW/2).toFixed(1) + q + ' y=' + q + (oy+cH+26).toFixed(1) + q + ' text-anchor=' + q + 'middle' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '7.5' + q + ' fill=' + q + '#ccc' + q + ' letter-spacing=' + q + '.1em' + q + '>LENGTH (m)</text>';
-  for (let m = 0; m <= Math.ceil(W); m++) {
-    const py = oy + m*sc; if (py > oy+cH+1) break;
+  for (let m = 0; m <= W + 1e-6; m++) {
+    const py = worldToPlan(m, 0, skF).py;
     s += '<line x1=' + q + ox.toFixed(1) + q + ' y1=' + q + py.toFixed(1) + q + ' x2=' + q + (ox-5).toFixed(1) + q + ' y2=' + q + py.toFixed(1) + q + ' stroke=' + q + '#aaa' + q + ' stroke-width=' + q + '1' + q + '/>';
     s += '<text x=' + q + (ox-9).toFixed(1) + q + ' y=' + q + (py+3).toFixed(1) + q + ' text-anchor=' + q + 'end' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '8' + q + ' fill=' + q + '#999' + q + '>' + m + '</text>';
   }
@@ -7309,7 +7307,7 @@ function renderSketchEditor() {
 
   // Shape
   if (shape.verts && shape.verts.length >= 2) {
-    const pd = buildSketchPath(shape, ox, oy, sc);
+    const pd = buildPlanShapePath(shape, skF);
     if (shape.closed) {
       s += '<path d=' + q + pd + q + ' fill=' + q + 'rgba(200,164,92,0.16)' + q + '/>';
       const sp = Math.max(8, Math.round(sc*0.14));
@@ -7320,7 +7318,7 @@ function renderSketchEditor() {
     }
     s += '<path d=' + q + pd + q + ' fill=' + q + 'none' + q + ' stroke=' + q + '#b8a45c' + q + ' stroke-width=' + q + (shape.closed?'2':'1.5') + q + ' stroke-linejoin=' + q + 'round' + q + '/>';
     if (!shape.closed && skPrev && skTool === 'draw' && shape.verts.length > 0) {
-      const lv = shape.verts[shape.verts.length-1], lp = mToP(lv.x, lv.y, ox, oy, sc), pp = mToP(skPrev.mx, skPrev.my, ox, oy, sc);
+      const lv = shape.verts[shape.verts.length-1], lp = worldToPlan( lv.y,lv.x,skF), pp = worldToPlan( skPrev.my,skPrev.mx,skF);
       s += '<line x1=' + q + lp.px.toFixed(1) + q + ' y1=' + q + lp.py.toFixed(1) + q + ' x2=' + q + pp.px.toFixed(1) + q + ' y2=' + q + pp.py.toFixed(1) + q + ' stroke=' + q + '#bbb' + q + ' stroke-width=' + q + '1' + q + ' stroke-dasharray=' + q + '4,3' + q + '/>';
     }
   }
@@ -7331,12 +7329,7 @@ function renderSketchEditor() {
     for (let i = 0; i < n; i++) {
       const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
       const seg = (shape.segs && shape.segs[i]) || {arc:false,sag:0};
-      let msx, msy;
-      if (seg.arc && Math.abs(seg.sag||0) > 0.001) {
-        const p1 = mToP(v1.x,v1.y,ox,oy,sc), p2 = mToP(v2.x,v2.y,ox,oy,sc);
-        const cmx=(p1.px+p2.px)/2, cmy=(p1.py+p2.py)/2, dx=p2.px-p1.px, dy=p2.py-p1.py, ln=Math.sqrt(dx*dx+dy*dy)||1;
-        msx = cmx+(-dy/ln)*(seg.sag*sc*0.5); msy = cmy+(dx/ln)*(seg.sag*sc*0.5);
-      } else { const pm = mToP((v1.x+v2.x)/2,(v1.y+v2.y)/2,ox,oy,sc); msx=pm.px; msy=pm.py; }
+      const _mh = _skSegHandle(v1, v2, seg, skF), msx = _mh.px, msy = _mh.py;
       const isSel = skSel && skSel.kind === 'seg' && skSel.idx === i;
       const hc = isSel ? '#c03030' : (seg.arc ? '#2a7aaa' : '#aaa');
       const hf = isSel ? '#fdf0f0' : (seg.arc ? '#cce8f4' : '#f0f0ee');
@@ -7347,7 +7340,7 @@ function renderSketchEditor() {
 
   // Vertex handles
   if (shape.verts) shape.verts.forEach(function(v, i) {
-    const {px,py} = mToP(v.x, v.y, ox, oy, sc);
+    const {px,py} = worldToPlan( v.y,v.x,skF);
     const isSel = skSel && skSel.kind === 'vert' && skSel.idx === i;
     const isFirst = i === 0 && !shape.closed && skTool === 'draw';
     const hc = isSel ? '#c03030' : (isFirst ? '#2a7aaa' : '#333');
@@ -7370,9 +7363,9 @@ function renderSketchEditor() {
       const ht=he.t;
       const hbx=(1-ht)*(1-ht)*hv1.x+2*ht*(1-ht)*hcpX+ht*ht*hv2.x;
       const hby=(1-ht)*(1-ht)*hv1.y+2*ht*(1-ht)*hcpY+ht*ht*hv2.y;
-      const hpp=mToP(hbx,hby,ox,oy,sc); phx=hpp.px; phy=hpp.py;
+      const hpp=worldToPlan(hby,hbx,skF); phx=hpp.px; phy=hpp.py;
     } else {
-      const hp1=mToP(hv1.x,hv1.y,ox,oy,sc),hp2=mToP(hv2.x,hv2.y,ox,oy,sc);
+      const hp1=worldToPlan(hv1.y,hv1.x,skF),hp2=worldToPlan(hv2.y,hv2.x,skF);
       phx=hp1.px+he.t*(hp2.px-hp1.px); phy=hp1.py+he.t*(hp2.py-hp1.py);
     }
     s += '<circle cx=' + q + phx.toFixed(1) + q + ' cy=' + q + phy.toFixed(1) + q + ' r=' + q + '7' + q + ' fill=' + q + '#2d6a4f' + q + ' stroke=' + q + 'white' + q + ' stroke-width=' + q + '1.5' + q + ' pointer-events=' + q + 'none' + q + '/>';
@@ -7404,12 +7397,12 @@ function onSkMD(evt) {
   skHoverEdge = null;
   const svgEl = document.getElementById('sketchSVG');
   if (svgEl) svgEl.style.cursor = 'default';
-  const {svgX, svgY} = skEC(evt), {ox, oy, sc} = sketchTransform(), {mx, my} = pToM(svgX, svgY, ox, oy, sc);
+  const {svgX, svgY} = skEC(evt), {skF} = sketchTransform(), _skW = planToWorld(svgX, svgY, skF), mx = _skW.z, my = _skW.x;
   const shape = getSkShape();
   if (skTool === 'draw') {
     if (shape.closed) return;
     if (shape.verts.length >= 3) {
-      const v0 = shape.verts[0], p0 = mToP(v0.x, v0.y, ox, oy, sc);
+      const v0 = shape.verts[0], p0 = worldToPlan( v0.y,v0.x,skF);
       if (Math.sqrt((svgX-p0.px)**2+(svgY-p0.py)**2) < 14) { sketchCloseShape(); return; }
     }
     shape.verts.push({x:parseFloat(mx.toFixed(3)), y:parseFloat(my.toFixed(3))});
@@ -7420,7 +7413,7 @@ function onSkMD(evt) {
   if (skTool === 'select') {
     const n = shape.verts ? shape.verts.length : 0;
     for (let i = 0; i < n; i++) {
-      const v = shape.verts[i], p = mToP(v.x, v.y, ox, oy, sc);
+      const v = shape.verts[i], p = worldToPlan( v.y,v.x,skF);
       if (Math.sqrt((svgX-p.px)**2+(svgY-p.py)**2) < 12) {
         skSel = {kind:'vert',idx:i}; skDrag = {kind:'vert',idx:i};
         renderSketchEditor(); updateSegBar(); return;
@@ -7430,12 +7423,7 @@ function onSkMD(evt) {
       for (let i = 0; i < n; i++) {
         const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
         const seg = (shape.segs && shape.segs[i]) || {arc:false,sag:0};
-        let msx, msy;
-        if (seg.arc && Math.abs(seg.sag||0) > 0.001) {
-          const p1 = mToP(v1.x,v1.y,ox,oy,sc), p2 = mToP(v2.x,v2.y,ox,oy,sc);
-          const cmx=(p1.px+p2.px)/2,cmy=(p1.py+p2.py)/2,dx=p2.px-p1.px,dy=p2.py-p1.py,ln=Math.sqrt(dx*dx+dy*dy)||1;
-          msx=cmx+(-dy/ln)*(seg.sag*sc*0.5); msy=cmy+(dx/ln)*(seg.sag*sc*0.5);
-        } else { const pm=mToP((v1.x+v2.x)/2,(v1.y+v2.y)/2,ox,oy,sc); msx=pm.px; msy=pm.py; }
+        const _mh = _skSegHandle(v1, v2, seg, skF), msx = _mh.px, msy = _mh.py;
         if (Math.sqrt((svgX-msx)**2+(svgY-msy)**2) < 12) {
           skSel = {kind:'seg',idx:i}; skDrag = seg.arc ? {kind:'seg',idx:i} : null;
           renderSketchEditor(); updateSegBar(); return;
@@ -7444,7 +7432,7 @@ function onSkMD(evt) {
     }
     // Edge hit → insert vertex at click point
     if (shape.closed) {
-      const eh = findEdgeHit(svgX, svgY, shape, ox, oy, sc);
+      const eh = findEdgeHit(svgX, svgY, shape, skF);
       if (eh) { insertVertexOnSeg(eh.idx, eh.t); return; }
     }
     skSel = null; skDrag = null; renderSketchEditor(); updateSegBar();
@@ -7452,11 +7440,11 @@ function onSkMD(evt) {
 }
 
 function onSkMM(evt) {
-  const {svgX, svgY} = skEC(evt), {ox, oy, sc} = sketchTransform(), {mx, my} = pToM(svgX, svgY, ox, oy, sc);
+  const {svgX, svgY} = skEC(evt), {skF} = sketchTransform(), _skW = planToWorld(svgX, svgY, skF), mx = _skW.z, my = _skW.x;
   if (skTool === 'draw') { skPrev = {mx, my}; renderSketchEditor(); return; }
   if (skTool === 'select' && !skDrag) {
     const shape = getSkShape();
-    const eh = findEdgeHit(svgX, svgY, shape, ox, oy, sc);
+    const eh = findEdgeHit(svgX, svgY, shape, skF);
     const prevIdx = skHoverEdge ? skHoverEdge.idx : -1;
     const newIdx  = eh ? eh.idx : -1;
     skHoverEdge = eh;
@@ -7474,11 +7462,9 @@ function onSkMM(evt) {
   } else if (skDrag.kind === 'seg') {
     const i = skDrag.idx, n = shape.verts.length;
     const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
-    const p1 = mToP(v1.x,v1.y,ox,oy,sc), p2 = mToP(v2.x,v2.y,ox,oy,sc);
-    const dx=p2.px-p1.px,dy=p2.py-p1.py,ln=Math.sqrt(dx*dx+dy*dy)||1;
-    const dX=svgX-(p1.px+p2.px)/2, dY=svgY-(p1.py+p2.py)/2;
     const seg = shape.segs && shape.segs[i];
-    if (seg && seg.arc) { seg.sag = (dX*(-dy/ln)+dY*(dx/ln))/sc; renderSketchEditor(); }
+    // Sag = cursor offset from the chord midpoint along the local perpendicular, in metres.
+    if (seg && seg.arc) { seg.sag = computeSag(v1.x, v1.y, mx, my, v2.x, v2.y); renderSketchEditor(); }
   }
   saveSettings();
 }
@@ -7535,30 +7521,25 @@ function computeSag(x1, y1, cpX, cpY, x2, y2) {
   return (cpX-mx)*(-dy/len) + (cpY-my)*(dx/len);
 }
 
-function findEdgeHit(svgX, svgY, shape, ox, oy, sc) {
+function findEdgeHit(svgX, svgY, shape, skF) {
   if (!shape.closed || !shape.verts || shape.verts.length < 3) return null;
   const n = shape.verts.length, HITDIST = 8;
   for (let i = 0; i < n; i++) {
     const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
     const seg = (shape.segs && shape.segs[i]) || {};
-    const p1 = mToP(v1.x,v1.y,ox,oy,sc), p2 = mToP(v2.x,v2.y,ox,oy,sc);
+    const p1 = worldToPlan(v1.y,v1.x,skF), p2 = worldToPlan(v2.y,v2.x,skF);
     if (Math.sqrt((svgX-p1.px)**2+(svgY-p1.py)**2) < 14) continue;
     if (Math.sqrt((svgX-p2.px)**2+(svgY-p2.py)**2) < 14) continue;
-    let msx, msy;
+    const _mh = _skSegHandle(v1, v2, seg, skF);
+    if (Math.sqrt((svgX-_mh.px)**2+(svgY-_mh.py)**2) < 10) continue;
     if (seg.arc && Math.abs(seg.sag||0) > 0.001) {
-      const cmx=(p1.px+p2.px)/2,cmy=(p1.py+p2.py)/2,ddx=p2.px-p1.px,ddy=p2.py-p1.py,lln=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-      msx=cmx+(-ddy/lln)*(seg.sag*sc*0.5); msy=cmy+(ddx/lln)*(seg.sag*sc*0.5);
-    } else { msx=(p1.px+p2.px)/2; msy=(p1.py+p2.py)/2; }
-    if (Math.sqrt((svgX-msx)**2+(svgY-msy)**2) < 10) continue;
-    if (seg.arc && Math.abs(seg.sag||0) > 0.001) {
-      const adx=v2.x-v1.x, ady=v2.y-v1.y, aln=Math.sqrt(adx*adx+ady*ady)||1;
-      const cpX=(v1.x+v2.x)/2+(-ady/aln)*seg.sag, cpY=(v1.y+v2.y)/2+(adx/aln)*seg.sag;
+      const _cp = shapeArcCtrl(v1, v2, seg.sag), cpX = _cp.x, cpY = _cp.y;
       let bestD = HITDIST, bestT = -1;
       for (let k = 1; k < 24; k++) {
         const t = k/24;
         const bx=(1-t)*(1-t)*v1.x+2*t*(1-t)*cpX+t*t*v2.x;
         const by=(1-t)*(1-t)*v1.y+2*t*(1-t)*cpY+t*t*v2.y;
-        const pp = mToP(bx,by,ox,oy,sc);
+        const pp = worldToPlan(by,bx,skF);
         const d = Math.sqrt((svgX-pp.px)**2+(svgY-pp.py)**2);
         if (d < bestD) { bestD = d; bestT = t; }
       }
