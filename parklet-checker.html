@@ -18426,7 +18426,7 @@ GEN.ZONES = {};
       fits: function(ctx, z0, z1) { var bx = bandX(ctx, z0, z1); return bx - (GEN.ROUTE_W + 0.16) >= 0.9 && bx - 0.6 >= GEN.TURN && z1 - z0 >= 2.4 + 0.55; },
       place: function(ctx, z0, z1, kind) {
         var bx = bandX(ctx, z0, z1), lc = Math.min(1.4, bx - (GEN.ROUTE_W + 0.16)), t = 0.55, span = z1 - z0 - t;
-        var n = Math.max(1, Math.round(span / 3.0)); while (span / n > 3.6) n++; while (n > 1 && span / n < 2.4) n--;
+        var n = Math.max(1, Math.round(span / 2.6)); while (span / n > 3.6) n++; while (n > 1 && span / n < 2.4) n--;
         var s = span / n, xc = bx - lc / 2, green = kind === 'green', th = [];
         // crosses alternate bench / planter; an interior bench is back-to-back so both bays get a seat
         for (var k = 0; k <= n; k++) {
@@ -18438,7 +18438,14 @@ GEN.ZONES = {};
           var za = z0 + t / 2 + b * s + th[b] / 2, zb = z0 + t / 2 + (b + 1) * s - th[b + 1] / 2, zm = (za + zb) / 2, tl = Math.max(0.8, Math.min(1.4, zb - za - 0.7));
           if (green) put(ctx, 'backless_bench', bx - 0.225, zm, P, { l: Math.min(1.8, zb - za - 0.3), d: 0.45 });
           else {
-            put(ctx, 'table', bx - 0.3, zm, 0, { l: tl, d: 0.6, h: 0.75 });
+            // the bench faces the table; a chair on the planter side faces it too, where the bay allows
+            var benchLo = b % 2 === 0, tc = Math.min(1.4, zb - za - 1.0);
+            if (tc >= 0.8) {
+              var tz = benchLo ? za + 0.3 + tc / 2 : zb - 0.3 - tc / 2, cz = benchLo ? tz + tc / 2 + 0.05 + 0.275 : tz - tc / 2 - 0.05 - 0.275;
+              put(ctx, 'table', bx - 0.3, tz, 0, { l: tc, d: 0.6, h: 0.75 });
+              put(ctx, 'chair', bx - 0.3, cz, benchLo ? P / 2 : -P / 2, {});
+              zm = tz;
+            } else put(ctx, 'table', bx - 0.3, zm, 0, { l: tl, d: 0.6, h: 0.75 });
             if (ctx.shade >= 2 && kind === 'cafe') put(ctx, 'umbrella', bx - 0.3, zm, 0, { l: 1.5 });
           }
         }
@@ -18494,9 +18501,11 @@ GEN.ZONES = {};
   };
   GEN.PATTERN_IDS = Object.keys(GEN.PATTERNS);
 
-  // Infill (utilisation): level 1 puts planter troughs in the traffic-edge band wherever it is free
+  // Infill (planting): level 1 puts planter troughs in the traffic-edge band wherever it is free
   // (in front of a screen they are 0.34 m deep, between the screen and the seats); level 2 makes
   // them 1.0 m deep in free runs >= 2.6 m, 0.9 m short of each end (wheelchair spaces stay open).
+  // Only at planting >= 2, or in runs over 3 m. Infill is flagged: it counts as planting, never
+  // toward the utilisation the score reads.
   GEN.infill = function(ctx, z0, z1, level) {
     if (!level) return;
     var C = 0.05, n = Math.round((z1 - z0) / C), free = [];
@@ -18506,7 +18515,7 @@ GEN.ZONES = {};
     var runs = [], s = -1;
     for (k = 0; k <= n; k++) { if (k < n && free[k]) { if (s < 0) s = k; } else if (s >= 0) { runs.push([z0 + s * C + 0.05, z0 + k * C - 0.05]); s = -1; } }
     runs.forEach(function(r) {
-      var len = r[1] - r[0]; if (len < 0.6) return;
+      var len = r[1] - r[0]; if (len < 0.6 || (ctx.planting < 2 && len <= 3)) return;
       var e = GEN.edgeAt(ctx.fp, r[0], r[1]), deep = level >= 2 && len >= 2.6;
       if (deep) {
         var d0 = r[0] + 0.9, d1 = r[1] - 0.9, x0 = Math.max(GEN.TURN + 0.05, e - 1.05);
@@ -18533,6 +18542,7 @@ GEN.ZONES = {};
       var b = { x0: x - d / 2, x1: x + d / 2, z0: z - l / 2, z1: z + l / 2 };
       if (b.x1 > GEN.edgeAt(ctx.fp, b.z0, b.z1) + 0.001 || !clear(b.z0, b.z1, b.x0, b.x1)) return;
       put(ctx, 'planter', x, z, 0, { l: l, d: d, h: 0.6, plant: ctx.plantKind });
+      ctx.items[ctx.items.length - 1].infill = true;
       boxes.push(b);
     }
   };
@@ -18714,7 +18724,7 @@ GEN.access = function(items, fp) {
 // Metrics of a layout (what the score and the cards read)
 GEN.SEAT_M = 0.6;
 GEN.metrics = function(lay, fp) {
-  var m = { seats: 0, tables: 0, bike: 0, planting: 0, shade: 0, play: 0, pieces: lay.items.length, route: lay.route, access: lay.access, entries: lay.acc ? lay.acc.need : 0, lounges: 0 };
+  var m = { seats: 0, tables: 0, bike: 0, planting: 0, shade: 0, play: 0, pieces: lay.items.length, route: lay.route, access: lay.access, entries: lay.acc ? lay.acc.need : 0, lounges: 0, infill: 0 };
   lay.items.forEach(function(it) {
     var t = it.type;
     if (t === 'bench' || t === 'backless_bench' || t === 'planter_bench' || t === 'seat_wall') m.seats += Math.floor(it.params.l / GEN.SEAT_M + 1e-6) * (it.params.double ? 2 : 1);
@@ -18723,6 +18733,7 @@ GEN.metrics = function(lay, fp) {
     if (t === 'cafe_table' || t === 'table' || t === 'game_table' || t === 'communal_table') m.tables += 1;
     if (t === 'bike_rack') m.bike += 2 * (it.params.count || 1);
     if (t === 'planter' || t === 'planter_barrier' || t === 'planter_bench') m.planting += it.l * it.d;
+    if (it.infill) m.infill += it.l * it.d;
     if (t === 'umbrella') m.shade += Math.PI * Math.pow(it.params.l / 2, 2);
     if (t === 'play_element' || t === 'game_table') m.play += 1;
   });
@@ -18733,7 +18744,9 @@ GEN.metrics = function(lay, fp) {
   m.shade = GEN.r3(m.shade);
   var foot = lay.items.reduce(function(s, it) { return it.type === 'umbrella' ? s : s + it.l * it.d; }, 0);
   m.openPct = GEN.r3(1 - foot / m.area);
-  m.util = GEN.utilisation(lay.items, fp);
+  m.infill = GEN.r3(m.infill);
+  m.util = GEN.utilisation(lay.items.filter(function(it) { return !it.infill; }), fp);   // infill is planting, not utilisation
+  m.density = GEN.r3(m.seats / fp.L);                                                    // seats per linear metre of deck
   return m;
 };
 // Utilisation: occupied footprint / deck area, on a 0.05 m grid over the deck shape. Occupied =
@@ -18754,9 +18767,15 @@ GEN.utilisation = function(items, fp) {
   }
   return deck ? GEN.r3(used / deck) : 0;
 };
+// What the score reads: seat density when seating + dining outweigh green + open (ties included),
+// else utilisation. Both are programme weights, 0-3.
+GEN.scoreMode = function(P) { return P.prog.seating + P.prog.dining >= P.prog.green + P.prog.open ? 'density' : 'utilisation'; };
+GEN.DENSITY_T = 0.9;   // seats per linear metre scored as full
+// density a third of the schemes must exceed in density mode: 0.7 seats/m at seating + dining = 3, +-0.05 per point
+GEN.densityTarget = function(P) { return GEN.r3(Math.max(0.5, Math.min(0.9, 0.7 + 0.05 * (P.prog.seating + P.prog.dining - 3)))); };
 // The utilisation band the score aims at: 30-60 %, shifted down by the openness preference.
 GEN.utilBand = function(P) { var s = 0.05 * ((P.prog.open || 0) - 1); return [GEN.r3(0.30 - s), GEN.r3(0.60 - s)]; };
-// Preference fit - clutter - utilisation outside its band + access. Each feature normalised to 0..1, weighted by the 0-3 preferences.
+// Preference fit - clutter + (seat density, or - utilisation outside its band) + access. Each feature normalised to 0..1, weighted by the 0-3 preferences.
 GEN.score = function(m, P, fp) {
   var L = fp.L, w = Object.assign({}, P.prog); w.green = w.green + P.planting;
   var f = { seating: Math.min(1, m.seats / (L * 0.9)), dining: Math.min(1, m.tables * 2.4 / L), lounging: Math.min(1, m.lounges / 2),
@@ -18766,7 +18785,8 @@ GEN.score = function(m, P, fp) {
   // space is scored by how far the scheme sits toward the band's open end
   var band = GEN.utilBand(P), u = m.util;
   f.open = Math.min(1, Math.max(0, (band[1] - u) / (band[1] - band[0])));
-  var util = 3 * (Math.max(0, band[0] - u) + Math.max(0, u - band[1]));
+  var util = GEN.scoreMode(P) === 'density' ? -1.0 * Math.min(1, m.density / GEN.DENSITY_T)
+    : 3 * (Math.max(0, band[0] - u) + Math.max(0, u - band[1]));
   var tot = 0, s = 0;
   Object.keys(f).forEach(function(k) { tot += w[k]; s += w[k] * f[k]; });
   var clutter = Math.max(0, m.pieces / m.area - 0.9) * 0.5;
@@ -18837,18 +18857,25 @@ GEN.generate = function() {
     return ok;
   });
   cands.sort(function(a, b) { return b.score - a.score || (a.key < b.key ? -1 : 1); });
-  // schemes inside the utilisation band first; outside it only if too few are inside
-  var band = GEN.utilBand(P), inBand = function(c) { return c.m.util >= band[0] - 1e-9 && c.m.util <= band[1] + 1e-9; };
+  // (utilisation mode) schemes inside the utilisation band first; outside it only if too few are inside
+  var band = GEN.utilBand(P), dMode = GEN.scoreMode(P) === 'density', inBand = function(c) { return dMode || (c.m.util >= band[0] - 1e-9 && c.m.util <= band[1] + 1e-9); };
   var pool = cands.filter(function(c) { return !GEN.locked[c.key] && inBand(c); }), rest = cands.filter(function(c) { return !GEN.locked[c.key] && !inBand(c); });
   res.stats.inBand = pool.length;
   if (pool.length < N - sel.length) { res.notes.push('Only ' + pool.length + ' candidates within ' + Math.round(band[0] * 100) + '-' + Math.round(band[1] * 100) + ' % utilisation.'); pool = pool.concat(rest.slice(0, N - sel.length - pool.length)); }
   if (!sel.length && pool.length) sel.push(pool.shift());
+  // (density mode) at least a third of the schemes exceed the density target, where the pool has them
+  var dT = GEN.densityTarget(P), dense = function(c) { return c.m.density > dT; }, quota = dMode ? Math.ceil(N / 3) : 0;
+  res.stats.denseTarget = dMode ? dT : null;
   while (sel.length < N && pool.length) {
-    var best = -1, bi = 0;
-    pool.forEach(function(c, j) { var dmin = Math.min.apply(null, sel.map(function(s2) { return GEN.dist(c.f, s2.f); })); var v = dmin + 0.25 * c.score; if (v > best + 1e-9) { best = v; bi = j; } });
+    var need = sel.filter(dense).length < quota && pool.some(dense), best = -1, bi = -1;
+    pool.forEach(function(c, j) {
+      if (need && !dense(c)) return;
+      var dmin = Math.min.apply(null, sel.map(function(s2) { return GEN.dist(c.f, s2.f); })), v = dmin + 0.25 * c.score;
+      if (v > best + 1e-9) { best = v; bi = j; }
+    });
     sel.push(pool.splice(bi, 1)[0]);
   }
-  res.schemes = sel;
+  res.schemes = sel; GEN._cands = cands;   // the scored pool (inspection)
   if (!sel.length) res.error = 'No candidate passed all 15 checks (' + res.stats.built + ' built). ' + (env.why || []).join(' ');
   return GEN.finish(res, t0);
 };
@@ -18881,7 +18908,7 @@ GEN.rationale = function(c) {
   if (m.seats) bits.push(m.seats + ' seats');
   if (m.tables) bits.push(m.tables + ' table' + (m.tables > 1 ? 's' : ''));
   if (m.bike) bits.push(m.bike + ' bike spaces');
-  bits.push(m.planting.toFixed(1) + ' m² of planting'); bits.push(Math.round(m.util * 100) + ' % of the deck occupied');
+  bits.push(m.planting.toFixed(1) + ' m² of planting' + (m.infill ? ' (' + m.infill.toFixed(1) + ' m² edge troughs)' : '')); bits.push(m.density.toFixed(2) + ' seats per metre'); bits.push(Math.round(m.util * 100) + ' % of the deck furnished');
   return GEN.PATTERNS[c.pattern || 'traffic_band'].label + ' layout on a ' + c.fp.label.toLowerCase() + ' deck, ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m, with ' + bits.join(', ') +
     '; ' + c.edge.label + ' on the traffic side, and a ' + m.route.toFixed(2) + ' m accessible route from ' + m.entries + ' entr' + (m.entries > 1 ? 'ies' : 'y') + ' to ' + m.access + ' accessible seat' + (m.access > 1 ? 's' : '') + '.';
 };
@@ -18979,7 +19006,7 @@ GEN.renderCards = function() {
   var R = GEN.result, bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
   var nLock = Object.keys(GEN.locked).length;
   bar.innerHTML = "<span class='gen-title'>Generated schemes</span>" +
-    "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed 15/15 · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + '</span>' +
+    "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed 15/15 · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.prefs) === 'density' ? 'seat density' : 'utilisation') + '</span>' +
     (R.envelope && R.envelope.ok ? "<span class='gen-stat'>envelope " + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) + '</span>' : '') +
     (GEN.undoSnap ? "<button class='gen-link' onclick='GEN.undoOpen()'>Restore the design you had before opening a scheme</button>" : '');
   if (R.error) { grid.innerHTML = "<div class='gen-empty gen-err'>" + GEN.esc(R.error) + '</div>'; return; }
@@ -18990,7 +19017,7 @@ GEN.renderCards = function() {
       "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
       "<div class='gen-metrics'>" +
         "<span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.bike + '</b>bike spaces</span>' +
-        '<span><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Occupied footprint / deck area (aim ' + GEN.utilBand(GEN.prefs).map(function(v) { return Math.round(v * 100); }).join('-') + ' %)"><b>' + Math.round(m.util * 100) + '%</b>utilisation</span><span title="Narrowest clear width on the flood-filled route from each entry to an accessible seat (guideline; GEN.ROUTE_W = ' + GEN.ROUTE_W + ' m)"><b>' + m.route.toFixed(2) + '</b>route m</span><span title="Accessible seating positions (bench ends, tables with knee clearance) reached from the entries"><b>' + m.access + '</b>access</span>' +
+        '<span title="All planters and the end planters' + (m.infill ? ', incl. ' + m.infill.toFixed(1) + ' m² of edge-trough infill' : '') + '"><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Seats per linear metre of deck"><b>' + m.density.toFixed(2) + '</b>seats / m</span><span title="Furnished footprint (without infill troughs) / deck area (aim ' + GEN.utilBand(GEN.prefs).map(function(v) { return Math.round(v * 100); }).join('-') + ' %)"><b>' + Math.round(m.util * 100) + '%</b>utilisation</span><span title="Narrowest clear width on the flood-filled route from each entry to an accessible seat (guideline; GEN.ROUTE_W = ' + GEN.ROUTE_W + ' m)"><b>' + m.route.toFixed(2) + '</b>route m</span><span title="Accessible seating positions (bench ends, tables with knee clearance) reached from the entries"><b>' + m.access + '</b>access</span>' +
         "<span class='gen-pass'><b>" + c.ev.pass + '/' + criteria.length + '</b>checks</span></div>' +
       "<p class='gen-why' data-why='" + i + "'>" + GEN.esc(c.why || GEN.rationale(c)) + '</p>' +
       "<div class='gen-card-ft'><button class='gen-primary' onclick='GEN.open(" + i + ")'>Open in Design</button>" +
