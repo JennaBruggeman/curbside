@@ -18632,14 +18632,15 @@ RPT.fitScale = function(wM, hM, aW, aH, want) {
 };
 // graphic scale bar: `len` metres in `n` parts, laid out in mm by CSS grid; its base rule is the
 // marker colour rgb(17, 34, 51) the PDF check measures.
+// The bar is SVG in mm units (box backgrounds are pixel-snapped when painted; SVG geometry is not).
 RPT.scaleBar = function(scale, len, n) {
-  var mm = len * 1000 / scale, part = mm / n, blocks = '', labels = '';
-  for (var i = 0; i < n; i++) blocks += "<i class='" + (i % 2 ? '' : 'on') + "'></i>";
+  var mm = len * 1000 / scale, part = mm / n, g = '', labels = '';
+  for (var i = 0; i < n; i++) g += "<rect x='" + RPT.fx(i * part, 3) + "' y='0.1' width='" + RPT.fx(part, 3) + "' height='1.7' fill='" + (i % 2 ? '#FFFFFF' : '#1A1A1A') + "' stroke='#1A1A1A' stroke-width='0.2'/>";
+  g += "<rect data-scalebar='" + len + "' x='0' y='2.0' width='" + RPT.fx(mm, 3) + "' height='0.4' fill='rgb(17,34,51)'/>";
   var step = n % 2 === 0 && n > 4 ? 2 : 1, cols = [];
   for (var j = 0; j < n; j += step) { cols.push(RPT.fx(part * step, 3) + 'mm'); labels += '<span>' + (+(j * len / n).toFixed(2)) + '</span>'; }
   labels += '<span>' + len + ' m</span>';
-  return "<div class='sbar'><div class='sb-blocks' style='grid-template-columns: repeat(" + n + ", " + RPT.fx(part, 3) + "mm)'>" + blocks + '</div>' +
-    "<div class='sb-base' data-scalebar='" + len + "' style='width:" + RPT.fx(mm, 3) + "mm'></div>" +
+  return "<div class='sbar'><svg class='sb-svg' width='" + RPT.fx(mm, 3) + "mm' height='2.4mm' viewBox='0 0 " + RPT.fx(mm, 3) + " 2.4' aria-label='Scale bar, " + len + " m'>" + g + '</svg>' +
     "<div class='sb-labels' style='grid-template-columns: " + cols.join(' ') + " auto'>" + labels + '</div></div>';
 };
 RPT.north = function(v) {
@@ -18658,7 +18659,7 @@ RPT.planSheet = function(no, title, p, d, tech) {
   if (!p) return RPT.sheet('a3', no, title, "<p class='muted'>Plan not available.</p>");
   var wM = p.wPx / p.pxPerM, hM = p.hPx / p.pxPerM, sc = p.scale;
   var el = p.el.cloneNode(true); el.setAttribute('width', RPT.fx(wM * 1000 / sc, 3) + 'mm'); el.setAttribute('height', RPT.fx(hM * 1000 / sc, 3) + 'mm');
-  el.setAttribute('data-scale', sc); el.setAttribute('data-mm-per-m', 1000 / sc);
+  el.setAttribute('data-scale', sc); el.setAttribute('data-px-per-m', RPT.fx(p.pxPerM, 6));
   var S = d.DM.section, notes = "<p>Section A-A: sheet 04 (cut at z " + RPT.fx(S.z, 2) + ' m, looking ' + (S.dir > 0 ? '+Z' : '-Z') + ', depth ' + RPT.fx(S.depth, 1) + ' m).</p>' +
     '<p>' + (tech ? 'Technical representation: monochrome, lineweight hierarchy.' : 'Schematic representation.') + ' Drawn from the design model; the street context is indicative.</p>';
   var mk = el.outerHTML; if (tech && typeof DS !== 'undefined' && DS.achromatic) mk = DS.achromatic(mk).replace(/rgba?\(\s*58\s*,\s*168\s*,\s*228/g, 'rgba(110,110,110').replace(/#3AA8E4/gi, '#6E6E6E');   // monochrome on paper: the kept UI accent (section band) too
@@ -18670,7 +18671,7 @@ RPT.sectionSheet = function(sx, d) {
   var no = '04', title = 'Section A-A';
   if (!sx) return RPT.sheet('a3', no, title, "<p class='muted'>Section not available.</p>");
   var sc = 50, k = 1000 / sc / sx.pxPerM;   // mm per strip px
-  var svg = sx.svg.replace('<svg ', '<svg width="' + RPT.fx(sx.wPx * k, 3) + 'mm" height="' + RPT.fx(sx.hPx * k, 3) + 'mm" data-scale="50" ');
+  var svg = sx.svg.replace('<svg ', '<svg width="' + RPT.fx(sx.wPx * k, 3) + 'mm" height="' + RPT.fx(sx.hPx * k, 3) + 'mm" data-scale="50" data-px-per-m="' + sx.pxPerM + '" ');
   var cols = [], cells = '', x = 0;
   sx.segs.forEach(function(s) {
     if (s.l > x + 0.5) { cols.push(RPT.fx((s.l - x) * k, 3) + 'mm'); cells += '<span></span>'; }
