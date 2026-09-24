@@ -111,6 +111,25 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 - `AX.apply()` was unit-tested headlessly (valid / clamped / rejected ops, undo). The live API loop has not been run here — first real test needs a key.
 - Ideas: multi-level undo; show a diff preview before applying; stream responses; let the assistant read the Parklet Manual PDF text for citations; per-user rate limit in the proxy.
 
+## Furniture archetypes (Brief 05)
+- **Data, not functions.** `FL_ARCHETYPES` (79 generic types: 60 furniture + 19 entourage, across 12 of the 13 `FL_CATS` categories; `combo` is presets only) holds numeric params in metres (`[def, min, max, step]`, booleans, `{def, opts}` choices), an `adjust` list and material roles per part (`'groups allowed|default'`). `FL_MATERIALS` (42 entries: wood, metal, RAL powder coats + typed custom hex, mineral, other, fixed) holds base colour + roughness/metalness; the plan/section tint and edge are derived (`flTint2D` / `flEdge2D`). `flValidateArchetypes()` checks the schema at load.
+- **One part list, three views.** `FL_GEOM[type](p, K)` builds primitive parts (box, cyl, rod, sph, cone, wedge; composites slats/posts/frame/shell/plant) in local metres: x = length, z = depth (back at +z), y up from the deck. `fl3DArchetype`, `flPlanArchetype` (top-down, local metres, placed with `worldFrameToPlanMatrix(x, z, rot, 1, 1)`) and `flSectionArchetype` (elevation onto world X / height) are projections of that list. Size = `flEnvelope(parts)` minus veg parts (planting above a planter). `flInstDims(inst)` / `flKeyDims(key)` replace the old `_flGetDims` text parsing.
+- **Keys and instances.** Catalogue key = `GEN-<archetype>` or a preset id. `FL_OBJ` items are presets: `archetype`, `params`, `materials` (catalogue finish) and `est` (params that are assumptions, not catalogue values); catalogue prose lives in `specs` / `finish` and is display-only. A placed instance stores its own `{archetype, params, materials, meshUrl}` (meshUrl = slot for an imported product model), saved by `pkSerialize` and mirrored into `DESIGN_MODEL.objects` by `_dmSyncObject`. Old saves with only `objId` load through the preset.
+- **Materials.** `flMat(role, inst)` returns a cached `MeshStandardMaterial`; builders never hold a colour. Metalness is applied at `FL_METAL_SCALE` = 30% because the scene has no environment map. Technical mode: 3D swap as before, 2D fills collapse to greys.
+- **Editing.** Selection block `#cadParams` (`flInstPanelHtml`): adjustable params with ranges + one swatch row per part (+ `#hex` where powder is allowed). `flSetInstParam` / `flSetInstMaterial` rebuild the mesh in place, then `_dmSyncObject` + `syncDesignModel('furniture')`.
+- **Library.** `flLibraryItems({cat, search, presets})` feeds the Design sidebar, the Furniture page and the 3D tray: generic first, labelled from the numbers ("Bench 1.8 m, with back"); presets appear only with the "Manufacturer presets" toggle (`flSetShowPresets`).
+- **Checks.** `checkLandmarkConsistency` now compares every piece's 3D size (own frame) and Plan glyph against its params (5 mm). Street objects are not furniture: `FL3D_FACTORY` holds only their meshes; `_flStreetDims` gives their footprints.
+- **Entourage** (`cat:'entourage'`, 19 archetypes: 9 people, 10 vehicles) are placed pieces like any other, built from the same kit (`_flFig` capsule figures, `_flCar` with a rounded roof, `_flBus`, `_flBike`). People use the `figure` material group (5 flat tints); vehicles the powder group + custom hex; tyres and glazing are fixed. `flBaseY` stands them on the deck (0.065 m) or the road plane (0); in Section they stand on the deck, sidewalk or road line. A fresh vehicle snaps to the nearest travel-lane centre with that lane's `dirZ` heading (`flSnapToLane`; bikes/scooters prefer a bike lane); a seated person takes the seat height of the piece under it (`flSnapSeat`, at placement, after a move and after a plan drag). Section draws entourage ONLY where the A-A plane cuts it (furniture beyond the cut is still drawn dashed). Entourage can be dragged across the whole street (`flXRange`); furniture stays on the deck.
+- **Adding an archetype:** one `FL_ARCHETYPES` entry + one `FL_GEOM` function (keep it under 30 lines). Nothing else.
+
+## Animated axonometric export (Brief 06)
+- **Model first.** `buildDesignModel()` computes `DESIGN_MODEL.paths`: one centre-line per travel lane (in its `dirZ`), per bike lane (with the nearest lane's direction), per sidewalk (both ways) and one through the deck (the deck polygon's centroid line). The animator reads only these.
+- **Agents** (`AXE`, script block REFACTOR 14 at the end of the file) are entourage archetype instances built by `fl3DArchetype`, in a temporary group inside `_3d.group`; `AXE.clear()` discards them. `FL3D.placed`, `DESIGN_MODEL` and the save are never touched. `AXE.setTime(t)` is a pure function of t (fixed timestep, seeded). Vehicles on lane paths only (25-35 km/h), `person_cycling` on bike paths, people on both sidewalk sides (1.2-1.5 m/s), some detour along the deck path and pause by seating; 30-60% of placed seats get a `person_seated`.
+- **Seamless loop:** each stream is a pattern repeated r times; `AXE.solveStream` picks r and an integer k so the stream shifts by k pattern periods in T at an allowed speed. Frame 0 and frame N read back pixel-identical.
+- **Camera:** `AXE.camera(preset, aspect)` builds a separate `OrthographicCamera` ('iso' 45 deg / 35.264 deg; '3060' plan oblique via a projection shear) framing landmarks sceneMin/MaxX and the deck z range; the interactive camera is never read. Far-side context beyond the far sidewalk is hidden for axon renders only (`AXE.cutaway`).
+- **Export:** offscreen renderer (`AXE.renderer`), so the viewport renderer is never resized. WebM through WebCodecs `VideoEncoder` (VP8) + an in-file WebM muxer when available (frame-exact, faster than real time); fallback `canvas.captureStream` + `MediaRecorder` (real time, may drop frames -- the export counts and reports). PNG-frame ZIP via a store-only writer. `AXE.export({download:false})` returns the blob (used for testing). Each preview/export ends with `AXE.check`: interactive camera, renderer vs `#threeWrap`, `FL3D.placed` count, `checkLandmarkConsistency`.
+- MP4 is not produced: no browser encoder for it; the UI says so.
+
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
@@ -129,6 +148,11 @@ $html = $html.Replace($old, $new)
 - No thumbnail generation (stub returns null)
 - No offline save queue (last cloud save is restored on reload)
 - Single-tab only (no conflict detection if same design open in two tabs)
+
+## Known dead code
+- `#csToolbar` + `#crossSection` static SVG - superseded by the section editor, hidden, candidate for deletion.
+- `renderFurnitureProps` (both definitions, one plain and one `window.` override) - never called; the live selection panel is `#cadTools` (`cadToolsUpdate`). Candidate for deletion.
+- Furniture popover `#furniturePanel` (`cadToggleFurniturePanel`, `_cadBuildFp`, `_cadRenderFp`) - its markup is gone, so it never shows. Candidate for deletion.
 
 ## Style system
 - Dark charcoal sidebar, `#c03030` red accent (`var(--acc)`)
