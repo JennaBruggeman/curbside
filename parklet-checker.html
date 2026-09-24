@@ -2666,6 +2666,7 @@ function _svgApplyVB(svg, vb) {
 function _svgAppendSB(svg, vb, baseW, baseH) {
   let sb = svg.querySelector('.sv-sb');
   if (!sb) { sb = document.createElementNS('http://www.w3.org/2000/svg','g'); sb.setAttribute('class','sv-sb'); svg.appendChild(sb); }
+  if (svg.id === 'planView') { _pvAppendAnno(svg, vb, sb, baseW); return; }
   const r = svg.getBoundingClientRect();
   const scrW = r.width || 600;
   const sppv = scrW / vb.w;
@@ -2689,6 +2690,37 @@ function _svgAppendSB(svg, vb, baseW, baseH) {
     '<line x1="'+(bX+barVb).toFixed(1)+'" y1="'+(bY-fs*1.0).toFixed(1)+'" x2="'+(bX+barVb).toFixed(1)+'" y2="'+(bY+fs*0.2).toFixed(1)+'" stroke="'+_sbInk+'" stroke-width="'+(fs*0.12).toFixed(1)+'" stroke-linecap="square"/>'+
     '<text x="'+bX.toFixed(1)+'" y="'+(bY+fs*0.4).toFixed(1)+'" font-family="Helvetica Neue,Arial,sans-serif" font-size="'+fs.toFixed(1)+'" fill="'+_sbInk+'">0</text>'+
     '<text x="'+(bX+barVb+fs*0.3).toFixed(1)+'" y="'+(bY+fs*0.4).toFixed(1)+'" font-family="Helvetica Neue,Arial,sans-serif" font-size="'+fs.toFixed(1)+'" fill="'+_sbInk+'">'+niceM+' m</text>'+rst;
+}
+// Plan annotation on one top-right margin: the scale bar (0 over its left end, the length over
+// its right end), then the north arrow. Sized in screen px (U = plan units per px, the same
+// measure the dimension chains use), so neither collides with the other at any zoom or size.
+function _pvAppendAnno(svg, vb, sb, baseW) {
+  const r = svg.getBoundingClientRect(), ok = r.width > 40 && r.height > 40;
+  const U = ok ? Math.max(vb.w / r.width, vb.h / r.height) : (vb.U || vb.w / 760);
+  const visW = ok ? r.width * U : vb.w, visH = ok ? r.height * U : vb.h;   // meet: what is on screen
+  const vx = vb.x + (vb.w - visW) / 2, vy = vb.y + (vb.h - visH) / 2;
+  const INK = '#1A1A1A', LBL = '#3A3835', PAPER = (typeof DS !== 'undefined') ? DS.t().paper : '#FFFFFF';
+  const f = function(v) { return v.toFixed(2); };
+  const FNT = 'font-family="Helvetica Neue,Arial,sans-serif" font-size="' + f(10 * U) + '" fill="' + LBL + '"';
+  // north arrow: circle r 9 px in a 42 px box on the 12 px margin
+  const R = 9 * U, cx = vx + visW - 33 * U, cy = vy + 31 * U;
+  const n = window._pvNorthV || { x: 1, y: 0 }, px = -n.y, py = n.x;
+  let h = '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(R) + '" fill="none" stroke="' + INK + '" stroke-width="' + f(0.8 * U) + '"/>';
+  h += '<polygon points="' + f(cx + n.x * R) + ',' + f(cy + n.y * R) + ' ' + f(cx - n.x * R * .55 + px * 3.6 * U) + ',' + f(cy - n.y * R * .55 + py * 3.6 * U) + ' ' +
+       f(cx - n.x * R * .2) + ',' + f(cy - n.y * R * .2) + ' ' + f(cx - n.x * R * .55 - px * 3.6 * U) + ',' + f(cy - n.y * R * .55 - py * 3.6 * U) + '" fill="' + INK + '"/>';
+  h += '<text x="' + f(cx + n.x * (R + 7 * U)) + '" y="' + f(cy + n.y * (R + 7 * U) + 3.5 * U) + '" text-anchor="middle" font-weight="700" ' + FNT + ' data-dim="anno">N</text>';
+  // scale bar: the longest nice length up to 110 px, two halves, ends labelled above
+  const pxPerM = vb.pxM / U, nice = [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
+  let m = nice[0];
+  nice.forEach(function(v) { if (v * pxPerM <= 110) m = v; });
+  const L = m * vb.pxM, bx1 = cx - 35 * U, bx0 = bx1 - L, by = cy + 3 * U, bh = 3 * U;
+  h += '<rect x="' + f(bx0) + '" y="' + f(by - bh / 2) + '" width="' + f(L / 2) + '" height="' + f(bh) + '" fill="' + INK + '"/>';
+  h += '<rect x="' + f(bx0 + L / 2) + '" y="' + f(by - bh / 2) + '" width="' + f(L / 2) + '" height="' + f(bh) + '" fill="' + PAPER + '" stroke="' + INK + '" stroke-width="' + f(0.7 * U) + '"/>';
+  h += '<text x="' + f(bx0) + '" y="' + f(by - 5 * U) + '" text-anchor="middle" ' + FNT + ' data-dim="anno">0</text>';
+  h += '<text x="' + f(bx1) + '" y="' + f(by - 5 * U) + '" text-anchor="middle" ' + FNT + ' data-dim="anno">' + m + ' m</text>';
+  const zoomed = Math.abs(vb.w - (vb.fitW || vb.w)) > 1, inFS = !!(_fsPanel && _fsPanel.contains(svg));
+  if (zoomed && inFS) h += '<text x="' + f(bx1) + '" y="' + f(by + 14 * U) + '" text-anchor="end" ' + FNT + ' style="cursor:pointer" onclick="_svgResetVB(\'' + svg.id + '\')">&#8635; reset</text>';
+  sb.innerHTML = h;
 }
 let _fsPanel = null;
 // ── Viewport layout: Plan / Section / 3D in #viewportGrid ─────────────────────
@@ -2761,6 +2793,7 @@ function _vpSizeViewport(el) {
   if (!el || el.clientWidth < 1 || el.clientHeight < 1) return;   // hidden viewport: keep its state
   if (el.id === 'threeWrap') { if (typeof resize3DViewport === 'function') resize3DViewport(); }
   else if (el.id === 'csPanel') { if (typeof window.seRefreshLayout === 'function') window.seRefreshLayout(); }
+  else if (el.id === 'pvPanel') { clearTimeout(_pvRenderT); _pvRenderT = setTimeout(renderPlanView, 60); }   // chains are px-sized
 }
 // Every visible viewport at its current box (used by setViewportLayout for its own change).
 function _vpSizeAll() { _VP_SIZED.forEach(function(id) { _vpSizeViewport(document.getElementById(id)); }); }
@@ -2777,8 +2810,8 @@ _vpInitResize();
 function fitAllViewports() {
   var shown = function(id) { var el = document.getElementById(id); return !!el && el.offsetWidth > 0 && el.offsetHeight > 0; };
   if (shown('pvPanel') && typeof _pvFitView === 'function') _pvFitView();
-  if (shown('csPanel') && typeof window.seFit === 'function') {
-    window.seFit();
+  if (shown('csPanel') && typeof window.seSetFit === 'function') {
+    window.seSetFit(true);
     var sv = document.getElementById('seViewport'); if (sv) sv.scrollLeft = 0;
   }
   if (shown('mvPanel') && typeof _3d !== 'undefined' && _3d && _3d._home) {
@@ -4093,6 +4126,7 @@ document.addEventListener('mouseup', function() {
   // seNormalizeLanes: external callers can trigger lane normalization.
   window.seNormalizeLanes = function() { _seNormalizeLanes(); _seRender(); };
   window.seRefreshLayout = function(){ _recomputeScale(); _seRender(); };
+  window.seSetFit = function(on){ if (!!on !== _fitMode) window.seFit(); };
   window.seFit = function(){
     _fitMode = !_fitMode;
     var b = document.getElementById('seFitBtn');
@@ -5675,133 +5709,170 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   
   s += `<line x1='0' y1='${CURB_Y}' x2='${VW}' y2='${CURB_Y}' stroke='#222' stroke-width='2'/>`;
   s += `<text x='4' y='${CURB_Y+9}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' letter-spacing='.14em' fill='#555' font-weight='600'>CURB</text>`;
-  const PV_DIM_Y = OPP_BOTTOM + 32;
-  const DY_SUB_PV_Y = OPP_BOTTOM + 14;
-  const pvDimH = (x1, x2, y, val, lbl, valCol) => {
-    const mx = (x1 + x2) / 2;
-    const span = x2 - x1;
-    const vc = valCol || '#444';
-    s += `<line x1='${(x1+pvDGAP).toFixed(1)}' y1='${y.toFixed(1)}' x2='${(x2-pvDGAP).toFixed(1)}' y2='${y.toFixed(1)}' stroke='#444' stroke-width='${pvDTK}'/>`;
-    s += `<line x1='${x1.toFixed(1)}' y1='${(y-pvDTCK).toFixed(1)}' x2='${x1.toFixed(1)}' y2='${(y+pvDTCK).toFixed(1)}' stroke='#444' stroke-width='${(parseFloat(pvDTK)*1.8).toFixed(2)}'/>`;
-    s += `<line x1='${x2.toFixed(1)}' y1='${(y-pvDTCK).toFixed(1)}' x2='${x2.toFixed(1)}' y2='${(y+pvDTCK).toFixed(1)}' stroke='#444' stroke-width='${(parseFloat(pvDTK)*1.8).toFixed(2)}'/>`;
-    if (span > pvDFV * 1.8) {
-      const _lblT = (lbl && span > pvDFV * 3.5) ? `<tspan font-size='${pvDFL.toFixed(1)}' letter-spacing='.1em' fill='#888'>  ${lbl}</tspan>` : '';
-      s += `<text x='${mx.toFixed(1)}' y='${(y-pvDTCK-2*pvZS).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${pvDFV.toFixed(1)}' font-weight='500' fill='${vc}'>${val}${_lblT}</text>`;
-    }
+  // ── Dimensions: drafting chains ────────────────────────────────────────────
+  // Sized in screen pixels, not plan units: U = plan units per screen px for the panel the plan
+  // is shown in, so text (value 11 px, label 10 px caps), ticks and gaps read the same at every
+  // panel size. The viewBox (set at the end) reserves the chain margins around the drawing.
+  //   right:  tier 1 = the cross-street chain (sidewalk, parklet, road runs, opposite sidewalk)
+  //           tier 2 = building depths and the overall CURB-CURB, outboard
+  //   bottom: tier 1 = wheel stop / deck / wheel stop, tier 2 = context / parklet / context
+  // Where a value does not fit its span, labels are spread apart (1-D, no overlaps) and joined
+  // to their span by a leader.
+  const _pvRect = svg.getBoundingClientRect();
+  const _pvPW = _pvRect.width > 40 ? _pvRect.width : 760, _pvPH = _pvRect.height > 40 ? _pvRect.height : 395;
+  const _pvTW = function(str, fs, ls) {      // text width estimate, px (Helvetica metrics)
+    let w = 0;
+    for (const ch of String(str)) w += /[0-9]/.test(ch) ? .56 : /[.\s,]/.test(ch) ? .28 : /[A-Z]/.test(ch) ? .68 : /[a-z]/.test(ch) ? .52 : .6;
+    return (w + (ls || 0) * String(str).length) * fs;
   };
-  if (_pvDimsOn) {
-    s += `<g id='pvDimLayer'>`;
-    // Extension stubs from below opposite building down to dim lines
-    [[PK_X, PV_DIM_Y + pvDTCK], [PK_X + PK_W, PV_DIM_Y + pvDTCK]].forEach(([x, yb]) =>
-      s += `<line x1='${x.toFixed(1)}' y1='${(OPP_BOTTOM+2).toFixed(1)}' x2='${x.toFixed(1)}' y2='${yb.toFixed(1)}' stroke='#ccc' stroke-width='${pvDEXT}'/>`);
-    // Wheel stop extensions
-    [[PK_X + WS_PX, DY_SUB_PV_Y + pvDTCK], [PK_X + PK_W - WS_PX, DY_SUB_PV_Y + pvDTCK]].forEach(([x, yb]) =>
-      s += `<line x1='${x.toFixed(1)}' y1='${(OPP_BOTTOM+2).toFixed(1)}' x2='${x.toFixed(1)}' y2='${yb.toFixed(1)}' stroke='#ccc' stroke-width='${pvDEXT}'/>`);
-
-    // Sub-dims: wheel stop (L) + deck + wheel stop (R)
-    pvDimH(PK_X, PK_X + WS_PX, DY_SUB_PV_Y, `${WS_M.toFixed(1)} m`, 'WS');
-    pvDimH(PK_X + WS_PX, PK_X + PK_W - WS_PX, DY_SUB_PV_Y, `${DECK_M.toFixed(1)} m`, 'DECK');
-    pvDimH(PK_X + PK_W - WS_PX, PK_X + PK_W, DY_SUB_PV_Y, `${WS_M.toFixed(1)} m`, 'WS');
-
-    // Overall parklet length
-    pvDimH(PK_X, PK_X + PK_W, PV_DIM_Y, `${PARKLET_M.toFixed(1)} m`, 'PARKLET');
-
-    // Context dims
-    const CONTEXT_PX = PK_X;
-    if (CONTEXT_PX > pvDFV * 3) {
-      pvDimH(0, CONTEXT_PX, PV_DIM_Y, `${CONTEXT_M.toFixed(1)} m`, 'CONTEXT');
-      pvDimH(PK_X + PK_W, VW, PV_DIM_Y, `${CONTEXT_M.toFixed(1)} m`, 'CONTEXT');
-    }
-
-    // Transverse widths: single aligned column at RX
-    const RX = VW + 18 * pvZS;
-    const _rmTK = (parseFloat(pvDTK)*1.8).toFixed(2);
-    const _lx   = RX + pvDTCK + 2*pvZS;
-    const _vFS  = (pvDFV*0.85).toFixed(1);
-    const _lFS  = (pvDFL*0.85).toFixed(1);
-    const _dash = `${(3*pvZS).toFixed(1)},${(2*pvZS).toFixed(1)}`;
-    // Extension dash from VW to RX
-    const pvExt = y => s += `<line x1='${VW}' y1='${y.toFixed(1)}' x2='${RX.toFixed(1)}' y2='${y.toFixed(1)}' stroke='#ccc' stroke-width='${pvDEXT}' stroke-dasharray='${_dash}'/>`;
-    // Tick at RX
-    const pvTk  = y => s += `<line x1='${(RX-pvDTCK).toFixed(1)}' y1='${y.toFixed(1)}' x2='${(RX+pvDTCK).toFixed(1)}' y2='${y.toFixed(1)}' stroke='#444' stroke-width='${_rmTK}'/>`;
-    // Vertical dim segment at RX
-    const pvSeg = (y1,y2) => s += `<line x1='${RX.toFixed(1)}' y1='${(y1+pvDGAP).toFixed(1)}' x2='${RX.toFixed(1)}' y2='${(y2-pvDGAP).toFixed(1)}' stroke='#444' stroke-width='${pvDTK}'/>`;
-    // Value + label to the right of RX
-    const pvRLbl = (y1,y2,val,lbl) => {
-      const my=(y1+y2)/2, span=y2-y1;
-      if(span < pvDFV*0.5) return;
-      if(span >= pvDFV*2){
-        s += `<text x='${_lx.toFixed(1)}' y='${(my-pvDFV*0.3).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_vFS}' fill='#444'>${val}</text>`;
-        if(lbl) s += `<text x='${_lx.toFixed(1)}' y='${(my+pvDFL*0.55).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_lFS}' letter-spacing='.08em' fill='#888'>${lbl}</text>`;
-      } else {
-        s += `<text x='${_lx.toFixed(1)}' y='${my.toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_vFS}' fill='#444'>${val}</text>`;
+  // items {c, h}: sets .p, the de-overlapped centre. Overlapping neighbours merge into a cluster
+  // centred on their mean; clusters are then kept inside [lo, hi] (the visible range). Returns
+  // false when the items cannot fit in [lo, hi] at all.
+  const _pvSpread = function(items, gap, lo, hi) {
+    const its = items.slice().sort(function(a, b) { return a.c - b.c; });
+    let cl = its.map(function(it) { return { its: [it], c: it.c, h: it.h }; });
+    for (let again = true; again;) {
+      again = false;
+      for (let i = 0; i < cl.length - 1; i++) {
+        const a = cl[i], b = cl[i + 1];
+        if (a.c + a.h / 2 + gap > b.c - b.h / 2) {
+          const m = a.its.concat(b.its);
+          cl.splice(i, 2, { its: m, c: m.reduce(function(t, x) { return t + x.c; }, 0) / m.length,
+                            h: m.reduce(function(t, x) { return t + x.h; }, 0) + gap * (m.length - 1) });
+          again = true; break;
+        }
       }
+    }
+    cl.forEach(function(k) { let y = k.c - k.h / 2; k.its.forEach(function(t) { t.p = y + t.h / 2; y += t.h + gap; }); });
+    if (lo === undefined) return true;
+    for (let i = 0; i < its.length; i++)       // forward: nothing below lo, no overlaps
+      its[i].p = Math.max(its[i].p, i ? its[i - 1].p + (its[i - 1].h + its[i].h) / 2 + gap : lo + its[i].h / 2);
+    for (let i = its.length - 1; i >= 0; i--)  // backward: nothing above hi
+      its[i].p = Math.min(its[i].p, i < its.length - 1 ? its[i + 1].p - (its[i + 1].h + its[i].h) / 2 - gap : hi - its[i].h / 2);
+    return !its.length || its[0].p - its[0].h / 2 >= lo - 0.01;
+  };
+  // Chain items (plan units along the chain axis) -- built first: their text sets the margins.
+  const _rmItems = [
+    {y1:SW_Y,              y2:CURB_Y,             w:_pvLM.sidewalkW, lbl:'SIDEWALK'},
+    {y1:_yOf(_pvLM.deckX0), y2:_yOf(_pvLM.deckX1), w:_pvPkW,          lbl:'PARKLET'},
+  ];
+  const _grp = function(t) { return (t === 'bike-lane' || t === 'buf-pk' || t === 'buf-bl') ? 'BIKE LANE' : t === 'travel-lane' ? 'LANE' : (_segLbl[t] || t.toUpperCase()); };
+  _pvRoadSegs.forEach(function(sg) {
+    const g = _grp(sg.type), last = _rmItems[_rmItems.length - 1];
+    if (last.grp === g) { last.y2 = sg.y1; last.w += sg.width; last.n++; }
+    else _rmItems.push({ y1: sg.y0, y2: sg.y1, w: sg.width, lbl: g, grp: g, n: 1 });
+  });
+  if (_pvLM.roadRight - _pvLM.allocatedRight > 0.005)
+    _rmItems.push({ y1: _yOf(_pvLM.allocatedRight), y2: _yOf(_pvLM.roadRight), w: _pvLM.roadRight - _pvLM.allocatedRight, lbl: 'UNALLOCATED', grp: 'UNALLOC', n: 1 });
+  _rmItems.forEach(function(d) { d.val = `${d.w.toFixed(2)} m`; if (d.grp === 'LANE' && d.n > 1) d.lbl = `LANES \xd7${d.n}`; });
+  const _oppItem = { y1: _pvOppSW0, y2: _pvOppSW1, val: `${_pvLM.sidewalkW.toFixed(2)} m`, lbl: 'OPP. SIDEWALK' };
+  const _t1 = _rmItems.concat([_oppItem]);
+  const _t2 = [
+    { y1: _pvBackNY, y2: _pvFaceNY, val: `${_pvLM.buildingL.depth.toFixed(2)} m`, lbl: 'NEAR BUILDING' },
+    { y1: CURB_Y, y2: ROAD_BOTTOM, val: `${_pvDM.totalRoad.toFixed(2)} m`, lbl: 'CURB–CURB', strong: true },
+    { y1: _pvFaceOY, y2: _pvBackOY, val: `${_pvLM.buildingR.depth.toFixed(2)} m`, lbl: 'OPP. BUILDING' }
+  ].filter(function(d) { return Math.abs(d.y2 - d.y1) > 0.5; });
+  const _PX = { val: 11, lbl: 10, gap1: 14, pad: 7, tier: 14, bot1: 28, bot2: 30, top: 44 };
+  const _colW = function(list) { return Math.max.apply(null, list.map(function(d) { return Math.max(_pvTW(d.val, _PX.val), _pvTW(d.lbl, _PX.lbl, .06)); })); };
+  const _w1 = _colW(_t1), _w2 = _t2.length ? _colW(_t2) : 0;
+  const _MR = _pvDimsOn ? _PX.gap1 + _PX.pad + _w1 + _PX.tier + _PX.pad + _w2 + 12 : 16;
+  const _MB = _pvDimsOn ? _PX.bot1 + _PX.bot2 + 18 : 12, _MT = _PX.top, _ML = 12;
+  const _cH = CTX_TOP + OPP_BOTTOM;
+  let U;
+  if (!_pvUserMod) {
+    U = Math.max(VW / Math.max(80, _pvPW - _MR - _ML), _cH / Math.max(60, _pvPH - _MT - _MB));
+    const vw = _pvPW * U, vh = _pvPH * U;
+    _pvVB.w = vw; _pvVB.h = vh; _pvVB.fitW = vw;
+    _pvVB.x = -_ML * U - (vw - VW - (_MR + _ML) * U) / 2;
+    _pvVB.y = -CTX_TOP - _MT * U - (vh - _cH - (_MT + _MB) * U) / 2;
+  } else {
+    U = Math.max(_pvVB.w / _pvPW, _pvVB.h / _pvPH);
+  }
+  _pvVB.U = U;
+  if (_pvDimsOn) {
+    const INK = '#1A1A1A', MID = '#62605C', EXT = '#A19F9A';
+    const FNT = `font-family='Helvetica Neue,Arial,sans-serif'`;
+    const f1 = function(v) { return v.toFixed(1); };
+    const lineW = (0.7 * U).toFixed(2), extW = (0.5 * U).toFixed(2), tickW = (1.1 * U).toFixed(2), t = 3.5 * U;
+    const ext = function(x1, y1, x2, y2) { s += `<line x1='${f1(x1)}' y1='${f1(y1)}' x2='${f1(x2)}' y2='${f1(y2)}' stroke='${EXT}' stroke-width='${extW}' data-dim='ext'/>`; };
+    const tick = function(x, y) { s += `<line x1='${f1(x - t)}' y1='${f1(y + t)}' x2='${f1(x + t)}' y2='${f1(y - t)}' stroke='${INK}' stroke-width='${tickW}'/>`; };
+    const dimLine = function(x1, y1, x2, y2, w) { s += `<line x1='${f1(x1)}' y1='${f1(y1)}' x2='${f1(x2)}' y2='${f1(y2)}' stroke='${INK}' stroke-width='${w || lineW}'/>`; };
+    const txt = function(x, y, str, px, anchor, fill, extra) {
+      s += `<text x='${f1(x)}' y='${f1(y)}' text-anchor='${anchor}' ${FNT} font-size='${(px * U).toFixed(2)}' fill='${fill}'${extra || ''} data-dim='txt'>${str}</text>`;
     };
-    // Near-side chain items
-    // One item per run of segments: bike corridor (buffers + bike lane) and travel lanes
-    // each merge into one dimension; every other segment gets its own.
-    const _rmItems = [
-      {y1:SW_Y,              y2:CURB_Y,             w:_pvLM.sidewalkW, lbl:'SIDEWALK'},
-      {y1:_yOf(_pvLM.deckX0), y2:_yOf(_pvLM.deckX1), w:_pvPkW,          lbl:'PARKLET'},
-    ];
-    const _grp = function(t) { return (t === 'bike-lane' || t === 'buf-pk' || t === 'buf-bl') ? 'BIKE LANE' : t === 'travel-lane' ? 'LANE' : (_segLbl[t] || t.toUpperCase()); };
-    _pvRoadSegs.forEach(function(sg) {
-      const g = _grp(sg.type), last = _rmItems[_rmItems.length - 1];
-      if (last.grp === g) { last.y2 = sg.y1; last.w += sg.width; last.n++; }
-      else _rmItems.push({ y1: sg.y0, y2: sg.y1, w: sg.width, lbl: g, grp: g, n: 1 });
-    });
-    if (_pvLM.roadRight - _pvLM.allocatedRight > 0.005)
-      _rmItems.push({ y1: _yOf(_pvLM.allocatedRight), y2: _yOf(_pvLM.roadRight), w: _pvLM.roadRight - _pvLM.allocatedRight, lbl: 'UNALLOC.', grp: 'UNALLOC.', n: 1 });
-    _rmItems.forEach(function(d) {
-      d.val = `${d.w.toFixed(2)} m`;
-      if (d.grp === 'LANE' && d.n > 1) d.lbl = `LANE \xd7${d.n}`;
-    });
-    const _bnd = [...new Set(_rmItems.flatMap(d=>[d.y1,d.y2]))].sort((a,b)=>a-b);
-    _bnd.forEach(y => { pvExt(y); pvTk(y); });
-    pvSeg(_bnd[0], _bnd[_bnd.length-1]);
-    _rmItems.forEach(d => pvRLbl(d.y1,d.y2,d.val,d.lbl));
-    // Opposite sidewalk (separate short chain)
-    const _oy1=_pvOppSW0, _oy2=_pvOppSW1;
-    [_oy1,_oy2].forEach(y => { pvExt(y); pvTk(y); });
-    pvSeg(_oy1,_oy2);
-    pvRLbl(_oy1,_oy2,`${_pvLM.sidewalkW.toFixed(2)} m`,'OPP SW');
-
-    // Building depth dims — second column further right
-    const RX2 = RX + 24 * pvZS;
-    const _rmTK2 = (parseFloat(pvDTK)*2.0).toFixed(2);
-    const _lx2 = RX2 + pvDTCK + 2*pvZS;
-    const pvExt2 = y => s += `<line x1='${VW}' y1='${y.toFixed(1)}' x2='${RX2.toFixed(1)}' y2='${y.toFixed(1)}' stroke='#ccc' stroke-width='${pvDEXT}' stroke-dasharray='${_dash}'/>`;
-    const pvTk2  = y => s += `<line x1='${(RX2-pvDTCK).toFixed(1)}' y1='${y.toFixed(1)}' x2='${(RX2+pvDTCK).toFixed(1)}' y2='${y.toFixed(1)}' stroke='#333' stroke-width='${_rmTK2}'/>`;
-    const pvSeg2 = (y1,y2) => s += `<line x1='${RX2.toFixed(1)}' y1='${(y1+pvDGAP).toFixed(1)}' x2='${RX2.toFixed(1)}' y2='${(y2-pvDGAP).toFixed(1)}' stroke='#333' stroke-width='${pvDTK}'/>`;
-    const pvRLbl2 = (y1,y2,val,lbl) => {
-      const my=(y1+y2)/2, span=y2-y1;
-      if(span < pvDFV*0.5) return;
-      s += `<text x='${_lx2.toFixed(1)}' y='${(my-pvDFV*0.3).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_vFS}' fill='#333'>${val}</text>`;
-      if(lbl && span >= pvDFV*2) s += `<text x='${_lx2.toFixed(1)}' y='${(my+pvDFL*0.55).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_lFS}' letter-spacing='.08em' fill='#777'>${lbl}</text>`;
+    s += `<g id='pvDimLayer'>`;
+    // What is on screen (meet can show more than the viewBox): labels are kept inside it.
+    const _visW = _pvPW * U, _visH = _pvPH * U;
+    const _visX = _pvVB.x + (_pvVB.w - _visW) / 2, _visY = _pvVB.y + (_pvVB.h - _visH) / 2;
+    // ---- right: vertical chains ------------------------------------------------------------
+    const RX1 = VW + _PX.gap1 * U, TX1 = RX1 + _PX.pad * U;
+    const RX2 = TX1 + (_w1 + _PX.tier) * U, TX2 = RX2 + _PX.pad * U;
+    // chains: one or more runs of items on the same dimension line; their labels spread together.
+    const vChain = function(chains, rx, tx, exts) {
+      const blocks = [];
+      chains.forEach(function(items) {
+        const bnd = [...new Set(items.flatMap(function(d) { return [d.y1, d.y2]; }))].sort(function(a, b) { return a - b; });
+        bnd.forEach(function(y) { if (exts) ext(VW + 3 * U, y, rx + 3 * U, y); tick(rx, y); });
+        items.forEach(function(d) {
+          dimLine(rx, Math.min(d.y1, d.y2), rx, Math.max(d.y1, d.y2), d.strong ? (1.1 * U).toFixed(2) : null);
+          blocks.push({ d: d, c: (d.y1 + d.y2) / 2, h: 25 * U });
+        });
+      });
+      _pvSpread(blocks, 3 * U, _visY + (_PX.top + 2) * U, _visY + _visH - 4 * U);
+      blocks.forEach(function(b) {
+        if (Math.abs(b.p - b.c) > 1.5 * U)
+          s += `<polyline points='${f1(rx + 2 * U)},${f1(b.c)} ${f1(tx - 5 * U)},${f1(b.c)} ${f1(tx - 2 * U)},${f1(b.p - 4 * U)}' fill='none' stroke='${MID}' stroke-width='${extW}'/>`;
+        txt(tx, b.p - 2 * U, b.d.val, _PX.val, 'start', INK, b.d.strong ? ` font-weight='600'` : ` font-weight='500'`);
+        txt(tx, b.p + 10 * U, b.d.lbl, _PX.lbl, 'start', MID, ` letter-spacing='${(0.6 * U).toFixed(2)}'`);
+      });
     };
-    // Near building depth (setback + depth of the deepest near building): rear wall to frontage
-    const _nBldD = _pvLM.buildingL.depth.toFixed(2);
-    pvExt2(_pvBackNY); pvTk2(_pvBackNY);
-    pvExt2(_pvFaceNY); pvTk2(_pvFaceNY);
-    pvSeg2(_pvBackNY, _pvFaceNY);
-    pvRLbl2(_pvBackNY, _pvFaceNY, `${_nBldD} m`, 'NEAR BLDG');
-    // Opposite building depth: frontage to rear wall of the deepest opposite building
-    const _oBldY1 = _pvFaceOY, _oBldY2 = _pvBackOY;
-    const _oBldD = _pvLM.buildingR.depth.toFixed(2);
-    pvExt2(_oBldY1); pvTk2(_oBldY1);
-    pvExt2(_oBldY2); pvTk2(_oBldY2);
-    pvSeg2(_oBldY1, _oBldY2);
-    pvRLbl2(_oBldY1, _oBldY2, `${_oBldD} m`, 'OPP BLDG');
-
-    // Curb-to-curb overall dimension — same outer column (RX2), different Y zone
-    const _rmTK3 = (parseFloat(pvDTK)*2.2).toFixed(2);
-    pvExt2(CURB_Y); pvTk2(CURB_Y);
-    pvExt2(ROAD_BOTTOM); pvTk2(ROAD_BOTTOM);
-    s += `<line x1='${RX2.toFixed(1)}' y1='${(CURB_Y+pvDGAP).toFixed(1)}' x2='${RX2.toFixed(1)}' y2='${(ROAD_BOTTOM-pvDGAP).toFixed(1)}' stroke='#111' stroke-width='${_rmTK3}'/>`;
-    const _c2cMY = (CURB_Y+ROAD_BOTTOM)/2;
-    s += `<text x='${_lx2.toFixed(1)}' y='${(_c2cMY-pvDFV*0.3).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_vFS}' font-weight='600' fill='#111'>${_pvDM.totalRoad.toFixed(2)} m</text>`;
-    s += `<text x='${_lx2.toFixed(1)}' y='${(_c2cMY+pvDFL*0.55).toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${_lFS}' letter-spacing='.08em' fill='#555'>CURB–CURB</text>`;
-
+    vChain([_rmItems, [_oppItem]], RX1, TX1, true);
+    // tier-2 extension lines break across the tier-1 text column
+    _t2.forEach(function(d) { [d.y1, d.y2].forEach(function(y) { ext(VW + 3 * U, y, RX1, y); ext(TX1 + (_w1 + 4) * U, y, RX2 + 3 * U, y); }); });
+    if (_t2.length) vChain(_t2.map(function(d) { return [d]; }), RX2, TX2, false);
+    // ---- bottom: horizontal chains ---------------------------------------------------------
+    // Labels stay left of the vertical chains; a chain too long for the view drops its labels
+    // and keeps the values.
+    const HY1 = OPP_BOTTOM + _PX.bot1 * U, HY2 = HY1 + _PX.bot2 * U;
+    const _hLo = _visX + 4 * U, _hHi = Math.min(_visX + _visW - 4 * U, RX1);
+    const hChain = function(items, hy) {
+      const bnd = [...new Set(items.flatMap(function(d) { return [d.x1, d.x2]; }))].sort(function(a, b) { return a - b; });
+      bnd.forEach(function(x) {
+        if (x > 0.5 && x < VW - 0.5) ext(x, OPP_BOTTOM + 3 * U, x, hy + 3 * U);
+        tick(x, hy);
+      });
+      dimLine(bnd[0], hy, bnd[bnd.length - 1], hy);
+      const mk = function(lbl) {
+        return items.map(function(d) {
+          const h = (Math.max(_pvTW(d.val, _PX.val), lbl ? _pvTW(d.lbl, _PX.lbl, .06) : 0) + 8) * U;
+          const lo = Math.min(d.x1, d.x2), hi = Math.max(d.x1, d.x2), mid = (lo + hi) / 2;
+          // text wider than its span goes outside the extension lines, toward the nearer chain end
+          const c = h <= hi - lo - 4 * U ? mid : (mid - bnd[0] < bnd[bnd.length - 1] - mid ? lo - h / 2 - 3 * U : hi + h / 2 + 3 * U);
+          return { d: d, lbl: lbl, c: c, h: h };
+        });
+      };
+      let blocks = mk(true);
+      if (!_pvSpread(blocks, 2 * U, _hLo, _hHi)) { blocks = mk(false); _pvSpread(blocks, 2 * U, _hLo, _hHi); }
+      blocks.forEach(function(b) {
+        // text outside its span: the dim line carried out to it
+        const lo = Math.min(b.d.x1, b.d.x2), hi = Math.max(b.d.x1, b.d.x2);
+        if (b.p + b.h / 2 - 2 * U < lo) dimLine(b.p + b.h / 2 - 2 * U, hy, lo, hy, extW);
+        else if (b.p - b.h / 2 + 2 * U > hi) dimLine(hi, hy, b.p - b.h / 2 + 2 * U, hy, extW);
+        txt(b.p, hy - 3.5 * U, b.d.val, _PX.val, 'middle', INK, ` font-weight='500'`);
+        if (b.lbl) txt(b.p, hy + 11.5 * U, b.d.lbl, _PX.lbl, 'middle', MID, ` letter-spacing='${(0.6 * U).toFixed(2)}'`);
+      });
+    };
+    hChain([
+      { x1: PK_X, x2: PK_X + WS_PX, val: `${WS_M.toFixed(1)} m`, lbl: 'WHEEL STOP' },
+      { x1: PK_X + WS_PX, x2: PK_X + PK_W - WS_PX, val: `${DECK_M.toFixed(1)} m`, lbl: 'DECK' },
+      { x1: PK_X + PK_W - WS_PX, x2: PK_X + PK_W, val: `${WS_M.toFixed(1)} m`, lbl: 'WHEEL STOP' }
+    ], HY1);
+    [PK_X, PK_X + PK_W].forEach(function(x) { ext(x, HY1 + 3 * U, x, HY2 + 3 * U); });
+    hChain([
+      { x1: 0, x2: PK_X, val: `${CONTEXT_M.toFixed(1)} m`, lbl: 'CONTEXT' },
+      { x1: PK_X, x2: PK_X + PK_W, val: `${PARKLET_M.toFixed(1)} m`, lbl: 'PARKLET' },
+      { x1: PK_X + PK_W, x2: VW, val: `${CONTEXT_M.toFixed(1)} m`, lbl: 'CONTEXT' }
+    ].filter(function(d) { return d.x2 - d.x1 > 0.5; }), HY2);
     s += `</g>`;
   }
 
@@ -5883,32 +5954,16 @@ const manholes = state['manholes'] || [];
     s += `<rect x='${(_sXpx-10*pvZS).toFixed(1)}' y='${_slTop}' width='${(20*pvZS).toFixed(1)}' height='${_slBot-_slTop}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event)' data-pvsl='hit'/>`;
   }
 
-  // North compass rose. N comes from CAD_CARDINAL (world -Z) projected through
-  // worldToPlan, so it points RIGHT. Placed in the top-right corner, above the near building.
-  (function() {
-    var _cR = 11, _cX = VW - _cR - 20, _cY = -CTX_TOP + _cR + 10;
-    var _n0 = worldToPlan(0, 0), _n1 = worldToPlan(CAD_CARDINAL.N.x, CAD_CARDINAL.N.z);
-    var _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
-    _nx /= _nm; _ny /= _nm;
-    var _pt = function(k) { return (_cX + _nx * k).toFixed(1) + ',' + (_cY + _ny * k).toFixed(1); };
-    var _px = -_ny, _py = _nx;
-    s += "<g opacity='0.88' style='pointer-events:none'>";
-    s += "<circle cx='" + _cX + "' cy='" + _cY + "' r='" + _cR + "' fill='rgba(255,255,255,0.18)' stroke='rgba(120,120,120,0.55)' stroke-width='0.6'/>";
-    // S tail (grey) and N body (red)
-    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX - _nx*(_cR-2)).toFixed(1) + "' y2='" + (_cY - _ny*(_cR-2)).toFixed(1) + "' stroke='rgba(140,140,140,0.7)' stroke-width='1.2'/>";
-    s += "<line x1='" + _cX + "' y1='" + _cY + "' x2='" + (_cX + _nx*(_cR-4)).toFixed(1) + "' y2='" + (_cY + _ny*(_cR-4)).toFixed(1) + "' stroke='#c03030' stroke-width='2'/>";
-    s += "<polygon points='" + _pt(_cR - 1) + " " + (_cX + _nx*(_cR-5) + _px*2.5).toFixed(1) + "," + (_cY + _ny*(_cR-5) + _py*2.5).toFixed(1) + " " + (_cX + _nx*(_cR-5) - _px*2.5).toFixed(1) + "," + (_cY + _ny*(_cR-5) - _py*2.5).toFixed(1) + "' fill='#c03030'/>";
-    s += "<text x='" + (_cX + _nx*(_cR+7)).toFixed(1) + "' y='" + (_cY + _ny*(_cR+7) + 3).toFixed(1) + "' text-anchor='middle' font-size='7.5' fill='#c03030' font-weight='700' font-family='Helvetica Neue,Arial,sans-serif'>N</text>";
-    s += "</g>";
-  })();
+  // North: CAD_CARDINAL (world -Z) projected through worldToPlan. The arrow itself is drawn by
+  // _pvAppendAnno beside the scale bar, on the same top-right margin.
+  { const _n0 = worldToPlan(0, 0), _n1 = worldToPlan(CAD_CARDINAL.N.x, CAD_CARDINAL.N.z);
+    const _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
+    window._pvNorthV = { x: _nx / _nm, y: _ny / _nm }; }
     s = DS.restylePlan(s, { vb: _pvVB });
     svg.innerHTML = s.replace(/[''']/g, '\x22');
   svg.style.background = DS.t().paper;
-  // Keep viewBox y/h consistent with current building depth
-  { const _pvNeedY = -CTX_TOP, _pvNeedH = CTX_TOP + OPP_BOTTOM + (_pvDimsOn ? 54 : 12);
-    if (!_pvUserMod) { _pvVB.x=0; _pvVB.y=_pvNeedY; _pvVB.w=760; _pvVB.h=_pvNeedH; }
-    // When user has zoomed/panned, preserve their viewport exactly — no forced enlargement
-  }
+  // _pvVB was fitted to the panel (drawing + chain margins) with the dimensions above; a
+  // zoomed or panned view is kept exactly.
   svg.style.cursor = (_pvUserMod || _pvInFS) ? 'grab' : 'default';
   svg.setAttribute('viewBox', _pvVB.x.toFixed(2)+' '+_pvVB.y.toFixed(2)+' '+_pvVB.w.toFixed(2)+' '+_pvVB.h.toFixed(2));
   _pvVB.pxM = HS; _svgAppendSB(svg, _pvVB, 760, 395); _initSVGZoom('planView', _pvVB, 760, 395);
