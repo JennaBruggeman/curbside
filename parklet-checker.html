@@ -150,13 +150,22 @@
 
 /* â”€â”€ CANVAS AREA â”€â”€ */
 .canvas-area { flex:1; display:flex; flex-direction:column; background:var(--canvas-bg); overflow:hidden; min-width:0; }
-.canvas-toolbar { display:flex; align-items:center; gap:8px; padding:0 12px; background:#fff; border-bottom:1px solid #ddd; flex-shrink:0; height:36px; }
-.view-pills { display:flex; gap:3px; background:#EBEBEA; border-radius:6px; padding:2px; }
-.vpill { background:none; border:none; border-radius:4px; font:500 11px var(--font-ui); color:#666; padding:3px 10px; cursor:pointer; letter-spacing:.05em; transition:all .15s; }
-.vpill.active { background:#fff; color:#1D2024; box-shadow:0 1px 3px rgba(0,0,0,.12); }
-.canvas-toolbar-right { margin-left:auto; display:flex; gap:6px; align-items:center; }
-.ctb-btn { background:none; border:1px solid #ccc; border-radius:3px; font:500 11px var(--font-ui); color:#555; padding:3px 8px; cursor:pointer; transition:all .15s; }
-.ctb-btn:hover { border-color:var(--acc); color:var(--acc); }
+/* Canvas toolbar (28px): layout presets (segmented), appearance, DIM, Solve width, Fit all;
+   the Assistant sits at the far right. The accent marks only the active / pressed state. */
+.canvas-toolbar { display:flex; align-items:center; gap:var(--sp-2); padding:0 var(--sp-3); height:36px; box-sizing:border-box; flex-shrink:0;
+  background:var(--d-paper); border-bottom:1px solid var(--d-lt); }
+.view-pills { display:flex; height:28px; box-sizing:border-box; border:1px solid var(--d-lt); border-radius:3px; overflow:hidden; }
+.vpill { height:100%; padding:0 var(--sp-3); background:var(--d-paper); border:none; border-left:1px solid var(--d-lt); border-radius:0;
+  font:500 var(--fs-12) var(--font-ui); color:var(--d-ink); cursor:pointer; }
+.vpill:first-child { border-left:none; }
+.vpill:hover { background:var(--d-xlt); }
+.vpill.active { background:var(--accent-ui); color:var(--c-bg); }
+.canvas-toolbar-right { margin-left:auto; display:flex; gap:var(--sp-2); align-items:center; }
+.ctb-btn { height:28px; box-sizing:border-box; padding:0 var(--sp-3); background:var(--d-paper); border:1px solid var(--d-lt); border-radius:3px;
+  font:500 var(--fs-12) var(--font-ui); color:var(--d-ink); cursor:pointer; white-space:nowrap; }
+.ctb-btn:hover { border-color:var(--d-mid); }
+.ctb-btn.active, .ctb-btn.ax-on { background:var(--accent-ui); border-color:var(--accent-ui); color:var(--c-bg); }
+.vpill:focus-visible, .ctb-btn:focus-visible { outline:2px solid var(--accent-ui); outline-offset:1px; }
 /* Design workspace: three coordinated viewports. Normal flow inside .canvas-area (never
    fixed / inset / raised), so it cannot cover the topbar or the context dock.
    The 1px gap over a --rule background draws the dividers. */
@@ -179,20 +188,23 @@
 #viewportGrid[data-layout="max-plan"] > #pvPanel,
 #viewportGrid[data-layout="max-section"] > #csPanel,
 #viewportGrid[data-layout="max-3d"] > #mvPanel { display:flex; grid-area:max; }
-/* Viewport header: label, that viewport's own tools, maximize/restore. */
-.vp-hdr { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; min-height:26px; padding:2px 6px 2px 10px; flex-shrink:0;
-  background:var(--card); border-bottom:1px solid var(--rule); }
-.vp-lbl { font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
-.vp-tools { display:flex; align-items:center; flex-wrap:wrap; gap:3px; margin-left:auto; }
-.vp-max { width:22px; height:20px; padding:0; border:1px solid var(--rule); border-radius:2px; background:transparent; color:var(--muted); font-size:11px; line-height:1; cursor:pointer; }
-.vp-max:hover { border-color:var(--ink); color:var(--ink); }
-.vp-max:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
-/* Viewport toolstrips: one compact row in the header (wraps to at most one more). */
-.vp-tools button { height:20px; padding:0 6px !important; margin:0 !important; font:700 11px/1 var(--mono) !important; letter-spacing:.04em !important;
-  text-transform:uppercase; border:1px solid var(--rule) !important; border-radius:2px !important; background:transparent; color:var(--muted); cursor:pointer; }
-.vp-tools button.active { background:var(--ink) !important; border-color:var(--ink) !important; color:#fff !important; }
-.vp-tools button:disabled { opacity:.45; cursor:default; }
-.vp-tools button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+/* Viewport header: 11px caps label, the viewport's controls on the right, maximize icon,
+   one hairline below. */
+.vp-hdr { display:flex; align-items:center; flex-wrap:wrap; gap:var(--sp-1) var(--sp-2); min-height:32px; padding:2px var(--sp-2) 2px var(--sp-3); box-sizing:border-box;
+  flex-shrink:0; background:var(--d-paper); border-bottom:1px solid var(--d-lt); }
+.vp-lbl { font:600 var(--fs-11)/1 var(--font-ui); letter-spacing:.08em; text-transform:uppercase; color:var(--d-ink); white-space:nowrap; }
+.vp-tools { display:flex; align-items:center; flex-wrap:wrap; gap:var(--sp-1); margin-left:auto; }
+.vp-max { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0; border:1px solid transparent; border-radius:3px;
+  background:transparent; color:var(--d-ink); cursor:pointer; }
+.vp-max:hover { border-color:var(--d-lt); background:var(--d-xlt); }
+.vp-max[aria-pressed="true"] { background:var(--accent-ui); color:var(--c-bg); }
+.vp-max:focus-visible { outline:2px solid var(--accent-ui); outline-offset:1px; }
+.vp-tools button { height:24px; padding:0 var(--sp-2) !important; margin:0 !important; font:500 var(--fs-11)/1 var(--font-ui) !important; letter-spacing:.04em !important;
+  text-transform:uppercase; border:1px solid var(--d-lt) !important; border-radius:3px !important; background:var(--d-paper); color:var(--d-ink); cursor:pointer; }
+.vp-tools button:hover:not(:disabled) { border-color:var(--d-mid) !important; }
+.vp-tools button.active, .vp-tools button.on { background:var(--accent-ui) !important; border-color:var(--accent-ui) !important; color:var(--c-bg) !important; }
+.vp-tools button:disabled { color:var(--d-mid); border-color:var(--d-xlt) !important; background:var(--d-paper); cursor:default; }
+.vp-tools button:focus-visible { outline:2px solid var(--accent-ui); outline-offset:1px; }
 /* #csToolbar drives the hidden static #crossSection SVG (superseded by the section editor). */
 #csToolbar { display:none !important; }
 #libraryCanvas { display:none; flex-direction:column; flex:1; overflow:auto; }
@@ -295,7 +307,10 @@
 .rp-btn-sm { flex:1; }
 .rp-btn-danger:hover { background:rgba(192,48,48,.12)!important; border-color:#c03030!important; color:#f87171!important; }
 /* === DRAWING THEME SWITCHER === */
-.theme-switcher { display:flex; align-items:center; gap:4px; padding:0 8px; border-left:1px solid #E0DFDB; margin-left:4px; flex-shrink:0; }
+.theme-switcher { position:relative; display:flex; align-items:center; flex-shrink:0; }
+#appearanceMenu { position:absolute; top:calc(100% + 4px); left:0; min-width:140px; padding:var(--sp-1) 0; background:var(--d-paper); border:1px solid var(--d-lt); border-radius:3px; box-shadow:0 4px 14px rgba(0,0,0,.14); z-index:200; }
+#appearanceMenu button { display:block; width:100%; text-align:left; padding:6px var(--sp-3); border:none; background:none; font:var(--fs-12) var(--font-ui); color:var(--d-ink); cursor:pointer; white-space:pre; }
+#appearanceMenu button:hover { background:var(--d-xlt); }
 
 /* ======================================================================
    UI TOKENS (Brief 07) -- the only sizes, fonts, spacings and chrome
@@ -353,7 +368,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div class='ctx-panel' id='ctxPanel'>
 <div id='cadTools' style='padding:8px 10px 6px 10px;border-bottom:2px solid #2E3338;background:#202328;flex-shrink:0;'>
 <div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;'>Selection</div>
-<div id='cadSelName' style='font-size:11px;font-weight:600;color:var(--ink);margin-bottom:5px;font-family:var(--mono);min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>&#x2014; no selection &#x2014;</div>
+<div id='cadSelName' class='empty-state' style='font-size:11px;font-weight:600;color:var(--ink);margin-bottom:5px;font-family:var(--mono);min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>no selection</div>
 <div style='display:grid;grid-template-columns:14px 1fr 14px 1fr;gap:2px 3px;align-items:center;margin-bottom:2px;'>
 <span style='font-size:11px;font-weight:700;color:var(--muted);font-family:var(--mono);'>X</span>
 <input type='number' id='cadPosX' step='0.001' placeholder='&#x2014;' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyPos()' title='World X (exact, no snap)'>
@@ -523,29 +538,31 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 </div>
 <div id='dockResizer'></div>
 <div class='canvas-area'>
-  <div class='canvas-toolbar'>
-    <div class='view-pills'>
+  <div class='canvas-toolbar' role='toolbar' aria-label='Views'>
+    <div class='view-pills' role='group' aria-label='Layout'>
       <button class='vpill active' onclick='setCanvasView("all")'>All</button>
       <button class='vpill' onclick='setCanvasView("plan")'>Plan</button>
       <button class='vpill' onclick='setCanvasView("section")'>Section</button>
       <button class='vpill' onclick='setCanvasView("3d")'>3D</button>
     </div>
-    <button class='ctb-btn' id='axToggleBtn' onclick='AX.toggle()' title='Change the design by describing it' style='margin-left:4px'>&#10022; Assistant</button>
-    <div class='theme-switcher' style='position:relative;'>
-      <button id='appearanceBtn' onclick='cadToggleAppearance()' style='font-size:11px;padding:3px 10px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);letter-spacing:.04em;'>Schematic &#9660;</button>
-      <div id='appearanceMenu' style='display:none;position:absolute;top:calc(100% + 3px);right:0;background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:3px 0;z-index:200;min-width:120px;box-shadow:0 3px 10px rgba(0,0,0,.18);'>
-        <button id='appMenuSchematic' onclick='setDrawingTheme("schematic");cadCloseAppearance()' style='display:block;width:100%;text-align:left;padding:5px 12px;font-size:11px;border:none;background:none;color:var(--ink);cursor:pointer;'>&#10003; Schematic</button>
-        <button id='appMenuTechnical' onclick='setDrawingTheme("technical");cadCloseAppearance()' style='display:block;width:100%;text-align:left;padding:5px 12px;font-size:11px;border:none;background:none;color:var(--ink);cursor:pointer;'>&#160;&#160;&#160;&#160; Technical</button>
+    <div class='theme-switcher'>
+      <button id='appearanceBtn' class='ctb-btn' aria-haspopup='menu' onclick='cadToggleAppearance()' title='Drawing style'>Schematic &#9662;</button>
+      <div id='appearanceMenu' role='menu' style='display:none'>
+        <button id='appMenuSchematic' role='menuitem' onclick='setDrawingTheme("schematic");cadCloseAppearance()'>&#10003; Schematic</button>
+        <button id='appMenuTechnical' role='menuitem' onclick='setDrawingTheme("technical");cadCloseAppearance()'>&#160;&#160;&#160;&#160; Technical</button>
       </div>
     </div>
+    <button id='cadDimBtn' class='ctb-btn active' aria-pressed='true' onclick='cadToggleDim()' title='Show dimensions in Plan and Section'>DIM</button>
+    <button class='ctb-btn' onclick='autoSolveWidth()' title='Set parklet to the maximum width that keeps the adjacent lane compliant (C02)'>Solve width</button>
+    <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fit each visible viewport to its drawing (Plan, Section, 3D)'>Fit all</button>
     <div class='canvas-toolbar-right'>
-      <button id='cadDimBtn' class='ctb-btn' onclick='cadToggleDim()' title='Toggle dimensions'>DIM</button><button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fit each visible viewport to its drawing (Plan, Section, 3D)'>Fit all</button><button class='ctb-btn' onclick='autoSolveWidth()' title='Set parklet to the maximum width that keeps the adjacent lane compliant (C02)'>Solve width</button>
+      <button class='ctb-btn' id='axToggleBtn' onclick='AX.toggle()' title='Change the design by describing it'>&#10022; Assistant</button>
     </div>
   </div>
 <div id='viewportGrid' data-layout='three'>
-<div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize">&#10530;</button></div>      <div id="seRoot"></div><div class="svg-wrap" id="seStaticWrap" style="display:none">        <svg id="crossSection" viewBox="0 -18 760 248" xmlns="http://www.w3.org/2000/svg"></svg>      </div>      <div class="drw-toolbar" id="csToolbar"><div class="drw-tb-toggles"><button class="drw-tb-toggle" id="dimToggleCS" onclick="_csDimsOn=!_csDimsOn;syncToolbarStates();renderCrossSection()">DIM</button><button class="drw-tb-toggle" id="csMeasureBtn" onclick="_csToggleMeasure()" title="Measure distances in section (click two points)">Measure</button></div><span style='display:flex;align-items:center;gap:2px;padding:0 8px;border-left:1px solid var(--rule);'><button class='drw-tb-toggle' onclick='_csZoomStep(1/1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_csZoomStep(1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_csFitView()' title='Fit to window'>FIT</button></span></div>    </div>    <!-- Drawing 02: Plan -->    
-<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fit the plan to its drawing'>FIT</button><button class='drw-tb-toggle' id='secTogglePV' title='Show the Section A-A cut line' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>A&ndash;A</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measure distance'>Measure</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize">&#10530;</button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Toggle snap'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
-<div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize">&#10530;</button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
+<div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div><div class="svg-wrap" id="seStaticWrap" style="display:none">        <svg id="crossSection" viewBox="0 -18 760 248" xmlns="http://www.w3.org/2000/svg"></svg>      </div>      <div class="drw-toolbar" id="csToolbar"><div class="drw-tb-toggles"><button class="drw-tb-toggle" id="dimToggleCS" onclick="_csDimsOn=!_csDimsOn;syncToolbarStates();renderCrossSection()">DIM</button><button class="drw-tb-toggle" id="csMeasureBtn" onclick="_csToggleMeasure()" title="Measure distances in section (click two points)">Measure</button></div><span style='display:flex;align-items:center;gap:2px;padding:0 8px;border-left:1px solid var(--rule);'><button class='drw-tb-toggle' onclick='_csZoomStep(1/1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_csZoomStep(1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_csFitView()' title='Fit to window'>FIT</button></span></div>    </div>    <!-- Drawing 02: Plan -->    
+<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fit the plan to its drawing'>FIT</button><button class='drw-tb-toggle' id='secTogglePV' title='Show the Section A-A cut line' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>A&ndash;A</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measure distance'>Measure</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Toggle snap'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
+<div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
 <div id='workspaceExport' style='display:none;flex:1;overflow:hidden;'>
 <div class='exp-body'>
@@ -2750,8 +2767,11 @@ function setViewportLayout(mode, max, opts) {
   });
   document.querySelectorAll('.vp-max').forEach(function(b) {
     var on = mode === 'max' && b.dataset.vp === max;
-    b.innerHTML = on ? '&#10529;' : '&#10530;';
+    // corners out = maximize, corners in = restore
+    b.innerHTML = "<svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='" +
+      (on ? 'M4.5 1v3.5H1M11 4.5H7.5V1M7.5 11V7.5H11M1 7.5h3.5V11' : 'M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5') + "'/></svg>";
     b.title = on ? 'Restore three views (Esc)' : 'Maximize';
+    b.setAttribute('aria-label', b.title);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
   if (opts.silent) return;
@@ -4050,9 +4070,9 @@ document.addEventListener('mouseup', function() {
     root.innerHTML =
       // Toolbar
       '<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--rule);background:var(--card)">'+
-        '<button id="seUndoBtn" onclick="seUndo()" disabled style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--muted);cursor:pointer">Undo</button>'+
-        '<button id="seRedoBtn" onclick="seRedo()" disabled style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--muted);cursor:pointer">Redo</button>'+
-        '<button id="seFitBtn" onclick="seFit()" style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--muted);cursor:pointer">Fit</button>'+
+        '<button id="seUndoBtn" onclick="seUndo()" disabled>Undo</button>'+
+        '<button id="seRedoBtn" onclick="seRedo()" disabled>Redo</button>'+
+        '<button id="seFitBtn" onclick="seFit()">Fit</button>'+
         '<span style="flex:1"></span>'+
         '<span style="font-size:11px;color:var(--muted)">Click to select &middot; Drag to reorder &middot; Drag edge to resize &middot; Del to remove</span>'+
       '</div>'+
@@ -10407,7 +10427,7 @@ function renderParkletProps() {
 function renderFurnitureProps(instId,inst) {
   if (!inst) {
     var f=FL3D.placed.find(function(i){return i.id===instId;});
-    if(f) inst=f; else return '<div style="padding:8px;font-size:11px;color:#888">No furniture selected</div>';
+    if(f) inst=f; else return '<div class="empty-state" style="padding:8px">No furniture selected</div>';
   }
   var obj=(typeof FL_OBJ!=='undefined'?FL_OBJ:[]).find(function(o){return o.id===inst.objId;});
   var name=(obj&&obj.name)||inst.objId, brand=(obj&&obj.brand)||'';
@@ -11789,13 +11809,13 @@ function cadToolsUpdate(inst) {
   var pz = document.getElementById('cadPosZ');
   var rt = document.getElementById('cadRot');
   if (!inst) {
-    if (nm) nm.textContent = '— no selection —';
+    if (nm) { nm.textContent = 'no selection'; nm.classList.add('empty-state'); }
     if (px) { px.value = ''; px.placeholder = '—'; }
     if (pz) { pz.value = ''; pz.placeholder = '—'; }
     if (rt) { rt.value = ''; rt.placeholder = '—'; }
     return;
   }
-  if (nm) nm.textContent = (inst.mesh && inst.mesh.userData && inst.mesh.userData.label) || inst.objId || '—';
+  if (nm) { nm.textContent = (inst.mesh && inst.mesh.userData && inst.mesh.userData.label) || inst.objId || '—'; nm.classList.remove('empty-state'); }
   if (px) px.value = (typeof inst.x === 'number' ? inst.x : 0).toFixed(3);
   if (pz) pz.value = (typeof inst.z === 'number' ? inst.z : 0).toFixed(3);
   if (rt) rt.value = Math.round((typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)) * 180 / Math.PI);
@@ -11903,7 +11923,7 @@ function cadToolsUpdate(inst) {
   var rt = document.getElementById('cadRot');
   var act = document.getElementById('cadActions');
   if (!inst) {
-    if (nm) nm.textContent = '— no selection —';
+    if (nm) { nm.textContent = 'no selection'; nm.classList.add('empty-state'); }
     if (px) { px.value = ''; px.placeholder = '—'; }
     if (pz) { pz.value = ''; pz.placeholder = '—'; }
     if (rt) { rt.value = ''; rt.placeholder = '—'; }
@@ -11917,7 +11937,7 @@ function cadToolsUpdate(inst) {
     if (_obj) label = _obj.name || _obj.id;
   }
   if (!label) label = inst.objId || '—';
-  if (nm) nm.textContent = label;
+  if (nm) { nm.textContent = label; nm.classList.remove('empty-state'); }
   if (px) px.value = (typeof inst.x === 'number' ? inst.x : 0).toFixed(3);
   if (pz) pz.value = (typeof inst.z === 'number' ? inst.z : 0).toFixed(3);
   if (rt) rt.value = Math.round((typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)) * 180 / Math.PI);
@@ -11965,7 +11985,7 @@ var _cadDimEnabled = true;
 function cadToggleDim() {
   _cadDimEnabled = !_cadDimEnabled;
   var btn = document.getElementById('cadDimBtn');
-  if (btn) { btn.style.background = _cadDimEnabled ? '#c03030' : ''; btn.style.color = _cadDimEnabled ? '#fff' : ''; }
+  if (btn) { btn.classList.toggle('active', _cadDimEnabled); btn.setAttribute('aria-pressed', String(_cadDimEnabled)); }
   if (typeof _pvDimsOn !== 'undefined') _pvDimsOn = _cadDimEnabled;
   if (typeof _csDimsOn !== 'undefined') _csDimsOn = _cadDimEnabled;
   var pb = document.getElementById('dimTogglePV'); var cb = document.getElementById('dimToggleCS');
@@ -11974,14 +11994,13 @@ function cadToggleDim() {
   try { if (typeof renderPlanView === 'function') renderPlanView(); } catch(e) {}
   try { if (typeof renderCrossSection === 'function') renderCrossSection(); } catch(e) {}
 }
-(function() { var btn = document.getElementById('cadDimBtn'); if (btn) { btn.style.background = '#c03030'; btn.style.color = '#fff'; } })();
 (function() {
   var _origSDT = typeof setDrawingTheme === 'function' ? setDrawingTheme : null;
   if (!_origSDT) return;
   window.setDrawingTheme = function(mode) {
     _origSDT(mode);
     var btn = document.getElementById('appearanceBtn');
-    if (btn) btn.textContent = (mode === 'technical' ? 'Technical' : 'Schematic') + ' ▼';
+    if (btn) btn.textContent = (mode === 'technical' ? 'Technical' : 'Schematic') + ' ▾';
     var ms = document.getElementById('appMenuSchematic');
     var mt = document.getElementById('appMenuTechnical');
     if (ms) ms.textContent = (mode === 'schematic' ? '✓ Schematic' : '    Schematic');
@@ -12017,7 +12036,7 @@ function cadToggleDim() {
 window.renderFurnitureProps = function(instId, inst) {
   if (!inst) {
     var f = FL3D.placed.find(function(i) { return i.id === instId; });
-    if (f) inst = f; else return '<div style="padding:8px;font-size:11px;color:#888">No furniture selected</div>';
+    if (f) inst = f; else return '<div class="empty-state" style="padding:8px">No furniture selected</div>';
   }
   var obj = (typeof FL_OBJ !== 'undefined' ? FL_OBJ : []).find(function(o) { return o.id === inst.objId; });
   var name = (obj && obj.name) || inst.objId, brand = (obj && obj.brand) || '';
@@ -12395,7 +12414,7 @@ function lhsFwRender() {
       '<div class="lib-thumb">' + t.thumb + '</div>' +
       (t.size ? '<div class="lib-size">' + t.size + '</div>' : '') +
       '<div class="lib-name">' + _libEsc(t.name) + '</div></div>';
-  }).join('') : '<div class="lib-empty">Nothing matches' + (FL_SHOW_PRESETS ? '' : ' (manufacturer presets are hidden)') + '.</div>';
+  }).join('') : '<div class="lib-empty empty-state">Nothing matches' + (FL_SHOW_PRESETS ? '' : ' (manufacturer presets are hidden)') + '.</div>';
 }
 
 // ── Settings workspace nav scroll ────────────────────────────────
@@ -14080,7 +14099,7 @@ function _strRenderLibCards(query) {
       o.sourceDetail.toLowerCase().indexOf(q) >= 0);
     return catOk && txtOk;
   });
-  grid.innerHTML = items.length ? items.map(_strCardHTML).join('') : '<div style="padding:20px;font-size:11px;color:var(--text-mu);">No results.</div>';
+  grid.innerHTML = items.length ? items.map(_strCardHTML).join('') : '<div class="empty-state" style="padding:20px;">No results.</div>';
 }
 
 function _strCardHTML(o) {
@@ -16262,7 +16281,7 @@ document.addEventListener('DOMContentLoaded', PX.updateNote);
 .ax-typing { align-self:flex-start; color:rgba(178,188,200,.6); font-size:11px; padding:2px 4px; }
 .ax-typing::after { content:'···'; animation:axdots 1s steps(3,end) infinite; }
 @keyframes axdots { 0%{content:'·'} 33%{content:'··'} 66%{content:'···'} }
-.ctb-btn.ax-on { background:#1A1E24; color:#fff; border-color:#1A1E24; }
+.ctb-btn.ax-on { background:var(--accent-ui); color:var(--c-bg); border-color:var(--accent-ui); }
 </style>
 <div id='axPanel' role='dialog' aria-label='Design assistant'>
   <div id='axHdr'>
@@ -17628,5 +17647,9 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
    "conditional" amber reads as ink inside the drawing. */
 .dm-technical #seStrip, .dm-technical #seDimRow { --st-warn-ink: var(--d-ink); }
 .dm-technical #seStrip { background: #FFFFFF !important; border-color: var(--d-lt) !important; }
+
+/* -- Empty states (Phase 6): text-dim mono ------------------------------------ */
+.empty-state { font: 400 var(--fs-12) var(--font-mono) !important; color: var(--c-text-dim) !important; }
+.canvas-area .empty-state, #libraryCanvas .empty-state, #swPage .empty-state { color: var(--d-mid) !important; }
 </style>
 </body></html>
