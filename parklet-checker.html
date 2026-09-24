@@ -4537,15 +4537,29 @@ function getSectionObjectsAt(cutWorldZ) {
   return result;
 }
 
-function renderCrossSection() {
-  const svg = document.getElementById('crossSection');
+// Section A-A drawing (#crossSection). With o = {svg, theme, mmPerM} it draws into that SVG for paper (the
+// report): one scale both ways (the context buildings too, at the street's px/m), dimensions on,
+// its viewBox from its own layout (context left .. context right, sky over the tallest building
+// .. the dimension chains), no zoom, measure or panel side effects. The live SVG and _csVB are
+// not touched.
+function renderCrossSection(o) {
+  if (!o || !o.svg) return _renderCrossSection(null);
+  var keep = drawingTheme.mode;
+  if (o.theme) drawingTheme.mode = o.theme;
+  try { return _renderCrossSection(o); } finally { drawingTheme.mode = keep; }
+}
+function _renderCrossSection(o) {
+  const paper = !!o;
+  const svg = paper ? o.svg : document.getElementById('crossSection');
   if (!svg) return;
-  const VW = 760, GY = 148, SFB = 188, PB = 202, DIM_Y = 220;
+  const dimsOn = paper || _csDimsOn;  const VW = 760, GY = 148, SFB = 188, PB = 202, DIM_Y = 220;
   const FACADE_W = 28, TAIL_W = 32;
   const _csDM = buildDesignModel(), _csLM = _csDM.landmarks;
   const _csRoad = _csDM.totalRoad, _csSW = _csLM.sidewalkW, _csPkW = _csLM.deckW;
   const bufW = _csLM.bufferW;
   const SC = (VW - FACADE_W - TAIL_W) / (_csSW + _csRoad);
+  // paper: text sized for the sheet (a 7 px label prints at ~6.5 pt at o.mmPerM mm per metre)
+  const fT = paper ? (2.3 / 7) * SC / (o.mmPerM || 20) : 1;
   const bufPX = bufW * SC;
   const reqLane = getReqLane();
   const bld = getBikeLaneD();
@@ -4622,10 +4636,11 @@ function renderCrossSection() {
 
   // ── Context zones: section cut through configured buildings ────────────────
   const CTX_L = 160, CTX_R = 280;
-  const hSc = 12;                         // fixed 12 px/m — height/depth changes are visible
+  const hSc = paper ? SC : 12;           // paper: true scale; on screen                         // fixed 12 px/m — height/depth changes are visible
   const flPx = Math.max(4, Math.round(3 * hSc)); // 3 m floor slab spacing in px
   const allBHts2 = _csDM.buildings.L.concat(_csDM.buildings.R).map(function(b){return b.height;});
   const maxBH2 = Math.max.apply(null, allBHts2.concat([3]));
+  const _bLblMinY = paper ? GY - Math.min(maxBH2, 4.5) * hSc + 12 : -Infinity;   // paper: building labels inside the 4.5 m cut
   // Find buildings actually intersected by the section cut — no fallback; null = no building cut
   const _bCuts = function(b){ const z0=b.zOffset||0; return _cutWorldZ>=z0 && _cutWorldZ<=z0+(b.length||30); };
   const bL = _csDM.buildings.L.find(_bCuts) || null;
@@ -4641,7 +4656,7 @@ function renderCrossSection() {
   if (bL && bLD > 0) {
     s += `<rect x='${-bLD}' y='${GY-bLH}' width='${bLD}' height='${bLH}' fill='${_iTch?'#DCDBD8':'#e0ddd8'}'/>`;
     s += `<rect x='${-bLD}' y='${GY-bLH}' width='${bLD}' height='${bLH}' fill='url(#pocheH)'/>`;
-    s += `<text x='${Math.round(-bLD/2)}' y='${GY-bLH-5}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.1em'>BUILDING</text>`;
+    s += `<text x='${Math.round(-bLD/2)}' y='${Math.max(GY-bLH-5, _bLblMinY)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.1em'>BUILDING</text>`;
   }
 
   // ── Right context: sky tone + opposite sidewalk + poche ─────────────────
@@ -4653,13 +4668,13 @@ function renderCrossSection() {
     // Opposite curb face
     s += `<rect x='${OBX0}' y='${GY-CURB_H}' width='${OCB}' height='${CURB_H}' fill='#888480'/>`;
     s += `<rect x='${OBX0-1}' y='${GY-CURB_H-3}' width='${OCB+2}' height='3' fill='#555'/>`;
-    s += `<text x='${OBX0+OCB+Math.round(OSW_PX/2)}' y='14' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.06em'>OPP SIDEWALK</text>`;
+    s += `<text x='${OBX0+OCB+Math.round(OSW_PX/2)}' y='14' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.06em'${paper ? ` textLength='${OSW_PX - 6}' lengthAdjust='spacingAndGlyphs'` : ''}>OPP SIDEWALK</text>`;   // paper: fitted to its strip
     // Opposite building poche only when section actually passes through a right building
     if (bR0 && bRD > 0) {
       const bRHnet = Math.max(4, bRH - CURB_H);
       s += `<rect x='${OBX1}' y='${GY-bRH}' width='${bRD}' height='${bRHnet}' fill='${_iTch?'#DCDBD8':'#e0ddd8'}'/>`;
       s += `<rect x='${OBX1}' y='${GY-bRH}' width='${bRD}' height='${bRHnet}' fill='url(#pocheH)'/>`;
-      s += `<text x='${OBX1+Math.round(bRD/2)}' y='${GY-bRH-5}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.1em'>BUILDING</text>`;
+      s += `<text x='${OBX1+Math.round(bRD/2)}' y='${Math.max(GY-bRH-5, _bLblMinY)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.1em'>BUILDING</text>`;
     }
     _OBX1 = OBX1; _OBX_END = OBX_END; _bRDcut = bRD;
   }
@@ -4742,7 +4757,7 @@ function renderCrossSection() {
   s += `<rect x='${(XPK-4).toFixed(1)}' y='${GY-CURB_H-3}' width='8' height='3' fill='${laneOk ? _dk : RED}'/>`;
   // ── Metric grid overlay (full section width, elevation axis) ─────────────
   const DECK_Y = GY - CURB_H - DECK_TK;
-  if (typeof _gridEnabled === 'undefined' || _gridEnabled) {
+  if (!paper && (typeof _gridEnabled === 'undefined' || _gridEnabled)) {
     const _sgSp = (typeof _gridSpacing !== 'undefined' && _gridSpacing > 0) ? _gridSpacing : 0.5;
     const _sgMajEvery = Math.max(1, Math.round(1.0 / _sgSp));
     const _sgMaxH = 4.0, _sgTop = DECK_Y - _sgMaxH * SC;
@@ -4894,8 +4909,9 @@ function renderCrossSection() {
   }
 
 // ── Dimension system (zoom-responsive, toggleable) ─────────────────────
-  const _csInFS = _fsPanel && _fsPanel === document.getElementById('csPanel');
-  const zS = _csInFS ? _csVB.w / _csBaseW : 1;
+  if (paper) s = s.replace(/font-size='([\d.]+)'/g, function(m, v) { return "font-size='" + (v * fT).toFixed(2) + "'"; });
+  const _csInFS = !paper && _fsPanel && _fsPanel === document.getElementById('csPanel');
+  const zS = paper ? fT : _csInFS ? _csVB.w / _csBaseW : 1;
   const DFV = 8 * zS;      // value text size
   const DFL = 7 * zS;      // label text size
   const DTK = (0.6 * zS).toFixed(2);   // dim line weight
@@ -4910,7 +4926,7 @@ function renderCrossSection() {
   const DY1 = GY + 94;               // zone chain
   const DY2 = DY1 + 28 * zS;        // overall chain (scales with zS)
 
-  if (_csDimsOn) {
+  if (dimsOn) {
     s += `<g id='csDimLayer'>`;
 
     // helper: extension lines (thin, from drawing boundary to dim chain bottom)
@@ -5012,9 +5028,9 @@ function renderCrossSection() {
     s += `</g>`;
   }
   // static scale bar removed — dynamic zoom-aware scale bar renders as overlay
-  s += `<text x='${(XTAIL-4).toFixed(1)}' y='${PB+6}' text-anchor='end' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' fill='#bbb' letter-spacing='.1em'>SECTION A-A   ${(typeof drawingTheme!=='undefined'?drawingTheme.mode:'schematic').toUpperCase()}</text>`;
+  if (!paper) s += `<text x='${(XTAIL-4).toFixed(1)}' y='${PB+6}' text-anchor='end' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' fill='#bbb' letter-spacing='.1em'>SECTION A-A   ${(typeof drawingTheme!=='undefined'?drawingTheme.mode:'schematic').toUpperCase()}</text>`;
   // ── Section measure overlay ─────────────────────────────────────────────
-  if (_csMeasureP1 || _csMeasureP2) {
+  if (!paper && (_csMeasureP1 || _csMeasureP2)) {
     var _csM1 = _csMeasureP1, _csM2 = _csMeasureP2;
     if (_csM1) s += `<circle cx='${_csM1.x.toFixed(1)}' cy='${_csM1.y.toFixed(1)}' r='4' fill='none' stroke='#0696D7' stroke-width='1.5'/>`;
     if (_csM1 && _csM2) {
@@ -5031,9 +5047,14 @@ function renderCrossSection() {
   }
   svg.innerHTML = s.replace(/[''']/g, '\x22');
   const _newBaseW = Math.round(1200 + bufPX + bld * SC);
-  const _reqSkyPx = Math.ceil(maxBH2 * hSc) + 20;
+  const _reqSkyPx = Math.ceil((paper ? Math.min(maxBH2, 4.5) : maxBH2) * hSc) + 20;   // paper: context buildings cut 4.5 m up
   const _newVBY = Math.min(-18, GY - _reqSkyPx);
   const _newVBH = 322 - _newVBY;
+  if (paper) {
+    const vb = { x: -CTX_L, y: _newVBY, w: XTAIL + CTX_R + CTX_L, h: _newVBH };
+    svg.setAttribute('viewBox', [vb.x, vb.y, vb.w, vb.h].map(function(v) { return v.toFixed(2); }).join(' '));
+    return { vb: vb, pxPerM: SC, curbX: XSW };
+  }
   const _widthChanged = _newBaseW !== _csBaseW, _topChanged = _newVBY !== _csBaseVBY;
   _csBaseW = _newBaseW; _csBaseVBY = _newVBY;
   if (!_csUserMod) { _csVB.x=-160; _csVB.y=_newVBY; _csVB.w=_newBaseW; _csVB.h=_newVBH; }
@@ -5073,10 +5094,6 @@ function dimArrow(x1, x2, midY, code, req, col, SF, MF, zS) {
 // ── SHARED COORDINATE HELPERS AND GRID/SNAP ─────────────────────────────────
 var _gridEnabled = true, _snapEnabled = true, _gridSpacing = 0.25;
 var _pvPKX = 0, _pvPKY = 0, _pvHS = 1, _pvSC = 20, _pvVW = 760, _pvVH = 200;
-// True-scale drawing (the report): across-street px/m = along-street px/m, so one scale holds both ways.
-var _pvIso = false;
-// Along-street extent shown (m); null = the view's own (34 m, or the deck + 14 m). The report sets it.
-var _pvShownM = null;
 var _planMode = 'select';
 // Measure tool state
 var _pvMeasureMode = false;
@@ -5555,12 +5572,27 @@ var DS = {
   }
 };
 
-function renderPlanView() {
-  const svg = document.getElementById('planView');
+// Plan. renderPlanView() draws the live view (#planView, its viewBox VB, zoom, grid). With
+// o = {svg, mmPerM | U, shownM, theme} it draws into that SVG for paper instead (the report): one px/m both
+// ways, o.shownM m of street, o.U plan units per paper px for the screen-sized annotation, a
+// viewBox from the model's extent plus the label margins, no grid or view chrome. The live SVG
+// and VB are not touched; the frame globals worldToPlan reads are as they were on return.
+function renderPlanView(o) {
+  if (!o || !o.svg) return _renderPlanView(null);
+  var keep = [_pvPKX, _pvPKY, _pvHS, _pvSC, _pvVW, _planVH, _pvVH, window._pvNorthV, drawingTheme.mode];
+  if (o.theme) drawingTheme.mode = o.theme;
+  try { return _renderPlanView(o); }
+  finally { _pvPKX = keep[0]; _pvPKY = keep[1]; _pvHS = keep[2]; _pvSC = keep[3]; _pvVW = keep[4]; _planVH = keep[5]; _pvVH = keep[6]; window._pvNorthV = keep[7]; drawingTheme.mode = keep[8]; }
+}
+function _renderPlanView(o) {
+  const paper = !!o;
+  const svg = paper ? o.svg : document.getElementById('planView');
   if (!svg) return;
-  const VW = 760;
-  const _pvInFS = _fsPanel && _fsPanel === document.getElementById('pvPanel');
-  const pvZS = _pvInFS ? _pvVB.w / 760 : 1;
+  // the viewBox being drawn: the live one, or (paper) one fitted below from the model
+  const VB = paper ? { x: -1e6, y: -1e6, w: 2e6, h: 2e6 } : _pvVB;
+  const dimsOn = paper || _pvDimsOn;  const VW = 760;
+  const _pvInFS = !paper && _fsPanel && _fsPanel === document.getElementById('pvPanel');
+  const pvZS = _pvInFS ? VB.w / 760 : 1;
   const pvDFV = 8 * pvZS, pvDFL = 6 * pvZS, pvDFS = 5.5 * pvZS;
   const pvDTK = (0.85 * pvZS).toFixed(2), pvDEXT = (0.55 * pvZS).toFixed(2);
   const pvDTCK = 2.5 * pvZS, pvDGAP = 1.5 * pvZS;
@@ -5568,8 +5600,8 @@ function renderPlanView() {
   const MF = 'font-family="Courier New, monospace"';
   // Every metre value below comes from DESIGN_MODEL (built here so it is never stale).
   const _pvDM = buildDesignModel(), _pvLM = _pvDM.landmarks;
-  const SHOWN_M = _pvShownM || Math.max(34, _pvDM.parklet.length + 14), HS = VW / SHOWN_M;
-  const T_PAD = 18, pvSC = _pvIso ? HS : 20;
+  const SHOWN_M = (paper && o.shownM) || Math.max(34, _pvDM.parklet.length + 14), HS = VW / SHOWN_M;
+  const T_PAD = 18, pvSC = paper ? HS : 20;   // paper: true scale, one px/m both ways
   const _pvXS    = _pvDM.crossSection;
   const _pvPkW   = _pvLM.deckW;
   const PARKLET_M = _pvDM.parklet.length;
@@ -5832,10 +5864,10 @@ const C03_REQ = 6;
   const plkSp = Math.max(10, DECK_W/20);
   for (let dx=DECK_X+plkSp; dx<DECK_X+DECK_W-2; dx+=plkSp) s += `<line x1='${dx.toFixed(1)}' y1='${PK_Y+1}' x2='${dx.toFixed(1)}' y2='${PK_Y+pvPkH-1}' stroke='rgba(0,0,0,.1)' stroke-width='0.8'/>`;
   // ── Metric world-space grid (covers full viewBox — extends with zoom/pan) ─
-  if (_gridEnabled) {
+  if (_gridEnabled && !paper) {
     var _gS = _gridSpacing, _gMaj = 1.0;
     // Derive world bounds from current viewBox (supports pan/zoom)
-    var _vbX0 = _pvVB.x, _vbY0 = _pvVB.y, _vbX1 = _pvVB.x + _pvVB.w, _vbY1 = _pvVB.y + _pvVB.h;
+    var _vbX0 = VB.x, _vbY0 = VB.y, _vbX1 = VB.x + VB.w, _vbY1 = VB.y + VB.h;
     // Along-street (Z) grid lines: SVG vertical; world-Z range of the viewBox via planToWorld
     var _gzA = planToWorld(_vbX0, 0).z, _gzB = planToWorld(_vbX1, 0).z;
     var _gzMin = Math.floor(Math.min(_gzA, _gzB) / _gS) * _gS;
@@ -5857,8 +5889,8 @@ const C03_REQ = 6;
   }
   // -- World origin marker (CAD-style): X/Z axes at world (0,0)
   { var _oP = worldToPlan(0, 0), _oX = _oP.px, _oY = _oP.py;
-    var _oVis = _oX >= _pvVB.x - 40 && _oX <= _pvVB.x + _pvVB.w + 40
-             && _oY >= _pvVB.y - 40 && _oY <= _pvVB.y + _pvVB.h + 40;
+    var _oVis = !paper && _oX >= VB.x - 40 && _oX <= VB.x + VB.w + 40
+             && _oY >= VB.y - 40 && _oY <= VB.y + VB.h + 40;
     if (_oVis) {
       var _oL = Math.min(38, HS * 1.2);
       var _oZ = worldToPlan(0, _oL * 0.55 / HS), _oXa = worldToPlan(_oL * 0.35 / pvSC, 0);
@@ -6082,8 +6114,8 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   //   bottom: tier 1 = wheel stop / deck / wheel stop, tier 2 = context / parklet / context
   // Where a value does not fit its span, labels are spread apart (1-D, no overlaps) and joined
   // to their span by a leader.
-  const _pvRect = svg.getBoundingClientRect();
-  const _pvPW = _pvRect.width > 40 ? _pvRect.width : 760, _pvPH = _pvRect.height > 40 ? _pvRect.height : 395;
+  const _pvRect = paper ? null : svg.getBoundingClientRect();
+  let _pvPW = _pvRect && _pvRect.width > 40 ? _pvRect.width : 760, _pvPH = _pvRect && _pvRect.height > 40 ? _pvRect.height : 395;
   const _pvTW = function(str, fs, ls) {      // text width estimate, px (Helvetica metrics)
     let w = 0;
     for (const ch of String(str)) w += /[0-9]/.test(ch) ? .56 : /[.\s,]/.test(ch) ? .28 : /[A-Z]/.test(ch) ? .68 : /[a-z]/.test(ch) ? .52 : .6;
@@ -6139,21 +6171,26 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   const _PX = { val: 11, lbl: 10, gap1: 14, pad: 7, tier: 14, bot1: 28, bot2: 30, top: 44 };
   const _colW = function(list) { return Math.max.apply(null, list.map(function(d) { return Math.max(_pvTW(d.val, _PX.val), _pvTW(d.lbl, _PX.lbl, .06)); })); };
   const _w1 = _colW(_t1), _w2 = _t2.length ? _colW(_t2) : 0;
-  const _MR = _pvDimsOn ? _PX.gap1 + _PX.pad + _w1 + _PX.tier + _PX.pad + _w2 + 12 : 16;
-  const _MB = _pvDimsOn ? _PX.bot1 + _PX.bot2 + 18 : 12, _MT = _PX.top, _ML = 12;
+  const _MR = dimsOn ? _PX.gap1 + _PX.pad + _w1 + _PX.tier + _PX.pad + _w2 + 12 : 16;
+  const _MB = dimsOn ? _PX.bot1 + _PX.bot2 + 18 : 12, _MT = _PX.top, _ML = 12;
   const _cH = CTX_TOP + OPP_BOTTOM;
   let U;
-  if (!_pvUserMod) {
+  if (paper) {
+    // paper: U from the sheet scale (o.mmPerM mm per metre; annotation keeps its screen px size at 96 dpi); the viewBox is the drawing plus the chain margins
+    U = o.U || HS / (o.mmPerM * 96 / 25.4);
+    VB.x = -_ML * U; VB.y = -CTX_TOP - _MT * U; VB.w = VW + (_MR + _ML) * U; VB.h = _cH + (_MT + _MB) * U;
+    _pvPW = VB.w / U; _pvPH = VB.h / U;
+  } else if (!_pvUserMod) {
     U = Math.max(VW / Math.max(80, _pvPW - _MR - _ML), _cH / Math.max(60, _pvPH - _MT - _MB));
     const vw = _pvPW * U, vh = _pvPH * U;
-    _pvVB.w = vw; _pvVB.h = vh; _pvVB.fitW = vw;
-    _pvVB.x = -_ML * U - (vw - VW - (_MR + _ML) * U) / 2;
-    _pvVB.y = -CTX_TOP - _MT * U - (vh - _cH - (_MT + _MB) * U) / 2;
+    VB.w = vw; VB.h = vh; VB.fitW = vw;
+    VB.x = -_ML * U - (vw - VW - (_MR + _ML) * U) / 2;
+    VB.y = -CTX_TOP - _MT * U - (vh - _cH - (_MT + _MB) * U) / 2;
   } else {
-    U = Math.max(_pvVB.w / _pvPW, _pvVB.h / _pvPH);
+    U = Math.max(VB.w / _pvPW, VB.h / _pvPH);
   }
-  _pvVB.U = U;
-  if (_pvDimsOn) {
+  VB.U = U;
+  if (dimsOn) {
     const INK = '#1A1A1A', MID = '#62605C', EXT = '#A19F9A';
     const FNT = `font-family='Helvetica Neue,Arial,sans-serif'`;
     const f1 = function(v) { return v.toFixed(1); };
@@ -6167,7 +6204,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     s += `<g id='pvDimLayer'>`;
     // What is on screen (meet can show more than the viewBox): labels are kept inside it.
     const _visW = _pvPW * U, _visH = _pvPH * U;
-    const _visX = _pvVB.x + (_pvVB.w - _visW) / 2, _visY = _pvVB.y + (_pvVB.h - _visH) / 2;
+    const _visX = VB.x + (VB.w - _visW) / 2, _visY = VB.y + (VB.h - _visH) / 2;
     // ---- right: vertical chains ------------------------------------------------------------
     const RX1 = VW + _PX.gap1 * U, TX1 = RX1 + _PX.pad * U;
     const RX2 = TX1 + (_w1 + _PX.tier) * U, TX2 = RX2 + _PX.pad * U;
@@ -6277,7 +6314,7 @@ const manholes = state['manholes'] || [];
         s += _rect(body, `fill='url(#hPV)' opacity='${_tech?0.35:0.5}'`);
         if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${_T.sidewalk}' opacity='0.6'`);
         s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${_tech?'#1A1A1A':'#6F6A66'}'`);
-        const lx = Math.max(body.x, _pvVB.x) + 5;
+        const lx = Math.max(body.x, VB.x) + 5;
         if (body.x + body.w - lx > 70) s += `<text x='${lx.toFixed(1)}' y='${(body.y + body.h/2 + 3).toFixed(1)}' ${_lbl}>${label}</text>`;
       });
     };
@@ -6339,15 +6376,19 @@ const manholes = state['manholes'] || [];
   { const _n0 = worldToPlan(0, 0), _n1 = worldToPlan(CAD_CARDINAL.N.x, CAD_CARDINAL.N.z);
     const _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
     window._pvNorthV = { x: _nx / _nm, y: _ny / _nm }; }
-    s = DS.restylePlan(s, { vb: _pvVB });
+    s = DS.restylePlan(s, { vb: VB });
     if (_iTch) s = DS.achromatic(DS.statusInk(s));
     svg.innerHTML = s.replace(/[''']/g, '\x22');
   svg.style.background = DS.t().paper;
-  // _pvVB was fitted to the panel (drawing + chain margins) with the dimensions above; a
+  if (paper) {
+    svg.setAttribute('viewBox', [VB.x, VB.y, VB.w, VB.h].map(function(v) { return v.toFixed(2); }).join(' '));
+    return { vb: { x: VB.x, y: VB.y, w: VB.w, h: VB.h }, pxPerM: HS, north: window._pvNorthV ? { x: window._pvNorthV.x, y: window._pvNorthV.y } : null };
+  }
+  // VB was fitted to the panel (drawing + chain margins) with the dimensions above; a
   // zoomed or panned view is kept exactly.
   svg.style.cursor = (_pvUserMod || _pvInFS) ? 'grab' : 'default';
-  svg.setAttribute('viewBox', _pvVB.x.toFixed(2)+' '+_pvVB.y.toFixed(2)+' '+_pvVB.w.toFixed(2)+' '+_pvVB.h.toFixed(2));
-  _pvVB.pxM = HS; _svgAppendSB(svg, _pvVB, 760, 395); _initSVGZoom('planView', _pvVB, 760, 395);
+  svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
+  VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
   syncToolbarStates();
   initPlanInteraction();
   initSectionInteraction();
@@ -6463,10 +6504,10 @@ function _dmCurrent() {
 
 function planMetrics() {
   const _DM = _dmCurrent(), _LM = _DM.landmarks;
-  const SHOWN_M = _pvShownM || Math.max(34, _DM.parklet.length + 14), HS = 760 / SHOWN_M;
+  const SHOWN_M = Math.max(34, _DM.parklet.length + 14), HS = 760 / SHOWN_M;
   const CONTEXT_M = Math.max(2, (SHOWN_M - _DM.parklet.length) / 2);
   const PK_X = Math.round(CONTEXT_M * HS), PK_W = Math.round(_DM.parklet.length * HS);
-  const pvSC2 = _pvIso ? HS : 20;
+  const pvSC2 = 20;
   // Same frame renderPlanView sets: PK_X..PK_X+PK_W = parklet rectangle, Z0X = SVG x of world
   // z=0 (its right edge), PK_Y = SVG y of world x=0 (unrounded). Positions go through worldToPlan.
   const Z0X = PK_X + PK_W, PK_Y = 18 + _LM.sidewalkW * pvSC2;
@@ -18517,111 +18558,75 @@ RPT.sources = function(d) {
   return RPT.sheet('a4', '09', 'Sources and assumptions', body, '', 'flows');
 };
 
-// ── Drawings: the live renderers' output ─────────────────────────────────────────────────────
-// Plan: renderPlanView with one px/m both ways (_pvIso) and base label sizes (not the maximised
-// panel's zoom), copied; the view's own grid, background and scale bar are left out (the sheet
-// draws its own) and the copy is cropped to what is drawn. 1 m = _pvHS px.
-// The dimension chains are sized in screen px of the panel the plan is shown in, so the plan is
-// rendered as if shown at its paper size (1 screen px = 1/96 in on the sheet): labels print at the
-// size they have on screen at 100 %.
-RPT.planSVG = function(scale, shownM) {
-  var svg = document.getElementById('planView'); if (!svg) return null;
-  var fs = _fsPanel, vb0 = Object.assign({}, _pvVB), um = _pvUserMod, st = svg.getAttribute('style'), out = null;
-  _fsPanel = null; _pvIso = true; _pvUserMod = false; _pvShownM = shownM || null;
-  try {
-    for (var it = 0; it < 3; it++) {
-      renderPlanView();
-      var k = (1000 / scale / _pvHS) * 96 / 25.4;   // screen px per plan unit, on paper
-      svg.style.width = (_pvVB.w * k).toFixed(1) + 'px'; svg.style.height = (_pvVB.h * k).toFixed(1) + 'px';
-      svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none'; svg.style.flex = 'none';
-    }
-    renderPlanView();
-    var vb = svg.viewBox.baseVal, inv = svg.getScreenCTM().inverse(), pt = svg.createSVGPoint(), box = null;
-    svg.querySelectorAll('*').forEach(function(e) {
-      if (e.closest('defs, pattern, clipPath, title')) return;
-      if (e.closest('.sv-sb')) { e.setAttribute('data-rpt-drop', '1'); return; }
-      if (e.children.length && e.tagName !== 'text') return;
-      var bb; try { bb = e.getBBox(); } catch (x) { return; }
-      if (bb.width >= vb.width * 0.95 || bb.height >= vb.height * 0.95) { e.setAttribute('data-rpt-drop', '1'); return; }
-      var r = e.getBoundingClientRect(); if (!r.width && !r.height) return;
-      [[r.left, r.top], [r.right, r.bottom]].forEach(function(c) {
-        pt.x = c[0]; pt.y = c[1]; var p = pt.matrixTransform(inv);
-        box = box ? { x0: Math.min(box.x0, p.x), y0: Math.min(box.y0, p.y), x1: Math.max(box.x1, p.x), y1: Math.max(box.y1, p.y) } : { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
-      });
-    });
-    var c = svg.cloneNode(true), pad = 6;
-    svg.querySelectorAll('[data-rpt-drop]').forEach(function(e) { e.removeAttribute('data-rpt-drop'); });
-    c.querySelectorAll('[data-rpt-drop]').forEach(function(e) { e.remove(); });
-    box = { x0: box.x0 - pad, y0: box.y0 - pad, x1: box.x1 + pad, y1: box.y1 + pad };
-    c.setAttribute('viewBox', [box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0].map(function(v) { return v.toFixed(2); }).join(' '));
-    c.removeAttribute('class'); c.removeAttribute('style'); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    c.setAttribute('style', 'background:' + (svg.style.background || '#fff'));
-    out = { el: c, wPx: box.x1 - box.x0, hPx: box.y1 - box.y0, pxPerM: _pvHS, scale: scale, north: window._pvNorthV ? { x: _pvNorthV.x, y: _pvNorthV.y } : null };
-  } finally {
-    _pvIso = false; _pvShownM = null; _fsPanel = fs; _pvVB = vb0; _pvUserMod = um;
-    if (st === null) svg.removeAttribute('style'); else svg.setAttribute('style', st);
-    renderPlanView();
-  }
-  return out;
+// ── Drawings: the renderers' own output, drawn offscreen ─────────────────────────────────────
+// The report never measures or changes the live viewport. Each drawing is rendered by its view's
+// renderer into an SVG of its own in an offscreen host (position:fixed, visibility:hidden, a known
+// size) that exists only while the report is prepared. Extents come from the renderer, i.e. from
+// the model plus its label margins - not from DOM rects.
+RPT.host = function() {
+  var h = document.createElement('div');
+  h.id = 'rptDrawHost'; h.setAttribute('aria-hidden', 'true');
+  h.style.cssText = 'position:fixed;left:0;top:0;width:1600px;height:1200px;overflow:hidden;visibility:hidden;pointer-events:none;z-index:-1;';
+  document.body.appendChild(h);
+  return h;
+};
+RPT.svgIn = function(host) {
+  var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); host.appendChild(s);
+  return s;
+};
+// Plan at a sheet scale: renderPlanView into an offscreen SVG (one px/m both ways, the annotation
+// at its screen size on paper). 1 m = pxPerM plan units.
+RPT.planSVG = function(host, scale, shownM, theme) {
+  var svg = RPT.svgIn(host), r = renderPlanView({ svg: svg, mmPerM: 1000 / scale, shownM: shownM, theme: theme });
+  if (!r) return null;
+  return { el: svg, wPx: r.vb.w, hPx: r.vb.h, pxPerM: r.pxPerM, scale: scale, north: r.north };
 };
 // the plan at 1:100 (4 m of street past each deck end), or the next standard scale at which the
 // view's own extent fits the A3 drawing area
-RPT.planAt = function() {
+RPT.planAt = function(host, theme) {
   var p = null, L = DESIGN_MODEL.parklet.length;
   for (var i = 1; i < RPT.SCALES.length; i++) {
-    p = RPT.planSVG(RPT.SCALES[i], RPT.SCALES[i] === 100 ? L + 8 : null);
+    p = RPT.planSVG(host, RPT.SCALES[i], RPT.SCALES[i] === 100 ? L + 8 : null, theme);
     if (!p || (p.wPx / p.pxPerM * 1000 / p.scale <= RPT.AREA.w && p.hPx / p.pxPerM * 1000 / p.scale <= RPT.AREA.h)) break;
   }
   return p;
 };
-// Section: the four layers of the Section strip (paper, beyond, cut drawing, cut objects) stacked in
-// one SVG, with the strip's segment boxes for the label row. 1 m = SECTION strip px/m.
-RPT.sectionSVG = function() {
-  var ids = ['seArchBg', 'seBeyondSVG', 'seArchSVG', 'seObjOverlay'], els = ids.map(function(i) { return document.getElementById(i); }).filter(Boolean);
-  var strip = document.getElementById('seStrip'); if (!els.length || !strip) return null;
-  var W = +els[0].getAttribute('width'), H = +els[0].getAttribute('height'), SC = window._seStripSC || 60;
-  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '">' + els.map(function(e) { return '<g data-layer="' + e.id + '">' + e.innerHTML + '</g>'; }).join('') + '</svg>';
-  var DM = DESIGN_MODEL, NAME = { sidewalk: 'Sidewalk', parklet: 'Parklet', 'travel-lane': 'Travel lane', 'bike-lane': 'Bike lane', 'buf-pk': 'Buffer', 'buf-bl': 'Buffer', planting: 'Planting', parking: 'Parking', 'turn-lane': 'Turn lane', transit: 'Transit', curb: 'Curb' };
-  var segs = [].slice.call(strip.children).filter(function(c) { return /^seg_/.test(c.id) && c.offsetWidth > 0; }).map(function(c) {
-    var id = c.id.slice(4), s = DM.crossSection.find(function(q) { return String(q.id) === id; });
-    return { l: c.offsetLeft, w: c.offsetWidth, label: s ? (NAME[s.type] || s.type) : 'Bldg', width: s ? s.width : null, seg: s || null };
-  }).sort(function(a, b) { return a.l - b.l; });
-  return { svg: svg, wPx: W, hPx: H, pxPerM: SC, segs: segs, sec: DM.section };
+// Section A-A: renderCrossSection into an offscreen SVG (one scale both ways). 1 m = pxPerM units.
+RPT.sectionSVG = function(host, theme) {
+  var svg = RPT.svgIn(host), r = renderCrossSection({ svg: svg, theme: theme, mmPerM: 20 });
+  if (!r) return null;
+  return { el: svg, wPx: r.vb.w, hPx: r.vb.h, pxPerM: r.pxPerM, sec: DESIGN_MODEL.section };
 };
-// Axon: the Brief 06 isometric camera, offscreen, at 2x the sheet's 96 dpi pixel size; entourage
-// and animated agents hidden; the schematic palette (the caller sets the theme).
+// Axon: the Brief 06 isometric camera and its own offscreen WebGL renderer (AXE.renderer), at 2x
+// the sheet's 96 dpi size; entourage and agents hidden for the frame; the scene's lit objects in
+// the schematic palette for the frame. Needs the 3D scene, not a visible 3D panel.
 RPT.axonImg = function(wMm, hMm) {
   if (typeof AXE === 'undefined' || !_3d || !_3d.scene) return null;
   if (typeof _r3DRebuildPending !== 'undefined' && _r3DRebuildPending) { _r3DRebuildPending = false; renderMassView(); }
-  var W = Math.round(wMm / 25.4 * 96 * 2), H = Math.round(hMm / 25.4 * 96 * 2), hidden = [];
+  var W = Math.round(wMm / 25.4 * 96 * 2), H = Math.round(hMm / 25.4 * 96 * 2), hidden = [], mode = drawingTheme.mode;
   (FL3D.placed || []).forEach(function(p) { if (p.mesh && p.archetype && flIsEntourage(p.archetype) && p.mesh.visible) { p.mesh.visible = false; hidden.push(p.mesh); } });
   if (AXE.group && AXE.group.visible) { AXE.group.visible = false; hidden.push(AXE.group); }
   try {
+    if (mode !== 'schematic') { drawingTheme.mode = 'schematic'; apply3DTheme(); }
     var cam = AXE.camera('iso', W / H), r = AXE.renderer(W, H);
     AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0); AXE._cut = null;
     return { url: r.domElement.toDataURL('image/png'), w: W, h: H };
-  } finally { hidden.forEach(function(m) { m.visible = true; }); }
+  } finally {
+    hidden.forEach(function(m) { m.visible = true; });
+    if (mode !== 'schematic') { drawingTheme.mode = mode; apply3DTheme(); }
+  }
 };
 RPT.drawings = async function(d) {
-  var out = {}, theme = drawingTheme.mode, lay = { mode: VIEWPORT_LAYOUT.mode, max: VIEWPORT_LAYOUT.max };
-  var strip = document.getElementById('seStrip'), relayout = lay.mode === 'max' || !strip || !strip.offsetWidth;
-  if (relayout) setViewportLayout('three');   // Plan and the Section strip must be laid out to be measured
+  var host = RPT.host(), out = {};
   try {
-    if (theme !== 'schematic') setDrawingTheme('schematic');
-    if (typeof window.seRenderObjects === 'function') window.seRenderObjects();
-    out.plan = RPT.planAt();
-    out.section = RPT.sectionSVG();
+    out.plan = RPT.planAt(host, 'schematic');
+    out.tplan = RPT.planAt(host, 'technical');
+    out.section = RPT.sectionSVG(host, 'schematic');
     out.axon = RPT.axonImg(376, 212);
-    setDrawingTheme('technical');
-    out.tplan = RPT.planAt();
-  } finally {
-    setDrawingTheme(theme);
-    if (relayout) setViewportLayout(lay.mode, lay.max);
-    renderPlanView(); if (typeof window.seRenderObjects === 'function') window.seRenderObjects();
-  }
+  } finally { host.remove(); }
   return out;
 };
-
 // ── Drawing sheets ────────────────────────────────────────────────────────────────────────────
 RPT.SCALES = [50, 100, 200, 250, 500];
 // the largest standard scale (from `want` down) at which w x h metres fit in the area (mm)
@@ -18653,8 +18658,9 @@ RPT.titleBlock = function(no, title, scaleTxt, bar, north, notes) {
   return "<div class='tblock'><div class='tb-id'><span class='no'>" + no + '</span><span>' + RPT.esc(title) + "</span><span class='sc'>" + RPT.esc(scaleTxt) + '</span></div>' +
     "<div class='tb-bar'>" + (bar || '') + '</div>' + "<div class='tb-n'>" + (north || '') + '</div>' + "<div class='tb-notes'>" + (notes || '') + '</div></div>';
 };
-// A3 drawing area: 380 x 270.5 mm less the title row and the title block
-RPT.AREA = { w: 376, h: 212 };
+// A3 drawing area: 380 x 270.5 mm less the title row (~17 mm with its gap) and the title block (~21 mm):
+// ~232 mm tall; 222 keeps a margin. The layout self-check reports a drawing larger than its cell.
+RPT.AREA = { w: 376, h: 222 };
 RPT.planSheet = function(no, title, p, d, tech) {
   if (!p) return RPT.sheet('a3', no, title, "<p class='muted'>Plan not available.</p>");
   var wM = p.wPx / p.pxPerM, hM = p.hPx / p.pxPerM, sc = p.scale;
@@ -18670,26 +18676,20 @@ RPT.planSheet = function(no, title, p, d, tech) {
 RPT.sectionSheet = function(sx, d) {
   var no = '04', title = 'Section A-A';
   if (!sx) return RPT.sheet('a3', no, title, "<p class='muted'>Section not available.</p>");
-  var sc = 50, k = 1000 / sc / sx.pxPerM;   // mm per strip px
-  var svg = sx.svg.replace('<svg ', '<svg width="' + RPT.fx(sx.wPx * k, 3) + 'mm" height="' + RPT.fx(sx.hPx * k, 3) + 'mm" data-scale="50" data-px-per-m="' + sx.pxPerM + '" ');
-  var cols = [], cells = '', x = 0;
-  sx.segs.forEach(function(s) {
-    if (s.l > x + 0.5) { cols.push(RPT.fx((s.l - x) * k, 3) + 'mm'); cells += '<span></span>'; }
-    cols.push(RPT.fx(s.w * k, 3) + 'mm'); cells += '<span><b>' + RPT.esc(s.label) + '</b>' + (s.width != null ? '<i>' + RPT.fx(s.width, 2) + ' m</i>' : '') + '</span>';
-    x = s.l + s.w;
-  });
-  var labels = "<div class='seglabels' style='grid-template-columns: " + cols.join(' ') + "'>" + cells + '</div>';
+  var sc = 50, k = 1000 / sc / sx.pxPerM;   // mm per drawing unit
+  var el = sx.el.cloneNode(true);
+  el.setAttribute('width', RPT.fx(sx.wPx * k, 3) + 'mm'); el.setAttribute('height', RPT.fx(sx.hPx * k, 3) + 'mm');
+  el.setAttribute('data-scale', sc); el.setAttribute('data-px-per-m', RPT.fx(sx.pxPerM, 6));
   var S = sx.sec, rows = d.DM.crossSection.map(function(s) {
     return '<tr><td>' + RPT.esc(({ sidewalk: 'Sidewalk', parklet: 'Parklet', 'travel-lane': 'Travel lane', 'bike-lane': 'Bike lane', 'buf-pk': 'Buffer (parklet side)', 'buf-bl': 'Buffer (traffic side)', planting: 'Planting' })[s.type] || s.type) + '</td><td class="num">' + RPT.fx(s.x0, 3) + '</td><td class="num">' + RPT.fx(s.x1, 3) + '</td><td class="num" data-src="crossSection.' + d.DM.crossSection.indexOf(s) + '.width" data-dec="3">' + RPT.fx(s.width, 3) + '</td></tr>';
   }).join('');
   var tbl = "<table class='tbl segtbl'><thead><tr><th>Segment</th><th class='num'>x from (m)</th><th class='num'>x to (m)</th><th class='num'>Width (m)</th></tr></thead><tbody>" + rows + '</tbody></table>';
-  var cut = "<p>Cut at z " + RPT.fx(S.z, 2) + ' m, looking ' + (S.dir > 0 ? '+Z (south)' : '-Z (north)') + '; objects up to ' + RPT.fx(S.depth, 1) + ' m beyond the cut (to z ' + RPT.fx(S.zFar, 2) + ' m) are drawn in elevation, outline only.</p>';
-  var body = "<div class='drw sec'><div class='secrow'><figure class='fig secfig'><div class='secwrap'>" + svg + labels + '</div></figure>' + RPT.cutKey(d) + '</div>' +
-    "<div class='secinfo'>" + tbl + "<div class='caption'>" + cut + '<p>x is across the street from the near curb (world metres); widths are the Section editor\'s segments.</p></div></div>' +
+  var cut = "<p>Cut at z " + RPT.fx(S.z, 2) + ' m, looking ' + (S.dir > 0 ? '+Z (south)' : '-Z (north)') + '; objects up to ' + RPT.fx(S.depth, 1) + ' m beyond the cut (to z ' + RPT.fx(S.zFar, 2) + ' m) are drawn as beyond.</p>';
+  var body = "<div class='drw sec'><div class='secrow'><figure class='fig secfig'>" + el.outerHTML + '</figure>' + RPT.cutKey(d) + '</div>' +
+    "<div class='secinfo'>" + tbl + "<div class='caption'>" + cut + '<p>x is across the street from the near curb (world metres); zone labels and widths in the drawing are the Section editor\'s segments. Context buildings are cut 4.5 m above the sidewalk.</p></div></div>' +
     RPT.titleBlock(no, title, '1:50 at A3', RPT.scaleBar(50, 5, 5), '', "<p>Street cross-section at the A-A cut, with depth (Brief 08).</p>") + '</div>';
   return RPT.sheet('a3', no, title, body, '1:50 at A3');
-};
-// key plan for the section: the deck and pieces, the A-A cut and the depth drawn beyond it
+};// key plan for the section: the deck and pieces, the A-A cut and the depth drawn beyond it
 RPT.cutKey = function(d) {
   if (typeof GEN === 'undefined' || !GEN.planThumb) return '';
   var S = d.DM.section, ds = getDesignState(), W = ds.site.parkletWidth, SW = Math.min(2, ds.site.sidewalkW);
