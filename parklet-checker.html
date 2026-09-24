@@ -17052,12 +17052,15 @@ window.assertGeometryConsistency = function() {
     cx = s.x1;
   });
 
-  // 3. Furniture must lie within parklet bounds
+  // 3. Furniture must lie within parklet bounds; entourage within the street it may stand in
+  //    (flXRange: sidewalk back .. far curb), as placement and dragging allow.
   var PW = dm.parklet.width;
   if (window.FL3D && window.FL3D.placed) {
     window.FL3D.placed.forEach(function(inst){
-      if (inst.x < -0.05 || inst.x > PW + 0.05)
-        errors.push('Furniture ' + inst.id + ' x=' + inst.x.toFixed(3) + ' outside [0,' + PW.toFixed(3) + ']');
+      var ent = inst.archetype && typeof flIsEntourage === 'function' && flIsEntourage(inst.archetype);
+      var lo = ent ? flXRange(inst.archetype)[0] - 0.05 : -0.05, hi = ent ? flXRange(inst.archetype)[1] + 0.05 : PW + 0.05;
+      if (inst.x < lo || inst.x > hi)
+        errors.push((ent ? 'Entourage ' : 'Furniture ') + inst.id + ' x=' + inst.x.toFixed(3) + ' outside [' + (lo + 0.05).toFixed(3) + ',' + (hi - 0.05).toFixed(3) + ']');
     });
   }
 
