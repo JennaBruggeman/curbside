@@ -18238,8 +18238,10 @@ GEN.materialsFor = function(type, pal) {
 //  - the traffic edge always gets screens / planters (edge band: the outer 0.45 m);
 //  - nothing else within 0.45 m of any deck edge (incl. notches and the curve);
 //  - the usable length is clear of the 1.1 m wheel-stop / end-planter zones;
-//  - an internal clear route >= target (1.5 m; 1.65 / 1.8 at accessibility 2 / 3) runs end to
-//    end on the curb side -- a GUIDELINE: no Parklet Manual check in this tool covers it;
+//  - access model (GEN.access): entries from the sidewalk edge with a 1.5 x 1.5 m clear turning
+//    space (one, plus one per 8 m of deck), and from each a continuous route >= GEN.ROUTE_W clear
+//    to an accessible seat (bench end or table with knee clearance), found by flood fill on a
+//    0.1 m grid -- a GUIDELINE: no Parklet Manual check in this tool covers it;
 //  - seats face the sidewalk (-x) or along the deck, never the traffic; table chairs face
 //    their table (0.6 m per seat, 0.9 m pull-back); bike racks at the ends; no entourage.
 // Rotation u (userRotation): a seat faces (cos u, 0, -sin u): u = PI faces the sidewalk,
@@ -18273,7 +18275,7 @@ GEN.ZONES = {};
   }
   // x of the inner face of the edge band over [z0, z1] (seats and tables sit inside it)
   function bandX(ctx, z0, z1) { return GEN.edgeAt(ctx.fp, z0 - GEN.EDGE_BAND, z1 + GEN.EDGE_BAND) - GEN.EDGE_BAND; }
-  // depth a piece may take from the band and still leave the clear route
+  // depth a piece may take from the band and still leave a turning space on the curb side
   function cap(ctx, z0, z1) { return bandX(ctx, z0, z1) - ctx.target; }
   function gaps(ctx, z0, z1) {   // edge planting where no seat stands (planting intensity)
     if (z1 - z0 >= 0.9) edgeRun(ctx, z0 + 0.05, z1 - 0.05, ctx.planting >= 1 ? 'planters' : (ctx.edge === 'glass' ? 'glass' : 'screens'));
@@ -18341,7 +18343,7 @@ GEN.ZONES = {};
 
 // Lay a template out on a footprint -> {items, metrics, ok, reasons}
 GEN.layout = function(tpl, fp, opt) {
-  var ctx = { items: [], fp: fp, r: opt.r, edge: opt.edge, planting: opt.planting, green: opt.green, access: opt.access, shade: opt.shade, target: opt.access >= 3 ? 1.8 : 1.5,
+  var ctx = { items: [], fp: fp, r: opt.r, edge: opt.edge, planting: opt.planting, green: opt.green, access: opt.access, shade: opt.shade, target: GEN.TURN,
     plantKind: opt.planting >= 3 ? 'tree' : opt.planting >= 2 ? 'shrub' : 'grass' };
   var z0 = GEN.END + 0.1, z1 = fp.L - GEN.END - 0.1, len = z1 - z0, zones = opt.flip ? tpl.zones.slice().reverse() : tpl.zones, cur = z0;
   // Notches: no programme within them or 0.45 m of their sides - only thin screens along the
@@ -18363,8 +18365,11 @@ GEN.layout = function(tpl, fp, opt) {
     pieces(a + 0.15, b - 0.15).forEach(function(p) { GEN.ZONES[zn.k](ctx, p[0], p[1]); });
   });
   keepOut.forEach(function(k) { GEN.ZONES.open(Object.assign({}, ctx, { edge: ctx.edge === 'glass' ? 'glass' : 'screens' }), Math.max(z0, k[0]) + 0.05, Math.min(z1, k[1]) - 0.05); });
-  // validate: inside the deck, the 0.45 m rule, no overlaps, the clear route
-  var reasons = [], items = ctx.items, EB = GEN.EDGE_BAND - 0.001;
+  return GEN.validate(ctx.items, fp);
+};
+// Validate a layout: inside the deck, the 0.45 m rule, no overlaps, then the access model.
+GEN.validate = function(items, fp) {
+  var reasons = [], EB = GEN.EDGE_BAND - 0.001;
   var edgeTypes = { screen: 1, glass_screen: 1, railing: 1, planter: 1, planter_barrier: 1 };
   items.forEach(function(it, i) {
     var b = GEN.aabb(it), inner = GEN.edgeAt(fp, b.z0 - 0.45, b.z1 + 0.45);
@@ -18379,17 +18384,130 @@ GEN.layout = function(tpl, fp, opt) {
       if (b.x0 < c.x1 - 0.005 && c.x0 < b.x1 - 0.005 && b.z0 < c.z1 - 0.005 && c.z0 < b.z1 - 0.005) { reasons.push(it.type + ' overlaps ' + items[j].type); }
     }
   });
-  var minX = fp.W;
-  items.forEach(function(it) { if (it.type === 'umbrella') return; minX = Math.min(minX, GEN.aabb(it).x0); });
-  var route = GEN.r3(minX), target = opt.access >= 3 ? 1.8 : 1.5;
-  if (route < target - 0.001) reasons.push('clear route ' + route.toFixed(2) + ' m < ' + target + ' m');
-  return { items: items, route: route, routeTarget: target, ok: reasons.length === 0, reasons: reasons };
+  var acc = reasons.length ? null : GEN.access(items, fp);
+  if (acc) reasons = reasons.concat(acc.reasons);
+  return { items: items, acc: acc, route: acc ? acc.route : 0, access: acc ? acc.access : 0, ok: reasons.length === 0, reasons: reasons };
+};
+
+// ── Access model ─────────────────────────────────────────────────────────────────────────
+// A 0.1 m grid over the deck. Each cell's clear width = 2 x the distance from its centre to the
+// nearest obstacle (a piece's footprint, the deck edge, the end planters); the umbrella canopy is
+// overhead and does not count. Entries: 1.5 x 1.5 m turning squares against the sidewalk edge
+// (x = 0), one in each of 1 + floor(L / 8) equal lengths of the deck. From each entry a widest-path
+// flood fill over cells >= GEN.ROUTE_W finds the route to an accessible seating position; the
+// route's narrowest point is the bottleneck of that path. Nothing is measured as min(x).
+GEN.ROUTE_W = 0.92;   // clear route width, m: BCBC 3.8 clear width - Jenna to confirm the Parklet Manual value
+GEN.TURN = 1.5;       // entry turning space, m (square)
+GEN.ENTRY_PER = 8;    // one more entry per this many metres of deck
+GEN.CELL = 0.1;       // flood-fill grid, m
+GEN.REACH = 0.3;      // a wheelchair space counts as at a seat if within this of it, m
+GEN.END_PL = 1.02;    // the end planters occupy 0.08..1.02 from each deck end (DESIGN_MODEL.parklet.ends)
+GEN.BENCH_T = { bench: 1, backless_bench: 1, planter_bench: 1, seat_wall: 1 };
+GEN.KNEE_T = { table: 1, cafe_table: 1, communal_table: 1 };   // open-legged, 0.70-0.80 m high: knee clearance
+GEN.access = function(items, fp) {
+  var C = GEN.CELL, W = fp.W, L = fp.L, nx = Math.ceil(W / C - 1e-6), nz = Math.ceil(L / C - 1e-6), R = GEN.ROUTE_W / 2, CAP = 1.5;
+  var zA = GEN.END_PL, zB = L - GEN.END_PL, j, i, k;
+  var edge = new Float64Array(nz);
+  for (j = 0; j < nz; j++) edge[j] = GEN.edgeAt(fp, j * C, Math.min(L, (j + 1) * C));
+  var obs = items.filter(function(it) { return it.type !== 'umbrella'; }).map(function(it) { return GEN.aabb(it); });
+  // clear width per cell (0 = not walkable)
+  var wid = new Float64Array(nx * nz);
+  for (j = 0; j < nz; j++) {
+    var z = (j + 0.5) * C;
+    for (i = 0; i < nx; i++) {
+      var x = (i + 0.5) * C;
+      if (z < zA || z > zB || x >= edge[j]) continue;
+      var d = Math.min(CAP, x, z - zA, zB - z);
+      for (var jj = Math.max(0, j - 15); jj < Math.min(nz, j + 16) && d > 0; jj++) {
+        var dz = jj === j ? 0 : jj > j ? jj * C - z : z - (jj + 1) * C;
+        if (dz >= d) continue;
+        var dx = Math.max(0, edge[jj] - x); d = Math.min(d, Math.sqrt(dx * dx + dz * dz));
+      }
+      for (k = 0; k < obs.length && d > 0; k++) {
+        var o = obs[k], ez = Math.max(o.z0 - z, 0, z - o.z1); if (ez >= d) continue;
+        var ex = Math.max(o.x0 - x, 0, x - o.x1); d = Math.min(d, Math.sqrt(ex * ex + ez * ez));
+      }
+      wid[j * nx + i] = 2 * d;
+    }
+  }
+  var pass = function(c) { return wid[c] >= GEN.ROUTE_W - 1e-9; };
+  // accessible seating positions and the cells a wheelchair there would stand on
+  var seats = [];
+  items.forEach(function(it) {
+    var b = GEN.aabb(it), q = Math.round(it.u / (Math.PI / 2)) % 2 !== 0, a = R + GEN.REACH;
+    if (GEN.BENCH_T[it.type]) {
+      if (!q) { seats.push({ what: it.type + ' end', z: b.z0, box: { x0: b.x0 - 0.4, x1: b.x1 + 0.4, z0: b.z0 - a, z1: b.z0 } });
+                seats.push({ what: it.type + ' end', z: b.z1, box: { x0: b.x0 - 0.4, x1: b.x1 + 0.4, z0: b.z1, z1: b.z1 + a } }); }
+      else { seats.push({ what: it.type + ' end', z: it.z, box: { x0: b.x0 - a, x1: b.x0, z0: b.z0 - 0.4, z1: b.z1 + 0.4 } });
+             seats.push({ what: it.type + ' end', z: it.z, box: { x0: b.x1, x1: b.x1 + a, z0: b.z0 - 0.4, z1: b.z1 + 0.4 } }); }
+    } else if (GEN.KNEE_T[it.type] && it.params.h >= 0.7 && it.params.h <= 0.8) {
+      seats.push({ what: it.type, z: it.z, box: { x0: b.x0 - a, x1: b.x1 + a, z0: b.z0 - a, z1: b.z1 + a } });
+    }
+  });
+  var tgt = {};
+  seats.forEach(function(s, si) {
+    for (var jq = Math.max(0, Math.floor(s.box.z0 / C)); jq < Math.min(nz, Math.ceil(s.box.z1 / C)); jq++)
+      for (var iq = Math.max(0, Math.floor(s.box.x0 / C)); iq < Math.min(nx, Math.ceil(s.box.x1 / C)); iq++) {
+        var cx = (iq + 0.5) * C, cz = (jq + 0.5) * C, c = jq * nx + iq;
+        if (cx < s.box.x0 || cx > s.box.x1 || cz < s.box.z0 || cz > s.box.z1 || !pass(c)) continue;
+        (tgt[c] = tgt[c] || []).push(si);
+      }
+  });
+  // entries: a clear turning square against the sidewalk edge in each length of the deck
+  var need = 1 + Math.floor(L / GEN.ENTRY_PER), T = GEN.TURN, entries = [], seg = L / need;
+  function squareFree(zc) {
+    var s0 = zc - T / 2, s1 = zc + T / 2;
+    if (s0 < zA - 1e-6 || s1 > zB + 1e-6 || GEN.edgeAt(fp, s0, s1) < T - 1e-6) return false;
+    return !obs.some(function(o) { return o.x0 < T - 0.005 && o.z0 < s1 - 0.005 && o.z1 > s0 + 0.005; });
+  }
+  for (k = 0; k < need; k++) {
+    var mid = (k + 0.5) * seg, best = null;
+    for (var zc = Math.ceil((k * seg) / C) * C; zc <= (k + 1) * seg + 1e-6; zc += C) {
+      if (squareFree(zc) && (best === null || Math.abs(zc - mid) < Math.abs(best - mid))) best = zc;
+    }
+    entries.push(best === null ? null : GEN.r3(best));
+  }
+  var reasons = [], out = { need: need, entries: entries, seats: seats.length, per: [], route: 0, access: 0, seat: null, reasons: reasons };
+  var missing = entries.filter(function(e) { return e === null; }).length;
+  if (missing) reasons.push('no entry turning space (' + (need - missing) + ' of ' + need + ': ' + T + ' x ' + T + ' m at the sidewalk edge, one per ' + GEN.ENTRY_PER + ' m)');
+  if (!seats.length) reasons.push('no accessible seat (bench end or table with knee clearance)');
+  if (reasons.length) return out;
+  // widest-path flood fill from each entry (4-connected, over cells >= ROUTE_W)
+  var reached = new Uint8Array(nx * nz), worst = Infinity;
+  entries.forEach(function(ez) {
+    var bott = new Float64Array(nx * nz), heap = [], found = null;
+    function push(c, v) { heap.push([v, c]); var n = heap.length - 1; while (n > 0) { var p = (n - 1) >> 1; if (heap[p][0] >= heap[n][0]) break; var t = heap[p]; heap[p] = heap[n]; heap[n] = t; n = p; } }
+    function pop() { var top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; var n = 0; for (;;) { var l = 2 * n + 1, r = l + 1, m = n; if (l < heap.length && heap[l][0] > heap[m][0]) m = l; if (r < heap.length && heap[r][0] > heap[m][0]) m = r; if (m === n) break; var t = heap[m]; heap[m] = heap[n]; heap[n] = t; n = m; } } return top; }
+    for (var jq = Math.floor((ez - T / 2) / C + 1e-6); jq < Math.ceil((ez + T / 2) / C - 1e-6); jq++)
+      for (var iq = 0; iq < Math.round(T / C); iq++) { var c = jq * nx + iq; if (pass(c)) { bott[c] = wid[c]; push(c, wid[c]); } }
+    while (heap.length) {
+      var e = pop(), v = e[0], c0 = e[1];
+      if (v < bott[c0]) continue;
+      reached[c0] = 1;
+      if (!found && tgt[c0]) found = { w: v, seat: seats[tgt[c0][0]] };
+      var ci = c0 % nx, cj = (c0 - ci) / nx;
+      [[ci - 1, cj], [ci + 1, cj], [ci, cj - 1], [ci, cj + 1]].forEach(function(n) {
+        if (n[0] < 0 || n[0] >= nx || n[1] < 0 || n[1] >= nz) return;
+        var c1 = n[1] * nx + n[0]; if (!pass(c1)) return;
+        var b1 = Math.min(v, wid[c1]); if (b1 > bott[c1] + 1e-9) { bott[c1] = b1; push(c1, b1); }
+      });
+    }
+    out.per.push(found ? { entry: ez, route: GEN.r3(found.w), seat: found.seat.what + ' at z ' + found.seat.z.toFixed(2) } : { entry: ez, route: 0, seat: null });
+    if (!found) worst = 0; else worst = Math.min(worst, found.w);
+  });
+  out.route = GEN.r3(worst === Infinity ? 0 : worst);
+  out.seat = out.per[0] && out.per[0].seat;
+  var hit = {};
+  Object.keys(tgt).forEach(function(c) { if (reached[c]) tgt[c].forEach(function(si) { hit[si] = 1; }); });
+  out.access = Object.keys(hit).length;
+  if (out.per.some(function(p) { return !p.seat; })) reasons.push('no accessible route');
+  return out;
 };
 
 // Metrics of a layout (what the score and the cards read)
 GEN.SEAT_M = 0.6;
 GEN.metrics = function(lay, fp) {
-  var m = { seats: 0, tables: 0, bike: 0, planting: 0, shade: 0, play: 0, pieces: lay.items.length, route: lay.route, lounges: 0 };
+  var m = { seats: 0, tables: 0, bike: 0, planting: 0, shade: 0, play: 0, pieces: lay.items.length, route: lay.route, access: lay.access, entries: lay.acc ? lay.acc.need : 0, lounges: 0 };
   lay.items.forEach(function(it) {
     var t = it.type;
     if (t === 'bench' || t === 'backless_bench' || t === 'planter_bench' || t === 'seat_wall') m.seats += Math.floor(it.params.l / GEN.SEAT_M + 1e-6);
@@ -18419,7 +18537,7 @@ GEN.score = function(m, P, fp) {
   var tot = 0, s = 0;
   Object.keys(f).forEach(function(k) { tot += w[k]; s += w[k] * f[k]; });
   var clutter = Math.max(0, m.pieces / m.area - 0.9) * 0.5;
-  var access = P.access >= 2 ? Math.min(0.1, (m.route - 1.5) * 0.2) : 0;
+  var access = P.access / 3 * (Math.min(0.06, (m.route - GEN.ROUTE_W) * 0.1) + Math.min(0.06, (m.access - 1) * 0.015));
   return GEN.r3((tot ? s / tot : 0) - clutter + access);
 };
 // Feature vector for diversity (footprint, programme mix, palette, seats, planting %)
@@ -18441,7 +18559,7 @@ GEN.generate = function() {
   var base = getDesignState(); base.furniture = { placed: [] };
   GEN._base = base;
   var facts = GEN.facts(), missing = facts.filter(function(f) { return !f.ok; }), blocked = facts.filter(function(f) { return f.blocks; });
-  var res = { seed: P.seed, n: P.n, schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0 }, notes: [] };
+  var res = { seed: P.seed, n: P.n, schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0, why: {} }, notes: [] };
   if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; return GEN.finish(res, t0); }
   if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; return GEN.finish(res, t0); }
   var env = GEN.envelope(S, base);
@@ -18461,7 +18579,11 @@ GEN.generate = function() {
     var key = [tpl.id, fp.id, edge.id, pi, flip ? 1 : 0].join('|');
     if (seen[key]) continue; seen[key] = 1;
     var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip });
-    if (!lay.ok) { res.stats.layoutRejects++; continue; }
+    if (!lay.ok) {
+      res.stats.layoutRejects++;
+      lay.reasons.forEach(function(w) { w = w.split(' (')[0]; res.stats.why[w] = (res.stats.why[w] || 0) + 1; });
+      continue;
+    }
     var pal = Object.assign({ idx: pi }, pals[pi]);
     var ds = GEN.buildState(S, base, env, fp, lay, pal);
     res.stats.built++;
@@ -18522,7 +18644,7 @@ GEN.rationale = function(c) {
   if (m.bike) bits.push(m.bike + ' bike spaces');
   bits.push(m.planting.toFixed(1) + ' m² of planting');
   return c.fp.label + ' deck, ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m, with ' + bits.join(', ') +
-    '; ' + c.edge.label + ' on the traffic side, and a ' + m.route.toFixed(2) + ' m clear route along the curb side.';
+    '; ' + c.edge.label + ' on the traffic side, and a ' + m.route.toFixed(2) + ' m accessible route from ' + m.entries + ' entr' + (m.entries > 1 ? 'ies' : 'y') + ' to ' + m.access + ' accessible seat' + (m.access > 1 ? 's' : '') + '.';
 };
 // Plan thumbnail (metres): along the street horizontally (+z to the left, as in Plan), across
 // vertically (sidewalk on top); furniture through flPlanArchetype with the same local frame.
@@ -18629,7 +18751,7 @@ GEN.renderCards = function() {
       "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
       "<div class='gen-metrics'>" +
         "<span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.bike + '</b>bike spaces</span>' +
-        '<span><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Guideline: no Parklet Manual check covers the internal route"><b>' + m.route.toFixed(2) + '</b>clear route m</span>' +
+        '<span><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Narrowest clear width on the flood-filled route from each entry to an accessible seat (guideline; GEN.ROUTE_W = ' + GEN.ROUTE_W + ' m)"><b>' + m.route.toFixed(2) + '</b>route m</span><span title="Accessible seating positions (bench ends, tables with knee clearance) reached from the entries"><b>' + m.access + '</b>access</span>' +
         "<span class='gen-pass'><b>" + c.ev.pass + '/' + criteria.length + '</b>checks</span></div>' +
       "<p class='gen-why' data-why='" + i + "'>" + GEN.esc(c.why || GEN.rationale(c)) + '</p>' +
       "<div class='gen-card-ft'><button class='gen-primary' onclick='GEN.open(" + i + ")'>Open in Design</button>" +
