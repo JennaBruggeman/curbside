@@ -336,7 +336,7 @@
   /* one accent: selection, focus, primary action only */
   --accent-ui: #3AA8E4; /* 6.9:1 on panel (the old #0696D7 is 4.3:1 as text) */
   /* status */
-  --st-pass: #3FA76A; --st-fail: #E05454; --st-warn: #D69A1E;
+  --st-pass: #4CB87A; --st-fail: #F07070; --st-warn: #D69A1E;
   /* legacy names -> tokens */
   --mono: var(--font-mono); --sans: var(--font-ui);
   --app-bg: var(--c-bg); --nav-bg: var(--c-panel); --panel-bg: var(--c-panel); --border-c: var(--c-rule);
@@ -443,24 +443,19 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button class='ctx-btn' onclick='(function(){var b=document.getElementById("btnPlaceD");if(b)togglePlaceDriveway()})()' title='Place driveway'>+ Driveway</button>
   </div>
   <div style='margin-top:6px'>
-    <button class='ctx-btn ctx-btn-full' onclick='clearManholes()' style='font-size:11px;color:#c03030;border-color:rgba(192,48,48,.3)'>Clear all objects</button>
+    <button class='ctx-btn ctx-btn-full' onclick='clearManholes()' style='font-size:11px;color:var(--st-fail);border-color:var(--c-rule)'>Clear all objects</button>
   </div>
   <div id='mhHintCtx' style='font-size:11px;color:var(--text-mu);margin-top:4px;min-height:12px'></div>
 </div></div>
 <div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section">        <div class="sb-section-lbl">Design</div>        <div class="sl-field">          <div class="sl-hdr">            <label>Parklet width</label>            <span id="widthReadout" class="readout">2.650 m</span>          </div>          <input type="range" id="widthSlider" min="1.5" max="3.0" step="0.005" value="2.65"                 oninput="onWidthSlider(this.value)">        </div>        <div class="sl-field">          <div class="sl-hdr">            <label>Parklet length</label>            <span id="lengthReadout" class="readout">19.8 m</span>          </div>          <input type="range" id="lengthSlider" min="5" max="30" step="0.1" value="19.8"                 oninput="onLengthSlider(this.value)">        </div>        <div class="lane-badge" id="laneReadout"></div>        <button class="btn-solve" onclick="autoSolveWidth()">↩ Fit to lane minimum</button>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street Context</div>        <div class="ff">          <label>Bike lane</label>          <div class="seg-group" id="bikeLaneToggle">            <button class="seg-btn active" onclick="onBikeLaneType('none')">None</button>            <button class="seg-btn" onclick="onBikeLaneType('painted')">Painted</button>            <button class="seg-btn" onclick="onBikeLaneType('protected')">Protected</button>          </div>          <span class="hint" id="bikeLaneHint" style="display:none"></span>        </div>        <div class="sl-field" id="bikeLaneWidthField" style="display:none">          <div class="sl-hdr">            <label>Bike lane width</label>            <span id="bikeLaneReadout" class="readout">1.50 m</span>          </div>          <input type="range" id="bikeLaneSlider" min="1.2" max="3.5" step="0.05" value="1.5" oninput="onBikeLaneWidth(this.value)">        </div>      </div>      <div class="sb-section" id="bikeBufSection" style="display:none">        <div class="sb-section-lbl">Bike Lane Buffers</div>        <div id="bufPKSection" style="display:none">          <div class="ff"><label>Parklet side (protected only)</label>            <div class="seg-group">              <button id="bufBtnPK_none" class="seg-btn active" onclick="onBufType('PK','none')">None</button>              <button id="bufBtnPK_raised" class="seg-btn" onclick="onBufType('PK','raised')">Raised</button>              <button id="bufBtnPK_planters" class="seg-btn" onclick="onBufType('PK','planters')">Planters</button>              <button id="bufBtnPK_trees" class="seg-btn" onclick="onBufType('PK','trees')">Trees</button>            </div>          </div>          <div class="sl-field" id="bufPKWidthField" style="display:none">            <div class="sl-hdr"><label>Buffer width</label><span id="bufPKReadout" class="readout">0.80 m</span></div>            <input type="range" id="bufPKSlider" min="0.8" max="3.0" step="0.05" value="0.8" oninput="onBufWidth('PK',this.value)">            <span class="hint" id="bufPKHint">Min 0.8 m &ndash; EDM &sect;8.5.4.5</span>          </div>        </div>        <div id="bufBLSection">          <div class="ff" style="margin-top:6px"><label>Traffic side</label>            <div class="seg-group">              <button id="bufBtnBL_none" class="seg-btn active" onclick="onBufType('BL','none')">None</button>              <button id="bufBtnBL_raised" class="seg-btn" onclick="onBufType('BL','raised')">Raised</button>              <button id="bufBtnBL_planters" class="seg-btn" onclick="onBufType('BL','planters')">Planters</button>              <button id="bufBtnBL_trees" class="seg-btn" onclick="onBufType('BL','trees')">Trees</button>            </div>          </div>          <div class="sl-field" id="bufBLWidthField" style="display:none">            <div class="sl-hdr"><label>Buffer width</label><span id="bufBLReadout" class="readout">0.40 m</span></div>            <input type="range" id="bufBLSlider" min="0.4" max="3.0" step="0.05" value="0.4" oninput="onBufWidth('BL',this.value)">            <span class="hint" id="bufBLHint">Min 0.4 m &ndash; EDM &sect;8.5.4.5</span>          </div>        </div>      </div>      <div class="sb-section"><div class="ff" style="margin-top:0px">          <label>Vegetated buffer</label>          <div class="seg-group" id="bufferToggle">            <button class="seg-btn active" onclick="onBufferToggle(false)">None</button>            <button class="seg-btn" onclick="onBufferToggle(true)">Include</button>          </div>        </div>        <div class="sl-field" id="bufferWidthField" style="display:none">          <div class="sl-hdr">            <label>Buffer / boulevard width</label>            <span id="bufferReadout" class="readout">0.90 m</span>          </div>          <input type="range" id="bufferSlider" min="0.6" max="2.5" step="0.1" value="0.9" oninput="onBufferWidth(this.value)">        </div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Footprint</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit Shape</button>        <div style="font-size:11px;color:var(--text-mu);margin-top:4px">Modify the parklet polygon outline</div>      </div>
       <div class='sb-section' id='lhsFurnSection'>
-        <div class='sb-section-lbl' style='cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;' onclick='lhsFwToggle()'>
-          <span>Furniture</span>
-          <span id='lhsFwArrow' style='font-size:11px;opacity:.6;'>&#9660;</span>
-        </div>
-        <div id='lhsFwBody' style='display:none;margin-top:6px;'>
-          <input type='search' id='lhsFwSearch' placeholder='Search furniture...' oninput='lhsFwSearchFn(this.value)' style='width:100%;font-size:11px;padding:3px 7px;margin-bottom:5px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--ink);box-sizing:border-box;outline:none;'>
-          <label style='display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-bottom:5px;cursor:pointer;user-select:none;'><input type='checkbox' id='lhsFwPresets' onchange='flSetShowPresets(this.checked)' style='margin:0;'> Manufacturer presets</label>
-          <div id='lhsFwCats' style='display:flex;flex-wrap:wrap;gap:2px;margin-bottom:5px;'></div>
-          <div id='lhsFwGrid' style='display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-height:360px;overflow-y:auto;'></div>
-          <div id='lhsFwPlacingInd' style='display:none;padding:3px 8px;background:rgba(6,150,215,.12);border:1px solid rgba(6,150,215,.3);border-radius:3px;font-size:11px;color:var(--acc);margin-top:5px;'></div>
-          <button class='ctx-btn ctx-btn-full' style='margin-top:6px;font-size:11px;' onclick='appSetMode("furniture")'>&#8594; Full Furniture Library</button>
-        </div>
+        <div class='sb-section-lbl'>Library</div>
+        <input type='search' id='lhsFwSearch' class='lib-search' placeholder='Search furniture, street components, people' aria-label='Search the library' oninput='lhsFwSearchFn(this.value)'>
+        <div id='lhsFwCats' class='lib-chips' role='toolbar' aria-label='Library categories'></div>
+        <label class='lib-opts'><input type='checkbox' id='lhsFwPresets' onchange='flSetShowPresets(this.checked)'> Show manufacturer presets</label>
+        <div id='lhsFwGrid' class='lib-grid'></div>
+        <div id='lhsFwPlacingInd' style='display:none;margin-top:var(--sp-2);font-size:var(--fs-12);color:var(--c-text);'></div>
+        <button class='txt-btn' onclick='appSetMode("furniture")'>Open the full library &rsaquo;</button>
       </div>      </div>
 <div class='ctx-section' id='ctxCheck' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Compliance Check</span></div>
 <div id='verdictCompact'></div>
@@ -476,7 +471,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div class='summary-section' id='summaryBox' style='margin:8px 12px;border-radius:4px'></div>
 <div style='padding:8px 12px 12px'>
   <button class='ctx-btn ctx-btn-full' onclick='window.print()'>&#128438; Print Report</button>
-  <button class='ctx-btn ctx-btn-full' onclick='clearState()' style='margin-top:4px;color:#c03030;border-color:rgba(192,48,48,.3)'>Clear Data</button>
+  <button class='ctx-btn ctx-btn-full' onclick='clearState()' style='margin-top:4px;color:var(--st-fail);border-color:var(--c-rule)'>Clear Data</button>
 </div></div>
 <div class='ctx-section' id='ctxSettings' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Settings</span></div>
 <nav style='padding:4px 0 8px;'>
@@ -1135,20 +1130,27 @@ function buildInput(c) {
   return html;
 
 }
+// One card per check: number, short title and status pill on one line; the requirement below at
+// full width; the site condition, input and resolution open on click; the source citation last.
 function buildCriterion(c) {
   const st = getCriterionStatus(c);
   const badgeClass = st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : 'badge-unclear';
-  const badgeText = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Awaiting Input';
+  const badgeText = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Awaiting input';
   const bodyClass = st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '';
   const siteCondText = typeof c.siteCondition === 'function' ? c.siteCondition() : c.siteCondition;
-  return `  <div class="criterion ${st}" id="crit_${c.id}">    <div class="criterion-header" onclick="toggleCrit('${c.id}')">      <span class="crit-num">${c.num}</span>      <span class="crit-title">${c.title}</span>      <span class="badge ${badgeClass}" id="badge_${c.id}">${badgeText}</span>    </div>    <div class="criterion-body ${bodyClass}" id="body_${c.id}">      <div class="detail-row">        <span class="detail-label">Requirement</span>        <span class="detail-value">${c.requirement}</span>      </div>      <div class="detail-row">        <span class="detail-label">Site condition</span>        <span class="detail-value" id="cond_${c.id}">${siteCondText}</span>      </div>      ${c.note ? `<div class="detail-row"><span class="detail-label">Note</span><span class="detail-value" style="font-style:italic;color:#666;">${
-c.note
-}
-</span></div>` : ''}      ${buildInput(c)}      ${c.resolutionFn ? `<div class="resolution-box" id="resolution_${c.id}">${
-c.resolutionFn(state[c.inputId] || '')
-}
-</div>` : ''}      <div class="page-ref">Vancouver Parklet Manual, p. ${c.page}</div>    </div>  </div>`;
-
+  return `<div class="criterion ${st}" id="crit_${c.id}">` +
+    `<div class="criterion-header" role="button" tabindex="0" onclick="toggleCrit('${c.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrit('${c.id}')}">` +
+      `<span class="crit-num">${c.num}</span><span class="crit-title">${c.title}</span>` +
+      `<span class="badge ${badgeClass}" id="badge_${c.id}">${badgeText}</span></div>` +
+    `<div class="crit-req">${c.requirement}</div>` +
+    `<div class="criterion-body ${bodyClass}" id="body_${c.id}">` +
+      `<div class="detail-row"><span class="detail-label">Site condition</span><span class="detail-value" id="cond_${c.id}">${siteCondText}</span></div>` +
+      (c.note ? `<div class="detail-row"><span class="detail-label">Note</span><span class="detail-value">${c.note}</span></div>` : '') +
+      buildInput(c) +
+      (c.resolutionFn ? `<div class="resolution-box" id="resolution_${c.id}">${c.resolutionFn(state[c.inputId] || '')}</div>` : '') +
+    `</div>` +
+    `<div class="crit-src">Vancouver Parklet Manual, p. ${c.page}</div>` +
+  `</div>`;
 }
 function render() {
   const listEl = document.getElementById('criteriaList');
@@ -1290,7 +1292,7 @@ const c = criteria.find(x => x.id === critId);
 // Update badge  
 const badge = document.getElementById('badge_' + critId);
   badge.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : 'badge-unclear');
-  badge.textContent = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Awaiting Input';
+  badge.textContent = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Awaiting input';
   
 // Update criterion class  
 const critEl = document.getElementById('crit_' + critId);
@@ -2192,20 +2194,36 @@ function onLanesBChange() {
   LANES_B = v;
   onLaneEnvelopeInput();
 }
+// Context buildings: one card per building, labelled rows with the unit inside the field, and a
+// 20 x 60 key (section above, plan below) that marks the dimension of the row being edited.
+// L is the parklet (near) side of the street, R the far side.
+const BLDG_FIELDS = [
+  {k:'height',  lbl:'Height',                 min:2,   max:60, step:0.5, def:8,  fb:8},
+  {k:'depth',   lbl:'Depth',                  min:2,   max:30, step:0.5, def:4,  fb:4},
+  {k:'length',  lbl:'Length along street',    min:0.5, max:80, step:0.5, def:30, fb:10},
+  {k:'zOffset', lbl:'Start (z)',              min:-20, max:80, step:0.5, def:-5, fb:0,
+   tip:'Start position, m from the parklet start (negative = before it)'},
+  {k:'setback', lbl:'Setback from sidewalk',  min:0,   max:8,  step:0.5, def:0,  fb:0}
+];
+const BLDG_KEY_SVG =
+  "<svg class='bl-key' viewBox='0 0 20 60' aria-hidden='true'>" +
+  "<line class='k' x1='0' y1='26' x2='20' y2='26'/><rect class='k' x='2' y='8' width='8' height='18'/>" +
+  "<line class='k' data-k='height' x1='0.5' y1='8' x2='0.5' y2='26'/>" +
+  "<line class='k' data-k='depth' x1='2' y1='5' x2='10' y2='5'/>" +
+  "<line class='k' data-k='setback' x1='10' y1='23' x2='15' y2='23'/><line class='k' x1='18' y1='22' x2='18' y2='26'/>" +
+  "<line class='k' x1='18' y1='32' x2='18' y2='60'/><line class='k' x1='14' y1='34' x2='20' y2='34'/>" +
+  "<rect class='k' x='2' y='40' width='8' height='18'/>" +
+  "<line class='k' data-k='length' x1='12' y1='40' x2='12' y2='58'/>" +
+  "<line class='k' data-k='zOffset' x1='15.5' y1='34' x2='15.5' y2='40'/>" +
+  "</svg>";
 function renderBldgControls() {
   const sec = document.getElementById('contextSection');
   if (!sec) return;
   sec.innerHTML = '';
-  const lbl = document.createElement('div');
-  lbl.className = 'sb-section-lbl';
-  lbl.textContent = 'Context';
-  sec.appendChild(lbl);
   ['L', 'R'].forEach(side => {
-    const bldg = side === 'L' ? BLDG_L : BLDG_R;
     const sh = document.createElement('div');
-    sh.className = 'ctx-side-lbl';
-    sh.style.marginTop = side === 'R' ? '10px' : '0';
-    sh.textContent = side === 'L' ? 'LEFT SIDE' : 'RIGHT SIDE';
+    sh.className = 'bl-side';
+    sh.innerHTML = '<span class="bl-side-name">' + (side === 'L' ? 'Near side (parklet side)' : 'Far side') + '</span>';
     sec.appendChild(sh);
     const listDiv = document.createElement('div');
     listDiv.id = 'bldg' + side + 'List';
@@ -2213,7 +2231,7 @@ function renderBldgControls() {
     sec.appendChild(listDiv);
     renderBldgList(side);
     const addBtn = document.createElement('button');
-    addBtn.className = 'btn-add-bldg';
+    addBtn.className = 'txt-btn';
     addBtn.textContent = '+ Add building';
     addBtn.addEventListener('click', function() { addBuilding(side); });
     sec.appendChild(addBtn);
@@ -2226,113 +2244,53 @@ function renderBldgList(side) {
   listDiv.innerHTML = '';
   if (bldg.buildings.length === 0) {
     const empty = document.createElement('div');
-    empty.style.cssText = 'font-size:11px;color:var(--sb-muted);padding:4px 0;font-style:italic;';
+    empty.style.cssText = 'font:var(--fs-12) var(--font-mono);color:var(--c-text-dim);padding:var(--sp-1) 0;';
     empty.textContent = 'No buildings';
     listDiv.appendChild(empty);
     return;
   }
   bldg.buildings.forEach(function(b, i) {
-    const row = document.createElement('div');
-    row.className = 'bldg-row';
-    const numLbl = document.createElement('span');
-    numLbl.className = 'bldg-num';
-    numLbl.textContent = (i + 1) + '.';
-    row.appendChild(numLbl);
-    const hIn = document.createElement('input');
-    hIn.type = 'number'; hIn.className = 'bldg-field';
-    hIn.value = b.height; hIn.min = '2'; hIn.max = '60'; hIn.step = '0.5';
-    hIn.title = 'Height (m)';
-    hIn.addEventListener('input', (function(idx) {
-      return function() {
-        (side === 'L' ? BLDG_L : BLDG_R).buildings[idx].height = parseFloat(this.value) || 8;
-        saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
-      };
-    }(i)));
-    row.appendChild(hIn);
-    const hLbl = document.createElement('span');
-    hLbl.className = 'bldg-unit'; hLbl.textContent = 'H';
-    row.appendChild(hLbl);
-    const dIn = document.createElement('input');
-    dIn.type = 'number'; dIn.className = 'bldg-field';
-    dIn.value = b.depth; dIn.min = '2'; dIn.max = '30'; dIn.step = '0.5';
-    dIn.title = 'Depth (m)';
-    dIn.addEventListener('input', (function(idx) {
-      return function() {
-        (side === 'L' ? BLDG_L : BLDG_R).buildings[idx].depth = parseFloat(this.value) || 4;
-        saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
-      };
-    }(i)));
-    row.appendChild(dIn);
-    const dLbl = document.createElement('span');
-    dLbl.className = 'bldg-unit'; dLbl.textContent = 'D';
-    row.appendChild(dLbl);
+    const card = document.createElement('div');
+    card.className = 'bl-card';
+    const hdr = document.createElement('div');
+    hdr.className = 'bl-card-hdr';
+    hdr.innerHTML = '<span class="bl-card-name">Building ' + (i + 1) + '</span>';
     const rmBtn = document.createElement('button');
-    rmBtn.className = 'bldg-rm';
-    rmBtn.textContent = '×';
-    rmBtn.title = 'Remove building';
-    rmBtn.addEventListener('click', (function(idx) {
-      return function() { removeBuilding(side, idx); };
-    }(i)));
-    row.appendChild(rmBtn);
-    listDiv.appendChild(row);
-    // Sub-row: Length and Z offset
-    const sub = document.createElement('div');
-    sub.className = 'bldg-sub';
-    const lLbl = document.createElement('span');
-    lLbl.className = 'bldg-sub-lbl'; lLbl.textContent = 'L';
-    sub.appendChild(lLbl);
-    const lIn = document.createElement('input');
-    lIn.type = 'number'; lIn.className = 'bldg-field-wide';
-    lIn.value = b.length !== undefined ? b.length : 30;
-    lIn.min = '0.5'; lIn.max = '80'; lIn.step = '0.5';
-    lIn.title = 'Building length (m) along the street';
-    lIn.addEventListener('input', (function(idx) {
-      return function() {
-        (side === 'L' ? BLDG_L : BLDG_R).buildings[idx].length = parseFloat(this.value) || 10;
+    rmBtn.className = 'txt-btn danger';
+    rmBtn.textContent = 'Remove';
+    rmBtn.title = 'Remove building ' + (i + 1);
+    rmBtn.addEventListener('click', function() { removeBuilding(side, i); });
+    hdr.appendChild(rmBtn);
+    card.appendChild(hdr);
+    const keyWrap = document.createElement('div');
+    keyWrap.innerHTML = BLDG_KEY_SVG;
+    card.appendChild(keyWrap);
+    const key = keyWrap.firstChild;
+    const rows = document.createElement('div');
+    rows.className = 'bl-rows';
+    BLDG_FIELDS.forEach(function(f) {
+      const row = document.createElement('label');
+      row.className = 'bl-row';
+      const id = 'bldg' + side + i + '_' + f.k;
+      row.innerHTML = '<span>' + f.lbl + '</span><span class="ufield"><input type="number" id="' + id + '"><i>m</i></span>';
+      const inp = row.querySelector('input');
+      inp.value = b[f.k] !== undefined ? b[f.k] : f.def;
+      inp.min = f.min; inp.max = f.max; inp.step = f.step;
+      inp.title = f.tip || (f.lbl + ' (m)');
+      inp.addEventListener('input', function() {
+        (side === 'L' ? BLDG_L : BLDG_R).buildings[i][f.k] = parseFloat(this.value) || f.fb;
         saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
-      };
-    }(i)));
-    sub.appendChild(lIn);
-    const lmLbl = document.createElement('span');
-    lmLbl.className = 'bldg-sub-lbl'; lmLbl.textContent = 'm';
-    sub.appendChild(lmLbl);
-    const zLbl = document.createElement('span');
-    zLbl.className = 'bldg-sub-lbl'; zLbl.style.marginLeft = '6px'; zLbl.textContent = 'Z';
-    sub.appendChild(zLbl);
-    const zIn = document.createElement('input');
-    zIn.type = 'number'; zIn.className = 'bldg-field-wide';
-    zIn.value = b.zOffset !== undefined ? b.zOffset : -5;
-    zIn.min = '-20'; zIn.max = '80'; zIn.step = '0.5';
-    zIn.title = 'Start position (m from parklet start, negative = before)';
-    zIn.addEventListener('input', (function(idx) {
-      return function() {
-        (side === 'L' ? BLDG_L : BLDG_R).buildings[idx].zOffset = parseFloat(this.value) || 0;
-        saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
-      };
-    }(i)));
-    sub.appendChild(zIn);
-    const zmLbl = document.createElement('span');
-    zmLbl.className = 'bldg-sub-lbl'; zmLbl.textContent = 'm';
-    sub.appendChild(zmLbl);
-    const sbLbl2 = document.createElement('span');
-    sbLbl2.className = 'bldg-sub-lbl'; sbLbl2.style.marginLeft = '6px'; sbLbl2.textContent = 'S';
-    sub.appendChild(sbLbl2);
-    const sbIn2 = document.createElement('input');
-    sbIn2.type = 'number'; sbIn2.className = 'bldg-field-wide';
-    sbIn2.value = b.setback !== undefined ? b.setback : 0;
-    sbIn2.min = '0'; sbIn2.max = '8'; sbIn2.step = '0.5';
-    sbIn2.title = 'Setback from sidewalk edge (m)';
-    sbIn2.addEventListener('input', (function(idx) {
-      return function() {
-        (side === 'L' ? BLDG_L : BLDG_R).buildings[idx].setback = parseFloat(this.value) || 0;
-        saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
-      };
-    }(i)));
-    sub.appendChild(sbIn2);
-    const sbmLbl2 = document.createElement('span');
-    sbmLbl2.className = 'bldg-sub-lbl'; sbmLbl2.textContent = 'm';
-    sub.appendChild(sbmLbl2);
-    listDiv.appendChild(sub);
+      });
+      function mark(on) {
+        row.classList.toggle('on', on);
+        key.querySelectorAll('[data-k="' + f.k + '"]').forEach(function(el) { el.classList.toggle('on', on); });
+      }
+      inp.addEventListener('focus', function() { mark(true); });
+      inp.addEventListener('blur', function() { mark(false); });
+      rows.appendChild(row);
+    });
+    card.appendChild(rows);
+    listDiv.appendChild(card);
   });
 }
 function addBuilding(side) {
@@ -2367,7 +2325,7 @@ function updateMinRoadNote() {
   const routeLbl = state['route_type'] === 'bus_truck' ? 'bus/truck' : 'standard';
   const dirLbl = ROAD_DIR === 'twoway' ? (LANES_A + '+' + LANES_B) : String(nLn);
   el.textContent = 'Min for config: ' + req.toFixed(2) + ' m  (' + dirLbl + ' lane' + (nLn > 1 ? 's' : '') + ' \xd7 ' + getReqLane().toFixed(1) + ' m ' + routeLbl + ')';
-  el.style.color = ok ? '#2d6a4f' : '#c03030';
+  el.style.color = ok ? 'var(--st-pass)' : 'var(--st-fail)';
 }
 function updateWidthSliderMax() {
   const maxPk = Math.max(1.5, TOTAL_ROAD - getBikeLaneD());
@@ -2435,7 +2393,7 @@ const c = criteria.find(c => c.id === 'c2');
   const badge = document.getElementById('badge_c2');
   if (badge) {
     badge.className = 'badge ' + (st==='pass'?'badge-pass':st==='fail'?'badge-fail':'badge-unclear');
-    badge.textContent = st==='pass'?'Pass':st==='fail'?'Fail':'Awaiting Input';
+    badge.textContent = st==='pass'?'Pass':st==='fail'?'Fail':'Awaiting input';
   
 }
   const critEl = document.getElementById('crit_c2');
@@ -4738,8 +4696,8 @@ function renderCrossSection() {
   const lr = document.getElementById('laneReadout');
   if (lr) {
     lr.textContent = `Lane residual: ${carResidual.toFixed(3)} m`;
-    lr.style.background = laneOk ? 'var(--sb-accent-dim)' : 'rgba(181,39,43,.14)';
-    lr.style.color = laneOk ? 'var(--sb-accent)' : '#e05060';
+    lr.style.background = laneOk ? 'rgba(76,184,122,.12)' : 'rgba(240,112,112,.12)';
+    lr.style.color = laneOk ? 'var(--st-pass)' : 'var(--st-fail)';
   }
   if (typeof window.seRenderObjects === 'function') try { window.seRenderObjects(); } catch(e) {}
 }
@@ -12232,22 +12190,10 @@ function cadShowFootprintEditor() {
 #libraryCanvas { flex-direction: column; }
 </style>
 <script>
-// ── refactor4: Design LHS furniture placement tool ───────────────
-var _lhsFwFilter = 'all', _lhsFwSearch = '', _lhsFwOpen = false, _lhsFwRendered = false;
-function lhsFwToggle() {
-  _lhsFwOpen = !_lhsFwOpen;
-  var body = document.getElementById('lhsFwBody');
-  var arr = document.getElementById('lhsFwArrow');
-  if (body) body.style.display = _lhsFwOpen ? 'block' : 'none';
-  if (arr) arr.innerHTML = _lhsFwOpen ? '&#9650;' : '&#9660;';
-  if (_lhsFwOpen && !_lhsFwRendered) lhsFwRender();
-}
-function lhsFwFilter(btn, f) {
-  _lhsFwFilter = f;
-  document.querySelectorAll('#lhsFwCats .fpop-cat').forEach(function(b) { b.classList.remove('active'); });
-  btn.classList.add('active');
-  lhsFwRender();
-}
+// One Library panel: furniture archetypes (+ presets), entourage and street components share one
+// search box and one row of category chips. Tiles drag into the views (_fdStartDrag / _sdStartDrag).
+var _lhsFwFilter = 'all', _lhsFwSearch = '', _lhsFwRendered = false, _libSel = '';
+function lhsFwFilter(btn, f) { _lhsFwFilter = f; lhsFwRender(); }
 function lhsFwSearchFn(val) { _lhsFwSearch = val.toLowerCase(); lhsFwRender(); }
 // Show or hide the manufacturer presets in every library panel (generic pieces always show).
 function flSetShowPresets(on) {
@@ -12257,29 +12203,51 @@ function flSetShowPresets(on) {
   var vg = document.getElementById('flVisualGrid');
   if (vg && typeof flBuildVisualLibrary === 'function' && vg.childElementCount) flBuildVisualLibrary();
 }
+function _libEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+function _libStreetItems(q) {
+  if (typeof STREET_OBJ === 'undefined') return [];
+  return STREET_OBJ.filter(function(o) {
+    return !q || (o.name + ' ' + o.type + ' ' + (o.catLabel || '') + ' street').toLowerCase().indexOf(q) >= 0;
+  });
+}
+function _libDown(key, kind, ev) {
+  _libSel = key;
+  document.querySelectorAll('#lhsFwGrid .lib-tile').forEach(function(t) { t.classList.toggle('sel', t.getAttribute('data-key') === key); });
+  if (kind === 'str') _sdStartDrag(key, ev); else _fdStartDrag(key, ev);
+}
 function lhsFwRender() {
   var g = document.getElementById('lhsFwGrid');
   if (!g) return;
   _lhsFwRendered = true;
-  // Category buttons: every category that has a piece to show.
-  var cb = document.getElementById('lhsFwCats');
+  var street = _libStreetItems(''), cb = document.getElementById('lhsFwCats');
   if (cb) {
     var all = flLibraryItems({presets:FL_SHOW_PRESETS}), has = {};
     all.forEach(function(it) { has[it.cat] = 1; has[FL_ARCHETYPES[it.archetype].cat] = 1; });
+    if (street.length) has.street = 1;
     if (_lhsFwFilter !== 'all' && !has[_lhsFwFilter]) _lhsFwFilter = 'all';
-    cb.innerHTML = ['all'].concat(FL_SEC_ORDER.filter(function(c) { return has[c]; })).map(function(c) {
-      return '<button class="fpop-cat' + (c === _lhsFwFilter ? ' active' : '') + '" data-f="' + c + '" onclick="lhsFwFilter(this,\'' + c + '\')">' + (c === 'all' ? 'All' : FL_CATS[c]) + '</button>';
+    cb.innerHTML = ['all'].concat(FL_SEC_ORDER.filter(function(c) { return has[c]; }), has.street ? ['street'] : []).map(function(c) {
+      var name = c === 'all' ? 'All' : c === 'street' ? 'Street' : FL_CATS[c];
+      return '<button class="lib-chip' + (c === _lhsFwFilter ? ' on' : '') + '" aria-pressed="' + (c === _lhsFwFilter) + '" onclick="lhsFwFilter(this,\'' + c + '\')">' + name + '</button>';
     }).join('');
   }
-  var items = flLibraryItems({cat:_lhsFwFilter, search:_lhsFwSearch, presets:FL_SHOW_PRESETS});
-  g.innerHTML = items.length ? items.map(function(it) {
-    var img = (typeof fprGetDataUrl === 'function') ? fprGetDataUrl(it.key) : '';
-    return '<div class="fpop-card fpop-draggable" data-fid="' + it.key + '" onmousedown="_fdStartDrag(\'' + it.key + '\',event)" title="' + it.label + (it.generic ? '' : ' (' + it.brand + ')') + '">' +
-      (img ? '<img class="fpop-thumb" src="' + img + '" loading="lazy">' :
-        '<div class="fpop-thumb" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);text-align:center;padding:2px;">' + it.key + '</div>') +
-      '<div class="fpop-name">' + it.label + '</div>' +
-      '<div class="fpop-meta">' + it.sub + '</div></div>';
-  }).join('') : '<div style="grid-column:1/-1;font-size:11px;color:var(--muted);padding:6px 2px;">Nothing matches' + (FL_SHOW_PRESETS ? '' : ' (manufacturer presets are hidden)') + '.</div>';
+  var f = _lhsFwFilter, q = _lhsFwSearch.trim(), tiles = [];
+  if (f !== 'street') flLibraryItems({cat:f, search:q, presets:FL_SHOW_PRESETS}).forEach(function(it) {
+    var img = (typeof fprGetDataUrl === 'function') ? fprGetDataUrl(it.key) : '', d = flKeyDims(it.key);
+    tiles.push({key:it.key, kind:'fur', name:it.label, tip:it.label + (it.generic ? '' : ' (' + it.brand + ')'),
+      thumb:img ? '<img src="' + img + '" alt="" loading="lazy">' : '', size:_flFmtM(d.l) + ' × ' + _flFmtM(d.d) + ' × ' + _flFmtM(d.h) + ' m'});
+  });
+  if (f === 'all' || f === 'street') _libStreetItems(q).forEach(function(o) {
+    var d = _flStreetDims(o.id);
+    tiles.push({key:o.id, kind:'str', name:o.name, tip:o.name + ' (' + o.sourceDetail + ')', thumb:_strGetThumb(o.id),
+      size:d ? _flFmtM(d.l) + ' × ' + _flFmtM(d.d) + ' m plan' : ''});
+  });
+  g.innerHTML = tiles.length ? tiles.map(function(t) {
+    return '<div class="lib-tile' + (t.key === _libSel ? ' sel' : '') + '" tabindex="0" data-key="' + t.key + '" title="' + _libEsc(t.tip) + '"' +
+      ' onmousedown="_libDown(\'' + t.key + '\',\'' + t.kind + '\',event)">' +
+      '<div class="lib-thumb">' + t.thumb + '</div>' +
+      (t.size ? '<div class="lib-size">' + t.size + '</div>' : '') +
+      '<div class="lib-name">' + _libEsc(t.name) + '</div></div>';
+  }).join('') : '<div class="lib-empty">Nothing matches' + (FL_SHOW_PRESETS ? '' : ' (manufacturer presets are hidden)') + '.</div>';
 }
 
 // ── Settings workspace nav scroll ────────────────────────────────
@@ -12554,8 +12522,11 @@ function _dkWrap(el, pid, title, startCollapsed) {
   wrap.id = pid;
   var hdr = document.createElement('div');
   hdr.className = 'dk-panel-hdr';
+  hdr.setAttribute('role', 'button');
+  hdr.tabIndex = 0;
+  hdr.addEventListener('keydown', function(e) { if ((e.key === 'Enter' || e.key === ' ') && e.target === hdr) { e.preventDefault(); dkToggle(pid); } });
   hdr.innerHTML =
-    '<span class="dkpc">&#9660;</span>' +
+    '<span class="dkpc" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>' +
     '<span class="dkpt">' + title + '</span>' +
     '<span class="dkpb">' +
       '<button title="Float" onclick="event.stopPropagation();dkFloat(\'' + pid + '\')">&#8599;</button>' +
@@ -12573,9 +12544,17 @@ function _dkWrap(el, pid, title, startCollapsed) {
 
 function dkToggle(pid) {
   var p = _dkPanels[pid]; if (!p) return;
-  p.collapsed = !p.collapsed;
-  p.el.classList.toggle('dk-collapsed', p.collapsed);
+  _dkSetOpen(pid, p.collapsed);
   _dkSave();
+}
+// Open/close one panel. The open set lives in state.__dockOpen, so it is saved with the design
+// (saveSettings) and restored on load; every panel is closed unless it is in that list.
+function _dkSetOpen(pid, open) {
+  var p = _dkPanels[pid]; if (!p) return;
+  p.collapsed = !open;
+  p.el.classList.toggle('dk-collapsed', !open);
+  p.el.querySelector('.dk-panel-hdr').setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open && p.body.querySelector('#lhsFwGrid') && !_lhsFwRendered) lhsFwRender();
 }
 
 function dkFloat(pid) {
@@ -12643,18 +12622,21 @@ function _dkSave() {
     var s = {};
     Object.keys(_dkPanels).forEach(function(pid) {
       var p = _dkPanels[pid];
-      s[pid] = { c: p.collapsed, h: p.hidden };
+      s[pid] = { h: p.hidden };
     });
     localStorage.setItem('_dkSt', JSON.stringify(s));
   } catch(e) {}
+  state.__dockOpen = Object.keys(_dkPanels).filter(function(pid) { return !_dkPanels[pid].collapsed; });
+  saveSettings();
 }
 
 function _dkLoad() {
+  var open = Array.isArray(state.__dockOpen) ? state.__dockOpen : [];
+  Object.keys(_dkPanels).forEach(function(pid) { _dkSetOpen(pid, open.indexOf(pid) >= 0); });
   try {
     var s = JSON.parse(localStorage.getItem('_dkSt') || '{}');
     Object.keys(s).forEach(function(pid) {
       var p = _dkPanels[pid]; if (!p) return;
-      if (s[pid].c && !p.collapsed) { p.collapsed = true; p.el.classList.add('dk-collapsed'); }
       if (s[pid].h && !p.hidden) { p.hidden = true; p.el.classList.add('dk-hidden'); }
     });
   } catch(e) {}
@@ -12733,36 +12715,17 @@ function _expUpdatePreview() {
 
 // ── Panel init: wraps sb-sections as collapsible dk-panels
 function _initDkPanels() {
-  // Design panels
-  var cdSkip = { 'bikeBufSection': true, 'lhsFurnSection': true };
-  var cdDefTitles = ['Parklet', 'Street Context', 'Bike Buffers', 'Vegetated Buffer', 'Footprint', 'Furniture'];
-  var cdDefCollapse = [false, true, true, true, false, false];
-  var cd = document.getElementById('ctxDesign');
-  if (cd && !cd._dkInit) {
-    cd._dkInit = true;
-    var cdSecs = cd.querySelectorAll(':scope > .sb-section');
-    cdSecs.forEach(function(sec, i) {
-      if (cdSkip[sec.id]) return;
-      var lbl = sec.querySelector('.sb-section-lbl');
-      var title = lbl ? lbl.textContent.trim() : (cdDefTitles[i] || '');
-      if (!title) return;
-      _dkWrap(sec, 'dkcd' + i, title, !!cdDefCollapse[i]);
+  // Panel titles are set here, in sentence case (the header shows them in caps), in section order.
+  // The mode header above already says "Design" / "Site", so no panel repeats it.
+  [['ctxDesign', 'dkcd', ['Parklet', 'Street context', 'Bike lane buffers', 'Vegetated buffer', 'Footprint', 'Library']],
+   ['ctxSite', 'dkcs', ['Site setup', 'Context buildings', 'Street objects']]].forEach(function(g) {
+    var host = document.getElementById(g[0]);
+    if (!host || host._dkInit) return;
+    host._dkInit = true;
+    host.querySelectorAll(':scope > .sb-section').forEach(function(sec, i) {
+      if (g[2][i]) _dkWrap(sec, g[1] + i, g[2][i], true);
     });
-  }
-
-  // Site panels
-  var csTitles = ['Site Setup', 'Context', 'Street Objects'];
-  var cs = document.getElementById('ctxSite');
-  if (cs && !cs._dkInit) {
-    cs._dkInit = true;
-    var csSecs = cs.querySelectorAll(':scope > .sb-section');
-    csSecs.forEach(function(sec, i) {
-      var lbl = sec.querySelector('.sb-section-lbl');
-      var title = lbl ? lbl.textContent.trim() : (csTitles[i] || '');
-      if (!title) return;
-      _dkWrap(sec, 'dkcs' + i, title, false);
-    });
-  }
+  });
 
   _dkLoad();
   _dkMenuUpdate();
@@ -13538,8 +13501,6 @@ window.addEventListener('load', function() {
     };
   }
 
-  // Inject compact LHS street section after dk-panels init
-  setTimeout(function() { _initStreetLHSSection(); }, 500);
 
   // Register STREET3D_FACTORY entries into FL3D_FACTORY (idempotent, no delay needed)
   if (typeof _registerStreet3DFactories === 'function') _registerStreet3DFactories();
@@ -14064,69 +14025,6 @@ function _sdQuickPlace(objId) {
       else if (typeof _toggleCurbPlacing === 'function') _toggleCurbPlacing(sobj.curbFeatureType);
     }
   }, 150);
-}
-
-// ─── Part 2: Compact LHS "Street Components" section ─────────────
-
-var _lhsStrOpen = false;
-
-function _initStreetLHSSection() {
-  var cd = document.getElementById('ctxDesign');
-  if (!cd || document.getElementById('lhsStrSec7')) return;
-
-  var sec = document.createElement('div');
-  sec.className = 'sb-section';
-  sec.id = 'lhsStrSec7';
-  sec.style.borderTop = '1px solid var(--border-c)';
-  sec.innerHTML = [
-    '<div class="sb-section-lbl" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;" ',
-    'onclick="_lhsStrToggle()">',
-    '<span>Street Components</span>',
-    '<span id="lhsStrArrow7" style="font-size:11px;opacity:.55;">&#9660;</span>',
-    '</div>',
-    '<div id="lhsStrBody7" style="display:none;margin-top:6px;">',
-    '<input type="search" id="lhsStrSearch7" placeholder="Search..." oninput="_strLhsSearch(this.value)" ',
-    'style="width:100%;box-sizing:border-box;margin-bottom:5px;font-size:11px;padding:4px 7px;',
-    'background:var(--input-bg,#161a1e);border:1px solid var(--border-c);border-radius:3px;color:var(--text-hi);font-family:inherit;">',
-    '<div id="lhsStrGrid7" style="display:grid;grid-template-columns:repeat(2,1fr);gap:3px;max-height:320px;overflow-y:auto;"></div>',
-    '<button class="ctx-btn" style="margin-top:7px;width:100%;font-size:11px;" ',
-    'onclick="appSetMode(\'furniture\');setTimeout(function(){_strSetLibTab(\'street\');},400);">',
-    'Full Street Library &rsaquo;</button>',
-    '</div>'
-  ].join('');
-
-  cd.appendChild(sec);
-  _strRenderLHSGrid('');
-}
-
-function _lhsStrToggle() {
-  _lhsStrOpen = !_lhsStrOpen;
-  var b = document.getElementById('lhsStrBody7');
-  var a = document.getElementById('lhsStrArrow7');
-  if (b) b.style.display = _lhsStrOpen ? 'block' : 'none';
-  if (a) a.innerHTML = _lhsStrOpen ? '&#9650;' : '&#9660;';
-}
-
-function _strLhsSearch(val) { _strRenderLHSGrid(val); }
-
-function _strRenderLHSGrid(filter) {
-  var grid = document.getElementById('lhsStrGrid7');
-  if (!grid) return;
-  var q = (filter || '').toLowerCase();
-  var items = STREET_OBJ.filter(function(o) {
-    return !q || o.name.toLowerCase().indexOf(q) >= 0 || o.type.toLowerCase().indexOf(q) >= 0;
-  });
-  grid.innerHTML = items.map(function(o) {
-    return [
-      '<div class="fpop-card fpop-draggable" data-sid="' + o.id + '" onmousedown="_sdStartDrag(\'' + o.id + '\',event)" ',
-      'title="' + o.name + ' (' + o.sourceDetail + ')">',
-      '<div class="fpop-thumb" style="height:50px;overflow:hidden;display:flex;align-items:center;justify-content:center;">',
-      _strGetThumb(o.id),
-      '</div>',
-      '<div class="fpop-name">' + o.name + '</div>',
-      '</div>'
-    ].join('');
-  }).join('');
 }
 
 </script>
@@ -17388,4 +17286,125 @@ AXE.download = function(blob, name) {
   setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
 };
 </script>
+<style id="ui07">
+/* ======================================================================
+   UI 07 -- presentation layer (Brief 07). Last in the document so it wins
+   over the older design systems; built only from the Phase 0 tokens.
+   ====================================================================== */
+
+/* -- Dock accordions: one style everywhere --------------------------- */
+.ctx-hdr { padding: var(--sp-2) var(--sp-3); }
+.ctx-hdr-title { font-size: var(--fs-12); font-weight: 600; letter-spacing: .08em; color: var(--c-text); }
+.dk-panel { border-bottom: 1px solid var(--c-rule); }
+.dk-panel-hdr { height: 32px; padding: 0 var(--sp-3); background: transparent; gap: var(--sp-2); }
+.dk-panel-hdr:hover { background: var(--c-raise); }
+.dk-panel-hdr .dkpt { order: 1; font-size: var(--fs-12); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--c-text); }
+.dk-panel-hdr .dkpb { order: 2; }
+.dk-panel-hdr .dkpc { order: 3; margin: 0; font-size: var(--fs-11); color: var(--c-text-dim); transform: rotate(-90deg); }   /* chevron right = closed */
+.dk-panel:not(.dk-collapsed) > .dk-panel-hdr .dkpc { transform: rotate(0deg); }                                         /* down = open */
+.dk-panel.dk-collapsed .dkpc { transform: rotate(-90deg); }
+.dk-panel-body > .sb-section { padding: var(--sp-1) var(--sp-3) var(--sp-3); }
+/* the panel header already names the section: drop the repeated first label */
+.dk-panel-body > .sb-section > .sb-section-lbl:first-child { display: none; }
+/* a panel whose section is switched off (bike buffers without a bike lane) disappears */
+.dk-panel:has(> .dk-panel-body > .sb-section[style*="display: none"]),
+.dk-panel:has(> .dk-panel-body > .sb-section[style*="display:none"]) { display: none; }
+/* inner sub-headings: sentence case, not shouting */
+.ctx-section .sb-section-lbl, .ctx-section .ctx-label, .ctx-side-lbl {
+  font-size: var(--fs-11); font-weight: 600; letter-spacing: .02em; text-transform: none; color: var(--c-text-dim);
+}
+.ctx-section .ff label, .ctx-section .sl-hdr label { font-size: var(--fs-12); letter-spacing: 0; color: var(--c-text-dim); }
+.ctx-section .hint { font-size: var(--fs-11); color: var(--c-text-dim); }
+
+/* -- Context buildings ------------------------------------------------- */
+.bl-side { margin: var(--sp-2) 0 var(--sp-1); display: flex; align-items: center; gap: var(--sp-2); }
+.bl-side-name { font-size: var(--fs-12); font-weight: 600; color: var(--c-text); }
+.bl-card { display: grid; grid-template-columns: 20px 1fr; gap: var(--sp-2); padding: var(--sp-2) 0; border-top: 1px solid var(--c-rule); }
+.bl-card-hdr { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+.bl-card-name { font-size: var(--fs-12); color: var(--c-text-dim); }
+.bl-key { width: 20px; height: 60px; display: block; }
+.bl-key .k { fill: none; stroke: var(--c-text-dim); stroke-width: 1; }
+.bl-key .k.on { stroke: var(--accent-ui); stroke-width: 1.6; }
+.bl-rows { display: grid; gap: var(--sp-1); }
+.bl-row { display: grid; grid-template-columns: 1fr 84px; align-items: center; gap: var(--sp-2); }
+.bl-row > span { font-size: var(--fs-12); color: var(--c-text-dim); white-space: nowrap; }
+.bl-row.on > span { color: var(--c-text); }
+.ufield { position: relative; }
+.ufield input { width: 100%; box-sizing: border-box; height: 24px; padding: 0 22px 0 6px; background: var(--c-bg); border: 1px solid var(--c-rule);
+  border-radius: 3px; color: var(--c-text); font: var(--fs-12) var(--font-mono); text-align: right; }
+.ufield input:focus { outline: none; border-color: var(--accent-ui); }
+.ufield i { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: normal var(--fs-11) var(--font-mono); color: var(--c-text-dim); pointer-events: none; }
+.txt-btn { background: none; border: none; padding: var(--sp-1) 0; color: var(--c-text-dim); font: var(--fs-12) var(--font-ui); cursor: pointer; }
+.txt-btn:hover, .txt-btn:focus-visible { color: var(--c-text); text-decoration: underline; outline: none; }
+.txt-btn.danger:hover { color: var(--st-fail); }
+
+/* -- Library (furniture + entourage + street components) ------------ */
+.lib-search { width: 100%; box-sizing: border-box; height: 28px; padding: 0 var(--sp-2); margin-bottom: var(--sp-2); background: var(--c-bg);
+  border: 1px solid var(--c-rule); border-radius: 3px; color: var(--c-text); font: var(--fs-12) var(--font-ui); }
+.lib-search:focus { outline: none; border-color: var(--accent-ui); }
+.lib-chips { display: flex; gap: var(--sp-1); overflow-x: auto; padding-bottom: var(--sp-1); margin-bottom: var(--sp-2); scrollbar-width: thin; }
+.lib-chip { flex-shrink: 0; height: 24px; padding: 0 var(--sp-2); background: transparent; border: 1px solid var(--c-rule); border-radius: 12px;
+  color: var(--c-text-dim); font: var(--fs-11) var(--font-ui); cursor: pointer; white-space: nowrap; }
+.lib-chip:hover { color: var(--c-text); border-color: var(--c-text-dim); }
+.lib-chip.on { color: var(--c-text); border-color: var(--accent-ui); }
+.lib-opts { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); font-size: var(--fs-11); color: var(--c-text-dim); }
+.lib-opts input { accent-color: var(--accent-ui); margin: 0; }
+.lib-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-2); max-height: 420px; overflow-y: auto; }
+.lib-tile { position: relative; display: flex; flex-direction: column; gap: var(--sp-1); padding: 0; background: transparent; border: 1px solid var(--c-rule);
+  border-radius: 3px; cursor: grab; user-select: none; overflow: hidden; }
+.lib-tile:active { cursor: grabbing; }
+.lib-tile:hover { border-color: var(--c-text-dim); }
+.lib-tile.sel { border-color: var(--accent-ui); box-shadow: 0 0 0 1px var(--accent-ui); }
+.lib-thumb { aspect-ratio: 3 / 2; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--c-bg); overflow: hidden; }
+.lib-thumb img, .lib-thumb svg { width: 100%; height: 100%; object-fit: contain; }
+.lib-name { padding: 0 var(--sp-2) var(--sp-2); font-size: var(--fs-12); line-height: 1.3; color: var(--c-text); overflow-wrap: anywhere; }
+.lib-size { position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 3 / 2; display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: var(--sp-1); font: var(--fs-11) var(--font-mono); color: var(--c-text); background: rgba(23,25,28,.72); opacity: 0; transition: opacity .12s; pointer-events: none; }
+.lib-tile:hover .lib-size, .lib-tile:focus-visible .lib-size { opacity: 1; }
+.lib-empty { grid-column: 1 / -1; font-size: var(--fs-12); color: var(--c-text-dim); padding: var(--sp-2) 0; }
+#ctxPanel, #ctxPanel * { scrollbar-width: thin; scrollbar-color: var(--c-raise) transparent; }
+
+/* -- Compliance (Check mode): one card per check ------------------------ */
+#ctxCheck .criteria-section { padding: 0 !important; }
+#ctxCheck .crit-hdr { padding: var(--sp-2) var(--sp-3) !important; border-bottom: 1px solid var(--c-rule); }
+#ctxCheck .crit-hdr h2 { font-size: var(--fs-12) !important; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--c-text) !important; }
+#ctxCheck #criteriaList { padding: var(--sp-2) var(--sp-3); display: grid; gap: var(--sp-2); }
+#ctxCheck .criterion { margin: 0; border: 1px solid var(--c-rule); border-radius: 3px; background: var(--c-bg); overflow: hidden; }
+#ctxCheck .criterion .criterion-header { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: transparent; border-left: none !important; }
+#ctxCheck .criterion .criterion-header:hover { background: var(--c-raise); }
+#ctxCheck .crit-num { font: 600 var(--fs-11) var(--font-mono); color: var(--c-text-dim); text-align: left; flex-shrink: 0; }
+#ctxCheck .crit-title { flex: 1; min-width: 0; font-size: var(--fs-13); font-weight: 600; color: var(--c-text); line-height: 1.3; }
+#ctxCheck .badge { flex-shrink: 0; font: 600 var(--fs-11) var(--font-ui); letter-spacing: .02em; text-transform: none; padding: 2px var(--sp-2); border-radius: 10px; border: 1px solid; background: transparent; }
+#ctxCheck .badge-pass { color: var(--st-pass); border-color: var(--st-pass); }
+#ctxCheck .badge-fail { color: var(--st-fail); border-color: var(--st-fail); }
+#ctxCheck .badge-unclear { color: var(--st-warn); border-color: var(--st-warn); }
+#ctxCheck .crit-req { padding: 0 var(--sp-3) var(--sp-2); font-size: var(--fs-13); line-height: 1.5; color: var(--c-text); }
+#ctxCheck .crit-src { padding: 0 var(--sp-3) var(--sp-2); font: var(--fs-11) var(--font-ui); color: var(--c-text-dim); }
+#ctxCheck .criterion-body { display: none; padding: 0 var(--sp-3) var(--sp-2); background: transparent !important; border-top: none; }
+#ctxCheck .criterion.open .criterion-body { display: block; }
+#ctxCheck .detail-row { display: block; margin-bottom: var(--sp-2); }
+#ctxCheck .detail-label { display: block; font-size: var(--fs-11); letter-spacing: .02em; text-transform: none; color: var(--c-text-dim); margin-bottom: 2px; }
+#ctxCheck .detail-value { font-size: var(--fs-13); color: var(--c-text); }
+#ctxCheck .detail-value.fail-text { color: var(--st-fail); }
+#ctxCheck .input-row { flex-wrap: wrap; gap: var(--sp-2); }
+#ctxCheck .input-label, #ctxCheck .input-unit { font-size: var(--fs-12); color: var(--c-text-dim); }
+#ctxCheck .input-field { background: var(--c-panel); border-color: var(--c-rule); color: var(--c-text); font-size: var(--fs-12); }
+#ctxCheck .resolution-box { background: transparent; border-left: 2px solid var(--st-warn); color: var(--c-text); font-size: var(--fs-12); }
+#ctxCheck .inline-result { font-size: var(--fs-12); }
+#ctxCheck .criterion.pass { border-left: 2px solid var(--st-pass); }
+#ctxCheck .criterion.fail { border-left: 2px solid var(--st-fail); }
+#ctxCheck .criterion.unclear { border-left: 2px solid var(--st-warn); }
+
+/* -- Legibility fixes (measured: every chrome text >= 4.5:1) ------------ */
+.ff label .unit, .ff .hint, .ctx-section .hint { opacity: 1; color: var(--c-text-dim); }
+.ctx-section .site-badge { color: var(--c-text-dim); border-color: var(--c-rule); letter-spacing: .06em; }
+.seg-btn.active, .ctx-section .seg-btn.active { background: var(--accent-ui); color: var(--c-bg); box-shadow: none; }
+.ctx-section .btn-solve { background: transparent; border: 1px solid var(--accent-ui); color: var(--accent-ui); font-size: var(--fs-12); }
+.ctx-section .btn-solve:hover { background: var(--accent-ui); color: var(--c-bg); }
+.vc-fail .vc-icon, .vc-fail .vc-lbl { color: var(--st-fail); }
+.vc-partial .vc-icon, .vc-partial .vc-lbl { color: var(--st-warn); }
+.vc-pass .vc-icon, .vc-pass .vc-lbl { color: var(--st-pass); }
+.ctx-section .vc-detail { color: var(--c-text-dim); }
+.ctx-section .summary-section h2 { opacity: 1; color: var(--c-text-dim); }
+</style>
 </body></html>
