@@ -146,6 +146,19 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 - **3D:** `_3dSectionHelper()` adds a translucent plane + depth box to `_3d.scene` (not the design group) while A-A is on; `AXE.draw` hides it.
 - **Check:** `checkLandmarkConsistency` compares drawn `[data-sec]` groups with `getSectionScene` lengths.
 
+## Generate tab (Brief 09, branch generate)
+### Phase 0 - what the generator builds on
+- **DESIGN_STATE** = `getDesignState()` (`pkSerialize()` without `savedAt`); load path `applyDesignState()` = `pkApplyDesignState()`, already used by the cloud save, the local cache and the Assistant. Holds: `site` (road, sidewalk, lanes/direction, buildings, parklet width/length, bike lane + buffers, vegetated buffer), `section`, `crossSection` (new: the Section editor's segments in order - planting, parking, turn/transit lanes, curbs and edited lane widths were lost on every load before), `compliance` (the 16 inputs of the 15 checks, incl. `route_type`), `siteObjects` (manholes, curb features H/P/S, driveways, deck shape), `furniture.placed` (archetype + params + materials, x, z, rotation; entourage included). Also written to `localStorage['pkt-design-state']` (debounced from `saveSettings`) and applied on a signed-out reload - before, only the site inputs survived a reload.
+- **The 15 checks** all read `state[inputId]` through `getCriterionStatus(c)` -> `c.evalFn(value, value2)`:
+  - computed from geometry: **02** (`assessLanes` of the cross-section vs 3.0 / 3.2 m).
+  - derived from placed objects when there are any: **05** hydrant, **07** pole, **08** signal (`updateCurbFeatureDists`: along-street distance from each object to the deck span), **06** driveway (`updateDrivewayDist`), **09** manhole (`manholeClearance`, 2-D to the deck rectangle). Otherwise typed distances.
+  - distances measured from the deck ends, typed or dragged in Plan: **03** intersection, **13** parking setback.
+  - site facts the user must supply: **01** parking restrictions, **04** slope, **10** fire exits / connections, **11** drainage, **07b** trolley wires.
+  - design commitments: **12** boulevard use, **14** flush gap, **15** load capacity.
+- **Width solver:** `autoSolveWidth()` = `TOTAL_ROAD - getBikeLaneD() - getReqLane() * getTotalLanes()` (min 1.5 m), then UI side effects; lanes are fitted by `normaliseLaneWidths` inside `LANE_ENVELOPE` (EDM 2026 Table 8-10).
+- **Vocabulary:** `FL_ARCHETYPES` (60 furniture + 19 entourage; `parts` give each role's allowed material groups and default), `FL_MATERIALS` (groups wood / metal / powder / mineral / other / fixed).
+- **Deck shape:** `state.pkShape = {active, closed, verts:[{x: along (world z), y: across (world x)}], segs:[{arc, sag}]}` in metres - ONE closed polygon with straight or quadratic-arc edges. Rectangles, notches and curved edges are expressible; two separate platforms are not (one deck, 0..L).
+
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

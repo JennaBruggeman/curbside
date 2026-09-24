@@ -2404,6 +2404,7 @@ function saveSettings() {
     state['__bufferEnabled'] = designBufferEnabled ? '1' : '0';
     state['__bufferW'] = String(designBufferW);
     localStorage.setItem('parklet-state', JSON.stringify(state));
+    if (typeof _dsScheduleLocal === 'function') _dsScheduleLocal();   // the whole DESIGN_STATE, debounced
   
 }
  catch(e) {
@@ -4230,6 +4231,14 @@ document.addEventListener('mouseup', function() {
   // seGetSegs: exposes the section editor's _segs array so buildDesignModel()
   // can use it as the canonical cross-section source.
   window.seGetSegs = function() { return _segs; };
+  // seSetSegs: replace the cross-section with a saved list [{type, width, variant}] (a loaded
+  // DESIGN_STATE). The building column is implicit; ids are fresh; widths are kept as given.
+  window.seSetSegs = function(list) {
+    _segs = [{ id: 'building', type: 'building', width: 0 }].concat((list || []).filter(function(s) { return s && s.type !== 'building' && SE_TYPES[s.type]; })
+      .map(function(s) { var o = { id: _nid(), type: s.type, width: Math.round((+s.width || 0) * 1000) / 1000 }; if (s.variant !== undefined) o.variant = s.variant; return o; }));
+    _hist = []; _fut = []; _selId = null; _updateHistBtns();
+    _seToGlobals(); _recomputeScale(); _seRender();
+  };
   // seNormalizeLanes: external callers can trigger lane normalization.
   window.seNormalizeLanes = function() { _seNormalizeLanes(); _seRender(); };
   window.seRefreshLayout = function(){ _recomputeScale(); _seRender(); };
@@ -14919,6 +14928,34 @@ function pkHideLoading() {
 }
 
 // ─── Serialise current design state ──────────────────────────────
+// ── DESIGN_STATE (Brief 09) ──────────────────────────────────────────────────────────────
+// The canonical serialisable design: everything buildDesignModel reads (site globals, lanes,
+// bike lane + buffers, buildings, parklet size, deck shape), the Section editor's segments, the
+// site objects, every placed furniture / entourage piece (archetype + params + materials +
+// position + rotation), the compliance inputs and the section cut. getDesignState() returns
+// it (pkSerialize without the timestamp); applyDesignState() is the load path the cloud, the
+// local cache and the Assistant already use. It is also kept locally (pkt-design-state) so a
+// signed-out reload restores the whole design, not only the site inputs.
+function getDesignState() { var s = pkSerialize(); delete s.savedAt; return s; }
+function applyDesignState(ds) { return pkApplyDesignState(ds); }
+var _dsLocalT = null, _dsLocalBusy = false;
+function _dsScheduleLocal() {
+  if (_dsLocalBusy) return;
+  clearTimeout(_dsLocalT);
+  _dsLocalT = setTimeout(function() {
+    _dsLocalBusy = true;   // pkSerialize calls saveSettings: don't reschedule from inside it
+    try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); } catch (e) {}
+    _dsLocalBusy = false;
+  }, 400);
+}
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    if (window.pkCurrentDesignId) return;   // a cloud design is (being) loaded instead
+    var raw = null; try { raw = localStorage.getItem('pkt-design-state'); } catch (e) {}
+    if (!raw) return;
+    try { pkApplyDesignState(JSON.parse(raw)); } catch (e) { console.warn('[design state] local restore failed:', e); }
+  }, 1300);
+});
 function pkSerialize() {
   // Snapshot DOM into state before capturing
   try { if (typeof saveSettings === 'function') saveSettings(); } catch(e_) {}
@@ -14951,6 +14988,11 @@ function pkSerialize() {
     },
     // Section A-A (Brief 08): cut position, looking direction, depth (world m)
     section: (typeof SECTION !== 'undefined') ? { z: SECTION.z, dir: SECTION.dir, depth: SECTION.depth } : null,
+    // The cross-section as the Section editor holds it, in order (Brief 09): segments that no
+    // global carries (planting, parking, turn / transit lanes, curbs, edited lane widths)
+    // survive a load. The building column is implicit.
+    crossSection: (typeof window.seGetSegs === 'function') ? window.seGetSegs().filter(function(s) { return s.type !== 'building'; })
+      .map(function(s) { var o = { type: s.type, width: s.width }; if (s.variant !== undefined) o.variant = s.variant; return o; }) : null,
     compliance: (function() {
       var keys = ['parking_restrictions','route_type','intersection_dist','slope',
         'hydrant_dist','driveway_dist','pole_dist','pole_trolley','signal_box_dist',
@@ -15156,8 +15198,12 @@ function pkApplyDesignState(raw) {
   if (typeof FL3D !== 'undefined' && FL3D) { FL3D.selId = null; }
   if (typeof clearFurnitureSelection === 'function') try { clearFurnitureSelection(); } catch(_e) {}
 
-  // Full re-render
-  pkReRenderAll();
+  // The saved cross-section replaces the one rebuilt from the globals (older saves have none).
+  var _segsIn = Array.isArray(data.crossSection) && data.crossSection.length ? data.crossSection : null;
+  if (_segsIn && typeof window.seSetSegs === 'function') window.seSetSegs(_segsIn);
+
+  // Full re-render (with saved segments the strip is already right: do not rebuild it)
+  pkReRenderAll(_segsIn ? 'section-edit' : 'load');
 }
 
 // ─── Clear all furniture ──────────────────────────────────────────
@@ -15174,10 +15220,10 @@ function pkClearAllFurniture() {
 }
 
 // ─── Full re-render ───────────────────────────────────────────────
-function pkReRenderAll() {
+function pkReRenderAll(reason) {
   // A loaded design set new globals: resync the Section editor's segments from them and
   // render every view from the rebuilt model (the one update path).
-  try { if (typeof syncDesignModel === 'function') syncDesignModel('load'); } catch(e) {}
+  try { if (typeof syncDesignModel === 'function') syncDesignModel(reason || 'load'); } catch(e) {}
   try { if (typeof updateChecklist   === 'function') updateChecklist();   } catch(e) {}
   try { if (typeof updateManholeCrit === 'function') updateManholeCrit(); } catch(e) {}
   try { if (typeof updateCurbFeatureDists === 'function') updateCurbFeatureDists(); } catch(e) {}
