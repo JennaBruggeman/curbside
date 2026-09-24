@@ -5073,6 +5073,10 @@ function dimArrow(x1, x2, midY, code, req, col, SF, MF, zS) {
 // ── SHARED COORDINATE HELPERS AND GRID/SNAP ─────────────────────────────────
 var _gridEnabled = true, _snapEnabled = true, _gridSpacing = 0.25;
 var _pvPKX = 0, _pvPKY = 0, _pvHS = 1, _pvSC = 20, _pvVW = 760, _pvVH = 200;
+// True-scale drawing (the report): across-street px/m = along-street px/m, so one scale holds both ways.
+var _pvIso = false;
+// Along-street extent shown (m); null = the view's own (34 m, or the deck + 14 m). The report sets it.
+var _pvShownM = null;
 var _planMode = 'select';
 // Measure tool state
 var _pvMeasureMode = false;
@@ -5564,8 +5568,8 @@ function renderPlanView() {
   const MF = 'font-family="Courier New, monospace"';
   // Every metre value below comes from DESIGN_MODEL (built here so it is never stale).
   const _pvDM = buildDesignModel(), _pvLM = _pvDM.landmarks;
-  const SHOWN_M = Math.max(34, _pvDM.parklet.length + 14), HS = VW / SHOWN_M;
-  const T_PAD = 18, pvSC = 20;
+  const SHOWN_M = _pvShownM || Math.max(34, _pvDM.parklet.length + 14), HS = VW / SHOWN_M;
+  const T_PAD = 18, pvSC = _pvIso ? HS : 20;
   const _pvXS    = _pvDM.crossSection;
   const _pvPkW   = _pvLM.deckW;
   const PARKLET_M = _pvDM.parklet.length;
@@ -6459,10 +6463,10 @@ function _dmCurrent() {
 
 function planMetrics() {
   const _DM = _dmCurrent(), _LM = _DM.landmarks;
-  const SHOWN_M = Math.max(34, _DM.parklet.length + 14), HS = 760 / SHOWN_M;
+  const SHOWN_M = _pvShownM || Math.max(34, _DM.parklet.length + 14), HS = 760 / SHOWN_M;
   const CONTEXT_M = Math.max(2, (SHOWN_M - _DM.parklet.length) / 2);
   const PK_X = Math.round(CONTEXT_M * HS), PK_W = Math.round(_DM.parklet.length * HS);
-  const pvSC2 = 20;
+  const pvSC2 = _pvIso ? HS : 20;
   // Same frame renderPlanView sets: PK_X..PK_X+PK_W = parklet rectangle, Z0X = SVG x of world
   // z=0 (its right edge), PK_Y = SVG y of world x=0 (unrounded). Positions go through worldToPlan.
   const Z0X = PK_X + PK_W, PK_Y = 18 + _LM.sidewalkW * pvSC2;
@@ -18421,25 +18425,29 @@ RPT.summary = function(d) {
 // One row per archetype + size + finish (+ preset); every placed item is counted in a row.
 RPT.schedule = function(d) {
   var groups = [], byKey = {};
+  // a row is what it prints: item, l x d x h (0.01 m), materials by part, preset
+  function fixedPart(pt) { return typeof pt === 'string' ? /fixed/.test(pt) : !!(pt && pt.fixed); }
+  function matsOf(sp) { var a = FL_ARCHETYPES[sp.type]; return Object.keys(a.parts).filter(function(r) { return !fixedPart(a.parts[r]); }).map(function(r) { return r + ': ' + flMatInfo(sp.mats[r]).label; }).join('; '); }
   d.placed.forEach(function(p) {
-    var sp = flInstSpec(p), k = (p.objId || '') + '|' + (sp ? sp.type + JSON.stringify(sp.params) + JSON.stringify(sp.mats) : '');
-    if (!byKey[k]) { byKey[k] = { key: k, inst: p, sp: sp, n: 0, ids: [] }; groups.push(byKey[k]); }
+    var sp = flInstSpec(p), dm = flInstDims(p), pr = flPreset(p.objId);
+    var row = { item: sp ? flArchLabel(sp.type, sp.params) : (p.objId || 'object'), dims: RPT.fx(dm.l, 2) + ' × ' + RPT.fx(dm.d, 2) + ' × ' + RPT.fx(dm.h, 2), mats: sp ? matsOf(sp) : '', pr: pr };
+    var k = [row.item, row.dims, row.mats, pr ? pr.id : ''].join('|');
+    if (!byKey[k]) { byKey[k] = { key: k, inst: p, sp: sp, row: row, n: 0, ids: [] }; groups.push(byKey[k]); }
     byKey[k].n++; byKey[k].ids.push(p.id);
   });
   groups.forEach(function(g, i) { g.tag = 'F' + (i + 1); });
   RPT._tags = {}; groups.forEach(function(g) { g.ids.forEach(function(id) { RPT._tags[id] = g.tag; }); });
   var rows = groups.map(function(g) {
-    var sp = g.sp, a = sp ? FL_ARCHETYPES[sp.type] : null, pr = flPreset(g.inst.objId), dm = flInstDims(g.inst);
-    var mats = sp ? Object.keys(a.parts).filter(function(r) { return !/fixed/.test(String(a.parts[r])); }).map(function(r) { return r + ': ' + flMatInfo(sp.mats[r]).label; }).join('; ') : '';
-    return '<tr><td class="mono">' + g.tag + '</td><td>' + RPT.esc(sp ? flArchLabel(sp.type, sp.params) : (g.inst.objId || 'object')) + (a && a.cat === 'entourage' ? ' <span class="muted">(entourage, not built)</span>' : '') + '</td>' +
-      '<td class="num">' + RPT.fx(dm.l, 2) + ' × ' + RPT.fx(dm.d, 2) + ' × ' + RPT.fx(dm.h, 2) + '</td><td>' + RPT.esc(mats || '-') + '</td><td class="num">' + g.n + '</td>' +
+    var sp = g.sp, a = sp ? FL_ARCHETYPES[sp.type] : null, pr = g.row.pr;
+    return '<tr><td class="mono">' + g.tag + '</td><td>' + RPT.esc(g.row.item) + (a && a.cat === 'entourage' ? ' <span class="muted">(entourage, not built)</span>' : '') + '</td>' +
+      '<td class="num">' + g.row.dims + '</td><td>' + RPT.esc(g.row.mats || '-') + '</td><td class="num">' + g.n + '</td>' +
       '<td>' + (pr ? RPT.esc(pr.brand + ' ' + pr.name + (pr.art && pr.art !== 'not extracted' ? ', art. ' + pr.art : '')) : '<span class="muted">generic</span>') + '</td></tr>';
   });
   var tbl = "<table class='tbl sched'><thead><tr><th>Tag</th><th>Item</th><th class='num'>l × d × h (m)</th><th>Materials by part</th><th class='num'>Count</th><th>Manufacturer preset</th></tr></thead><tbody>" +
     (rows.join('') || "<tr><td colspan='6' class='muted'>No furniture placed.</td></tr>") + '</tbody>' +
     "<tfoot><tr><td></td><td>Total</td><td></td><td>" + groups.length + ' types</td><td class="num" data-count="placed">' + d.placed.length + '</td><td></td></tr></tfoot></table>';
   RPT._groups = groups;
-  return RPT.sheet('a4', '06', 'Furniture schedule', "<div class='flow'>" + tbl + "<div class='keyplan' data-keyplan='1'></div></div>", '', 'flows');
+  return RPT.sheet('a4', '06', 'Furniture schedule', "<div class='flow'>" + tbl + RPT.keyplan(d) + '</div>', '', 'flows');
 };
 
 // ── 07 Compliance ─────────────────────────────────────────────────────────────────────────────
@@ -18504,9 +18512,219 @@ RPT.sources = function(d) {
     'Building heights and depths are entered estimates for context only.',
     'Library dimensions marked DI are interpreted, not source data.',
     'The Section is a schematic cross-section, not a construction drawing. No structural or construction feasibility is assessed.'];
-  var body = "<div class='cols2'>" + RPT.group('Standards and data', li(std)) + "<div class='stack'>" + RPT.group('Entered inputs', li(entered.length ? entered : ['None entered.'])) +
-    RPT.group('From the design model', li(model)) + RPT.group('Assumptions', li(assume)) + '</div></div>';
-  return RPT.sheet('a4', '09', 'Sources and assumptions', body);
+  var body = "<div class='flow'>" + RPT.group('Standards and data', li(std)) + RPT.group('Entered inputs', li(entered.length ? entered : ['None entered.'])) +
+    RPT.group('From the design model', li(model)) + RPT.group('Assumptions', li(assume)) + '</div>';
+  return RPT.sheet('a4', '09', 'Sources and assumptions', body, '', 'flows');
+};
+
+// ── Drawings: the live renderers' output ─────────────────────────────────────────────────────
+// Plan: renderPlanView with one px/m both ways (_pvIso) and base label sizes (not the maximised
+// panel's zoom), copied; the view's own grid, background and scale bar are left out (the sheet
+// draws its own) and the copy is cropped to what is drawn. 1 m = _pvHS px.
+// The dimension chains are sized in screen px of the panel the plan is shown in, so the plan is
+// rendered as if shown at its paper size (1 screen px = 1/96 in on the sheet): labels print at the
+// size they have on screen at 100 %.
+RPT.planSVG = function(scale, shownM) {
+  var svg = document.getElementById('planView'); if (!svg) return null;
+  var fs = _fsPanel, vb0 = Object.assign({}, _pvVB), um = _pvUserMod, st = svg.getAttribute('style'), out = null;
+  _fsPanel = null; _pvIso = true; _pvUserMod = false; _pvShownM = shownM || null;
+  try {
+    for (var it = 0; it < 3; it++) {
+      renderPlanView();
+      var k = (1000 / scale / _pvHS) * 96 / 25.4;   // screen px per plan unit, on paper
+      svg.style.width = (_pvVB.w * k).toFixed(1) + 'px'; svg.style.height = (_pvVB.h * k).toFixed(1) + 'px';
+      svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none'; svg.style.flex = 'none';
+    }
+    renderPlanView();
+    var vb = svg.viewBox.baseVal, inv = svg.getScreenCTM().inverse(), pt = svg.createSVGPoint(), box = null;
+    svg.querySelectorAll('*').forEach(function(e) {
+      if (e.closest('defs, pattern, clipPath, title')) return;
+      if (e.closest('.sv-sb')) { e.setAttribute('data-rpt-drop', '1'); return; }
+      if (e.children.length && e.tagName !== 'text') return;
+      var bb; try { bb = e.getBBox(); } catch (x) { return; }
+      if (bb.width >= vb.width * 0.95 || bb.height >= vb.height * 0.95) { e.setAttribute('data-rpt-drop', '1'); return; }
+      var r = e.getBoundingClientRect(); if (!r.width && !r.height) return;
+      [[r.left, r.top], [r.right, r.bottom]].forEach(function(c) {
+        pt.x = c[0]; pt.y = c[1]; var p = pt.matrixTransform(inv);
+        box = box ? { x0: Math.min(box.x0, p.x), y0: Math.min(box.y0, p.y), x1: Math.max(box.x1, p.x), y1: Math.max(box.y1, p.y) } : { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+      });
+    });
+    var c = svg.cloneNode(true), pad = 6;
+    svg.querySelectorAll('[data-rpt-drop]').forEach(function(e) { e.removeAttribute('data-rpt-drop'); });
+    c.querySelectorAll('[data-rpt-drop]').forEach(function(e) { e.remove(); });
+    box = { x0: box.x0 - pad, y0: box.y0 - pad, x1: box.x1 + pad, y1: box.y1 + pad };
+    c.setAttribute('viewBox', [box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0].map(function(v) { return v.toFixed(2); }).join(' '));
+    c.removeAttribute('class'); c.removeAttribute('style'); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    c.setAttribute('style', 'background:' + (svg.style.background || '#fff'));
+    out = { el: c, wPx: box.x1 - box.x0, hPx: box.y1 - box.y0, pxPerM: _pvHS, scale: scale, north: window._pvNorthV ? { x: _pvNorthV.x, y: _pvNorthV.y } : null };
+  } finally {
+    _pvIso = false; _pvShownM = null; _fsPanel = fs; _pvVB = vb0; _pvUserMod = um;
+    if (st === null) svg.removeAttribute('style'); else svg.setAttribute('style', st);
+    renderPlanView();
+  }
+  return out;
+};
+// the plan at 1:100 (4 m of street past each deck end), or the next standard scale at which the
+// view's own extent fits the A3 drawing area
+RPT.planAt = function() {
+  var p = null, L = DESIGN_MODEL.parklet.length;
+  for (var i = 1; i < RPT.SCALES.length; i++) {
+    p = RPT.planSVG(RPT.SCALES[i], RPT.SCALES[i] === 100 ? L + 8 : null);
+    if (!p || (p.wPx / p.pxPerM * 1000 / p.scale <= RPT.AREA.w && p.hPx / p.pxPerM * 1000 / p.scale <= RPT.AREA.h)) break;
+  }
+  return p;
+};
+// Section: the four layers of the Section strip (paper, beyond, cut drawing, cut objects) stacked in
+// one SVG, with the strip's segment boxes for the label row. 1 m = SECTION strip px/m.
+RPT.sectionSVG = function() {
+  var ids = ['seArchBg', 'seBeyondSVG', 'seArchSVG', 'seObjOverlay'], els = ids.map(function(i) { return document.getElementById(i); }).filter(Boolean);
+  var strip = document.getElementById('seStrip'); if (!els.length || !strip) return null;
+  var W = +els[0].getAttribute('width'), H = +els[0].getAttribute('height'), SC = window._seStripSC || 60;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '">' + els.map(function(e) { return '<g data-layer="' + e.id + '">' + e.innerHTML + '</g>'; }).join('') + '</svg>';
+  var DM = DESIGN_MODEL, NAME = { sidewalk: 'Sidewalk', parklet: 'Parklet', 'travel-lane': 'Travel lane', 'bike-lane': 'Bike lane', 'buf-pk': 'Buffer', 'buf-bl': 'Buffer', planting: 'Planting', parking: 'Parking', 'turn-lane': 'Turn lane', transit: 'Transit', curb: 'Curb' };
+  var segs = [].slice.call(strip.children).filter(function(c) { return /^seg_/.test(c.id) && c.offsetWidth > 0; }).map(function(c) {
+    var id = c.id.slice(4), s = DM.crossSection.find(function(q) { return String(q.id) === id; });
+    return { l: c.offsetLeft, w: c.offsetWidth, label: s ? (NAME[s.type] || s.type) : 'Bldg', width: s ? s.width : null, seg: s || null };
+  }).sort(function(a, b) { return a.l - b.l; });
+  return { svg: svg, wPx: W, hPx: H, pxPerM: SC, segs: segs, sec: DM.section };
+};
+// Axon: the Brief 06 isometric camera, offscreen, at 2x the sheet's 96 dpi pixel size; entourage
+// and animated agents hidden; the schematic palette (the caller sets the theme).
+RPT.axonImg = function(wMm, hMm) {
+  if (typeof AXE === 'undefined' || !_3d || !_3d.scene) return null;
+  if (typeof _r3DRebuildPending !== 'undefined' && _r3DRebuildPending) { _r3DRebuildPending = false; renderMassView(); }
+  var W = Math.round(wMm / 25.4 * 96 * 2), H = Math.round(hMm / 25.4 * 96 * 2), hidden = [];
+  (FL3D.placed || []).forEach(function(p) { if (p.mesh && p.archetype && flIsEntourage(p.archetype) && p.mesh.visible) { p.mesh.visible = false; hidden.push(p.mesh); } });
+  if (AXE.group && AXE.group.visible) { AXE.group.visible = false; hidden.push(AXE.group); }
+  try {
+    var cam = AXE.camera('iso', W / H), r = AXE.renderer(W, H);
+    AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0); AXE._cut = null;
+    return { url: r.domElement.toDataURL('image/png'), w: W, h: H };
+  } finally { hidden.forEach(function(m) { m.visible = true; }); }
+};
+RPT.drawings = async function(d) {
+  var out = {}, theme = drawingTheme.mode, lay = { mode: VIEWPORT_LAYOUT.mode, max: VIEWPORT_LAYOUT.max };
+  var strip = document.getElementById('seStrip'), relayout = lay.mode === 'max' || !strip || !strip.offsetWidth;
+  if (relayout) setViewportLayout('three');   // Plan and the Section strip must be laid out to be measured
+  try {
+    if (theme !== 'schematic') setDrawingTheme('schematic');
+    if (typeof window.seRenderObjects === 'function') window.seRenderObjects();
+    out.plan = RPT.planAt();
+    out.section = RPT.sectionSVG();
+    out.axon = RPT.axonImg(376, 212);
+    setDrawingTheme('technical');
+    out.tplan = RPT.planAt();
+  } finally {
+    setDrawingTheme(theme);
+    if (relayout) setViewportLayout(lay.mode, lay.max);
+    renderPlanView(); if (typeof window.seRenderObjects === 'function') window.seRenderObjects();
+  }
+  return out;
+};
+
+// ── Drawing sheets ────────────────────────────────────────────────────────────────────────────
+RPT.SCALES = [50, 100, 200, 250, 500];
+// the largest standard scale (from `want` down) at which w x h metres fit in the area (mm)
+RPT.fitScale = function(wM, hM, aW, aH, want) {
+  var s = RPT.SCALES.filter(function(k) { return k >= want; });
+  for (var i = 0; i < s.length; i++) if (wM * 1000 / s[i] <= aW && hM * 1000 / s[i] <= aH) return s[i];
+  return s[s.length - 1];
+};
+// graphic scale bar: `len` metres in `n` parts, laid out in mm by CSS grid; its base rule is the
+// marker colour rgb(17, 34, 51) the PDF check measures.
+RPT.scaleBar = function(scale, len, n) {
+  var mm = len * 1000 / scale, part = mm / n, blocks = '', labels = '';
+  for (var i = 0; i < n; i++) blocks += "<i class='" + (i % 2 ? '' : 'on') + "'></i>";
+  var step = n % 2 === 0 && n > 4 ? 2 : 1, cols = [];
+  for (var j = 0; j < n; j += step) { cols.push(RPT.fx(part * step, 3) + 'mm'); labels += '<span>' + (+(j * len / n).toFixed(2)) + '</span>'; }
+  labels += '<span>' + len + ' m</span>';
+  return "<div class='sbar'><div class='sb-blocks' style='grid-template-columns: repeat(" + n + ", " + RPT.fx(part, 3) + "mm)'>" + blocks + '</div>' +
+    "<div class='sb-base' data-scalebar='" + len + "' style='width:" + RPT.fx(mm, 3) + "mm'></div>" +
+    "<div class='sb-labels' style='grid-template-columns: " + cols.join(' ') + " auto'>" + labels + '</div></div>';
+};
+RPT.north = function(v) {
+  if (!v) return '';
+  var deg = Math.atan2(v.x, -v.y) * 180 / Math.PI;
+  return "<div class='north'><svg viewBox='-10 -10 20 20' width='9mm' height='9mm' aria-label='North'><g transform='rotate(" + deg.toFixed(1) + ")'>" +
+    "<circle r='9' fill='none' stroke='#1A1A1A' stroke-width='0.6'/><path d='M0 -8 L4 5 L0 2.5 L-4 5 Z' fill='#1A1A1A'/></g></svg><span>N</span></div>";
+};
+RPT.titleBlock = function(no, title, scaleTxt, bar, north, notes) {
+  return "<div class='tblock'><div class='tb-id'><span class='no'>" + no + '</span><span>' + RPT.esc(title) + "</span><span class='sc'>" + RPT.esc(scaleTxt) + '</span></div>' +
+    "<div class='tb-bar'>" + (bar || '') + '</div>' + "<div class='tb-n'>" + (north || '') + '</div>' + "<div class='tb-notes'>" + (notes || '') + '</div></div>';
+};
+// A3 drawing area: 380 x 270.5 mm less the title row and the title block
+RPT.AREA = { w: 376, h: 212 };
+RPT.planSheet = function(no, title, p, d, tech) {
+  if (!p) return RPT.sheet('a3', no, title, "<p class='muted'>Plan not available.</p>");
+  var wM = p.wPx / p.pxPerM, hM = p.hPx / p.pxPerM, sc = p.scale;
+  var el = p.el.cloneNode(true); el.setAttribute('width', RPT.fx(wM * 1000 / sc, 3) + 'mm'); el.setAttribute('height', RPT.fx(hM * 1000 / sc, 3) + 'mm');
+  el.setAttribute('data-scale', sc); el.setAttribute('data-mm-per-m', 1000 / sc);
+  var S = d.DM.section, notes = "<p>Section A-A: sheet 04 (cut at z " + RPT.fx(S.z, 2) + ' m, looking ' + (S.dir > 0 ? '+Z' : '-Z') + ', depth ' + RPT.fx(S.depth, 1) + ' m).</p>' +
+    '<p>' + (tech ? 'Technical representation: monochrome, lineweight hierarchy.' : 'Schematic representation.') + ' Drawn from the design model; the street context is indicative.</p>';
+  var mk = el.outerHTML; if (tech && typeof DS !== 'undefined' && DS.achromatic) mk = DS.achromatic(mk).replace(/rgba?\(\s*58\s*,\s*168\s*,\s*228/g, 'rgba(110,110,110').replace(/#3AA8E4/gi, '#6E6E6E');   // monochrome on paper: the kept UI accent (section band) too
+  var body = "<div class='drw'><figure class='fig'>" + mk + '</figure>' +
+    RPT.titleBlock(no, title, '1:' + sc + ' at A3', RPT.scaleBar(sc, sc <= 100 ? 10 : 20, 10), RPT.north(p.north), notes) + '</div>';
+  return RPT.sheet('a3', no, title, body, '1:' + sc + ' at A3');
+};
+RPT.sectionSheet = function(sx, d) {
+  var no = '04', title = 'Section A-A';
+  if (!sx) return RPT.sheet('a3', no, title, "<p class='muted'>Section not available.</p>");
+  var sc = 50, k = 1000 / sc / sx.pxPerM;   // mm per strip px
+  var svg = sx.svg.replace('<svg ', '<svg width="' + RPT.fx(sx.wPx * k, 3) + 'mm" height="' + RPT.fx(sx.hPx * k, 3) + 'mm" data-scale="50" ');
+  var cols = [], cells = '', x = 0;
+  sx.segs.forEach(function(s) {
+    if (s.l > x + 0.5) { cols.push(RPT.fx((s.l - x) * k, 3) + 'mm'); cells += '<span></span>'; }
+    cols.push(RPT.fx(s.w * k, 3) + 'mm'); cells += '<span><b>' + RPT.esc(s.label) + '</b>' + (s.width != null ? '<i>' + RPT.fx(s.width, 2) + ' m</i>' : '') + '</span>';
+    x = s.l + s.w;
+  });
+  var labels = "<div class='seglabels' style='grid-template-columns: " + cols.join(' ') + "'>" + cells + '</div>';
+  var S = sx.sec, rows = d.DM.crossSection.map(function(s) {
+    return '<tr><td>' + RPT.esc(({ sidewalk: 'Sidewalk', parklet: 'Parklet', 'travel-lane': 'Travel lane', 'bike-lane': 'Bike lane', 'buf-pk': 'Buffer (parklet side)', 'buf-bl': 'Buffer (traffic side)', planting: 'Planting' })[s.type] || s.type) + '</td><td class="num">' + RPT.fx(s.x0, 3) + '</td><td class="num">' + RPT.fx(s.x1, 3) + '</td><td class="num" data-src="crossSection.' + d.DM.crossSection.indexOf(s) + '.width" data-dec="3">' + RPT.fx(s.width, 3) + '</td></tr>';
+  }).join('');
+  var tbl = "<table class='tbl segtbl'><thead><tr><th>Segment</th><th class='num'>x from (m)</th><th class='num'>x to (m)</th><th class='num'>Width (m)</th></tr></thead><tbody>" + rows + '</tbody></table>';
+  var cut = "<p>Cut at z " + RPT.fx(S.z, 2) + ' m, looking ' + (S.dir > 0 ? '+Z (south)' : '-Z (north)') + '; objects up to ' + RPT.fx(S.depth, 1) + ' m beyond the cut (to z ' + RPT.fx(S.zFar, 2) + ' m) are drawn in elevation, outline only.</p>';
+  var body = "<div class='drw sec'><div class='secrow'><figure class='fig secfig'><div class='secwrap'>" + svg + labels + '</div></figure>' + RPT.cutKey(d) + '</div>' +
+    "<div class='secinfo'>" + tbl + "<div class='caption'>" + cut + '<p>x is across the street from the near curb (world metres); widths are the Section editor\'s segments.</p></div></div>' +
+    RPT.titleBlock(no, title, '1:50 at A3', RPT.scaleBar(50, 5, 5), '', "<p>Street cross-section at the A-A cut, with depth (Brief 08).</p>") + '</div>';
+  return RPT.sheet('a3', no, title, body, '1:50 at A3');
+};
+// key plan for the section: the deck and pieces, the A-A cut and the depth drawn beyond it
+RPT.cutKey = function(d) {
+  if (typeof GEN === 'undefined' || !GEN.planThumb) return '';
+  var S = d.DM.section, ds = getDesignState(), W = ds.site.parkletWidth, SW = Math.min(2, ds.site.sidewalkW);
+  var svg = GEN.planThumb({ ds: ds, tpl: { label: 'Key plan' }, pattern: 'traffic_band' });
+  var z0 = Math.min(S.z, S.zFar), z1 = Math.max(S.z, S.zFar), y0 = -SW, y1 = W + 2.4;
+  var ov = "<rect x='" + (-z1).toFixed(2) + "' y='" + y0 + "' width='" + (z1 - z0).toFixed(2) + "' height='" + (y1 - y0).toFixed(2) + "' fill='#5A7FA0' fill-opacity='0.14' stroke='#1A1A1A' stroke-width='0.6' stroke-dasharray='3 2' vector-effect='non-scaling-stroke'/>" +
+    "<line x1='" + (-S.z).toFixed(2) + "' y1='" + (y0 - 0.3) + "' x2='" + (-S.z).toFixed(2) + "' y2='" + (y1 + 0.3) + "' stroke='#1A1A1A' stroke-width='1.6' vector-effect='non-scaling-stroke'/>";
+  return "<figure class='keyplan cutkey'>" + svg.replace('</svg>', ov + '</svg>').replace("class='gen-plan'", "class='kp'") +
+    "<figcaption class='caption'>Key plan: the A-A cut (solid) at z " + RPT.fx(S.z, 2) + ' m and the depth drawn beyond it (tinted, to z ' + RPT.fx(S.zFar, 2) + ' m). Sidewalk at top.</figcaption></figure>';
+};
+RPT.axonSheet = function(drw) {
+  var a = drw.axon, img = a ? "<img src='" + a.url + "' alt='Axonometric' style='width:" + RPT.AREA.w + "mm;height:" + RPT.fx(RPT.AREA.w * a.h / a.w, 2) + "mm'>" : "<p class='muted'>3D view not available.</p>";
+  return RPT.sheet('a3', '05', 'Axonometric', "<div class='drw'><figure class='fig'>" + img + '</figure>' +
+    RPT.titleBlock('05', 'Axonometric', 'NTS', '', '', '<p>Isometric (45° / 35.26°) from the road side, as the Brief 06 export; far-side context cut away; people and vehicles not shown.</p>') + '</div>', 'NTS');
+};
+RPT.drawingSheets = function(d, drw) {
+  return [RPT.planSheet('02', 'Site plan', drw.plan, d, false), RPT.planSheet('03', 'Technical plan', drw.tplan, d, true), RPT.sectionSheet(drw.section, d), RPT.axonSheet(drw)];
+};
+// Keyed plan for the schedule: the deck and pieces as in the generator's plan thumbnail, each
+// piece labelled with its tag (placed clear of the tags already set).
+RPT.keyplan = function(d) {
+  if (typeof GEN === 'undefined' || !GEN.planThumb || !d.placed.length) return '';
+  var ds = getDesignState(), svg = GEN.planThumb({ ds: ds, tpl: { label: 'Key plan' }, pattern: 'traffic_band' });
+  var fs = 0.34, placedBoxes = [], t = '';
+  d.placed.forEach(function(p) {
+    var tag = RPT._tags[p.id]; if (!tag) return;
+    var w = tag.length * fs * 0.62, cx = -(p.z || 0), cy = (p.x || 0);
+    var tries = [0, -0.45, 0.45, -0.9, 0.9], y = null;
+    for (var i = 0; i < tries.length && y === null; i++) {
+      var yy = cy + tries[i], b = { x0: cx - w / 2 - 0.05, x1: cx + w / 2 + 0.05, y0: yy - fs * 0.75, y1: yy + fs * 0.35 };
+      if (!placedBoxes.some(function(q) { return b.x0 < q.x1 && q.x0 < b.x1 && b.y0 < q.y1 && q.y0 < b.y1; })) { y = yy; placedBoxes.push(b); }
+    }
+    if (y === null) return;
+    t += "<text x='" + cx.toFixed(2) + "' y='" + y.toFixed(2) + "' font-size='" + fs + "' text-anchor='middle' font-family='DM Sans, Arial, sans-serif' font-weight='600' fill='#1A1A1A' stroke='#fff' stroke-width='0.08' paint-order='stroke'>" + tag + '</text>';
+  });
+  return "<figure class='keyplan'>" + svg.replace('</svg>', t + '</svg>').replace("class='gen-plan'", "class='kp'") + "<figcaption class='caption'>Key plan: every placed piece with its schedule tag (sidewalk at top).</figcaption></figure>";
 };
 
 // ── Document ──────────────────────────────────────────────────────────────────────────────────
@@ -18531,7 +18749,7 @@ RPT.css = function(d) {
     '.sheet { display: grid; grid-template-rows: auto minmax(0, 1fr); row-gap: 5mm; overflow: hidden; }',
     '.sheet + .sheet { break-before: page; }',
     '.a3 { page: a3; width: 380mm; height: 270.5mm; } .a4 { page: a4; width: 178mm; height: 270.5mm; }',
-    '.sh-title { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 4mm; align-items: baseline; padding-bottom: 2mm; border-bottom: 0.35mm solid var(--ink); }',
+    '.sh-title { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 4mm; align-items: baseline; padding-top: 1mm; padding-bottom: 2mm; border-bottom: 0.35mm solid var(--ink); }',
     '.sh-title .no { font: 600 9.5pt/1.2 var(--mono); color: var(--mid); }',
     '.sh-title h1 { font-size: 14pt; font-weight: 600; line-height: 1.25; }',
     '.sh-title .note { font-size: 7.5pt; color: var(--mid); text-align: right; }',
@@ -18570,7 +18788,28 @@ RPT.css = function(d) {
     '.cover-meta { display: grid; row-gap: 0; width: 90mm; margin-top: 4mm; }',
     '.cover-axon { display: grid; place-items: center; min-height: 0; border-top: 0.2mm solid var(--rule); padding-top: 6mm; }',
     '.cover-axon img { max-width: 100%; max-height: 118mm; }',
-    '.is-cover .sh-title { visibility: hidden; }'
+    '.is-cover .sh-title { visibility: hidden; }',
+    '.drw { display: grid; grid-template-rows: minmax(0, 1fr) auto; row-gap: 4mm; height: 100%; min-height: 0; }',
+    '.drw.sec { grid-template-rows: minmax(0, 1fr) auto auto; }',
+    '.secrow { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12mm; align-items: center; min-height: 0; }',
+    '.cutkey { align-self: center; }',
+    '.fig { display: grid; place-items: center; min-height: 0; overflow: hidden; }',
+    '.fig svg, .fig img { display: block; }',
+    '.tblock { display: grid; grid-template-columns: 64mm 112mm 14mm minmax(0, 1fr); column-gap: 6mm; align-items: end; border-top: 0.35mm solid var(--ink); padding-top: 2.5mm; padding-bottom: 1mm; }',
+    '.tb-id { display: grid; row-gap: 0.6mm; } .tb-id .no { font: 600 8.5pt/1.2 var(--mono); color: var(--mid); } .tb-id .sc { font-size: 7.5pt; color: var(--mid); }',
+    '.tb-notes { display: grid; row-gap: 1mm; font-size: 7.5pt; color: var(--mid); }',
+    '.sbar { display: grid; row-gap: 0.8mm; justify-content: start; }',
+    '.sb-blocks { display: grid; height: 1.8mm; border: 0.2mm solid var(--ink); border-bottom: 0; } .sb-blocks i { display: block; } .sb-blocks i.on { background: var(--ink); }',
+    '.sb-base { height: 0.4mm; background: rgb(17, 34, 51); }',
+    '.sb-labels { display: grid; font: 7.5pt/1.2 var(--mono); }',
+    '.north { display: grid; justify-items: center; row-gap: 0.6mm; font: 600 7.5pt/1.3 var(--ui); }',
+    '.secwrap { display: grid; row-gap: 1.5mm; justify-items: start; }',
+    '.seglabels { display: grid; font-size: 7.5pt; line-height: 1.25; }',
+    '.seglabels span { display: grid; text-align: center; align-content: start; border-top: 0.2mm solid var(--rule); padding-top: 0.8mm; min-width: 0; overflow-wrap: anywhere; }',
+    '.seglabels b { font-weight: 600; } .seglabels i { font-style: normal; font-family: var(--mono); color: var(--mid); }',
+    '.secinfo { display: grid; grid-template-columns: 150mm minmax(0, 1fr); column-gap: 10mm; align-items: start; }',
+    '.secinfo .caption { margin-top: 0; display: grid; row-gap: 1.5mm; }',
+    '.keyplan { display: grid; row-gap: 1.5mm; } .keyplan svg { display: block; width: 100%; height: auto; }'
   ].join('\n');
 };
 RPT.build = function(d, drw) {
