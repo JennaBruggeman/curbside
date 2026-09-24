@@ -1784,7 +1784,10 @@ window.checkLandmarkConsistency = function(verbose) {
         }
       }
       if (meshes[id]) {
-        var bb = new THREE.Box3().setFromObject(meshes[id]);
+        // measured in the design group's frame: the group tilts with the running slope (C04)
+        var me = meshes[id]; me.updateMatrix();
+        if (!me.geometry.boundingBox) me.geometry.computeBoundingBox();
+        var bb = me.geometry.boundingBox.clone().applyMatrix4(me.matrix);
         row.view3d = [bb.min.z, bb.max.z, near ? bb.max.x : bb.min.x, near ? bb.min.x : bb.max.x];
       } else if (Object.keys(meshes).length) {
         bad.push({ value: '3D draws no mass for building ' + id, model: 'visible', independent: 'missing' });
@@ -6281,6 +6284,8 @@ const manholes = state['manholes'] || [];
   syncToolbarStates();
   initPlanInteraction();
   initSectionInteraction();
+  // the Section's objects follow the same model (cut position, deck length, furniture moves)
+  if (typeof window.seRenderObjects === 'function') { try { window.seRenderObjects(); } catch (e) {} }
 
 }
 
@@ -17910,13 +17915,6 @@ GEN.renderResults = function() {
   }
   if (typeof GEN.renderCards === 'function') GEN.renderCards();
 };
-// Plain list (Phase 2); the cards replace it.
-GEN.renderCards = function() {
-  var R = GEN.result, bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
-  bar.innerHTML = "<span class='gen-title'>Generated schemes</span><span>seed " + R.seed + ' &middot; ' + R.stats.built + ' built, ' + R.stats.passed + ' passed all 15 checks &middot; ' + R.ms + ' ms</span>';
-  if (R.error) { grid.innerHTML = "<div class='gen-empty empty-state'>" + GEN.esc(R.error) + '</div>'; return; }
-  grid.innerHTML = R.schemes.map(function(c) { return "<div class='empty-state'>" + GEN.esc(c.tpl.label + ' / ' + c.fp.label + ' / ' + c.pal.label + ' - ' + c.m.seats + ' seats, checks ' + c.ev.pass + '/15') + '</div>'; }).join('');
-};
 GEN.run = function() { if (typeof GEN.generate === 'function') GEN.generate(); };
 GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.savePrefs(); GEN.renderDock(); GEN.run(); };
 </script>
@@ -18472,7 +18470,12 @@ GEN.generate = function() {
     cands.push(c);
   }
   // selection: locked schemes first, then best score, then farthest point (ties: score, key)
-  var sel = Object.keys(GEN.locked).map(function(k) { return GEN.locked[k]; });
+  // locked schemes stay if they still pass all 15 checks on the current inputs
+  var sel = Object.keys(GEN.locked).map(function(k) { return GEN.locked[k]; }).filter(function(c) {
+    var ok = GEN.evaluate(c.ds).pass === criteria.length;
+    if (!ok) { delete GEN.locked[c.key]; res.notes.push('Locked scheme ' + GEN.title(c) + ' no longer passes: unlocked.'); }
+    return ok;
+  });
   cands.sort(function(a, b) { return b.score - a.score || (a.key < b.key ? -1 : 1); });
   var pool = cands.filter(function(c) { return !GEN.locked[c.key]; });
   if (!sel.length && pool.length) sel.push(pool.shift());
@@ -18504,6 +18507,222 @@ GEN.buildState = function(S, base, env, fp, lay, pal) {
   return ds;
 };
 </script>
+<script>
+// ── GENERATE (Brief 09 Phase 3): cards, thumbnails, Open in Design, Lock ────────────────────
+// Thumbnails are drawn from the scheme's own DESIGN_STATE, offscreen, with the archetype
+// renderers every view uses (flPlanArchetype, fl3DArchetype) - the live scene is never touched.
+GEN.title = function(c) { return c.tpl.label + ' · ' + c.pal.label; };
+GEN.rationale = function(c) {
+  var m = c.m, bits = [];
+  if (m.seats) bits.push(m.seats + ' seats');
+  if (m.tables) bits.push(m.tables + ' table' + (m.tables > 1 ? 's' : ''));
+  if (m.bike) bits.push(m.bike + ' bike spaces');
+  bits.push(m.planting.toFixed(1) + ' m² of planting');
+  return c.fp.label + ' deck, ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m, with ' + bits.join(', ') +
+    '; ' + c.edge.label + ' on the traffic side, and a ' + m.route.toFixed(2) + ' m clear route along the curb side.';
+};
+// Plan thumbnail (metres): along the street horizontally (+z to the left, as in Plan), across
+// vertically (sidewalk on top); furniture through flPlanArchetype with the same local frame.
+GEN.planThumb = function(c) {
+  var ds = c.ds, L = ds.site.parkletLength, W = ds.site.parkletWidth, SW = Math.min(2, ds.site.sidewalkW), sh = ds.siteObjects.pkShape;
+  var x0 = -L - 1.2, w = L + 2.4, y0 = -SW - 0.3, h = Math.max(SW + W + 2.4, w / 4), s = '';
+  y0 -= (h - (SW + W + 2.4)) / 2;   // centred in the 4:1 frame
+  s += "<rect x='" + x0 + "' y='" + (-SW) + "' width='" + w + "' height='" + SW + "' fill='#E6E1D7'/>";
+  s += "<rect x='" + x0 + "' y='" + W + "' width='" + w + "' height='2.4' fill='#E4E1DB'/>";
+  s += "<line x1='" + x0 + "' y1='0' x2='" + (x0 + w) + "' y2='0' stroke='#3A342C' stroke-width='1' vector-effect='non-scaling-stroke'/>";
+  var deck = sh ? "<path d='" + GEN.shapePath(sh) + "'" : "<rect x='" + (-L) + "' y='0' width='" + L + "' height='" + W + "'";
+  s += deck + " fill='#D6AE74' stroke='#3A342C' stroke-width='1.2' vector-effect='non-scaling-stroke'/>";
+  [[-GEN.END, 0], [-L, -L + GEN.END]].forEach(function(e) {
+    s += "<rect x='" + Math.min(e[0], e[1]) + "' y='0.08' width='" + Math.abs(e[1] - e[0]) + "' height='" + (W - 0.16) + "' fill='#A9C29A' opacity='0.85'/>";
+  });
+  (ds.siteObjects.curb_features || []).forEach(function(f) { s += "<circle cx='" + (-f.xM) + "' cy='-0.22' r='0.2' fill='#B42C2C'/>"; });
+  ds.furniture.placed.forEach(function(p) {
+    var sp = flInstSpec(p); if (!sp) return;
+    var u = p.userRotation || 0, cs = Math.cos(u), sn = Math.sin(u);
+    s += "<g transform='matrix(" + [-cs, sn, sn, cs, -p.z, p.x].map(function(v) { return +v.toFixed(5); }).join(' ') + ")'>" + flPlanArchetype(sp.type, sp.params, { mats: sp.mats }) + '</g>';
+  });
+  return "<svg class='gen-plan' viewBox='" + x0 + ' ' + y0 + ' ' + w + ' ' + h + "' preserveAspectRatio='xMidYMid meet' role='img' aria-label='Plan of " + GEN.esc(GEN.title(c)) + "'>" + s + '</svg>';
+};
+GEN.shapePath = function(sh) {
+  var v = sh.verts, n = v.length, P = function(q) { return (-q.x).toFixed(3) + ' ' + q.y.toFixed(3); }, d = 'M ' + P(v[0]);
+  for (var i = 0; i < n; i++) {
+    var a = v[i], b = v[(i + 1) % n], sg = (sh.segs && sh.segs[i]) || {};
+    if (sg.arc && Math.abs(sg.sag || 0) > 0.001) { var cp = shapeArcCtrl(a, b, sg.sag); d += ' Q ' + P(cp) + ' ' + P(b); } else d += ' L ' + P(b);
+  }
+  return d + ' Z';
+};
+// Axon thumbnail: an offscreen scene built from the scheme (ground bands, the deck, the end
+// planters, every piece through fl3DArchetype), an isometric orthographic camera, one renderer.
+GEN.axonThumb = function(c, W0, H0) {
+  if (typeof THREE === 'undefined') return '';
+  W0 = W0 || 480; H0 = H0 || 270;
+  if (!GEN._r) {
+    var cv = document.createElement('canvas');
+    cv.style.cssText = 'position:fixed;left:-20000px;top:0;width:2px;height:2px;pointer-events:none;';
+    document.body.appendChild(cv);
+    GEN._r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
+  }
+  var r = GEN._r; r.setPixelRatio(1); r.setSize(W0, H0, false);
+  var ds = c.ds, L = ds.site.parkletLength, W = ds.site.parkletWidth, SW = ds.site.sidewalkW, sc = new THREE.Scene();
+  sc.background = new THREE.Color(0xF6F3EC);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0xb8b0a0, 0.9));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.9); sun.position.set(-6, 12, 4); sc.add(sun);
+  var geoms = [], mats = [];
+  function box(x0, y0, z0, x1, y1, z1, col) {
+    var g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m = new THREE.MeshLambertMaterial({ color: col });
+    geoms.push(g); mats.push(m);
+    var me = new THREE.Mesh(g, m); me.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); sc.add(me); return me;
+  }
+  box(-SW, 0, -1.5, 0, 0.15, L + 1.5, 0xE6E1D7);                 // sidewalk
+  box(0, -0.02, -1.5, W + 3.2, 0, L + 1.5, 0xDDD9D2);              // road
+  var sh = ds.siteObjects.pkShape;
+  if (sh) {
+    var shp = new THREE.Shape(); shp.moveTo(sh.verts[0].y, -sh.verts[0].x);
+    for (var i = 0; i < sh.verts.length; i++) {
+      var a = sh.verts[i], b = sh.verts[(i + 1) % sh.verts.length], sg = (sh.segs && sh.segs[i]) || {};
+      if (sg.arc && Math.abs(sg.sag || 0) > 0.001) { var cp = shapeArcCtrl(a, b, sg.sag); shp.quadraticCurveTo(cp.y, -cp.x, b.y, -b.x); } else shp.lineTo(b.y, -b.x);
+    }
+    var eg = new THREE.ExtrudeGeometry(shp, { depth: 0.215, bevelEnabled: false }); eg.rotateX(-Math.PI / 2);
+    var dm = new THREE.MeshLambertMaterial({ color: 0xD6AE74 }); geoms.push(eg); mats.push(dm); sc.add(new THREE.Mesh(eg, dm));
+  } else box(0, 0, 0, W, 0.215, L, 0xD6AE74);
+  [[0.08, 1.02], [L - 1.02, L - 0.08]].forEach(function(e) { box(0.08, 0.215, e[0], W - 0.08, 0.72, e[1], 0xA9C29A); });
+  var groups = [];
+  ds.furniture.placed.forEach(function(p) {
+    var sp = flInstSpec(p); if (!sp) return;
+    var g = fl3DArchetype(sp.type, sp.params, sp.mats);
+    g.position.set(p.x, 0.215, p.z); g.rotation.y = FL_BASE_YAW + (p.userRotation || 0);
+    sc.add(g); groups.push(g);
+  });
+  // isometric camera fitted to the deck
+  var cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200), ctr = new THREE.Vector3(W / 2, 0.5, L / 2), D = 60;
+  var az = 45 * Math.PI / 180, el = Math.atan(1 / Math.SQRT2);
+  cam.position.set(ctr.x + D * Math.cos(el) * Math.cos(az), D * Math.sin(el), ctr.z - D * Math.cos(el) * Math.sin(az));
+  cam.up.set(0, 1, 0); cam.lookAt(ctr); cam.updateMatrixWorld(true);
+  var lo = [Infinity, Infinity], hi = [-Infinity, -Infinity], v = new THREE.Vector3();
+  [-SW, W + 1].forEach(function(x) { [0, 2.2].forEach(function(y) { [-0.5, L + 0.5].forEach(function(z) {
+    v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse); lo[0] = Math.min(lo[0], v.x); hi[0] = Math.max(hi[0], v.x); lo[1] = Math.min(lo[1], v.y); hi[1] = Math.max(hi[1], v.y);
+  }); }); });
+  var w = (hi[0] - lo[0]) * 1.06, h = (hi[1] - lo[1]) * 1.06, cx = (lo[0] + hi[0]) / 2, cy = (lo[1] + hi[1]) / 2, asp = W0 / H0;
+  if (w / h < asp) w = h * asp; else h = w / asp;
+  cam.left = cx - w / 2; cam.right = cx + w / 2; cam.top = cy + h / 2; cam.bottom = cy - h / 2; cam.updateProjectionMatrix();
+  r.render(sc, cam);
+  var url = r.domElement.toDataURL('image/png');
+  geoms.forEach(function(g) { g.dispose(); }); mats.forEach(function(m) { m.dispose(); });
+  groups.forEach(function(g) { g.traverse(function(o) { if (o.geometry) o.geometry.dispose(); }); });   // flMat materials are shared: kept
+  return url;
+};
+GEN.renderCards = function() {
+  var R = GEN.result, bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
+  var nLock = Object.keys(GEN.locked).length;
+  bar.innerHTML = "<span class='gen-title'>Generated schemes</span>" +
+    "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed 15/15 · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + '</span>' +
+    (R.envelope && R.envelope.ok ? "<span class='gen-stat'>envelope " + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) + '</span>' : '') +
+    (GEN.undoSnap ? "<button class='gen-link' onclick='GEN.undoOpen()'>Restore the design you had before opening a scheme</button>" : '');
+  if (R.error) { grid.innerHTML = "<div class='gen-empty gen-err'>" + GEN.esc(R.error) + '</div>'; return; }
+  grid.innerHTML = R.schemes.map(function(c, i) {
+    var m = c.m, locked = !!GEN.locked[c.key];
+    return "<article class='gen-card" + (locked ? ' locked' : '') + "' data-key='" + GEN.esc(c.key) + "'>" +
+      "<div class='gen-thumbs'>" + GEN.planThumb(c) + "<img class='gen-axon' alt='Axonometric of " + GEN.esc(GEN.title(c)) + "' data-i='" + i + "'></div>" +
+      "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
+      "<div class='gen-metrics'>" +
+        "<span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.bike + '</b>bike spaces</span>' +
+        '<span><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Guideline: no Parklet Manual check covers the internal route"><b>' + m.route.toFixed(2) + '</b>clear route m</span>' +
+        "<span class='gen-pass'><b>" + c.ev.pass + '/' + criteria.length + '</b>checks</span></div>' +
+      "<p class='gen-why' data-why='" + i + "'>" + GEN.esc(c.why || GEN.rationale(c)) + '</p>' +
+      "<div class='gen-card-ft'><button class='gen-primary' onclick='GEN.open(" + i + ")'>Open in Design</button>" +
+        "<button class='gen-lock' aria-pressed='" + locked + "' onclick='GEN.toggleLock(" + i + ")'>" + (locked ? 'Locked' : 'Lock') + '</button>' +
+        "<span class='gen-fp'>" + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
+  }).join('');
+  // axon thumbnails after the cards are in (one offscreen renderer, sequential)
+  R.schemes.forEach(function(c, i) {
+    if (!c.axon) try { c.axon = GEN.axonThumb(c, 630, 270); } catch (e) { c.axon = ''; console.warn('[generate] axon thumbnail failed', e); }
+    var img = grid.querySelector("img.gen-axon[data-i='" + i + "']"); if (img && c.axon) img.src = c.axon;
+  });
+  GEN.writeRationales();
+};
+// Optional: the Assistant rewrites the one-line rationale from the metrics (text only - the
+// geometry is the rules'). Without an API key or proxy the templated sentence stays.
+GEN.writeRationales = function() {
+  if (typeof AX === 'undefined' || !AX.configured || !AX.configured()) return;
+  var R = GEN.result, c = AX.cfg(), url = c.proxy || AX.API_URL, headers = { 'content-type': 'application/json' };
+  if (!c.proxy) { headers['x-api-key'] = c.apiKey; headers['anthropic-version'] = '2023-06-01'; headers['anthropic-dangerous-direct-browser-access'] = 'true'; }
+  R.schemes.forEach(function(sc, i) {
+    if (sc.whyAI) return;
+    var facts = { scheme: GEN.title(sc), footprint: sc.fp.label, length_m: sc.fp.L, width_m: sc.fp.W, metrics: sc.m, edge: sc.edge.label, checks: sc.ev.pass + '/15' };
+    fetch(url, { method: 'POST', headers: headers, body: JSON.stringify({ model: c.model || AX.DEFAULT_MODEL, max_tokens: 80,
+      messages: [{ role: 'user', content: 'In one sentence (max 30 words), plain and specific, say what this parklet scheme offers. Use only these facts: ' + JSON.stringify(facts) }] }) })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(j) {
+        var t = j && j.content && j.content[0] && j.content[0].text; if (!t) return;
+        sc.whyAI = true; sc.why = t.trim();
+        var p = document.querySelector("#genGrid .gen-why[data-why='" + i + "']"); if (p && GEN.result === R) p.textContent = sc.why;
+      }).catch(function() {});
+  });
+};
+GEN.toggleLock = function(i) {
+  var c = GEN.result.schemes[i]; if (!c) return;
+  if (GEN.locked[c.key]) delete GEN.locked[c.key]; else GEN.locked[c.key] = c;
+  GEN.renderCards();
+};
+// Open in Design: the current design goes to an undo slot, the scheme's DESIGN_STATE is applied
+// to the live model through the ordinary load path; everything is then editable as usual.
+GEN.open = function(i) {
+  var c = GEN.result.schemes[i]; if (!c) return;
+  GEN.undoSnap = getDesignState();
+  applyDesignState(JSON.parse(JSON.stringify(c.ds)));
+  GEN.opened = { title: GEN.title(c), seed: GEN.result.seed, i: i };
+  appSetMode('design');
+  GEN.banner();
+  // a new design: build its 3D scene now and frame it (the camera's home is re-captured on rebuild)
+  if (typeof flush3DScene === 'function') flush3DScene();
+  if (typeof _3d !== 'undefined' && _3d && _3d._home && _3d.controls) {
+    _3d.camera.position.copy(_3d._home.pos); _3d.controls.target.copy(_3d._home.target); _3d.controls.update();
+    if (_3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
+  }
+};
+GEN.undoOpen = function() {
+  if (!GEN.undoSnap) return;
+  applyDesignState(GEN.undoSnap);
+  GEN.undoSnap = null; GEN.opened = null;
+  GEN.banner();
+  if (document.getElementById('workspaceGenerate').style.display !== 'none') GEN.renderResults();
+};
+// Design dock banner: which scheme is open, the way back to the set, and the undo.
+GEN.banner = function() {
+  var host = document.getElementById('ctxDesign'); if (!host) return;
+  var b = document.getElementById('genBanner');
+  if (!GEN.opened) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'genBanner'; b.className = 'gen-banner'; host.insertBefore(b, host.children[1] || null); }
+  b.innerHTML = "<div>Generated scheme open: <b>" + GEN.esc(GEN.opened.title) + '</b> (seed ' + GEN.opened.seed + ', #' + (GEN.opened.i + 1) + ')</div>' +
+    "<button class='txt-btn' onclick='appSetMode(\"generate\")'>&lsaquo; Back to generated schemes</button>" +
+    "<button class='txt-btn' onclick='GEN.undoOpen()'>Restore the previous design</button>";
+};
+</script>
+<style>
+.gen-stat { font: var(--fs-11) var(--font-mono); color: var(--d-mid); }
+.gen-link { margin-left: auto; background: none; border: none; color: var(--d-ink); font: var(--fs-12) var(--font-ui); text-decoration: underline; cursor: pointer; }
+.gen-err { color: var(--st-fail-ink); font: var(--fs-13) var(--font-ui); line-height: 1.5; max-width: 72ch; }
+.gen-card { display: flex; flex-direction: column; background: var(--d-paper); border: 1px solid var(--d-lt); border-radius: 3px; overflow: hidden; }
+.gen-card.locked { border-color: var(--accent-ui); box-shadow: 0 0 0 1px var(--accent-ui); }
+.gen-thumbs { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--d-lt); border-bottom: 1px solid var(--d-lt); }
+.gen-plan, .gen-axon { width: 100%; display: block; background: #F6F3EC; }
+.gen-plan { aspect-ratio: 4 / 1; }
+.gen-axon { aspect-ratio: 21 / 9; object-fit: cover; }
+.gen-card-ft .gen-primary, .gen-lock { white-space: nowrap; flex-shrink: 0; }
+.gen-card-hd { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-3) var(--sp-3) 0; }
+.gen-card-hd h3 { margin: 0; font: 600 var(--fs-13) var(--font-ui); color: var(--d-ink); }
+.gen-seed { font: var(--fs-11) var(--font-mono); color: var(--d-mid); white-space: nowrap; }
+.gen-metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-1); padding: var(--sp-2) var(--sp-3); }
+.gen-metrics span { display: flex; flex-direction: column; font-size: var(--fs-11); color: var(--d-mid); line-height: 1.25; }
+.gen-metrics b { font: 600 var(--fs-13) var(--font-mono); color: var(--d-ink); }
+.gen-metrics .gen-pass b { color: var(--st-pass-ink); }
+.gen-why { margin: 0; padding: 0 var(--sp-3) var(--sp-3); font-size: var(--fs-12); line-height: 1.5; color: var(--d-ink); }
+.gen-card-ft { display: flex; align-items: center; gap: var(--sp-2); margin-top: auto; padding: var(--sp-2) var(--sp-3); border-top: 1px solid var(--d-lt); }
+.gen-lock { height: 28px; padding: 0 var(--sp-3); background: var(--d-paper); border: 1px solid var(--d-lt); border-radius: 3px; font: 500 var(--fs-12) var(--font-ui); color: var(--d-ink); cursor: pointer; }
+.gen-lock[aria-pressed="true"] { background: var(--accent-ui); border-color: var(--accent-ui); color: var(--c-bg); }
+.gen-fp { margin-left: auto; font: var(--fs-11) var(--font-mono); color: var(--d-mid); }
+.gen-banner { margin: var(--sp-2) var(--sp-3); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--accent-ui); border-radius: 3px; font-size: var(--fs-12); color: var(--c-text); display: grid; gap: 2px; }
+</style>
 <style id="ui07">
 /* ======================================================================
    UI 07 -- presentation layer (Brief 07). Last in the document so it wins
