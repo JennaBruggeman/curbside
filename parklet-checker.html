@@ -1531,6 +1531,8 @@ function _dmSyncObject(inst) {
   };
   // Archetype instances carry their own numbers and finishes; Plan draws from these.
   if (inst.mesh && inst.archetype && typeof flBaseY === 'function') inst.mesh.position.y = flBaseY(inst);
+  // a raised level moved or resized: what stands on it (or stood on it) follows
+  if (inst.archetype === 'deck_step' && typeof flBaseY === 'function' && window.FL3D) FL3D.placed.forEach(function(o) { if (o !== inst && o.mesh && o.archetype) o.mesh.position.y = flBaseY(o); });
   if (inst.archetype) {
     data.archetype = inst.archetype;
     data.params    = Object.assign({}, inst.params);
@@ -3449,7 +3451,7 @@ document.addEventListener('mouseup', function() {
       if (it.kind === 'furniture' || it.kind === 'entourage') {
         var inst = d.inst, sp = flInstSpec(inst);
         if (sp) {
-          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface;
+          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface - Y(flSupportTop(inst));
           g += flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0,
             rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
             xToPx: X, yDeck: b0, SC: SC, isBeyond: true, tech: isTech, id: inst.id });
@@ -3533,7 +3535,7 @@ document.addEventListener('mouseup', function() {
       } else if (it.kind === 'furniture' || it.kind === 'entourage') {
         var inst = d.inst, sp = flInstSpec(inst);
         if (sp) {
-          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface;
+          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface - Y(flSupportTop(inst));
           g += flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0,
             rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
             xToPx: X, yDeck: b0, SC: SC, isBeyond: false, tech: isTech, id: inst.id });
@@ -4750,7 +4752,7 @@ function renderCrossSection() {
     const _cInst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return i.id === furn.id; }) : null;
     const _cSpec = _cInst ? flInstSpec(_cInst) : null;
     if (_cSpec && flIsEntourage(_cSpec.type) && furn.isBeyond) return;   // entourage only where cut
-    const _cBase = (_cSpec && flBaseY(_cInst) === 0) ? ((_cInst.x || 0) < 0 ? GY - CURB_H : GY) : DECK_Y;
+    const _cBase = (_cSpec && flBaseY(_cInst) === 0) ? ((_cInst.x || 0) < 0 ? GY - CURB_H : GY) : DECK_Y - (_cInst ? flSupportTop(_cInst) * SC : 0);
     if (_cSpec) {
       s += flSectionArchetype(_cSpec.type, _cSpec.params, {mats:_cSpec.mats, x:_cInst.x || 0,
         rot:(typeof _cInst.userRotation === 'number' ? _cInst.userRotation : (_cInst.rotationY || 0)),
@@ -6591,7 +6593,7 @@ function planMM(e) {
       var _cfnz = _cnewWz - _coffZ;
       _cfnx = Math.max(0.05, Math.min(_cfnx, (_dmCurrent().parklet.width-0.05)));
       _cfdi.x = _cfnx; _cfdi.z = _cfnz;
-      if (_cfdi.mesh) _cfdi.mesh.position.set(_cfnx, FL3D.DECK_H, _cfnz);
+      if (_cfdi.mesh) _cfdi.mesh.position.set(_cfnx, flBaseY(_cfdi), _cfnz);
       var _cfxIn = document.getElementById('fl3DInstX'), _cfzIn = document.getElementById('fl3DInstZ');
       if (_cfxIn) _cfxIn.value = _cfnx.toFixed(2);
       if (_cfzIn) _cfzIn.value = _cfnz.toFixed(2);
@@ -6636,7 +6638,7 @@ function planMM(e) {
     const _fdi = window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; });
     if (_fdi) {
       _fdi.x = _fnx; _fdi.z = _fnz;
-      if (_fdi.mesh) _fdi.mesh.position.set(_fnx, FL3D.DECK_H, _fnz);
+      if (_fdi.mesh) _fdi.mesh.position.set(_fnx, flBaseY(_fdi), _fnz);
       if (typeof _dmSyncObject === 'function') _dmSyncObject(_fdi);
       var _fxIn = document.getElementById('fl3DInstX'), _fzIn = document.getElementById('fl3DInstZ');
       if (_fxIn) _fxIn.value = _fnx.toFixed(2);
@@ -8366,7 +8368,7 @@ const FL_ARCHETYPES = {
   edge_rail:      {label:'Edge rail', cat:'edge', params:{l:[4.0,0.6,30], d:[0.06,0.04,0.1], h:[0.9,0.6,1.1]}, defaultFrom:{l:'parkletLength'},
                    adjust:['l','d','h'], parts:{rail:'metal powder|galvanized'}},
   // -- Deck / structure ---------------------------------------------------------------------
-  deck_step:      {label:'Deck step', cat:'deck', params:{l:[1.2,0.6,3], d:[0.35,0.28,0.45], h:[0.15,0.1,0.2]},
+  deck_step:      {label:'Deck step', cat:'deck', params:{l:[1.2,0.6,3], d:[0.35,0.28,3.0], h:[0.15,0.1,0.2]},   // d up to 3 m: a raised level
                    adjust:['l','d','h'], parts:{tread:'wood other mineral|thermowood'}},
   platform_step:  {label:'Platform steps', cat:'deck', params:{l:[1.2,0.6,3], steps:[2,1,4,1], tread:[0.3,0.28,0.4], rise:[0.15,0.1,0.18]},
                    adjust:['l','steps','tread','rise'], parts:{tread:'wood other mineral|thermowood'}},
@@ -9081,8 +9083,20 @@ function _flBike(K, l, d, h) {
 function flIsEntourage(type) { return !!(FL_ARCHETYPES[type] && FL_ARCHETYPES[type].cat === 'entourage'); }
 // Height of the surface a piece stands on (3D metres): furniture sits on the deck; entourage on
 // the deck when it is over it, otherwise on the road / sidewalk plane.
+// A piece standing on a raised level (a deck_step under its centre) sits on the step's top.
+function flSupportTop(inst, list) {
+  var top = 0, a = FL_ARCHETYPES[inst && inst.archetype];
+  if (!a || a.cat === 'deck' || flIsEntourage(inst.archetype)) return 0;
+  (list || (window.FL3D && FL3D.placed) || []).forEach(function(s) {
+    if (s === inst || s.archetype !== 'deck_step' || !s.params) return;
+    var u = s.userRotation || 0, dx = (inst.x || 0) - (s.x || 0), dz = (inst.z || 0) - (s.z || 0);
+    var al = dx * Math.sin(u) + dz * Math.cos(u), ad = dx * Math.cos(u) - dz * Math.sin(u);
+    if (Math.abs(al) <= s.params.l / 2 && Math.abs(ad) <= s.params.d / 2) top = Math.max(top, s.params.h || 0);
+  });
+  return top;
+}
 function flBaseY(inst) {
-  if (!inst || !flIsEntourage(inst.archetype)) return FL3D.DECK_H;
+  if (!inst || !flIsEntourage(inst.archetype)) return FL3D.DECK_H + (inst ? flSupportTop(inst) : 0);
   var LM = DESIGN_MODEL.landmarks, P = _dmCurrent().parklet, x = inst.x || 0, z = inst.z || 0;
   return (x >= LM.deckX0 && x <= LM.deckX1 && z >= 0 && z <= P.length) ? FL3D.DECK_H : 0;
 }
@@ -10206,7 +10220,7 @@ function _fl3DSetPos() {
   if (isNaN(nx) || isNaN(nz)) return;
   if (typeof snapToGrid === 'function' && _snapEnabled) { nx = snapToGrid(nx, _gridSpacing); nz = snapToGrid(nz, _gridSpacing); xEl.value = nx.toFixed(3); zEl.value = nz.toFixed(3); }
   inst.x = nx; inst.z = nz;
-  if (inst.mesh) inst.mesh.position.set(nx, FL3D.DECK_H, nz);
+  if (inst.mesh) inst.mesh.position.set(nx, flBaseY(inst), nz);
   _dmSyncObject(inst);
   try { renderCrossSection(); } catch(e) {}
   requestAnimationFrame(function(){ if(typeof window.seRefreshLayout==='function') window.seRefreshLayout(); });
@@ -10241,7 +10255,7 @@ function _fl3DAlignX(side) {
   else if (side === 'near') nx = hd + 0.05;
   else nx = pkW - hd - 0.05;
   inst.x = Math.max(hd, Math.min(nx, pkW - hd));
-  if (inst.mesh) inst.mesh.position.set(inst.x, FL3D.DECK_H, inst.z);
+  if (inst.mesh) inst.mesh.position.set(inst.x, flBaseY(inst), inst.z);
   fl3DUpdateSelUI(inst.id);
   try { renderPlanView(); } catch(e) {}
   try { renderCrossSection(); } catch(e) {}
@@ -18247,6 +18261,15 @@ GEN.materialsFor = function(type, pal) {
 // Rotation u (userRotation): a seat faces (cos u, 0, -sin u): u = PI faces the sidewalk,
 // u = PI/2 faces -z, u = -PI/2 faces +z. Pieces are modelled with their length along z at u = 0.
 GEN.EDGE_BAND = 0.45; GEN.END = 1.1;
+// access model constants (GEN.access below)
+GEN.ROUTE_W = 0.92;   // clear route width, m: BCBC 3.8 clear width - Jenna to confirm the Parklet Manual value
+GEN.TURN = 1.5;       // entry turning space, m (square)
+GEN.ENTRY_PER = 8;    // one more entry per this many metres of deck
+GEN.CELL = 0.1;       // flood-fill grid, m
+GEN.REACH = 0.3;      // a wheelchair space counts as at a seat if within this of it, m
+GEN.END_PL = 1.02;    // the end planters occupy 0.08..1.02 from each deck end (DESIGN_MODEL.parklet.ends)
+GEN.BENCH_T = { bench: 1, backless_bench: 1, planter_bench: 1, seat_wall: 1 };
+GEN.KNEE_T = { table: 1, cafe_table: 1, communal_table: 1 };   // open-legged, 0.70-0.80 m high: knee clearance
 GEN.ZONES = {};
 (function() {
   var P = Math.PI;
@@ -18339,6 +18362,137 @@ GEN.ZONES = {};
     edgeRun(ctx, z0, z1, 'screens');
   };
   GEN.ZONES.open = function(ctx, z0, z1) { edgeRun(ctx, z0, z1, ctx.edge === 'planters' ? 'planters' : 'screens'); };
+
+  // ── Layout patterns ──────────────────────────────────────────────────────────────────────
+  // How a zone uses the deck width. Each zone takes the scheme's pattern if that pattern hosts
+  // the zone's kind and fits its width and length (with the access model's ROUTE_W and turning
+  // squares), else traffic_band. All in the deck frame (x across from the sidewalk edge, z along).
+  var KO = GEN.EDGE_BAND, OPEN = GEN.TURN + 0.1, GROUP = 6.0 - OPEN;   // openings >= 1.6 m, every <= 6 m
+  function edgeKind(ctx) { return ctx.edge === 'planters' ? 'planters' : ctx.edge === 'glass' ? 'glass' : 'screens'; }
+  // groups between openings: an opening at both ends and one at least every 6 m (centres)
+  function groups(z0, z1, minG) {
+    var avail = z1 - z0; if (avail < 2 * OPEN + minG) return [];
+    var k = Math.max(1, Math.ceil((avail - OPEN) / (GROUP + OPEN) - 1e-9)), g = (avail - (k + 1) * OPEN) / k;
+    while (k > 1 && g < minG) { k--; g = (avail - (k + 1) * OPEN) / k; }
+    if (g < minG) return [];
+    var out = []; for (var i = 0; i < k; i++) { var a = z0 + OPEN + i * (g + OPEN); out.push([a, a + g]); }
+    return out;
+  }
+  // a run of seats with planters between, along a line at x = xc (length along z, facing -x)
+  function seatRun(ctx, a, b, xc, seat, sd) {
+    var g = b - a, z;
+    function s(zc, bl) { put(ctx, seat, xc, zc, P, seat === 'bench' ? { l: bl, d: sd, back: true, arms: ctx.access >= 2 } : { l: bl, d: sd }); }
+    function pl(p0, p1) { if (p1 - p0 >= 0.5) put(ctx, 'planter', xc, (p0 + p1) / 2, 0, { l: Math.min(1.2, p1 - p0), d: sd, h: 0.6, plant: ctx.plantKind }); }
+    if (g >= 3.6) {                        // bench, planter, bench
+      var bl = Math.min(1.8, (g - 0.7) / 2), p = Math.min(1.2, g - 2 * bl - 0.2), used = 2 * bl + p + 0.2; z = a + (g - used) / 2;
+      s(z + bl / 2, bl); pl(z + bl + 0.1, z + bl + 0.1 + p); s(z + used - bl / 2, bl);
+    } else {                               // bench, planter: one bench end stays open (a wheelchair space)
+      var b1 = g >= 2.4 ? Math.min(1.8, g - 0.6) : g; z = a;
+      s(z + b1 / 2, b1); pl(z + b1 + 0.1, b);
+    }
+  }
+  function trafficDepth(kind) { return kind === 'cafe' ? 0.6 : kind === 'green' ? 0.45 : kind === 'cluster' ? 0.6 : 0.55; }
+  GEN.PATTERNS = {
+    traffic_band: { label: 'Traffic band', kinds: null,
+      fits: function() { return true; },
+      place: function(ctx, z0, z1, kind) { GEN.ZONES[kind](ctx, z0, z1); } },
+    // benches at the sidewalk edge facing out, planters between them, the route behind them
+    sidewalk_band: { label: 'Sidewalk band', kinds: { bench_row: 1, green: 1 },
+      fits: function(ctx, z0, z1) { return bandX(ctx, z0, z1) - (KO + 0.55) >= GEN.ROUTE_W + 0.1 && groups(z0, z1, 1.2).length > 0; },
+      place: function(ctx, z0, z1, kind) {
+        var seat = kind === 'green' ? 'backless_bench' : 'bench', sd = kind === 'green' ? 0.45 : 0.55;
+        groups(z0, z1, 1.2).forEach(function(g) { seatRun(ctx, g[0], g[1], KO + sd / 2, seat, sd); });
+        edgeRun(ctx, z0, z1, kind === 'green' ? 'planters' : edgeKind(ctx));
+      } },
+    // both edges furnished: the zone's traffic-side programme plus a sidewalk band, a route between
+    two_bands: { label: 'Two bands', kinds: { bench_row: 1, green: 1, cafe: 1 },
+      fits: function(ctx, z0, z1, kind) {
+        var xin = bandX(ctx, z0, z1) - trafficDepth(kind);
+        return xin - KO >= GEN.ROUTE_W + 0.1 && xin >= GEN.TURN && groups(z0, z1, 1.2).length > 0;
+      },
+      place: function(ctx, z0, z1, kind) {
+        GEN.ZONES[kind](ctx, z0, z1);
+        var xin = bandX(ctx, z0, z1) - trafficDepth(kind), seats = xin - (KO + 0.45) >= GEN.ROUTE_W + 0.1;
+        groups(z0, z1, 1.2).forEach(function(g) {
+          if (seats) { seatRun(ctx, g[0], g[1], KO + 0.225, 'backless_bench', 0.45); return; }
+          // sidewalk-edge planters inside the 0.45 m band
+          var n = Math.max(1, Math.round((g[1] - g[0]) / 1.3)), l = Math.min(1.2, (g[1] - g[0]) / n - 0.1);
+          for (var i = 0; i < n; i++) put(ctx, 'planter', 0.25, g[0] + (i + 0.5) * (g[1] - g[0]) / n, 0, { l: l, d: 0.4, h: 0.6, plant: ctx.plantKind });
+        });
+      } },
+    // cross benches / cross planters from the traffic band at 2.4-3.6 m centres: bays open to the
+    // sidewalk, a table in each; the cross pieces stop short so the route passes in front
+    alcoves: { label: 'Alcoves', kinds: { bench_row: 1, cafe: 1, cluster: 1, green: 1 },
+      fits: function(ctx, z0, z1) { var bx = bandX(ctx, z0, z1); return bx - (GEN.ROUTE_W + 0.16) >= 0.9 && bx - 0.6 >= GEN.TURN && z1 - z0 >= 2.4 + 0.55; },
+      place: function(ctx, z0, z1, kind) {
+        var bx = bandX(ctx, z0, z1), lc = Math.min(1.4, bx - (GEN.ROUTE_W + 0.16)), t = 0.55, span = z1 - z0 - t;
+        var n = Math.max(1, Math.round(span / 3.0)); while (span / n > 3.6) n++; while (n > 1 && span / n < 2.4) n--;
+        var s = span / n, xc = bx - lc / 2, green = kind === 'green', th = [];
+        // crosses alternate bench / planter; an interior bench is back-to-back so both bays get a seat
+        for (var k = 0; k <= n; k++) {
+          var zc = z0 + t / 2 + k * s, dbl = k > 0 && k < n;
+          if (!green && k % 2 === 0) { put(ctx, 'bench', xc, zc, k < n ? -P / 2 : P / 2, { l: lc, d: dbl ? 0.9 : t, back: true, arms: false, double: dbl }); th.push(dbl ? 0.9 : t); }
+          else { put(ctx, 'planter', xc, zc, P / 2, { l: lc, d: 0.4, h: 0.6, plant: ctx.plantKind }); th.push(0.4); }
+        }
+        for (var b = 0; b < n; b++) {
+          var za = z0 + t / 2 + b * s + th[b] / 2, zb = z0 + t / 2 + (b + 1) * s - th[b + 1] / 2, zm = (za + zb) / 2, tl = Math.max(0.8, Math.min(1.4, zb - za - 0.7));
+          if (green) put(ctx, 'backless_bench', bx - 0.225, zm, P, { l: Math.min(1.8, zb - za - 0.3), d: 0.45 });
+          else {
+            put(ctx, 'table', bx - 0.3, zm, 0, { l: tl, d: 0.6, h: 0.75 });
+            if (ctx.shade >= 2 && kind === 'cafe') put(ctx, 'umbrella', bx - 0.3, zm, 0, { l: 1.5 });
+          }
+        }
+        edgeRun(ctx, z0, z1, green ? 'planters' : edgeKind(ctx));
+      } },
+    // one long table centred, benches (or chairs) both sides, planters at the traffic edge
+    communal: { label: 'Communal table', kinds: { cafe: 1, cluster: 1, bench_row: 1 },
+      fits: function(ctx, z0, z1) { return bandX(ctx, z0, z1) - KO >= 0.9 + 2 * 0.35 + 0.1 && z1 - z0 >= 2.0 + 2.2; },
+      place: function(ctx, z0, z1) {
+        var bx = bandX(ctx, z0, z1), lt = Math.min(4.0, z1 - z0 - 2.2), zc = (z0 + z1) / 2, xc = (KO + bx) / 2, chairs = bx - KO >= 0.9 + 2 * 0.55 + 0.1;
+        put(ctx, 'communal_table', xc, zc, 0, { l: lt, d: 0.9, h: 0.75 });
+        if (chairs) {
+          var m = Math.floor((lt - 0.6) / 0.6);
+          for (var i = 0; i < m; i++) { var z = zc - (m - 1) * 0.3 + i * 0.6;
+            put(ctx, 'chair', xc - 0.45 - 0.3, z, 0, {}); put(ctx, 'chair', xc + 0.45 + 0.3, z, P, {}); }
+        } else {
+          put(ctx, 'backless_bench', xc - 0.45 - 0.025 - 0.175, zc, P, { l: lt - 0.6, d: 0.35 });
+          put(ctx, 'backless_bench', xc + 0.45 + 0.025 + 0.175, zc, P, { l: lt - 0.6, d: 0.35 });
+        }
+        edgeRun(ctx, z0, z1, 'planters');
+      } },
+    // seating on three sides of a bay (a back bench on the traffic band, cross benches at its
+    // ends), open to the walk; bays repeat with openings between
+    perimeter_u: { label: 'Perimeter U', kinds: { bench_row: 1, cluster: 1, green: 1 },
+      fits: function(ctx, z0, z1) { var bx = bandX(ctx, z0, z1); return bx - (GEN.ROUTE_W + 0.16) >= 0.9 && bx - 0.55 >= GEN.TURN && z1 - z0 >= 1.6 + 1.2; },
+      place: function(ctx, z0, z1, kind) {
+        var bx = bandX(ctx, z0, z1), lc = Math.min(1.4, bx - (GEN.ROUTE_W + 0.16)), t = 0.55, xc = bx - lc / 2;
+        var u = 2 * (t + 0.05), n = Math.max(1, Math.floor((z1 - z0 + 0.6) / (u + 2.4 + 0.6))), lb = Math.min(2.4, (z1 - z0 - (n - 1) * 0.6) / n - u);
+        var used = n * (lb + u) + (n - 1) * 0.6, z = z0 + (z1 - z0 - used) / 2, back = kind === 'green' ? 'backless_bench' : 'bench';
+        for (var i = 0; i < n; i++) {
+          put(ctx, 'bench', xc, z + t / 2, -P / 2, { l: lc, d: t, back: true, arms: false });
+          put(ctx, back, bx - (back === 'bench' ? 0.275 : 0.225), z + u / 2 + lb / 2, P, back === 'bench' ? { l: lb, d: 0.55, back: true, arms: false } : { l: lb, d: 0.45 });
+          put(ctx, 'bench', xc, z + lb + u - t / 2, P / 2, { l: lc, d: t, back: true, arms: false });
+          z += lb + u + 0.6;
+        }
+        edgeRun(ctx, z0, z1, kind === 'green' ? 'planters' : edgeKind(ctx));
+      } },
+    // a raised second level (a deck_step) at the deck's end with lounges on it, one step up to
+    // it; the rest of the zone and the deck stay level (the access model keeps a level seat)
+    platform_step: { label: 'Platform step', kinds: { lounge: 1, open: 1, green: 1 },
+      fits: function(ctx, z0, z1, kind, info) { return !!info.atEnd && bandX(ctx, z0, z1) - KO >= 1.7 && z1 - z0 >= 1.8 + 0.3 + 0.9; },
+      place: function(ctx, z0, z1, kind, info) {
+        var bx = bandX(ctx, z0, z1), w = bx - KO, xc = (KO + bx) / 2, dp = Math.max(1.8, Math.min(3.0, z1 - z0 - 2.4)), hi = info.atEnd === 'hi';
+        var l0 = hi ? z1 - dp : z0, l1 = l0 + dp, zs = hi ? l0 - 0.15 : l1 + 0.15;
+        put(ctx, 'deck_step', xc, (l0 + l1) / 2, P / 2, { l: w, d: dp, h: 0.2 });
+        put(ctx, 'platform_step', xc, zs, P / 2, { l: w, steps: 1, tread: 0.3, rise: 0.1 });
+        var n = Math.min(3, Math.floor((dp - 0.2) / 0.8));
+        for (var i = 0; i < n; i++) put(ctx, 'lounge', xc, l0 + dp / 2 + (i - (n - 1) / 2) * 0.8, P, { l: 0.6, d: 1.6 });
+        edgeRun(ctx, l0, l1, 'planters');
+        var r0 = hi ? z0 : zs + 0.25, r1 = hi ? zs - 0.25 : z1;   // the level rest of the zone
+        if (r1 - r0 >= 2.0) GEN.ZONES.bench_row(ctx, r0, r1); else gaps(ctx, r0, r1);
+      } }
+  };
+  GEN.PATTERN_IDS = Object.keys(GEN.PATTERNS);
 })();
 
 // Lay a template out on a footprint -> {items, metrics, ok, reasons}
@@ -18360,17 +18514,33 @@ GEN.layout = function(tpl, fp, opt) {
     });
     return out.filter(function(p) { return p[1] - p[0] >= 0.6; });
   }
+  // each zone piece takes the scheme's pattern where it hosts the zone's kind and fits, else traffic_band
+  var used = {};
   zones.forEach(function(zn) {
     var zl = len * zn.f, a = cur, b = cur + zl; cur = b;
-    pieces(a + 0.15, b - 0.15).forEach(function(p) { GEN.ZONES[zn.k](ctx, p[0], p[1]); });
+    pieces(a + 0.15, b - 0.15).forEach(function(p) {
+      var info = { atEnd: p[1] >= z1 - 0.2 ? 'hi' : p[0] <= z0 + 0.2 ? 'lo' : null }, pid = 'traffic_band', pt = GEN.PATTERNS[opt.pattern];
+      if (pt && (!pt.kinds || pt.kinds[zn.k]) && pt.fits(ctx, p[0], p[1], zn.k, info)) pid = opt.pattern;
+      GEN.PATTERNS[pid].place(ctx, p[0], p[1], zn.k, info);
+      used[pid] = (used[pid] || 0) + (p[1] - p[0]);
+    });
   });
   keepOut.forEach(function(k) { GEN.ZONES.open(Object.assign({}, ctx, { edge: ctx.edge === 'glass' ? 'glass' : 'screens' }), Math.max(z0, k[0]) + 0.05, Math.min(z1, k[1]) - 0.05); });
-  return GEN.validate(ctx.items, fp);
+  var lay = GEN.validate(ctx.items, fp);
+  lay.patterns = used;
+  // the scheme's pattern: the requested one if laid over >= 30 % of the zones, else the longest
+  var tot = Object.keys(used).reduce(function(s, k) { return s + used[k]; }, 0);
+  lay.pattern = used[opt.pattern] >= 0.3 * tot ? opt.pattern : (Object.keys(used).sort(function(p, q) { return used[q] - used[p]; })[0] || 'traffic_band');
+  return lay;
 };
 // Validate a layout: inside the deck, the 0.45 m rule, no overlaps, then the access model.
 GEN.validate = function(items, fp) {
   var reasons = [], EB = GEN.EDGE_BAND - 0.001;
   var edgeTypes = { screen: 1, glass_screen: 1, railing: 1, planter: 1, planter_barrier: 1 };
+  // a piece wholly on a deck_step stands on it (flSupportTop lifts it in every view)
+  function onLevel(lv, lb, it, ib) {
+    return lv.type === 'deck_step' && it.type !== 'deck_step' && ib.x0 >= lb.x0 - 0.005 && ib.x1 <= lb.x1 + 0.005 && ib.z0 >= lb.z0 - 0.005 && ib.z1 <= lb.z1 + 0.005;
+  }
   items.forEach(function(it, i) {
     var b = GEN.aabb(it), inner = GEN.edgeAt(fp, b.z0 - 0.45, b.z1 + 0.45);
     if (b.z0 < GEN.END - 0.001 || b.z1 > fp.L - GEN.END + 0.001) reasons.push(it.type + ' in an end zone');
@@ -18381,6 +18551,7 @@ GEN.validate = function(items, fp) {
     for (var j = i + 1; j < items.length; j++) {
       if (items[j].type === 'umbrella') continue;
       var c = GEN.aabb(items[j]);
+      if (onLevel(it, b, items[j], c) || onLevel(items[j], c, it, b)) continue;   // stands on a raised level
       if (b.x0 < c.x1 - 0.005 && c.x0 < b.x1 - 0.005 && b.z0 < c.z1 - 0.005 && c.z0 < b.z1 - 0.005) { reasons.push(it.type + ' overlaps ' + items[j].type); }
     }
   });
@@ -18396,14 +18567,6 @@ GEN.validate = function(items, fp) {
 // (x = 0), one in each of 1 + floor(L / 8) equal lengths of the deck. From each entry a widest-path
 // flood fill over cells >= GEN.ROUTE_W finds the route to an accessible seating position; the
 // route's narrowest point is the bottleneck of that path. Nothing is measured as min(x).
-GEN.ROUTE_W = 0.92;   // clear route width, m: BCBC 3.8 clear width - Jenna to confirm the Parklet Manual value
-GEN.TURN = 1.5;       // entry turning space, m (square)
-GEN.ENTRY_PER = 8;    // one more entry per this many metres of deck
-GEN.CELL = 0.1;       // flood-fill grid, m
-GEN.REACH = 0.3;      // a wheelchair space counts as at a seat if within this of it, m
-GEN.END_PL = 1.02;    // the end planters occupy 0.08..1.02 from each deck end (DESIGN_MODEL.parklet.ends)
-GEN.BENCH_T = { bench: 1, backless_bench: 1, planter_bench: 1, seat_wall: 1 };
-GEN.KNEE_T = { table: 1, cafe_table: 1, communal_table: 1 };   // open-legged, 0.70-0.80 m high: knee clearance
 GEN.access = function(items, fp) {
   var C = GEN.CELL, W = fp.W, L = fp.L, nx = Math.ceil(W / C - 1e-6), nz = Math.ceil(L / C - 1e-6), R = GEN.ROUTE_W / 2, CAP = 1.5;
   var zA = GEN.END_PL, zB = L - GEN.END_PL, j, i, k;
@@ -18510,7 +18673,7 @@ GEN.metrics = function(lay, fp) {
   var m = { seats: 0, tables: 0, bike: 0, planting: 0, shade: 0, play: 0, pieces: lay.items.length, route: lay.route, access: lay.access, entries: lay.acc ? lay.acc.need : 0, lounges: 0 };
   lay.items.forEach(function(it) {
     var t = it.type;
-    if (t === 'bench' || t === 'backless_bench' || t === 'planter_bench' || t === 'seat_wall') m.seats += Math.floor(it.params.l / GEN.SEAT_M + 1e-6);
+    if (t === 'bench' || t === 'backless_bench' || t === 'planter_bench' || t === 'seat_wall') m.seats += Math.floor(it.params.l / GEN.SEAT_M + 1e-6) * (it.params.double ? 2 : 1);
     else if (t === 'chair' || t === 'armchair' || t === 'stool') m.seats += 1;
     else if (t === 'lounge') { m.seats += 1; m.lounges += 1; }
     if (t === 'cafe_table' || t === 'table' || t === 'game_table' || t === 'communal_table') m.tables += 1;
@@ -18545,6 +18708,7 @@ GEN.features = function(c) {
   var fps = ['full', 'short', 'notch1', 'notch2', 'linked', 'curved'], v = [];
   fps.forEach(function(f) { v.push(c.fp.id === f ? 1 : 0); });
   GEN.TEMPLATES.forEach(function(t) { v.push(c.tpl.id === t.id ? 1 : 0); });
+  GEN.PATTERN_IDS.forEach(function(p) { v.push(c.pattern === p ? 1.5 : 0); });
   v.push(c.pal.idx * 0.5, Math.min(1, c.m.seats / 30), c.m.plantingPct * 3, Math.min(1, c.m.bike / 8), Math.min(1, c.m.tables / 6));
   return v;
 };
@@ -18576,9 +18740,10 @@ GEN.generate = function() {
   for (var i = 0; i < total; i++) {
     res.stats.sampled++;
     var tpl = GEN.pick(r, GEN.TEMPLATES, tw), fp = GEN.pick(r, fps), edge = GEN.pick(r, GEN.EDGES), pi = Math.floor(r() * pals.length) % pals.length, flip = r() < 0.5;
-    var key = [tpl.id, fp.id, edge.id, pi, flip ? 1 : 0].join('|');
+    var pat = GEN.pick(r, GEN.PATTERN_IDS);
+    var key = [tpl.id, pat, fp.id, edge.id, pi, flip ? 1 : 0].join('|');
     if (seen[key]) continue; seen[key] = 1;
-    var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip });
+    var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip, pattern: pat });
     if (!lay.ok) {
       res.stats.layoutRejects++;
       lay.reasons.forEach(function(w) { w = w.split(' (')[0]; res.stats.why[w] = (res.stats.why[w] || 0) + 1; });
@@ -18590,7 +18755,7 @@ GEN.generate = function() {
     var ev = GEN.evaluate(ds);
     if (ev.pass !== criteria.length) { res.stats.checkRejects++; continue; }
     res.stats.passed++;
-    var m = GEN.metrics(lay, fp), c = { key: key, tpl: tpl, fp: fp, edge: edge, pal: pal, flip: flip, lay: lay, ds: ds, ev: ev, m: m, score: GEN.score(m, P, fp) };
+    var m = GEN.metrics(lay, fp), c = { key: key, tpl: tpl, pattern: lay.pattern, fp: fp, edge: edge, pal: pal, flip: flip, lay: lay, ds: ds, ev: ev, m: m, score: GEN.score(m, P, fp) };
     c.f = GEN.features(c);
     cands.push(c);
   }
@@ -18636,14 +18801,14 @@ GEN.buildState = function(S, base, env, fp, lay, pal) {
 // ── GENERATE (Brief 09 Phase 3): cards, thumbnails, Open in Design, Lock ────────────────────
 // Thumbnails are drawn from the scheme's own DESIGN_STATE, offscreen, with the archetype
 // renderers every view uses (flPlanArchetype, fl3DArchetype) - the live scene is never touched.
-GEN.title = function(c) { return c.tpl.label + ' · ' + c.pal.label; };
+GEN.title = function(c) { return c.tpl.label + ' · ' + GEN.PATTERNS[c.pattern || 'traffic_band'].label; };
 GEN.rationale = function(c) {
   var m = c.m, bits = [];
   if (m.seats) bits.push(m.seats + ' seats');
   if (m.tables) bits.push(m.tables + ' table' + (m.tables > 1 ? 's' : ''));
   if (m.bike) bits.push(m.bike + ' bike spaces');
   bits.push(m.planting.toFixed(1) + ' m² of planting');
-  return c.fp.label + ' deck, ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m, with ' + bits.join(', ') +
+  return GEN.PATTERNS[c.pattern || 'traffic_band'].label + ' layout on a ' + c.fp.label.toLowerCase() + ' deck, ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m, with ' + bits.join(', ') +
     '; ' + c.edge.label + ' on the traffic side, and a ' + m.route.toFixed(2) + ' m accessible route from ' + m.entries + ' entr' + (m.entries > 1 ? 'ies' : 'y') + ' to ' + m.access + ' accessible seat' + (m.access > 1 ? 's' : '') + '.';
 };
 // Plan thumbnail (metres): along the street horizontally (+z to the left, as in Plan), across
@@ -18715,7 +18880,7 @@ GEN.axonThumb = function(c, W0, H0) {
   ds.furniture.placed.forEach(function(p) {
     var sp = flInstSpec(p); if (!sp) return;
     var g = fl3DArchetype(sp.type, sp.params, sp.mats);
-    g.position.set(p.x, 0.215, p.z); g.rotation.y = FL_BASE_YAW + (p.userRotation || 0);
+    g.position.set(p.x, 0.215 + flSupportTop(p, ds.furniture.placed), p.z); g.rotation.y = FL_BASE_YAW + (p.userRotation || 0);
     sc.add(g); groups.push(g);
   });
   // isometric camera fitted to the deck
@@ -18756,7 +18921,7 @@ GEN.renderCards = function() {
       "<p class='gen-why' data-why='" + i + "'>" + GEN.esc(c.why || GEN.rationale(c)) + '</p>' +
       "<div class='gen-card-ft'><button class='gen-primary' onclick='GEN.open(" + i + ")'>Open in Design</button>" +
         "<button class='gen-lock' aria-pressed='" + locked + "' onclick='GEN.toggleLock(" + i + ")'>" + (locked ? 'Locked' : 'Lock') + '</button>' +
-        "<span class='gen-fp'>" + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
+        "<span class='gen-fp'>" + GEN.esc(c.pal.label) + ' · ' + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
   }).join('');
   // axon thumbnails after the cards are in (one offscreen renderer, sequential)
   R.schemes.forEach(function(c, i) {
