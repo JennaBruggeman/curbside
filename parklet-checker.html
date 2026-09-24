@@ -354,6 +354,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <nav class='topbar-tabs'>
     <button class='ttab active' onclick='appSetMode("site")'>Site</button>
     <button class='ttab' onclick='appSetMode("design")'>Design</button>
+    <button class='ttab' onclick='appSetMode("generate")'>Generate</button>
     <button class='ttab' onclick='appSetMode("check")'>Check</button>
     <button class='ttab' onclick='appSetMode("furniture")'>Furniture</button>
     <button class='ttab' onclick='appSetMode("settings")'>Settings</button>
@@ -457,6 +458,13 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
         <div id='lhsFwPlacingInd' style='display:none;margin-top:var(--sp-2);font-size:var(--fs-12);color:var(--c-text);'></div>
         <button class='txt-btn' onclick='appSetMode("furniture")'>Open the full library &rsaquo;</button>
       </div>      </div>
+<div class='ctx-section' id='ctxGenerate' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Generate</span></div>
+<div class='sb-section' id='genSecSite'><div class='sb-section-lbl'>Site constraints</div><div id='genSite'></div></div>
+<div class='sb-section' id='genSecFacts'><div class='sb-section-lbl'>Site facts</div><div id='genFacts'></div></div>
+<div class='sb-section' id='genSecProg'><div class='sb-section-lbl'>Programme</div><div id='genProg'></div></div>
+<div class='sb-section' id='genSecChar'><div class='sb-section-lbl'>Character and materials</div><div id='genChar'></div></div>
+<div class='sb-section' id='genSecOut'><div class='sb-section-lbl'>Output</div><div id='genOut'></div></div>
+</div>
 <div class='ctx-section' id='ctxCheck' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Compliance Check</span></div>
 <div id='verdictCompact'></div>
 <div class='criteria-section' style='margin:0;background:transparent;border-radius:0;box-shadow:none;padding:0'>
@@ -564,6 +572,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fit the plan to its drawing'>FIT</button><button class='drw-tb-toggle' id='secTogglePV' title='Show the Section A-A cut line' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView();_3dSectionHelper()'>A&ndash;A</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measure distance'>Measure</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Toggle snap'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
 <div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
+<div id='workspaceGenerate' style='display:none'><div class='gen-bar' id='genBar'></div><div class='gen-grid' id='genGrid'></div></div>
 <div id='workspaceExport' style='display:none;flex:1;overflow:hidden;'>
 <div class='exp-body'>
   <div class='exp-sheet'>
@@ -10319,7 +10328,7 @@ function appSetMode(mode) {
 
 
   // LHS context sections
-  var sections = ['ctxSite', 'ctxDesign', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport'];
+  var sections = ['ctxSite', 'ctxDesign', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport'];
   sections.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -10343,6 +10352,9 @@ function appSetMode(mode) {
   if (lc) lc.style.display = (mode === 'furniture') ? 'flex' : 'none';
   if (sw) sw.style.display = (mode === 'settings') ? 'flex' : 'none';
   if (ex) ex.style.display = (mode === 'export') ? 'flex' : 'none';
+  var gw = document.getElementById('workspaceGenerate');
+  if (gw) gw.style.display = (mode === 'generate') ? 'flex' : 'none';
+  if (mode === 'generate' && typeof GEN !== 'undefined') GEN.onOpen();
   if (ct) ct.style.display = isCanvas ? '' : 'none';
   if (tb) tb.style.display = isCanvas ? '' : 'none';
   // After every display change above: the grid may have been resized while hidden.
@@ -13099,7 +13111,8 @@ function _initDkPanels() {
   // Panel titles are set here, in sentence case (the header shows them in caps), in section order.
   // The mode header above already says "Design" / "Site", so no panel repeats it.
   [['ctxDesign', 'dkcd', ['Parklet', 'Street context', 'Bike lane buffers', 'Vegetated buffer', 'Footprint', 'Library']],
-   ['ctxSite', 'dkcs', ['Site setup', 'Context buildings', 'Street objects']]].forEach(function(g) {
+   ['ctxSite', 'dkcs', ['Site setup', 'Context buildings', 'Street objects']],
+   ['ctxGenerate', 'dkcg', ['Site constraints', 'Site facts', 'Programme', 'Character and materials', 'Output']]].forEach(function(g) {
     var host = document.getElementById(g[0]);
     if (!host || host._dkInit) return;
     host._dkInit = true;
@@ -17717,6 +17730,220 @@ AXE.download = function(blob, name) {
   setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
 };
 </script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════
+// REFACTOR 15 -- GENERATE (Brief 09): automatic, code-compliant schemes.
+// A scheme is an ordinary DESIGN_STATE. The generator builds candidate states from rules,
+// runs the EXISTING 15 checks on each (scratch evaluation, never the live model), drops the
+// failures, scores the rest against the preferences and returns a diverse set. Seeded.
+// ════════════════════════════════════════════════════════════════════════════════════════
+var GEN = {
+  prefs: null,          // preferences (saved in state.__gen)
+  site: null,           // site constraints for the generator (a copy of the Site tab, editable)
+  siteEdited: false,
+  result: null,         // last run: {schemes, stats, inputsKey}
+  locked: {}            // scheme key -> scheme, kept across Regenerate
+};
+GEN.PROG = [
+  ['seating', 'Seating'], ['dining', 'Dining (tables)'], ['lounging', 'Lounging'], ['bike', 'Bike parking'],
+  ['green', 'Planting / green'], ['shade', 'Shade'], ['play', 'Kids / play'], ['open', 'Event / open']
+];
+GEN.CHARACTER = [['quiet_green', 'Quiet / green'], ['social', 'Social'], ['cafe', 'Cafe'], ['urban', 'Urban / minimal']];
+GEN.MATERIAL = [['warm_wood', 'Warm wood'], ['black_steel', 'Black steel'], ['corten', 'Corten'], ['colour', 'Colour'], ['recycled', 'Recycled']];
+GEN.FOOTPRINT = [['single', 'Single'], ['split', 'Split'], ['free', 'Notches + curves']];
+GEN.defaultPrefs = function() {
+  return { prog: { seating: 2, dining: 1, lounging: 1, bike: 1, green: 2, shade: 1, play: 0, open: 1 },
+    character: 'social', material: 'warm_wood', footprint: 'free', access: 2, planting: 2, n: 6, seed: 1 };
+};
+// The Site tab, as generator constraints (all metres; frontage in world z, default the
+// current deck span, so typed distances measured from the current deck ends stay valid).
+GEN.siteFromLive = function() {
+  var L = designParkletLength;
+  return { road: TOTAL_ROAD, route: state['route_type'] === 'bus_truck' ? 'bus_truck' : 'standard',
+    dir: ROAD_DIR, lanes: NUM_LANES, lanesA: LANES_A, lanesB: LANES_B, sidewalk: SIDEWALK_W,
+    bike: designBikeLane || 'none', bikeW: designBikeLaneW || 1.5, frontage: [0, +L.toFixed(2)] };
+};
+GEN.loadPrefs = function() {
+  var p = GEN.defaultPrefs();
+  try { if (state.__gen) { var s = JSON.parse(state.__gen); Object.assign(p, s); p.prog = Object.assign(GEN.defaultPrefs().prog, s.prog || {}); } } catch (e) {}
+  return p;
+};
+GEN.savePrefs = function() { state.__gen = JSON.stringify(GEN.prefs); if (typeof saveSettings === 'function') saveSettings(); };
+
+// ── Site facts: what the 15 checks need that geometry cannot supply ─────────────────────────
+// Each row: {id, crit, label, value, ok (usable), blocks (site ineligible whatever the design)}.
+GEN.facts = function() {
+  var cf = state.curb_features || [], mh = state.manholes || [], dv = state.driveways || [];
+  var has = function(t) { return cf.some(function(f) { return f.type === t; }); };
+  var num = function(k) { var n = parseFloat(state[k]); return isNaN(n) ? null : n; };
+  var sel = function(k) { return state[k] || ''; };
+  var rows = [];
+  function add(id, crit, label, value, ok, blocks, how) { rows.push({ id: id, crit: crit, label: label, value: value, ok: ok, blocks: !!blocks, how: how || '' }); }
+  var pr = sel('parking_restrictions');
+  add('parking_restrictions', 'c1', '01 Parking restrictions', pr || 'not set', !!pr, pr && pr !== 'none', 'Check tab');
+  var id3 = num('intersection_dist');
+  add('intersection_dist', 'c3', '03 Intersection distance', id3 === null ? 'not set' : id3 + ' m from the current deck', id3 !== null, false, 'Check tab or Plan C03 handle');
+  var sl = num('slope');
+  add('slope', 'c4', '04 Running slope', sl === null ? 'not set' : sl + ' %', sl !== null, sl !== null && sl > 5, 'Check tab');
+  [['H', 'hydrant_dist', 'c5', '05 Hydrant'], ['P', 'pole_dist', 'c7', '07 Pole'], ['S', 'signal_box_dist', 'c8', '08 Signal box']].forEach(function(r) {
+    var n = num(r[1]);
+    if (has(r[0])) add(r[1], r[2], r[3], cf.filter(function(f) { return f.type === r[0]; }).length + ' placed (positions used)', true, false, 'Site tab');
+    else add(r[1], r[2], r[3], n === null ? 'not set' : n + ' m from the current deck', n !== null, false, 'Site tab: place it, or type a distance in Check');
+  });
+  var nd = num('driveway_dist');
+  if (dv.length) add('driveway_dist', 'c6', '06 Driveway', dv.length + ' placed (positions used)', true, false, 'Site tab');
+  else add('driveway_dist', 'c6', '06 Driveway', nd === null ? 'not set' : nd + ' m from the current deck', nd !== null, false, 'Site tab: place it, or type a distance in Check');
+  var nm = num('manhole_dist');
+  if (mh.length) add('manhole_dist', 'c9', '09 Manhole / valve / grate', mh.length + ' placed (positions used)', true, false, 'Site tab');
+  else add('manhole_dist', 'c9', '09 Manhole / valve / grate', nm === null ? 'not set' : nm + ' m from the current deck', nm !== null, false, 'Site tab: place it, or type a distance in Check');
+  var tr = sel('pole_trolley');
+  add('pole_trolley', 'c7', '07 Trolley wires on the pole', tr || 'not set (2.4 m assumed)', true, false, 'Check tab');
+  var fe = sel('fire_exit_block');
+  add('fire_exit_block', 'c10', '10 FD / utility connections, fire exits', fe || 'not set', !!fe && fe !== 'unverified', fe === 'yes', 'Check tab');
+  var dr = sel('drainage_clear');
+  add('drainage_clear', 'c11', '11 Drainage', dr || 'not set', !!dr && dr !== 'unverified', dr === 'no', 'Check tab');
+  var ps = num('parking_setback');
+  add('parking_setback', 'c13', '13 Setback to adjacent parking', ps === null ? 'not set' : ps + ' m from the current deck', ps !== null, false, 'Check tab or Plan C13 handle');
+  return rows;
+};
+
+// ── Dock ───────────────────────────────────────────────────────────────────────────────
+GEN.onOpen = function() {
+  if (!GEN.prefs) GEN.prefs = GEN.loadPrefs();
+  if (!GEN.site || !GEN.siteEdited) GEN.site = GEN.siteFromLive();
+  GEN.renderDock();
+  GEN.renderResults();
+};
+GEN.esc = function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); };
+GEN.renderDock = function() {
+  var S = GEN.site, P = GEN.prefs, h;
+  function num(k, v, unit, step, min, max) {
+    return "<label class='gen-row'><span>" + k[1] + "</span><span class='ufield'><input type='number' data-site='" + k[0] + "' value='" + v + "' step='" + step + "'" +
+      (min !== undefined ? " min='" + min + "'" : '') + (max !== undefined ? " max='" + max + "'" : '') + "><i>" + unit + '</i></span></label>';
+  }
+  function select(attr, key, cur, opts) {
+    return "<select class='gen-sel' " + attr + "='" + key + "'>" + opts.map(function(o) { return "<option value='" + o[0] + "'" + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>';
+  }
+  // site constraints
+  h = num(['road', 'Curb to curb'], S.road, 'm', 0.01, 4, 20) +
+    "<label class='gen-row'><span>Route type</span>" + select('data-site', 'route', S.route, [['standard', 'Standard'], ['bus_truck', 'Bus / truck']]) + '</label>' +
+    "<label class='gen-row'><span>Direction</span>" + select('data-site', 'dir', S.dir, [['oneway', 'One-way'], ['twoway', 'Two-way']]) + '</label>' +
+    (S.dir === 'twoway' ? num(['lanesA', 'Near lanes'], S.lanesA, '', 1, 1, 4) + num(['lanesB', 'Far lanes'], S.lanesB, '', 1, 1, 4) : num(['lanes', 'Travel lanes'], S.lanes, '', 1, 1, 6)) +
+    num(['sidewalk', 'Sidewalk width'], S.sidewalk, 'm', 0.05, 0.5, 6) +
+    "<label class='gen-row'><span>Bike lane</span>" + select('data-site', 'bike', S.bike, [['none', 'None'], ['painted', 'Painted'], ['protected', 'Protected']]) + '</label>' +
+    (S.bike !== 'none' ? num(['bikeW', 'Bike lane width'], S.bikeW, 'm', 0.05, 1.2, 3.5) : '') +
+    num(['f0', 'Frontage start (z)'], S.frontage[0], 'm', 0.1) + num(['f1', 'Frontage end (z)'], S.frontage[1], 'm', 0.1) +
+    "<div class='gen-hint'>Frontage: the curb length the parklet may use, in the plan's z (0 = the current deck start). Default: the current deck, so distances typed from its ends stay true.</div>";
+  var cf = state.curb_features || [], mh = state.manholes || [], dv = state.driveways || [];
+  var objs = cf.map(function(f) { return ({ H: 'Hydrant', P: 'Pole', S: 'Signal box' }[f.type] || f.type) + ' at z ' + (+f.xM).toFixed(2); })
+    .concat(dv.map(function(d) { return 'Driveway at z ' + (+d.xM).toFixed(2); }))
+    .concat(mh.map(function(m) { return 'Manhole at z ' + (+m.xM).toFixed(2) + ', x ' + (+m.yM).toFixed(2); }));
+  h += "<div class='gen-sub'>Site objects</div><div class='gen-list'>" + (objs.length ? objs.map(function(o) { return '<div>' + o + '</div>'; }).join('') : "<div class='empty-state'>none placed</div>") +
+    "<div class='empty-state'>tree pits: not modelled</div></div><button class='txt-btn' onclick='appSetMode(\"site\")'>Edit site objects in Site &rsaquo;</button>";
+  if (GEN.siteEdited) h += " <button class='txt-btn' onclick='GEN.siteEdited=false;GEN.onOpen()'>Reset from Site</button>";
+  document.getElementById('genSite').innerHTML = h;
+  // site facts
+  var F = GEN.facts();
+  h = F.map(function(r) {
+    var st = r.blocks ? 'fail' : r.ok ? 'ok' : 'miss';
+    return "<div class='gen-fact " + st + "' title='" + GEN.esc(r.how) + "'><span>" + r.label + "</span><span class='gen-fv'>" + GEN.esc(r.value) + '</span></div>';
+  }).join('') +
+    "<div class='gen-sub'>Design commitments (every scheme)</div><div class='gen-list'><div>12 Stays in the parking lane (boulevard not used)</div><div>14 Flush with the sidewalk, gap &le; 12 mm</div><div>15 Platform designed for &ge; 7.2 kPa</div></div>" +
+    "<button class='txt-btn' onclick='appSetMode(\"check\")'>Set site facts in Check &rsaquo;</button>";
+  document.getElementById('genFacts').innerHTML = h;
+  // programme
+  function weight(key, label, v, attr) {
+    return "<div class='gen-row'><span>" + label + "</span><span class='gen-w' role='group' aria-label='" + GEN.esc(label) + " weight'>" +
+      [0, 1, 2, 3].map(function(i) { return "<button type='button' class='" + (i === v ? 'on' : '') + "' aria-pressed='" + (i === v) + "' " + attr + "='" + key + "' data-v='" + i + "'>" + i + '</button>'; }).join('') + '</span></div>';
+  }
+  document.getElementById('genProg').innerHTML = GEN.PROG.map(function(p) { return weight(p[0], p[1], P.prog[p[0]], 'data-prog'); }).join('') +
+    weight('access', 'Accessibility priority', P.access, 'data-pref') + weight('planting', 'Planting intensity', P.planting, 'data-pref');
+  // character, materials, footprint
+  document.getElementById('genChar').innerHTML =
+    "<label class='gen-row'><span>Character</span>" + select('data-pref', 'character', P.character, GEN.CHARACTER) + '</label>' +
+    "<label class='gen-row'><span>Material family</span>" + select('data-pref', 'material', P.material, GEN.MATERIAL) + '</label>' +
+    "<label class='gen-row'><span>Platforms</span>" + select('data-pref', 'footprint', P.footprint, GEN.FOOTPRINT) + '</label>';
+  // output
+  document.getElementById('genOut').innerHTML =
+    "<label class='gen-row'><span>Schemes</span><span class='ufield'><input type='number' data-pref='n' value='" + P.n + "' min='3' max='8' step='1'><i></i></span></label>" +
+    "<label class='gen-row'><span>Seed</span><span class='ufield'><input type='number' data-pref='seed' value='" + P.seed + "' min='1' step='1'><i></i></span></label>" +
+    "<div class='gen-actions'><button class='gen-primary' onclick='GEN.run()'>Generate</button><button class='gen-secondary' onclick='GEN.regenerate()' title='Next seed; locked schemes stay'>Regenerate</button></div>";
+  GEN.bindDock();
+};
+GEN.bindDock = function() {
+  var root = document.getElementById('ctxGenerate');
+  if (root._genBound) return;
+  root._genBound = true;
+  root.addEventListener('change', function(e) {
+    var t = e.target, k;
+    if ((k = t.getAttribute('data-site'))) {
+      var v = t.tagName === 'SELECT' ? t.value : parseFloat(t.value);
+      if (typeof v === 'number' && isNaN(v)) return;
+      if (k === 'f0') GEN.site.frontage[0] = v; else if (k === 'f1') GEN.site.frontage[1] = v; else GEN.site[k] = v;
+      GEN.siteEdited = true; GEN.renderDock();
+    } else if ((k = t.getAttribute('data-pref'))) {
+      var pv = t.tagName === 'SELECT' ? t.value : parseInt(t.value, 10);
+      if (typeof pv === 'number' && isNaN(pv)) return;
+      if (k === 'n') pv = Math.max(3, Math.min(8, pv));
+      if (k === 'seed') pv = Math.max(1, pv);
+      GEN.prefs[k] = pv; GEN.savePrefs();
+    }
+  });
+  root.addEventListener('click', function(e) {
+    var b = e.target.closest && e.target.closest('.gen-w button'); if (!b) return;
+    var v = +b.getAttribute('data-v'), k = b.getAttribute('data-prog');
+    if (k) GEN.prefs.prog[k] = v; else GEN.prefs[b.getAttribute('data-pref')] = v;
+    GEN.savePrefs(); GEN.renderDock();
+  });
+};
+
+// ── Results workspace ──────────────────────────────────────────────────────────────────────
+GEN.renderResults = function() {
+  var bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
+  if (!bar || !grid) return;
+  if (!GEN.result) {
+    bar.innerHTML = "<span class='gen-title'>Generated schemes</span>";
+    grid.innerHTML = "<div class='gen-empty empty-state'>Set the preferences in the dock, then Generate. Every scheme passes all 15 checks or is not shown.</div>";
+    return;
+  }
+  if (typeof GEN.renderCards === 'function') GEN.renderCards();
+};
+GEN.run = function() { if (typeof GEN.generate === 'function') GEN.generate(); };
+GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.savePrefs(); GEN.renderDock(); GEN.run(); };
+</script>
+<style>
+/* -- Generate tab (Brief 09) ---------------------------------------------------------------- */
+.gen-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-1); font-size: var(--fs-12); color: var(--c-text-dim); }
+.gen-row > span:first-child { color: var(--c-text-dim); }
+.gen-row .ufield { width: 92px; }
+.gen-sel { height: 24px; max-width: 150px; background: var(--c-bg); border: 1px solid var(--c-rule); border-radius: 3px; color: var(--c-text); font: var(--fs-12) var(--font-ui); }
+.gen-sel:focus { outline: none; border-color: var(--accent-ui); }
+.gen-w { display: inline-flex; border: 1px solid var(--c-rule); border-radius: 3px; overflow: hidden; }
+.gen-w button { width: 24px; height: 22px; padding: 0; background: var(--c-bg); border: none; border-left: 1px solid var(--c-rule); color: var(--c-text-dim); font: var(--fs-11) var(--font-mono); cursor: pointer; }
+.gen-w button:first-child { border-left: none; }
+.gen-w button.on { background: var(--accent-ui); color: var(--c-bg); }
+.gen-w button:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: -2px; }
+.gen-sub { margin: var(--sp-3) 0 var(--sp-1); font-size: var(--fs-11); font-weight: 600; color: var(--c-text-dim); }
+.gen-list { font: var(--fs-12) var(--font-mono); color: var(--c-text); display: grid; gap: 2px; margin-bottom: var(--sp-1); }
+.gen-hint { font-size: var(--fs-11); color: var(--c-text-dim); line-height: 1.45; margin: var(--sp-1) 0 var(--sp-2); }
+.gen-fact { display: grid; grid-template-columns: 1fr; gap: 1px; padding: 5px 0 5px var(--sp-2); border-left: 2px solid var(--c-rule); margin-bottom: 3px; font-size: var(--fs-12); color: var(--c-text); }
+.gen-fact .gen-fv { font: var(--fs-11) var(--font-mono); color: var(--c-text-dim); }
+.gen-fact.ok { border-left-color: var(--st-pass); }
+.gen-fact.miss { border-left-color: var(--st-warn); }
+.gen-fact.miss .gen-fv { color: var(--st-warn); }
+.gen-fact.fail { border-left-color: var(--st-fail); }
+.gen-fact.fail .gen-fv { color: var(--st-fail); }
+.gen-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.gen-primary, .gen-secondary { height: 28px; padding: 0 var(--sp-3); border-radius: 3px; font: 600 var(--fs-12) var(--font-ui); cursor: pointer; }
+.gen-primary { background: var(--accent-ui); border: 1px solid var(--accent-ui); color: var(--c-bg); }
+.gen-secondary { background: transparent; border: 1px solid var(--c-rule); color: var(--c-text); }
+.gen-primary:focus-visible, .gen-secondary:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 1px; }
+#workspaceGenerate { flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; background: var(--d-xlt); }
+.gen-bar { display: flex; align-items: center; gap: var(--sp-3); min-height: 36px; padding: 0 var(--sp-4); box-sizing: border-box; background: var(--d-paper); border-bottom: 1px solid var(--d-lt); font-size: var(--fs-12); color: var(--d-mid); flex-shrink: 0; }
+.gen-title { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--d-ink); }
+.gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); padding: var(--sp-4); align-content: start; }
+.gen-empty { grid-column: 1 / -1; padding: var(--sp-6) 0; }
+</style>
 <style id="ui07">
 /* ======================================================================
    UI 07 -- presentation layer (Brief 07). Last in the document so it wins
