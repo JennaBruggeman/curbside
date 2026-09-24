@@ -205,8 +205,6 @@
 .vp-tools button.active, .vp-tools button.on { background:var(--accent-ui) !important; border-color:var(--accent-ui) !important; color:var(--c-bg) !important; }
 .vp-tools button:disabled { color:var(--d-mid); border-color:var(--d-xlt) !important; background:var(--d-paper); cursor:default; }
 .vp-tools button:focus-visible { outline:2px solid var(--accent-ui); outline-offset:1px; }
-/* #csToolbar drives the hidden static #crossSection SVG (superseded by the section editor). */
-#csToolbar { display:none !important; }
 #libraryCanvas { display:none; flex-direction:column; flex:1; overflow:auto; }
 
 /* â”€â”€ RIGHT PANEL â”€â”€ */
@@ -568,7 +566,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     </div>
   </div>
 <div id='viewportGrid' data-layout='three'>
-<div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div><div class="svg-wrap" id="seStaticWrap" style="display:none">        <svg id="crossSection" viewBox="0 -18 760 248" xmlns="http://www.w3.org/2000/svg"></svg>      </div>      <div class="drw-toolbar" id="csToolbar"><div class="drw-tb-toggles"><button class="drw-tb-toggle" id="dimToggleCS" onclick="_csDimsOn=!_csDimsOn;syncToolbarStates();renderCrossSection()">DIM</button><button class="drw-tb-toggle" id="csMeasureBtn" onclick="_csToggleMeasure()" title="Measure distances in section (click two points)">Measure</button></div><span style='display:flex;align-items:center;gap:2px;padding:0 8px;border-left:1px solid var(--rule);'><button class='drw-tb-toggle' onclick='_csZoomStep(1/1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_csZoomStep(1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_csFitView()' title='Fit to window'>FIT</button></span></div>    </div>    <!-- Drawing 02: Plan -->    
+<div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div>    </div>    <!-- Drawing 02: Plan -->    
 <div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fit the plan to its drawing'>FIT</button><button class='drw-tb-toggle' id='secTogglePV' title='Show the Section A-A cut line' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView();_3dSectionHelper()'>A&ndash;A</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measure distance'>Measure</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Toggle snap'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
 <div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
@@ -1411,11 +1409,9 @@ let LANES_A    = 1;          // near lanes (parklet side) — two-way mode only
 let LANES_B    = 1;          // far lanes (opposite side) — two-way mode only
 let BLDG_L = { buildings: [{height: 8.0, depth: 4.0, length: 30.0, zOffset: -5.0, setback: 0.0}] };
 let BLDG_R = { buildings: [{height: 8.0, depth: 4.0, length: 30.0, zOffset: -5.0, setback: 0.0}] };
-let _csVB = {x:-160, y:-18, w:1200, h:316, pxM:30};
-let _csBaseW = 1200, _csBaseVBY = -18;
 let _pvVB = {x:0, y:-50, w:840, h:395, pxM:20};
-let _csPanDrag = null, _pvPanDrag = null;
-var _pvUserMod = false, _csUserMod = false; // set true when user has zoomed/panned — prevents viewport reset on redraw
+let _pvPanDrag = null;
+var _pvUserMod = false; // set true when user has zoomed/panned — prevents viewport reset on redraw
 function _pvZoomStep(factor) {
   var svg=document.getElementById('planView'); if(!svg) return;
   var cx=_pvVB.x+_pvVB.w/2, cy=_pvVB.y+_pvVB.h/2;
@@ -1426,43 +1422,10 @@ function _pvZoomStep(factor) {
   clearTimeout(_pvRenderT); _pvRenderT=setTimeout(renderPlanView,90);
 }
 function _pvFitView() { _pvUserMod=false; renderPlanView(); }
-function _csZoomStep(factor) {
-  var svg=document.getElementById('crossSection'); if(!svg) return;
-  var cx=_csVB.x+_csVB.w/2, cy=_csVB.y+_csVB.h/2;
-  var nW=Math.max(_csBaseW*0.04,Math.min(_csBaseW*8,_csVB.w*factor)), nH=nW*316/_csBaseW;
-  _csVB.x+=((_csVB.w-nW)*(cx-_csVB.x)/_csVB.w); _csVB.y+=((_csVB.h-nH)*(cy-_csVB.y)/_csVB.h);
-  _csVB.w=nW; _csVB.h=nH; _csUserMod=true;
-  _svgApplyVB(svg,_csVB); _svgAppendSB(svg,_csVB,_csBaseW,340);
-  clearTimeout(_csRenderT); _csRenderT=setTimeout(renderCrossSection,90);
-}
-function _csFitView() { _csUserMod=false; renderCrossSection(); }
-let _csDimsOn = true, _pvDimsOn = true;
+let _pvDimsOn = true;
 let _pvSectionOn = true;
-var _csMeasureMode = false, _csMeasureP1 = null, _csMeasureP2 = null;
-function _csToggleMeasure() {
-  _csMeasureMode = !_csMeasureMode;
-  _csMeasureP1 = null; _csMeasureP2 = null;
-  var btn = document.getElementById('csMeasureBtn');
-  if (btn) btn.classList.toggle('active', _csMeasureMode);
-  var svg = document.getElementById('crossSection');
-  if (svg) svg.style.cursor = _csMeasureMode ? 'crosshair' : '';
-  if (typeof renderCrossSection === 'function') renderCrossSection();
-}
-function _csSVGCoords(e) {
-  var svg = document.getElementById('crossSection'); if (!svg) return null;
-  var pt = svg.createSVGPoint();
-  pt.x = e.clientX; pt.y = e.clientY;
-  var ctm = svg.getScreenCTM(); if (!ctm) return null;
-  return pt.matrixTransform(ctm.inverse());
-}
-function _csHandleClick(e) {
-  if (!_csMeasureMode) return;
-  var pos = _csSVGCoords(e); if (!pos) return;
-  if (!_csMeasureP1) { _csMeasureP1 = pos; }
-  else { _csMeasureP2 = pos; _csMeasureMode = false; var btn=document.getElementById('csMeasureBtn'); if(btn)btn.classList.remove('active'); var svg=document.getElementById('crossSection'); if(svg)svg.style.cursor=''; if(typeof renderCrossSection==='function')renderCrossSection(); }
-}
 // (The section cut is a world value, DESIGN_MODEL.section -- see setSection.)
-let _csRenderT = null, _pvRenderT = null;
+let _pvRenderT = null;
 
 // sidewalk width
 let designParkletWidth = 2.65;
@@ -1926,10 +1889,22 @@ window.checkLandmarkConsistency = function(verbose) {
   window._lastConsistencyIssues = bad;
   // Section A-A (Brief 08): every object getSectionScene lists is drawn exactly once, in its
   // layer, and nothing else is.
-  if (document.getElementById('seObjOverlay') && typeof getSectionScene === 'function') {
-    var scn = getSectionScene(DM.section);
-    chk('section: cut objects drawn vs getSectionScene', scn.cut.length, document.querySelectorAll('#seObjOverlay [data-sec="cut"]').length);
-    chk('section: beyond objects drawn vs getSectionScene', scn.beyond.length, document.querySelectorAll('#seBeyondSVG [data-sec="beyond"]').length);
+  var _seSvg = document.getElementById('seDrawSVG');
+  if (_seSvg && typeof getSectionScene === 'function') {
+    var scn = getSectionScene(DM.section), noEnt = function(it) { return it.kind !== 'entourage'; };
+    chk('section: cut objects drawn vs getSectionScene', scn.cut.filter(noEnt).length, _seSvg.querySelectorAll('[data-sec="cut"]').length);
+    chk('section: beyond objects drawn vs getSectionScene', scn.beyond.filter(noEnt).length, _seSvg.querySelectorAll('[data-sec="beyond"]').length);
+  }
+  // Section strip: each segment's overlay box edges = worldToSection of its x0 / x1 (0.5 px).
+  var _seF = typeof window.seFrame === 'function' ? window.seFrame() : null, _seStrip = document.getElementById('seStrip');
+  if (_seF && _seStrip && _seStrip.offsetWidth > 0) {
+    var _sr = _seStrip.getBoundingClientRect();
+    DM.crossSection.forEach(function(q) {
+      var el = document.getElementById('seg_' + q.id); if (!el) { bad.push({ value: 'section box ' + q.id + ' missing', model: 1, independent: 0 }); return; }
+      var r = el.getBoundingClientRect(), sp = sectionSpan(q.x0, q.x1, _seF), l = r.left - _sr.left - _seStrip.clientLeft, rr = l + r.width;
+      if (Math.abs(l - sp[0]) > 0.5 || Math.abs(rr - sp[1]) > 0.5)
+        bad.push({ value: 'section box ' + q.type + ' ' + q.id + ' edges', model: sp[0].toFixed(2) + '..' + sp[1].toFixed(2), independent: l.toFixed(2) + '..' + rr.toFixed(2) });
+    });
   }
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL: ' +
@@ -3024,15 +2999,13 @@ document.addEventListener('keydown', function(e) {
 function _svgResetVB(svgId) {
   const svg = document.getElementById(svgId);
   if (!svg) return;
-  if (svgId==='crossSection') { _csUserMod=false; _csFitView(); }
-  else { _pvUserMod=false; _pvFitView(); }
+  _pvUserMod=false; _pvFitView();
 }
 function _svgWheelZoom(e, svgId, vb, baseW, baseH) {
   const svg = document.getElementById(svgId);
   if (!svg) return;
   e.preventDefault();
   if (svgId === 'planView') _pvUserMod = true;
-  else if (svgId === 'crossSection') _csUserMod = true;
   const r = svg.getBoundingClientRect();
   const mx = vb.x + (e.clientX - r.left) / r.width * vb.w;
   const my = vb.y + (e.clientY - r.top) / r.height * vb.h;
@@ -3044,8 +3017,7 @@ function _svgWheelZoom(e, svgId, vb, baseW, baseH) {
   vb.w = newW; vb.h = newH;
   _svgApplyVB(svg, vb);
   _svgAppendSB(svg, vb, baseW, baseH);
-  if (svgId==='crossSection') { clearTimeout(_csRenderT); _csRenderT=setTimeout(renderCrossSection,90); }
-  else { clearTimeout(_pvRenderT); _pvRenderT=setTimeout(renderPlanView,90); }
+  clearTimeout(_pvRenderT); _pvRenderT=setTimeout(renderPlanView,90);
 }
 function _initSVGZoom(svgId, vb, baseW, baseH) {
   const svg = document.getElementById(svgId);
@@ -3074,22 +3046,12 @@ function _initSVGZoom(svgId, vb, baseW, baseH) {
       if (_pvMeasureMode) return;
     }
     const drag = {cx:e.clientX,cy:e.clientY,ox:vb.x,oy:vb.y};
-    if (svgId==='crossSection') _csPanDrag=drag; else _pvPanDrag=drag;
+    _pvPanDrag=drag;
     svg.style.cursor = 'grabbing';
   });
   svg.addEventListener('dblclick', function() { _svgResetVB(svgId); });
 }
 document.addEventListener('mousemove', function(e) {
-  if (_csPanDrag) {
-    const svg = document.getElementById('crossSection');
-    if (svg) {
-      const r = svg.getBoundingClientRect();
-      _csVB.x = _csPanDrag.ox - (e.clientX - _csPanDrag.cx) / r.width * _csVB.w;
-      _csVB.y = _csPanDrag.oy - (e.clientY - _csPanDrag.cy) / r.height * _csVB.h;
-      _svgApplyVB(svg, _csVB);
-      _svgAppendSB(svg, _csVB, _csBaseW, 340);
-    }
-  }
   if (_pvPanDrag && _planDragging<0 && _curbDragging<0 && !_c13Dragging && !_c03Dragging && _drivewayDragging<0 && !_pvFurnDragging && !_pvFurnCornerDragging) {
     const svg = document.getElementById('planView');
     if (svg) {
@@ -3102,7 +3064,6 @@ document.addEventListener('mousemove', function(e) {
   }
 });
 document.addEventListener('mouseup', function() {
-  if (_csPanDrag) { _csUserMod = true; const s=document.getElementById('crossSection'); if(s) s.style.cursor='grab'; _csPanDrag=null; clearTimeout(_csRenderT); _csRenderT=setTimeout(renderCrossSection,60); }
   if (_pvPanDrag) { _pvUserMod = true; const s=document.getElementById('planView'); if(s) s.style.cursor='grab'; _pvPanDrag=null; clearTimeout(_pvRenderT); _pvRenderT=setTimeout(renderPlanView,60); }
 });
 
@@ -3131,6 +3092,7 @@ document.addEventListener('mouseup', function() {
       variants:['trees','planters'] },
     'curb':         { label:'Curb',        color:'#444850', light:false, fixed:false, resize:false, del:true,  def:0.15, mn:0.1,  mx:0.3  },
   };
+  window.SE_TYPES = SE_TYPES;   // the section drawer reads the labels
   var SE_PALETTE = ['travel-lane','transit-lane','parking','turn-lane','bike-lane','planting','curb'];
 
   // ── State ─────────────────────────────────────────────────────────
@@ -3450,398 +3412,39 @@ document.addEventListener('mouseup', function() {
   // ── Render ──────────────────────────────────────────────────────────
   function _seRender() {
     if (_fitMode) _recomputeScale();
-    _renderStrip(); _renderDimRow(); _renderStats(); _renderSel(); _renderProp(); _updateHistBtns();
-    _seRenderObjects();
+    _renderStrip(); _renderStats(); _renderSel(); _renderProp(); _updateHistBtns();
   }
 
-  // Section objects (Brief 08): getSectionScene(DESIGN_MODEL.section). 'beyond' is drawn first,
-  // far to near, in elevation (outline only, one weight lighter than cut; no fill in technical,
-  // a 10% tint in schematic) into #seBeyondSVG, which sits under the strip's cut drawing. 'cut'
-  // is drawn as before (poche / solid) into #seObjOverlay on top. Every drawn object is one
-  // <g data-sec='beyond|cut' data-key>, so the consistency check can count them. World x maps
-  // to the strip through X(); looking +Z (dir +1) mirrors it.
-  function _seRenderObjects() {
-    var strip = document.getElementById('seStrip'); if (!strip) return;
-    ['seObjOverlay', 'seBeyondSVG'].forEach(function(id) { var e = document.getElementById(id); if (e) e.remove(); });
-    if (typeof getSectionScene !== 'function' || !DESIGN_MODEL.landmarks) return;
-    var scene;
-    try { scene = getSectionScene(DESIGN_MODEL.section); } catch (e) { console.warn('[section] getSectionScene failed', e); return; }
-    window._seLastScene = scene;
-
-    var isTech = (typeof drawingTheme !== 'undefined' && drawingTheme.mode === 'technical');
-    var SC = SECTION_PX_PER_M, mir = _mir(), xs = mir ? -1 : 1;
-    var STRIP_H = 260, GROUND_Y = STRIP_H - 32, SW_RAISE = Math.round(0.15 * SC);
-    var DECK_TK = Math.max(3, Math.round(0.065 * SC));
-    var SW_TOP = GROUND_Y - SW_RAISE, pkSurface = GROUND_Y - SW_RAISE - DECK_TK, DECK_BOT = GROUND_Y - SW_RAISE;
-    var CS = DESIGN_MODEL.crossSection;
-    // world x = 0 is the start of the first road segment (the curb line)
-    var road0 = CS.find(function(s) { return s.type !== 'sidewalk'; });
-    var el0 = road0 && document.getElementById('seg_' + road0.id);
-    var x0px = el0 ? el0.offsetLeft + (mir ? el0.offsetWidth : 0) : 0;
-    function X(wx) { return x0px + xs * wx * SC; }
-    window._seX = X;
-    window._seWorldX = function(px) { return (px - x0px) / (xs * SC); };
-    window._sePkLeft = x0px; window._seStripSC = SC;   // legacy readers
-    function Y(m) { return m * SC; }
-    function surf(wx) {   // top of the surface under world x
-      if (wx < 0) return SW_TOP;
-      var sg = CS.find(function(s) { return s.type !== 'sidewalk' && wx >= s.x0 - 1e-6 && wx <= s.x1 + 1e-6; });
-      if (sg && sg.type === 'parklet') return pkSurface;
-      if (sg && sg.type === 'planting') return SW_TOP;
-      return GROUND_Y;
-    }
-    var f1 = function(v) { return (+v).toFixed(1); };
-    var svgW = strip.offsetWidth || parseInt(strip.style.width) || 600;
-    var selId = (window.FL3D && FL3D.selId != null) ? FL3D.selId : null;
-    function open(sec, it) {
-      return "<g data-sec='" + sec + "' data-key='" + it.key + "'" + (it.id != null ? " data-inst='" + it.id + "'" : '') +
-        (it.id != null && it.id === selId ? " class='se-sel'" : '') + '>';
-    }
-    function rectXY(xa, xb, ya, yb, st) {
-      var l = Math.min(xa, xb), r = Math.max(xa, xb), t = Math.min(ya, yb), b = Math.max(ya, yb);
-      return "<rect x='" + f1(l) + "' y='" + f1(t) + "' width='" + f1(Math.max(0.8, r - l)) + "' height='" + f1(Math.max(0.8, b - t)) + "'" + st + '/>';
-    }
-
-    // ── BEYOND: elevation, outline only ─────────────────────────────────────────────────────
-    var BW = isTech ? 0.5 : 0.5;                                      // one weight under the cut (0.7-1.0)
-    var BINK = isTech ? '#1A1A1A' : '#6F6A66';
-    function bst(tint) { return " fill='" + (isTech ? 'none' : tint) + "'" + (isTech ? '' : " fill-opacity='0.10'") + " stroke='" + BINK + "' stroke-width='" + BW + "'"; }
-    var bv = '';
-    scene.beyond.forEach(function(it) {
-      var d = it.data, g = open('beyond', it), cx = (it.x0 + it.x1) / 2, base = surf(cx);
-      if (it.kind === 'furniture' || it.kind === 'entourage') {
-        var inst = d.inst, sp = flInstSpec(inst);
-        if (sp) {
-          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface - Y(flSupportTop(inst));
-          g += flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0,
-            rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
-            xToPx: X, yDeck: b0, SC: SC, isBeyond: true, tech: isTech, id: inst.id });
-        } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('#C4906A'));
-      } else if (it.kind === 'tree') {
-        var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, r = Math.max(0.15, v.canopyR) * SC, tw = Math.max(2, 0.12 * SC);
-        var tTop = gy - Y(2.0), cy = tTop - r * 0.3;
-        g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(cy) + "' rx='" + f1(r) + "' ry='" + f1(r * 0.82) + "'" + bst('#7FA06E') + '/>';
-        g += rectXY(tx - tw / 2, tx + tw / 2, gy, tTop, bst('#8A7256'));
-      } else if (it.kind === 'planter') {
-        g += rectXY(X(it.x0), X(it.x1), surf(d.v.x), surf(d.v.x) - Y(0.5), bst('#B4C9A4'));
-      } else if (it.kind === 'building') {
-        // plain facade: the building's end elevation from its face to its rear wall, standing on
-        // the sidewalk level; the setback in front of the face is dimensioned on the ground.
-        var f = d.f, top = Math.max(0, SW_TOP - Y(it.y1));
-        g += rectXY(X(f.faceX), X(f.backX), SW_TOP, top, bst('#B9B3A8'));
-        if ((f.setback || 0) > 0.01) {
-          var a = X(f.frontageX), b = X(f.faceX), yy = SW_TOP - 6;
-          g += "<line x1='" + f1(a) + "' y1='" + yy + "' x2='" + f1(b) + "' y2='" + yy + "' stroke='" + BINK + "' stroke-width='0.5'/>";
-          [a, b].forEach(function(q) { g += "<line x1='" + f1(q - 2.5) + "' y1='" + (yy + 2.5) + "' x2='" + f1(q + 2.5) + "' y2='" + (yy - 2.5) + "' stroke='" + BINK + "' stroke-width='0.8'/>"; });
-          if (Math.abs(b - a) > 26) g += "<text x='" + f1((a + b) / 2) + "' y='" + (yy - 3) + "' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='9' fill='" + BINK + "'>" + f.setback.toFixed(2) + '</text>';
-        }
-      } else if (it.kind === 'street') {
-        var cf = d.cf, sx = X(cx), w2 = (it.x1 - it.x0) / 2 * SC;
-        if (cf.type === 'P') { g += rectXY(sx - Y(0.085), sx + Y(0.085), SW_TOP, SW_TOP - Y(8.0), bst('#9C968E')); g += rectXY(sx - Y(0.11), sx + Y(0.11), SW_TOP, SW_TOP - Y(0.22), bst('#9C968E')); }
-        else if (cf.type === 'H') { g += rectXY(sx - Y(0.13), sx + Y(0.13), SW_TOP, SW_TOP - Y(0.55), bst('#B42C2C')); g += rectXY(sx - w2, sx + w2, SW_TOP - Y(0.55), SW_TOP - Y(0.645), bst('#B42C2C')); }
-        else g += rectXY(sx - w2, sx + w2, SW_TOP, SW_TOP - Y(1.2), bst('#9C968E'));
-      } else if (it.kind === 'manhole') {
-        g += rectXY(X(it.x0), X(it.x1), surf(cx), surf(cx) - 3, bst('#8E8A84'));
-      } else if (it.kind === 'bollard') {
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(0.9), bst('#D86820'));
-      } else if (it.kind === 'deck') {
-        g += rectXY(X(it.x0), X(it.x1), DECK_BOT, pkSurface, bst('#D6AE74'));
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, DECK_BOT, bst('#D6AE74'));
-      } else if (it.kind === 'end-planter') {
-        g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('#B4C9A4'));
-      } else if (it.kind === 'wheel-stop') {
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), bst('#C8C3BA'));
-      }
-      bv += g + '</g>';
-    });
-
-    // ── CUT: as before (poche / solid) ──────────────────────────────────────────────────────
-    var sv = '<defs>';
-    sv += '<pattern id="sePoché" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">' +
-          '<line x1="0" y1="0" x2="0" y2="4" stroke="#1a1a1a" stroke-width="0.9"/></pattern>';
-    sv += '<pattern id="seWarmHatch" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">' +
-          '<line x1="0" y1="0" x2="0" y2="5" stroke="rgba(80,40,0,.3)" stroke-width="0.8"/></pattern>';
-    sv += '</defs>';
-    function solid(tech, schem) { return isTech ? " fill='" + tech + "' stroke='#000' stroke-width='1'" : " fill='" + schem + "' stroke='#4A4744' stroke-width='1'"; }
-    scene.cut.forEach(function(it) {
-      var d = it.data, g = open('cut', it), cx = (it.x0 + it.x1) / 2;
-      if (it.kind === 'tree' || it.kind === 'planter') {
-        var v = d.v, tx = Math.round(X(v.x)), gy = d.atRoadLevel ? GROUND_Y : SW_TOP;
-        if (it.kind === 'planter') {
-          g += rectXY(X(it.x0), X(it.x1), gy, gy - Y(0.5), solid('#D9D9D9', '#C8C3BA'));
-        } else {
-          var tDiam = Math.max(2, Math.round(0.12 * SC)), tH = Math.round(2.0 * SC), cR = Math.round(Math.max(0.15, v.canopyR || 0.4) * SC);
-          var tTop = gy - tH, cCY = tTop - Math.round(cR * 0.3), cRY = Math.round(cR * 0.82);
-          if (isTech) {
-            g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + cR + '" ry="' + cRY + '" fill="none" stroke="#555" stroke-width="0.4" stroke-dasharray="3,2"/>';
-            g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="#2a2016" stroke="#000" stroke-width="1"/>';
-            g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="url(#sePoché)" opacity="0.6"/>';
-            g += '<line x1="' + (tx - tDiam) + '" y1="' + gy + '" x2="' + (tx + tDiam) + '" y2="' + gy + '" stroke="#000" stroke-width="1"/>';
-          } else {
-            g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + (cR + 2) + '" ry="' + (cRY + 2) + '" fill="rgba(60,120,40,.18)" stroke="none"/>';
-            g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + cR + '" ry="' + cRY + '" fill="rgba(80,155,60,.62)" stroke="#2a6818" stroke-width="1.5"/>';
-            g += '<ellipse cx="' + Math.round(tx - cR * 0.15) + '" cy="' + Math.round(cCY + cRY * 0.1) + '" rx="' + Math.round(cR * 0.55) + '" ry="' + Math.round(cRY * 0.5) + '" fill="rgba(50,110,30,.22)" stroke="none"/>';
-            g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="#7a4420" stroke="#4a2010" stroke-width="1"/>';
-          }
-        }
-      } else if (it.kind === 'bollard') {
-        var bDiam = Math.max(3, Math.round(0.124 * SC)), bH = Math.round(0.9 * SC), bx = Math.round(X(cx)), bTop = GROUND_Y - bH, bR = Math.round(bDiam / 6);
-        if (isTech) {
-          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + bTop + '" width="' + bDiam + '" height="' + bH + '" fill="#545458" stroke="#000" stroke-width="1" rx="' + bR + '"/>';
-          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + bTop + '" width="' + bDiam + '" height="' + bH + '" fill="url(#sePoché)" opacity="0.35"/>';
-        } else {
-          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + bTop + '" width="' + bDiam + '" height="' + bH + '" fill="#d86820" stroke="#8a3800" stroke-width="1" rx="' + bR + '"/>';
-          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + Math.round(GROUND_Y - bH * 0.35) + '" width="' + bDiam + '" height="' + Math.max(2, Math.round(bDiam * 0.4)) + '" fill="rgba(255,210,30,.9)"/>';
-        }
-      } else if (it.kind === 'furniture' || it.kind === 'entourage') {
-        var inst = d.inst, sp = flInstSpec(inst);
-        if (sp) {
-          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface - Y(flSupportTop(inst));
-          g += flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0,
-            rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
-            xToPx: X, yDeck: b0, SC: SC, isBeyond: false, tech: isTech, id: inst.id });
-          var fl = Math.min(X(it.x0), X(it.x1)), fw = Math.abs(X(it.x1) - X(it.x0)), fh = Math.max(3, Y(it.y1 - it.y0));
-          if (fw > 18) g += '<text x="' + Math.round(fl + fw / 2) + '" y="' + Math.round(b0 - fh / 2 + 2) + '" text-anchor="middle" font-family="Helvetica Neue,Arial,sans-serif" font-size="5.5" fill="' + (isTech ? '#222' : '#4a2810') + '" dominant-baseline="middle">' + FL_ARCHETYPES[sp.type].label.toUpperCase() + '</text>';
-        } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), solid('#d0ccc6', '#c4906a'));
-      } else if (it.kind === 'street') {
-        var cf = d.cf, sx = X(cx), w2 = (it.x1 - it.x0) / 2 * SC;
-        if (cf.type === 'P') g += rectXY(sx - Y(0.085), sx + Y(0.085), SW_TOP, SW_TOP - Y(8.0), solid('#8C8C8C', '#9a9a90'));
-        else if (cf.type === 'H') { g += rectXY(sx - Y(0.13), sx + Y(0.13), SW_TOP, SW_TOP - Y(0.55), solid('#6A6A6A', '#B42C2C')); g += rectXY(sx - w2, sx + w2, SW_TOP - Y(0.55), SW_TOP - Y(0.645), solid('#6A6A6A', '#8a1a1a')); }
-        else g += rectXY(sx - w2, sx + w2, SW_TOP, SW_TOP - Y(1.2), solid('#9A9A9A', '#9a9a9a'));
-      } else if (it.kind === 'manhole') {
-        g += rectXY(X(it.x0), X(it.x1), surf(cx), surf(cx) - 3, solid('#4A4A4A', '#6E6A64'));
-      } else if (it.kind === 'end-planter') {
-        g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), solid('#D9D9D9', '#DEDAD4'));
-        g += rectXY(X(it.x0) + xs * 2, X(it.x1) - xs * 2, pkSurface - Y(it.y1 - it.y0), pkSurface - Y(it.y1 - it.y0) + 4, isTech ? " fill='url(#sePoché)'" : " fill='#A9C29A'");
-      } else if (it.kind === 'wheel-stop') {
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), solid('#8C8C8C', '#8E8A84'));
-      }
-      sv += g + '</g>';
-    });
-
-    var tmp = document.createElement('div');
-    function finish(s) {
-      if (typeof DS === 'undefined') return s;
-      s = DS.restyleSectionObjects(s);
-      return isTech ? DS.achromatic(DS.statusInk(s)) : s;
-    }
-    var head = function(id, z) { return '<svg id="' + id + '" xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + STRIP_H + '" style="position:absolute;left:0;top:0;pointer-events:none;z-index:' + z + ';overflow:hidden">'; };
-    tmp.innerHTML = finish(head('seBeyondSVG', 1) + bv + '</svg>');
-    var bEl = tmp.firstElementChild;
-    tmp.innerHTML = finish(head('seObjOverlay', 10) + sv + '</svg>');
-    var cEl = tmp.firstElementChild;
-    var arch = document.getElementById('seArchSVG');
-    if (bEl) { if (arch) strip.insertBefore(bEl, arch); else strip.appendChild(bEl); }
-    if (cEl) strip.appendChild(cEl);
-    // Selection (Brief 08 #5): clicking an object in Section selects it in Plan and 3D.
-    [bEl, cEl].forEach(function(svgEl) {
-      if (!svgEl) return;
-      svgEl.addEventListener('pointerdown', function(e) {
-        var gEl = e.target.closest && e.target.closest('[data-inst]'); if (!gEl) return;
-        e.stopPropagation(); e.preventDefault();
-        var id = gEl.getAttribute('data-inst');
-        var inst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return String(i.id) === id; }) : null;
-        if (!inst) return;
-        if (typeof fl3DSelect === 'function') fl3DSelect(inst.id); else if (typeof setSelection === 'function') setSelection('furniture', inst.id, inst);
-        if (typeof renderPlanView === 'function') renderPlanView();
-        _seRenderObjects();
-      });
-    });
+  // The strip's DRAWING is renderCrossSection (the one section drawer) into #seDrawSVG, under the
+  // HTML segment boxes. The boxes are only the interaction overlay (select, reorder, resize
+  // handles, insert line, names): each is placed FROM worldToSection of its segment's x0 / x1, and
+  // the dimension chain likewise. Widths change -> the model is rebuilt -> boxes and drawing follow.
+  var _frame = null;
+  function _frameNow() {
+    if (typeof buildDesignModel === 'function') buildDesignModel();
+    var root = document.getElementById('seRoot'); if (root) root.classList.toggle('se-mirror', _mir());
+    return sectionFrame(DESIGN_MODEL, { pxPerM: SECTION_PX_PER_M, minWidth: _vpWidth() });
   }
-
-  function _renderArchSVG(strip, segPxArr, STRIP_H, GROUND_Y, SC, SW_RAISE, PK_RAISE) {
-    ['seArchSVG', 'seArchBg'].forEach(function(id) { var e = document.getElementById(id); if (e) e.remove(); });
-    var totalW = parseInt(strip.style.width) || strip.offsetWidth || 600;
-    var isTech = (typeof drawingTheme !== 'undefined' && drawingTheme.mode === 'technical');
-    var T = (typeof DS !== 'undefined') ? DS.t() : null;
-
-    // ── GEOMETRY constants (identical in both modes) ──────────────────────
-    var DECK_TK  = Math.max(3, Math.round(0.065 * SC));  // 65mm deck
-    var CURB_H   = Math.max(4, Math.round(0.15 * SC));   // 150mm curb
-    var DECK_TOP = GROUND_Y - CURB_H - DECK_TK;
-    var DECK_BOT = GROUND_Y - CURB_H;
-    var SW_TOP   = GROUND_Y - SW_RAISE;
-    var boardW   = Math.max(5, Math.round(0.09 * SC));
-    var tileW    = Math.max(14, Math.round(0.6 * SC));
-    var m = function(v) { return v * SC; };                 // metres → px
-    var f2 = function(v) { return (+v).toFixed(2); };
-
-    // ── Palette (from DS tokens; fallback keeps old look) ─────────────────
-    var P = isTech ? {
-      paper:'#FFFFFF', ink:'#1A1A1A', mid:'#8E8C88', lt:'#D9D7D2', xlt:'#F2F1EE',
-      soil:'#E9E7E2', slab:'#EDECE8', deck:'#E4E2DD', wall:'#1A1A1A', wood:'#DAD7D1',
-      plant:'#9A9894', plantLt:'#DCDAD5', 
-      wCut:1.6, wProf:0.7, wHair:0.3, wGrain:0.35
-    } : {
-      paper:'#F6F3EC', ink:'#4A4744', mid:'#9C968E', lt:'#DDD9D2', xlt:'#ECE8E0',
-      soil:'#E4D9C6', slab:'#ECE8E0', deck:'#D6AE74', wall:'#6F6A66', wood:'#B8895A',
-      plant:'#7FA06E', plantLt:'#B4C9A4', 
-      wCut:1.2, wProf:0.6, wHair:0.35, wGrain:0.4
-    };
-
-    var s = '<svg id="seArchSVG" xmlns="http://www.w3.org/2000/svg" width="' + totalW + '" height="' + STRIP_H + '" style="position:absolute;left:0;top:0;pointer-events:none;z-index:2;">';
-    // Layers (Brief 08): paper + soil (z 0) | elevation beyond the cut (#seBeyondSVG, z 1) | this
-    // drawing of the cut (z 2) | cut objects (#seObjOverlay, z 10). Beyond is drawn behind the cut.
-    var bg = '<svg id="seArchBg" xmlns="http://www.w3.org/2000/svg" width="' + totalW + '" height="' + STRIP_H + '" style="position:absolute;left:0;top:0;pointer-events:none;z-index:0;">' +
-      '<rect x="0" y="0" width="' + totalW + '" height="' + STRIP_H + '" fill="' + P.paper + '"/>' +
-      '<rect x="0" y="' + GROUND_Y + '" width="' + totalW + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + P.soil + '"/></svg>';
-    s += '<defs>';
-    s += '<pattern id="sePoche" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + P.ink + '" stroke-width="0.9"/></pattern>';
-    s += '<pattern id="seSub" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="' + (isTech ? '#B4B2AD' : 'none') + '" stroke-width="0.45"/></pattern>';
-    s += '<pattern id="seGrain" patternUnits="userSpaceOnUse" width="' + boardW + '" height="200"><line x1="' + boardW + '" y1="0" x2="' + boardW + '" y2="200" stroke="' + (isTech ? '#8E8C88' : 'rgba(110,70,30,.35)') + '" stroke-width="' + P.wGrain + '"/></pattern>';
-    s += '<pattern id="seSoilDot" patternUnits="userSpaceOnUse" width="6" height="6"><circle cx="1.5" cy="1.5" r="0.7" fill="' + (isTech ? '#B0AEA9' : 'none') + '"/><circle cx="4.5" cy="4.5" r="0.5" fill="' + (isTech ? '#C4C2BD' : 'none') + '"/></pattern>';
-    s += '<pattern id="seStip" patternUnits="userSpaceOnUse" width="5" height="5"><circle cx="2.5" cy="2.5" r="0.75" fill="' + (isTech ? '#6E6C68' : 'rgba(40,80,30,.35)') + '"/></pattern>';
-    if (isTech) s += '<pattern id="seBikeH" patternUnits="userSpaceOnUse" width="3.5" height="3.5" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="3.5" stroke="#6E6E6E" stroke-width="0.6"/></pattern>';   // technical: bike lane = 45-degree hatch
-    s += '</defs>';
-    if (_mir()) s += '<g transform="matrix(-1 0 0 1 ' + totalW + ' 0)">';   // looking +Z: mirrored
-
-    // ── Paper + subgrade ─────────────────────────────────────────────────
-    // (paper and soil are the #seArchBg layer)
-    s += '<rect x="0" y="' + GROUND_Y + '" width="' + totalW + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
-
-    var xOff = 0, prevType = null;
-    for (var i = 0; i < _segs.length; i++) {
-      var seg = _segs[i], px = segPxArr[i], x1 = xOff + px, nextType = _segs[i+1] ? _segs[i+1].type : null;
-      switch (seg.type) {
-
-        case 'building': {
-          // Near-building column, outer edge .. sidewalk back. Inside it a world x maps to
-          // x1 + (wx + sidewalkW) * SC. The poche is the building the cut passes through, from
-          // its face outward; the vegetated buffer and the setback in front of it are ground at
-          // sidewalk level. No building at the cut (a gap): ground only.
-          var _LMb = DESIGN_MODEL.landmarks, _swB = -_LMb.sidewalkW;
-          var _Xw = function(wx) { return Math.max(xOff, Math.min(x1, x1 + (wx - _swB) * SC)); };
-          var _cb = (i === 0) ? _cutBuildingL() : null;
-          var faceX = (i === 0) ? (_cb ? _Xw(_cb.footprint.faceX) : xOff) : xOff;
-          if (i === 0 && x1 - faceX > 0.5) {
-            s += '<rect x="' + f2(faceX) + '" y="' + SW_TOP + '" width="' + f2(x1 - faceX) + '" height="' + (STRIP_H - SW_TOP) + '" fill="' + P.slab + '"/>';
-            if (_LMb.bufferW > 0.01) {
-              var _bx0 = _Xw(_LMb.bufferL.x0);
-              if (x1 - _bx0 > 0.5) s += '<rect x="' + f2(_bx0) + '" y="' + SW_TOP + '" width="' + f2(x1 - _bx0) + '" height="' + f2(GROUND_Y - SW_TOP + m(0.12)) + '" fill="url(#seSoilDot)"/>';
-            }
-            s += '<line x1="' + f2(faceX) + '" y1="' + SW_TOP + '" x2="' + x1 + '" y2="' + SW_TOP + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
-          }
-          if (i !== 0 || _cb) {
-            // cut wall: solid poche (tech) / warm dark tone with hatch (schematic)
-            var _wx0 = (i === 0) ? xOff : xOff, _ww = (i === 0) ? faceX - xOff : px;
-            if (_ww > 0.5) {
-              s += '<rect x="' + _wx0 + '" y="0" width="' + f2(_ww) + '" height="' + STRIP_H + '" fill="' + P.wall + '"/>';
-              if (!isTech) s += '<rect x="' + _wx0 + '" y="0" width="' + f2(_ww) + '" height="' + STRIP_H + '" fill="url(#sePoche)" opacity="0.18"/>';
-            }
-            var _fl = (i === 0) ? faceX : xOff;
-            s += '<line x1="' + f2(_fl) + '" y1="0" x2="' + f2(_fl) + '" y2="' + STRIP_H + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
-          }
-          break;
-        }
-
-        case 'sidewalk': {
-          s += '<rect x="' + xOff + '" y="' + SW_TOP + '" width="' + px + '" height="' + (STRIP_H - SW_TOP) + '" fill="' + P.slab + '"/>';
-          if (isTech) s += '<rect x="' + xOff + '" y="' + SW_TOP + '" width="' + px + '" height="' + (GROUND_Y - SW_TOP + m(0.12)) + '" fill="url(#seSoilDot)" opacity="0.7"/>';
-          for (var tx = xOff + tileW; tx < x1; tx += tileW)
-            s += '<line x1="' + tx + '" y1="' + SW_TOP + '" x2="' + tx + '" y2="' + f2(SW_TOP + m(0.12)) + '" stroke="' + P.mid + '" stroke-width="' + P.wHair + '"/>';
-          s += '<line x1="' + xOff + '" y1="' + SW_TOP + '" x2="' + x1 + '" y2="' + SW_TOP + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
-          s += '<line x1="' + xOff + '" y1="' + f2(GROUND_Y + m(0.12)) + '" x2="' + x1 + '" y2="' + f2(GROUND_Y + m(0.12)) + '" stroke="' + P.mid + '" stroke-width="' + P.wHair + '"/>';
-          break;
-        }
-
-        case 'parklet': {
-          // substructure: sleepers + void
-          s += '<rect x="' + xOff + '" y="' + DECK_BOT + '" width="' + px + '" height="' + (GROUND_Y - DECK_BOT) + '" fill="' + P.paper + '"/>';
-          var slp = m(0.09), nS = Math.max(2, Math.floor(px / m(0.6)));
-          for (var k = 0; k <= nS; k++) { var sx = xOff + slp/2 + (px - slp) * k / nS; s += '<rect x="' + f2(sx - slp/2) + '" y="' + f2(DECK_BOT) + '" width="' + f2(slp) + '" height="' + f2(GROUND_Y - DECK_BOT) + '" fill="' + P.wood + '" stroke="' + P.ink + '" stroke-width="' + P.wHair + '"/>'; }
-          // road subgrade continues under the deck
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + P.soil + '"/>';
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
-          // deck boards (cut)
-          s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="' + P.deck + '"/>';
-          s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="url(#seGrain)"/>';
-          s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="none" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
-          break;
-        }
-
-        case 'buf-pk':
-        case 'planting': {
-          var bv = seg.variant || (seg.type === 'planting' ? 'trees' : 'planters');
-          var isGround = (bv === 'trees' || seg.type === 'planting');
-          var surfY = isGround ? SW_TOP : GROUND_Y;
-          s += '<rect x="' + xOff + '" y="' + surfY + '" width="' + px + '" height="' + (STRIP_H - surfY) + '" fill="' + (isGround ? (isTech ? '#DED9CF' : '#CBBB9E') : (isTech ? '#E6E4DF' : '#DCD8D0')) + '"/>';
-          if (isGround) s += '<rect x="' + xOff + '" y="' + surfY + '" width="' + px + '" height="' + (STRIP_H - surfY) + '" fill="url(#seSoilDot)"/>';
-          else s += '<rect x="' + xOff + '" y="' + surfY + '" width="' + px + '" height="' + (STRIP_H - surfY) + '" fill="url(#seSub)"/>';
-          s += '<line x1="' + xOff + '" y1="' + surfY + '" x2="' + x1 + '" y2="' + surfY + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
-          if (bv === 'raised') s += '<rect x="' + f2(xOff + 1) + '" y="' + f2(GROUND_Y - m(0.15)) + '" width="' + f2(px - 2) + '" height="' + f2(m(0.15)) + '" fill="' + (isTech ? P.lt : '#C8C3BA') + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
-          break;
-        }
-
-        case 'bike-lane': {
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? '#E6E4DF' : '#D3DCC6') + '"/>';
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? 'url(#seBikeH)' : 'url(#seSub)') + '"/>';
-          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
-          break;
-        }
-
-        case 'buf-bl': {
-          var blv = seg.variant || 'painted';
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? '#E6E4DF' : '#DCD8D0') + '"/>';
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
-          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
-          if (blv === 'raised') s += '<rect x="' + f2(xOff + 1) + '" y="' + f2(GROUND_Y - m(0.15)) + '" width="' + f2(px - 2) + '" height="' + f2(m(0.15)) + '" fill="' + (isTech ? P.lt : '#C8C3BA') + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
-          break;
-        }
-
-        case 'travel-lane': case 'transit-lane': case 'turn-lane': case 'parking': {
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? '#E1DFDA' : '#DDD9D2') + '"/>';
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
-          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
-          break;
-        }
-
-        case 'curb': {
-          var cTop = GROUND_Y - SW_RAISE, r = Math.min(3, px * 0.4);
-          var toRoad = (nextType === 'sidewalk' || nextType === 'building' || nextType === 'parklet' || nextType === 'planting' || nextType === 'buf-pk') ? 'left' : 'right';
-          var pth = toRoad === 'right'
-            ? 'M' + xOff + ',' + f2(STRIP_H) + ' L' + xOff + ',' + f2(cTop) + ' L' + f2(x1 - r) + ',' + f2(cTop) + ' Q' + x1 + ',' + f2(cTop) + ' ' + x1 + ',' + f2(cTop + r) + ' L' + x1 + ',' + f2(STRIP_H) + 'z'
-            : 'M' + x1 + ',' + f2(STRIP_H) + ' L' + x1 + ',' + f2(cTop) + ' L' + f2(xOff + r) + ',' + f2(cTop) + ' Q' + xOff + ',' + f2(cTop) + ' ' + xOff + ',' + f2(cTop + r) + ' L' + xOff + ',' + f2(STRIP_H) + 'z';
-          s += '<path d="' + pth + '" fill="' + (isTech ? P.lt : '#C8C3BA') + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
-          if (isTech) s += '<path d="' + pth + '" fill="url(#sePoche)" opacity="0.35"/>';
-          break;
-        }
-
-        default: {
-          var dc = (SE_TYPES[seg.type] || {}).color || '#aaa';
-          s += '<rect x="' + xOff + '" y="0" width="' + px + '" height="' + STRIP_H + '" fill="' + dc + '" opacity="0.18"/>';
-        }
-      }
-      prevType = seg.type; xOff += px;
+  // [left, right] px of a strip item in frame f: the building column (poche outboard of the buffer
+  // and setback), a segment (its model x0..x1), or the unallocated width after the last segment.
+  function _boxOf(s, f) {
+    if (s === 'unalloc') return sectionSpan(f.allocatedRight, f.xR, f);
+    if (s.type === 'building') {
+      var b = sectionSpan(f.xL, f.sidewalkX0, f);
+      return f.mir ? [b[0], b[1] + f.poche] : [b[0] - f.poche, b[1]];
     }
-
-    // ── Ground datum (dominant line) ─
-    s += '<line x1="0" y1="' + GROUND_Y + '" x2="' + totalW + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + (isTech ? 2.0 : 1.4) + '"/>';
-    if (_mir()) s += '</g>';
-    s += '</svg>';
-    var tmp = document.createElement('div');
-    tmp.innerHTML = (isTech && typeof DS !== 'undefined') ? DS.achromatic(s) : s;
-    var svgEl = tmp.firstElementChild;
-    if (svgEl) strip.insertBefore(svgEl, strip.firstChild);
-    tmp.innerHTML = (isTech && typeof DS !== 'undefined') ? DS.achromatic(bg) : bg;
-    if (tmp.firstElementChild) strip.insertBefore(tmp.firstElementChild, strip.firstChild);
+    var q = (DESIGN_MODEL.crossSection || []).find(function(x) { return x.id === s.id; });
+    return q ? sectionSpan(q.x0, q.x1, f) : [0, 0];
   }
-
+  function _place(el, b) { el.style.left = b[0].toFixed(2) + 'px'; el.style.width = Math.max(0, b[1] - b[0]).toFixed(2) + 'px'; }
   function _renderStrip() {
     var strip = document.getElementById('seStrip'); if (!strip) return;
-    var _root = document.getElementById('seRoot'); if (_root) _root.classList.toggle('se-mirror', _mir());
-    var m = _metrics();
-    var vpW = _vpWidth();
-    var SC = SECTION_PX_PER_M;
-    var STRIP_H = 260, GROUND_Y = STRIP_H - 32, SW_RAISE = Math.round(0.15 * SC), PK_RAISE = SW_RAISE;
+    var f = _frameNow(), m = _metrics();
     var html = '<div id="seInsLine" aria-hidden="true"></div>';
-    var totalContentPx = 0;
-    var segPxArr = [];
     for (var i = 0; i < _segs.length; i++) {
       var s = _segs[i];
       var def = SE_TYPES[s.type] || {};
-      var px = s.type === 'building' ? _bldgPx() : _segPx(s.width);
-      segPxArr.push(px);
-      totalContentPx += px;
+      var bx = _boxOf(s, f), px = bx[1] - bx[0];
       // Handles on both edges of a resizable segment appear on hover (col-resize). The name is the
       // only text inside a segment, at one size; its width sits in the dimension chain below.
       var rhHtml = (def.resize && !def.fixed) ?
@@ -3860,47 +3463,39 @@ document.addEventListener('mouseup', function() {
       html += '<div class="se-seg'+(def.fixed?' se-fixed':'')+(s.id===_selId?' se-selected':'')+'" '+
         'id="seg_'+s.id+'" data-id="'+s.id+'" data-type="'+s.type+'" '+
         (def.fixed?'':'tabindex="0" aria-label="' + name + ' ' + s.width.toFixed(2) + ' m" ')+
-        'style="width:'+px+'px">'+
+        'style="left:'+bx[0].toFixed(2)+'px;width:'+px.toFixed(2)+'px">'+
         inner + lhHtml + rhHtml + '</div>';
     }
-    var unallocPx = Math.abs(m.remaining) >= 0.001 ? _segPx(Math.abs(m.remaining)) : 0;
+    var ub = _boxOf('unalloc', f), unallocPx = Math.abs(m.remaining) >= 0.001 ? ub[1] - ub[0] : 0;
     if (unallocPx > 0) {
-      totalContentPx += unallocPx;
-      html += '<div id="seUnalloc" class="' + (m.over ? 'over' : '') + '" style="width:'+unallocPx+'px">'+
+      html += '<div id="seUnalloc" class="' + (m.over ? 'over' : '') + '" style="left:'+ub[0].toFixed(2)+'px;width:'+unallocPx.toFixed(2)+'px">'+
         '<span class="se-unalloc-hdr">'+(unallocPx < (m.over ? 48 : 96) ? '' : (m.over?'Over':'Unallocated'))+'</span>'+
         '</div>';
     } else {
       html += '<div id="seUnalloc" style="display:none;width:0"><span class="se-unalloc-hdr"></span></div>';
     }
     strip.innerHTML = html;
-    var stripW = Math.max(vpW, totalContentPx);
-    strip.style.width = stripW + 'px';
-    strip.style.height = STRIP_H + 'px';
+    strip.style.width = f.W.toFixed(2) + 'px';
+    strip.style.height = SECTION_H + 'px';
     var row = document.getElementById('seDimRow');
-    if (row) row.style.width = stripW + 'px';
-    _renderArchSVG(strip, segPxArr, STRIP_H, GROUND_Y, SC, SW_RAISE, PK_RAISE);
+    if (row) row.style.width = f.W.toFixed(2) + 'px';
+    _renderDimRow(f);
+    _drawStrip(f);
     _attachStripEvents(strip);
   }
 
+  // Widths changed (resize drag, typed width, external model change): the boxes, the chain and
+  // the drawing are placed again from the rebuilt model; the boxes themselves are kept.
   function _renderWidths() {
     var strip = document.getElementById('seStrip'); if (!strip) return;
-    var m = _metrics();
-    var vpW = _vpWidth();
-    var totalContentPx = 0;
-    _segs.forEach(function(s) {
-      var el = document.getElementById('seg_'+s.id); if (!el) return;
-      var px = s.type==='building' ? _bldgPx() : _segPx(s.width);
-      totalContentPx += px;
-      el.style.width = px+'px';
-    });
-    // Update unallocated indicator in-place
-    var unallocPx = Math.abs(m.remaining) >= 0.001 ? _segPx(Math.abs(m.remaining)) : 0;
+    var f = _frameNow(), m = _metrics();
+    _segs.forEach(function(s) { var el = document.getElementById('seg_'+s.id); if (el) _place(el, _boxOf(s, f)); });
     var uEl = document.getElementById('seUnalloc');
     if (uEl) {
+      var ub = _boxOf('unalloc', f), unallocPx = Math.abs(m.remaining) >= 0.001 ? ub[1] - ub[0] : 0;
       if (unallocPx > 0) {
-        totalContentPx += unallocPx;
         uEl.style.display = '';
-        uEl.style.width = unallocPx+'px';
+        _place(uEl, ub);
         uEl.classList.toggle('over', m.over);
         var hdr = uEl.querySelector('.se-unalloc-hdr');
         if (hdr) hdr.textContent = unallocPx < (m.over ? 48 : 96) ? '' : (m.over ? 'Over' : 'Unallocated');
@@ -3908,43 +3503,81 @@ document.addEventListener('mouseup', function() {
         uEl.style.display = 'none';
       }
     }
-    var stripW = Math.max(vpW, totalContentPx);
-    strip.style.width = stripW+'px';
+    strip.style.width = f.W.toFixed(2) + 'px';
     var row = document.getElementById('seDimRow');
-    if (row) row.style.width = stripW+'px';
-    // Rebuild arch SVG to reflect new widths
-    var SC = SECTION_PX_PER_M, STRIP_H = 260, GROUND_Y = STRIP_H - 32, SW_RAISE = Math.round(0.15 * SC);
-    var segPxArr2 = _segs.map(function(s) {
-      return s.type === 'building' ? _bldgPx() : _segPx(s.width);
-    });
-    _renderArchSVG(strip, segPxArr2, STRIP_H, GROUND_Y, SC, SW_RAISE, SW_RAISE);
-    _renderDimRow();
+    if (row) row.style.width = f.W.toFixed(2) + 'px';
+    _renderDimRow(f);
+    _drawStrip(f);
   }
 
-  function _renderDimRow() {
+  function _renderDimRow(f) {
     var row = document.getElementById('seDimRow'); if (!row) return;
+    f = f || _frame || _frameNow();
     var m = _metrics();
     // One dimension chain under the strip: a tick at every segment edge, the width centred in
-    // each span (click to type a width), lane status carried by the value's colour.
-    var html = '';
+    // each span (click to type a width), lane status carried by the value's colour. Each cell is
+    // placed from worldToSection, like the segment boxes.
+    var html = '', far = f.mir ? Infinity : -Infinity;
+    function cell(b, cls, inner) {
+      far = f.mir ? Math.min(far, b[0]) : Math.max(far, b[1]);
+      return '<div class="se-dim' + cls + '" style="left:' + b[0].toFixed(2) + 'px;width:' + Math.max(0, b[1] - b[0]).toFixed(2) + 'px">' + inner + '</div>';
+    }
     _segs.forEach(function(s) {
-      if (s.type==='building') { html += '<div class="se-dim se-dim-b" style="width:'+_bldgPx()+'px"></div>'; return; }
-      var px = _segPx(s.width), def = SE_TYPES[s.type] || {};
+      var b = _boxOf(s, f), px = b[1] - b[0];
+      if (s.type==='building') { html += cell(b, ' se-dim-b', ''); return; }
+      var def = SE_TYPES[s.type] || {};
       var ls = s.type === 'travel-lane' ? _laneStatus(m.laneById[s.id]) : null;
       var col = ls && ls.text ? ' style="color:' + ls.text + '"' : '';
       var v = s.width.toFixed(2);
-      html += '<div class="se-dim" style="width:'+px+'px">' +
-        (px < 26 ? '' : def.resize
+      html += cell(b, '', px < 26 ? '' : def.resize
           ? '<button class="se-dimv" data-edit="'+s.id+'"'+col+' title="'+(def.label||s.type)+' width, m - click to edit">'+v+'</button>'
-          : '<span class="se-dimv"'+col+'>'+v+'</span>') +
-        '</div>';
+          : '<span class="se-dimv"'+col+'>'+v+'</span>');
     });
-    var unallocPx = Math.abs(m.remaining) >= 0.001 ? _segPx(Math.abs(m.remaining)) : 0;
-    if (unallocPx > 0)
-      html += '<div class="se-dim se-dim-u' + (m.over ? ' over' : '') + '" style="width:'+unallocPx+'px">' +
-        (unallocPx < 26 ? '' : '<span class="se-dimv">'+Math.abs(m.remaining).toFixed(2)+'</span>') + '</div>';
-    html += '<div class="se-dim se-dim-b" style="width:0"></div>';   // closing tick
+    if (Math.abs(m.remaining) >= 0.001) {
+      var ub = _boxOf('unalloc', f);
+      html += cell(ub, ' se-dim-u' + (m.over ? ' over' : ''), (ub[1] - ub[0] < 26 ? '' : '<span class="se-dimv">'+Math.abs(m.remaining).toFixed(2)+'</span>'));
+    }
+    html += '<div class="se-dim se-dim-b" style="left:' + (isFinite(far) ? far : 0).toFixed(2) + 'px;width:0"></div>';   // closing tick
     row.innerHTML = html;
+  }
+
+  // The drawing: renderCrossSection into this strip's own SVG; the frame it drew with is the one
+  // the boxes, the placement click and the Plan/3D selection read (window._seFrame).
+  function _drawStrip(f) {
+    var strip = document.getElementById('seStrip'); if (!strip) return null;
+    var svg = document.getElementById('seDrawSVG');
+    if (!svg || svg.parentNode !== strip) {
+      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.id = 'seDrawSVG'; svg.setAttribute('aria-hidden', 'true');
+      svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;z-index:0;overflow:hidden;';
+      strip.insertBefore(svg, strip.firstChild);
+    }
+    var r = renderCrossSection(svg, { pxPerM: (f || {}).SC || SECTION_PX_PER_M, minWidth: _vpWidth(), labels: 'screen' });
+    _frame = r.frame;
+    window._seFrame = _frame;
+    window._seX = function(wx) { return worldToSection(wx, 0, _frame).px; };
+    window._seWorldX = function(px) { return sectionToWorld(px, 0, _frame).x; };
+    window._sePkLeft = worldToSection(0, 0, _frame).px; window._seStripSC = _frame.SC;   // legacy readers
+    return _frame;
+  }
+  // An object of the drawing under the pointer (cut objects are drawn last, on top).
+  function _objAt(e) {
+    var svg = document.getElementById('seDrawSVG'); if (!svg) return null;
+    var gs = svg.querySelectorAll('[data-inst]');
+    for (var i = gs.length - 1; i >= 0; i--) {
+      var r = gs[i].getBoundingClientRect();
+      if (r.width && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return gs[i];
+    }
+    return null;
+  }
+  // Selection (Brief 08 #5): clicking an object in Section selects it in Plan and 3D.
+  function _selectObj(g) {
+    var id = g.getAttribute('data-inst');
+    var inst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return String(i.id) === id; }) : null;
+    if (!inst) return;
+    if (typeof fl3DSelect === 'function') fl3DSelect(inst.id); else if (typeof setSelection === 'function') setSelection('furniture', inst.id, inst);
+    if (typeof renderPlanView === 'function') renderPlanView();
+    _drawStrip(_frame);
   }
 
   // Width typed into the chain: same history + commit path as the properties panel.
@@ -4079,8 +3712,12 @@ document.addEventListener('mouseup', function() {
 
   // ── Attach strip events ────────────────────────────────────────────
   function _attachStripEvents(strip) {
+    if (strip._seEv) return; strip._seEv = true;   // the strip element persists; its content is rebuilt
     strip.addEventListener('pointerdown', function(e) {
       var rh = e.target.closest('.se-rh');
+      // an object of the drawing under the pointer is selected (the boxes lie above the drawing)
+      var og = rh ? null : _objAt(e);
+      if (og) { e.preventDefault(); e.stopPropagation(); _selectObj(og); return; }
       var seg = e.target.closest('.se-seg:not(.se-fixed)');
       if (!rh && !seg) return;
       e.preventDefault();
@@ -4252,7 +3889,7 @@ document.addEventListener('mouseup', function() {
       '<div style="position:relative;padding:22px 0 6px 0;background:var(--bg)">'+
         '<div id="seTrash">Drop here to remove the segment</div>'+
         '<div id="seViewport">'+
-          '<div id="seStrip" style="display:flex;flex-direction:row;align-items:stretch;height:260px;position:relative;border:1px solid var(--rule);border-radius:3px;overflow:visible;background:#eceae6"></div>'+
+          '<div id="seStrip" style="height:260px;position:relative;border:1px solid var(--rule);border-radius:3px;overflow:visible;background:#eceae6"></div>'+
           '<div id="seDimRow"></div>'+
         '</div>'+
         '<div id="seStats"></div>'+
@@ -4329,26 +3966,9 @@ document.addEventListener('mouseup', function() {
     if (b) { b.classList.toggle('active', _fitMode); b.setAttribute('aria-pressed', String(_fitMode)); b.title = _fitMode ? 'Showing the whole section - click for 1:1 scale (scrolls)' : 'Fit the whole section in the view'; }
     _recomputeScale(); _seRender();
   };
-  window.getSectionGeometry = function(){
-    // Return ordered segment geometry with world X coordinates.
-    // WorldX=0 is defined as the LEFT edge of the parklet (curb line / XCL in 3D).
-    // Sidewalk is at negative worldX; road/bike zone is at positive worldX.
-    var nonBldg = _segs.filter(function(s){ return s.type !== 'building'; });
-    // Find parklet to anchor worldX=0
-    var pkIdx = -1;
-    for (var i = 0; i < nonBldg.length; i++) { if (nonBldg[i].type === 'parklet') { pkIdx = i; break; } }
-    var startX = 0;
-    if (pkIdx > 0) { for (var j = 0; j < pkIdx; j++) startX -= nonBldg[j].width; }
-    var cx = startX, result = [];
-    nonBldg.forEach(function(s) {
-      var x0 = Math.round(cx * 1000) / 1000;
-      var x1 = Math.round((cx + s.width) * 1000) / 1000;
-      result.push({ id:s.id, type:s.type, width:s.width, variant:s.variant, x0:x0, x1:x1 });
-      cx += s.width;
-    });
-    return result;
-  };
-  window.seRenderObjects = _seRenderObjects;
+  // the model changed (cut, depth, direction, furniture, widths): boxes, chain and drawing follow
+  window.seRenderObjects = function() { _renderWidths(); };
+  window.seFrame = function() { return _frame; };
 
 })();
 
@@ -4520,557 +4140,384 @@ function getSectionScene(sec) {
 
 // ── Objects intersected by a vertical plane at world Z = cutWorldZ (legacy shape) ───────────
 // Thin wrapper over getSectionScene(...).cut, kept for the static cross-section renderer.
-function getSectionObjectsAt(cutWorldZ) {
-  var sec = Object.assign({}, _dmCurrent().section || { dir: -1, depth: 6 }, { z: cutWorldZ });
-  var sc = getSectionScene(sec).cut, PW = _dmCurrent().parklet.width;
-  var result = { trees: [], bollards: [], furniture: [], streetObjects: [], manholes: [] };
-  sc.forEach(function(it) {
-    var d = it.data;
-    if (it.kind === 'tree' || it.kind === 'planter')
-      result.trees.push({ x: d.v.x, z: d.v.z, type: it.kind === 'tree' ? 'trees' : 'planters', side: d.seg.type === 'buf-pk' ? 'A' : 'B',
-        radius: d.v.canopyR, trunkR: d.v.trunkR, bufW: d.seg.width, sourceSegId: d.v.segId, atRoadLevel: d.seg.x0 >= PW - 0.001 });
-    else if (it.kind === 'bollard') result.bollards.push({ x: (it.x0 + it.x1) / 2, z: (it.z0 + it.z1) / 2, radius: 0.062, sourceSegId: d.segId });
-    else if (it.kind === 'furniture' || it.kind === 'entourage') { if (d.box) result.furniture.push({ id: it.id, objId: d.inst.objId, box: d.box, isCut: true, isBeyond: false }); }
-    else if (it.kind === 'street') result.streetObjects.push({ type: d.cf.type, xM: d.cf.xM });
-    else if (it.kind === 'manhole') result.manholes.push({ xM: d.mh.xM, yM: d.mh.yM });
-  });
-  return result;
-}
 
-// Section A-A drawing (#crossSection). With o = {svg, theme, mmPerM} it draws into that SVG for paper (the
-// report): one scale both ways (the context buildings too, at the street's px/m), dimensions on,
-// its viewBox from its own layout (context left .. context right, sky over the tallest building
-// .. the dimension chains), no zoom, measure or panel side effects. The live SVG and _csVB are
-// not touched.
-function renderCrossSection(o) {
-  if (!o || !o.svg) return _renderCrossSection(null);
+// ── Section A-A: the one section drawer ──────────────────────────────────────────────────────
+// Every section drawing - the Section editor strip and the report's sheet 04 - is this function's
+// output. It reads only the model: DESIGN_MODEL.crossSection (segments with x0/x1), .landmarks,
+// .buildings, .section (the Brief 08 cut: z, dir, depth), .vegetation and the placed objects
+// through getSectionScene. Style: the Brief 07 strip (flat fills, one label size, no entourage).
+//
+// sectionFrame(DM, o): world x (across the street, m; 0 = the near curb) and y (up, m; 0 = the
+// road surface) to drawing px, like worldToPlan for Plan. Left to right: 24 px of near-building
+// poche, the vegetated buffer and the deepest near setback, the sidewalk, the road segments, then
+// any unallocated (or over-allocated) width. Looking +Z (section.dir = +1) mirrors it: world +X
+// runs to the left. o = {pxPerM (default 60), minWidth (px), labels}.
+var SECTION_POCHE_PX = 24, SECTION_H = 260, SECTION_GROUND_Y = 228;
+function sectionFrame(DM, o) {
+  o = o || {};
+  var LM = DM.landmarks, SC = o.pxPerM || 60, sb = 0;
+  ((DM.buildings && DM.buildings.L) || []).forEach(function(b) { if (b.footprint && b.footprint.visible) sb = Math.max(sb, b.footprint.setback || 0); });
+  var xL = LM.sidewalkL.x0 - (LM.bufferW || 0) - sb;
+  var rem = Math.round((DM.totalRoad - DM.allocated) * 1000) / 1000;
+  var xR = LM.allocatedRight + Math.abs(rem);
+  var W = Math.max(o.minWidth || 0, SECTION_POCHE_PX + (xR - xL) * SC);
+  var mir = !!(DM.section && DM.section.dir === 1);
+  return { SC: SC, xL: xL, xR: xR, W: W, H: SECTION_H + (o.labels === 'paper' ? 44 : 0), groundY: SECTION_GROUND_Y,
+    mir: mir, xs: mir ? -1 : 1, x0: mir ? W - SECTION_POCHE_PX + xL * SC : SECTION_POCHE_PX - xL * SC,
+    poche: SECTION_POCHE_PX, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
+    swRaise: Math.round(0.15 * SC), deckTk: Math.max(3, Math.round(0.065 * SC)) };
+}
+function worldToSection(x, y, f) { return { px: f.x0 + f.xs * x * f.SC, py: f.groundY - (y || 0) * f.SC }; }
+function sectionToWorld(px, py, f) { return { x: (px - f.x0) / (f.xs * f.SC), y: (f.groundY - (py || f.groundY)) / f.SC }; }
+// px span [left, right] of world x0..x1 in frame f (either direction)
+function sectionSpan(x0, x1, f) { var a = worldToSection(x0, 0, f).px, b = worldToSection(x1, 0, f).px; return [Math.min(a, b), Math.max(a, b)]; }
+// The near building the cut passes through (its poche), or null (a gap between buildings).
+function sectionCutBuildingL(DM) {
+  var z = DM.section ? DM.section.z : 0;
+  return ((DM.buildings && DM.buildings.L) || []).find(function(b) { var f = b.footprint; return f && f.visible && f.z0 <= z && f.z1 >= z; }) || null;
+}
+// renderCrossSection(target, opts): draws the section into the SVG `target`. Without a target it
+// redraws the live Section editor strip (which calls back with its own SVG). opts = {pxPerM,
+// minWidth, paper, scale, labels: 'screen' | 'paper', theme, selId}. On paper (labels 'paper')
+// the segment names and the dimension chain - HTML on screen - are drawn in the SVG, and text is
+// sized for the sheet at 1:scale. Returns {frame, W, H, pxPerM}.
+function renderCrossSection(target, opts) {
+  if (!target) { if (typeof window.seRenderObjects === 'function') window.seRenderObjects(); return null; }
+  opts = opts || {};
   var keep = drawingTheme.mode;
-  if (o.theme) drawingTheme.mode = o.theme;
-  try { return _renderCrossSection(o); } finally { drawingTheme.mode = keep; }
+  if (opts.theme) drawingTheme.mode = opts.theme;
+  try { return _drawSection(target, opts); } finally { drawingTheme.mode = keep; }
 }
-function _renderCrossSection(o) {
-  const paper = !!o;
-  const svg = paper ? o.svg : document.getElementById('crossSection');
-  if (!svg) return;
-  const dimsOn = paper || _csDimsOn;  const VW = 760, GY = 148, SFB = 188, PB = 202, DIM_Y = 220;
-  const FACADE_W = 28, TAIL_W = 32;
-  const _csDM = buildDesignModel(), _csLM = _csDM.landmarks;
-  const _csRoad = _csDM.totalRoad, _csSW = _csLM.sidewalkW, _csPkW = _csLM.deckW;
-  const bufW = _csLM.bufferW;
-  const SC = (VW - FACADE_W - TAIL_W) / (_csSW + _csRoad);
-  // paper: text sized for the sheet (a 7 px label prints at ~6.5 pt at o.mmPerM mm per metre)
-  const fT = paper ? (2.3 / 7) * SC / (o.mmPerM || 20) : 1;
-  const bufPX = bufW * SC;
-  const reqLane = getReqLane();
-  const bld = getBikeLaneD();
-  const residual = parseFloat((_csRoad - _csPkW).toFixed(4));
-  const carResidual = parseFloat((residual - bld).toFixed(4));
-  // Lane status from the actual lane segments (LANE_ENVELOPE / C02); the narrowest lane governs.
-  const _csLanes = assessLanes(_csDM.crossSection);
-  const laneW = _csLanes.length ? Math.min.apply(null, _csLanes.map(function(a){ return a.width; })) : 0;
-  const laneOk = _csLanes.length > 0 && _csLanes.every(function(a){ return a.c02; });
-  const maxPkW = _csRoad - bld - reqLane;
-  const XBF = FACADE_W;
-  const XBUF = XBF + bufW * SC;
-  // Default positions from the model; overridden below by segment walk
-  let XSW = XBF + (bufW + _csSW) * SC;
-  let XPK = XSW + _csPkW * SC;
-  let XBL = XPK + bld * SC;
-  let XLN = XBL + carResidual * SC;
-  let XLN_actual = XBL + carResidual * SC;
-  let XTAIL = XLN + TAIL_W;
+function _drawSection(svgEl, o) {
+  var DM = DESIGN_MODEL, f = sectionFrame(DM, o), SC = f.SC, mir = f.mir, xs = f.xs, W = f.W, H = f.H;
+  var STRIP_H = SECTION_H, GROUND_Y = f.groundY, SW_RAISE = f.swRaise, DECK_TK = f.deckTk;
+  var isTech = (typeof drawingTheme !== 'undefined' && drawingTheme.mode === 'technical');
+  var SE_TYPES = window.SE_TYPES || {};
+  var paper = o.labels === 'paper';
+  // one label size: 9 px on screen; on paper ~7 pt at 1:scale
+  var LBL = paper ? 2.47 / (1000 / (o.scale || 50) / SC) : 9;
+  var f1 = function(v) { return (+v).toFixed(1); }, f2 = function(v) { return (+v).toFixed(2); };
+  var m = function(v) { return v * SC; };
+  // ── the cut drawing (segments), in the un-mirrored frame; mirrored as a whole below ─────────
+  var P = isTech ? {
+    paper:'#FFFFFF', ink:'#1A1A1A', mid:'#8E8C88', lt:'#D9D7D2', xlt:'#F2F1EE',
+    soil:'#E9E7E2', slab:'#EDECE8', deck:'#E4E2DD', wall:'#1A1A1A', wood:'#DAD7D1',
+    plant:'#9A9894', plantLt:'#DCDAD5', wCut:1.6, wProf:0.7, wHair:0.3, wGrain:0.35
+  } : {
+    paper:'#F6F3EC', ink:'#4A4744', mid:'#9C968E', lt:'#DDD9D2', xlt:'#ECE8E0',
+    soil:'#E4D9C6', slab:'#ECE8E0', deck:'#D6AE74', wall:'#6F6A66', wood:'#B8895A',
+    plant:'#7FA06E', plantLt:'#B4C9A4', wCut:1.2, wProf:0.6, wHair:0.35, wGrain:0.4
+  };
+  var CURB_H = Math.max(4, Math.round(0.15 * SC)), DECK_TOP = GROUND_Y - CURB_H - DECK_TK, DECK_BOT = GROUND_Y - CURB_H, SW_TOP = GROUND_Y - SW_RAISE;
+  var boardW = Math.max(5, Math.round(0.09 * SC)), tileW = Math.max(14, Math.round(0.6 * SC));
+  var U = function(wx) { return f.poche + (wx - f.xL) * SC; };   // un-mirrored px of world x
+  var bg = '<rect x="0" y="0" width="' + f2(W) + '" height="' + H + '" fill="' + (paper ? '#FFFFFF' : P.paper) + '"/>' +
+    '<rect x="0" y="0" width="' + f2(W) + '" height="' + STRIP_H + '" fill="' + P.paper + '"/>' +
+    '<rect x="0" y="' + GROUND_Y + '" width="' + f2(W) + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + P.soil + '"/>';
+  var s = '<defs>';
+  s += '<pattern id="sePoche" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + P.ink + '" stroke-width="0.9"/></pattern>';
+  s += '<pattern id="seSub" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="' + (isTech ? '#B4B2AD' : 'none') + '" stroke-width="0.45"/></pattern>';
+  s += '<pattern id="seGrain" patternUnits="userSpaceOnUse" width="' + boardW + '" height="200"><line x1="' + boardW + '" y1="0" x2="' + boardW + '" y2="200" stroke="' + (isTech ? '#8E8C88' : 'rgba(110,70,30,.35)') + '" stroke-width="' + P.wGrain + '"/></pattern>';
+  s += '<pattern id="seSoilDot" patternUnits="userSpaceOnUse" width="6" height="6"><circle cx="1.5" cy="1.5" r="0.7" fill="' + (isTech ? '#B0AEA9' : 'none') + '"/><circle cx="4.5" cy="4.5" r="0.5" fill="' + (isTech ? '#C4C2BD' : 'none') + '"/></pattern>';
+  s += '<pattern id="seStip" patternUnits="userSpaceOnUse" width="5" height="5"><circle cx="2.5" cy="2.5" r="0.75" fill="' + (isTech ? '#6E6C68' : 'rgba(40,80,30,.35)') + '"/></pattern>';
+  if (isTech) s += '<pattern id="seBikeH" patternUnits="userSpaceOnUse" width="3.5" height="3.5" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="3.5" stroke="#6E6E6E" stroke-width="0.6"/></pattern>';
+  s += '</defs>';
+  var arch = '<g data-layer="cut-drawing"' + (mir ? ' transform="matrix(-1 0 0 1 ' + f2(W) + ' 0)"' : '') + '>';
+  arch += '<rect x="0" y="' + GROUND_Y + '" width="' + f2(W) + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
+  var _cutBuildingL = function() { return sectionCutBuildingL(DM); };
+  var segs = [{ type: 'building', xa: 0, xb: U(f.sidewalkX0) }].concat(DM.crossSection.slice().sort(function(a, b) { return a.x0 - b.x0; })
+    .map(function(q) { return { type: q.type, variant: q.variant, width: q.width, id: q.id, xa: U(q.x0), xb: U(q.x1) }; }));
+  for (var i = 0; i < segs.length; i++) {
+    var seg = segs[i], xOff = seg.xa, x1 = seg.xb, px = x1 - xOff, nextType = segs[i + 1] ? segs[i + 1].type : null;
+    var ss = '';
+    (function() { var s = '';       switch (seg.type) {
 
-  // ── Segment walk: derive X positions from the section editor ─────────
-  const _sg = (typeof getSectionGeometry === 'function') ? getSectionGeometry() : null;
-  let _segZones = {};
-  const _zEnd = function(t){ const z=_segZones[t]; return z ? z[z.length-1].x1 : null; };
-  const _zStart = function(t){ const z=_segZones[t]; return z ? z[0].x0 : null; };
-  if (_sg && _sg.length > 0) {
-    let _cx = XBF + bufW * SC;
-    _sg.filter(function(s){ return s.type !== 'building'; }).forEach(function(s) {
-      if (!_segZones[s.type]) _segZones[s.type] = [];
-      const _x0 = _cx, _x1 = _cx + s.width * SC;
-      _segZones[s.type].push({x0:_x0, x1:_x1, width:s.width, variant:s.variant});
-      _cx = _x1;
+        case 'building': {
+          // Near-building column, outer edge .. sidewalk back. Inside it a world x maps to
+          // x1 + (wx + sidewalkW) * SC. The poche is the building the cut passes through, from
+          // its face outward; the vegetated buffer and the setback in front of it are ground at
+          // sidewalk level. No building at the cut (a gap): ground only.
+          var _LMb = DESIGN_MODEL.landmarks, _swB = -_LMb.sidewalkW;
+          var _Xw = function(wx) { return Math.max(xOff, Math.min(x1, x1 + (wx - _swB) * SC)); };
+          var _cb = (i === 0) ? _cutBuildingL() : null;
+          var faceX = (i === 0) ? (_cb ? _Xw(_cb.footprint.faceX) : xOff) : xOff;
+          if (i === 0 && x1 - faceX > 0.5) {
+            s += '<rect x="' + f2(faceX) + '" y="' + SW_TOP + '" width="' + f2(x1 - faceX) + '" height="' + (STRIP_H - SW_TOP) + '" fill="' + P.slab + '"/>';
+            if (_LMb.bufferW > 0.01) {
+              var _bx0 = _Xw(_LMb.bufferL.x0);
+              if (x1 - _bx0 > 0.5) s += '<rect x="' + f2(_bx0) + '" y="' + SW_TOP + '" width="' + f2(x1 - _bx0) + '" height="' + f2(GROUND_Y - SW_TOP + m(0.12)) + '" fill="url(#seSoilDot)"/>';
+            }
+            s += '<line x1="' + f2(faceX) + '" y1="' + SW_TOP + '" x2="' + x1 + '" y2="' + SW_TOP + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
+          }
+          if (i !== 0 || _cb) {
+            // cut wall: solid poche (tech) / warm dark tone with hatch (schematic)
+            var _wx0 = (i === 0) ? xOff : xOff, _ww = (i === 0) ? faceX - xOff : px;
+            if (_ww > 0.5) {
+              s += '<rect x="' + _wx0 + '" y="0" width="' + f2(_ww) + '" height="' + STRIP_H + '" fill="' + P.wall + '"/>';
+              if (!isTech) s += '<rect x="' + _wx0 + '" y="0" width="' + f2(_ww) + '" height="' + STRIP_H + '" fill="url(#sePoche)" opacity="0.18"/>';
+            }
+            var _fl = (i === 0) ? faceX : xOff;
+            s += '<line x1="' + f2(_fl) + '" y1="0" x2="' + f2(_fl) + '" y2="' + STRIP_H + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
+          }
+          break;
+        }
+
+        case 'sidewalk': {
+          s += '<rect x="' + xOff + '" y="' + SW_TOP + '" width="' + px + '" height="' + (STRIP_H - SW_TOP) + '" fill="' + P.slab + '"/>';
+          if (isTech) s += '<rect x="' + xOff + '" y="' + SW_TOP + '" width="' + px + '" height="' + (GROUND_Y - SW_TOP + m(0.12)) + '" fill="url(#seSoilDot)" opacity="0.7"/>';
+          for (var tx = xOff + tileW; tx < x1; tx += tileW)
+            s += '<line x1="' + tx + '" y1="' + SW_TOP + '" x2="' + tx + '" y2="' + f2(SW_TOP + m(0.12)) + '" stroke="' + P.mid + '" stroke-width="' + P.wHair + '"/>';
+          s += '<line x1="' + xOff + '" y1="' + SW_TOP + '" x2="' + x1 + '" y2="' + SW_TOP + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
+          s += '<line x1="' + xOff + '" y1="' + f2(GROUND_Y + m(0.12)) + '" x2="' + x1 + '" y2="' + f2(GROUND_Y + m(0.12)) + '" stroke="' + P.mid + '" stroke-width="' + P.wHair + '"/>';
+          break;
+        }
+
+        case 'parklet': {
+          // substructure: sleepers + void
+          s += '<rect x="' + xOff + '" y="' + DECK_BOT + '" width="' + px + '" height="' + (GROUND_Y - DECK_BOT) + '" fill="' + P.paper + '"/>';
+          var slp = m(0.09), nS = Math.max(2, Math.floor(px / m(0.6)));
+          for (var k = 0; k <= nS; k++) { var sx = xOff + slp/2 + (px - slp) * k / nS; s += '<rect x="' + f2(sx - slp/2) + '" y="' + f2(DECK_BOT) + '" width="' + f2(slp) + '" height="' + f2(GROUND_Y - DECK_BOT) + '" fill="' + P.wood + '" stroke="' + P.ink + '" stroke-width="' + P.wHair + '"/>'; }
+          // road subgrade continues under the deck
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + P.soil + '"/>';
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
+          // deck boards (cut)
+          s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="' + P.deck + '"/>';
+          s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="url(#seGrain)"/>';
+          s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="none" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
+          break;
+        }
+
+        case 'buf-pk':
+        case 'planting': {
+          var bv = seg.variant || (seg.type === 'planting' ? 'trees' : 'planters');
+          var isGround = (bv === 'trees' || seg.type === 'planting');
+          var surfY = isGround ? SW_TOP : GROUND_Y;
+          s += '<rect x="' + xOff + '" y="' + surfY + '" width="' + px + '" height="' + (STRIP_H - surfY) + '" fill="' + (isGround ? (isTech ? '#DED9CF' : '#CBBB9E') : (isTech ? '#E6E4DF' : '#DCD8D0')) + '"/>';
+          if (isGround) s += '<rect x="' + xOff + '" y="' + surfY + '" width="' + px + '" height="' + (STRIP_H - surfY) + '" fill="url(#seSoilDot)"/>';
+          else s += '<rect x="' + xOff + '" y="' + surfY + '" width="' + px + '" height="' + (STRIP_H - surfY) + '" fill="url(#seSub)"/>';
+          s += '<line x1="' + xOff + '" y1="' + surfY + '" x2="' + x1 + '" y2="' + surfY + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
+          if (bv === 'raised') s += '<rect x="' + f2(xOff + 1) + '" y="' + f2(GROUND_Y - m(0.15)) + '" width="' + f2(px - 2) + '" height="' + f2(m(0.15)) + '" fill="' + (isTech ? P.lt : '#C8C3BA') + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
+          break;
+        }
+
+        case 'bike-lane': {
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? '#E6E4DF' : '#D3DCC6') + '"/>';
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? 'url(#seBikeH)' : 'url(#seSub)') + '"/>';
+          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
+          break;
+        }
+
+        case 'buf-bl': {
+          var blv = seg.variant || 'painted';
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? '#E6E4DF' : '#DCD8D0') + '"/>';
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
+          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
+          if (blv === 'raised') s += '<rect x="' + f2(xOff + 1) + '" y="' + f2(GROUND_Y - m(0.15)) + '" width="' + f2(px - 2) + '" height="' + f2(m(0.15)) + '" fill="' + (isTech ? P.lt : '#C8C3BA') + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
+          break;
+        }
+
+        case 'travel-lane': case 'transit-lane': case 'turn-lane': case 'parking': {
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? '#E1DFDA' : '#DDD9D2') + '"/>';
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
+          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
+          break;
+        }
+
+        case 'curb': {
+          var cTop = GROUND_Y - SW_RAISE, r = Math.min(3, px * 0.4);
+          var toRoad = (nextType === 'sidewalk' || nextType === 'building' || nextType === 'parklet' || nextType === 'planting' || nextType === 'buf-pk') ? 'left' : 'right';
+          var pth = toRoad === 'right'
+            ? 'M' + xOff + ',' + f2(STRIP_H) + ' L' + xOff + ',' + f2(cTop) + ' L' + f2(x1 - r) + ',' + f2(cTop) + ' Q' + x1 + ',' + f2(cTop) + ' ' + x1 + ',' + f2(cTop + r) + ' L' + x1 + ',' + f2(STRIP_H) + 'z'
+            : 'M' + x1 + ',' + f2(STRIP_H) + ' L' + x1 + ',' + f2(cTop) + ' L' + f2(xOff + r) + ',' + f2(cTop) + ' Q' + xOff + ',' + f2(cTop) + ' ' + xOff + ',' + f2(cTop + r) + ' L' + xOff + ',' + f2(STRIP_H) + 'z';
+          s += '<path d="' + pth + '" fill="' + (isTech ? P.lt : '#C8C3BA') + '" stroke="' + P.ink + '" stroke-width="' + P.wCut + '"/>';
+          if (isTech) s += '<path d="' + pth + '" fill="url(#sePoche)" opacity="0.35"/>';
+          break;
+        }
+
+        default: {
+          var dc = (SE_TYPES[seg.type] || {}).color || '#aaa';
+          s += '<rect x="' + xOff + '" y="0" width="' + px + '" height="' + STRIP_H + '" fill="' + dc + '" opacity="0.18"/>';
+        }
+      }
+ ss = s; })();
+    arch += ss;
+  }
+  arch += '<line x1="0" y1="' + GROUND_Y + '" x2="' + f2(W) + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + (isTech ? 2.0 : 1.4) + '"/>';
+  arch += '</g>';
+  // ── objects at the cut and beyond it (Brief 08), in the mirror-aware frame; no entourage ────
+  var scene;
+  try { scene = getSectionScene(DM.section); } catch (e) { console.warn('[section] getSectionScene failed', e); scene = { cut: [], beyond: [] }; }
+  scene = { section: scene.section, cut: scene.cut.filter(function(it) { return it.kind !== 'entourage'; }), beyond: scene.beyond.filter(function(it) { return it.kind !== 'entourage'; }) };
+  var CS = DM.crossSection, pkSurface = GROUND_Y - SW_RAISE - DECK_TK;
+  function X(wx) { return worldToSection(wx, 0, f).px; }
+  function Y(mm) { return mm * SC; }
+  function surf(wx) {   // top of the surface under world x
+    if (wx < 0) return SW_TOP;
+    var sg = CS.find(function(q) { return q.type !== 'sidewalk' && wx >= q.x0 - 1e-6 && wx <= q.x1 + 1e-6; });
+    if (sg && sg.type === 'parklet') return pkSurface;
+    if (sg && sg.type === 'planting') return SW_TOP;
+    return GROUND_Y;
+  }
+  var svgW = W, selId = o.selId != null ? o.selId : ((window.FL3D && FL3D.selId != null) ? FL3D.selId : null);
+  function open(sec, it) {
+    return "<g data-sec='" + sec + "' data-key='" + it.key + "'" + (it.id != null ? " data-inst='" + it.id + "'" : '') +
+      (it.id != null && it.id === selId ? " class='se-sel'" : '') + '>';
+  }
+  function rectXY(xa, xb, ya, yb, st) {
+    var l = Math.min(xa, xb), r = Math.max(xa, xb), t = Math.min(ya, yb), b = Math.max(ya, yb);
+    return "<rect x='" + f1(l) + "' y='" + f1(t) + "' width='" + f1(Math.max(0.8, r - l)) + "' height='" + f1(Math.max(0.8, b - t)) + "'" + st + '/>';
+  }
+  var FL_LABEL = LBL;   // furniture labels at the one label size
+      // ── BEYOND: elevation, outline only ─────────────────────────────────────────────────────
+    var BW = isTech ? 0.5 : 0.5;                                      // one weight under the cut (0.7-1.0)
+    var BINK = isTech ? '#1A1A1A' : '#6F6A66';
+    function bst(tint) { return " fill='" + (isTech ? 'none' : tint) + "'" + (isTech ? '' : " fill-opacity='0.10'") + " stroke='" + BINK + "' stroke-width='" + BW + "'"; }
+    var bv = '';
+    scene.beyond.forEach(function(it) {
+      var d = it.data, g = open('beyond', it), cx = (it.x0 + it.x1) / 2, base = surf(cx);
+      if (it.kind === 'furniture' || it.kind === 'entourage') {
+        var inst = d.inst, sp = flInstSpec(inst);
+        if (sp) {
+          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface - Y(flSupportTop(inst));
+          g += flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0,
+            rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
+            xToPx: X, yDeck: b0, SC: SC, isBeyond: true, tech: isTech, id: inst.id });
+        } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('#C4906A'));
+      } else if (it.kind === 'tree') {
+        var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, r = Math.max(0.15, v.canopyR) * SC, tw = Math.max(2, 0.12 * SC);
+        var tTop = gy - Y(2.0), cy = tTop - r * 0.3;
+        g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(cy) + "' rx='" + f1(r) + "' ry='" + f1(r * 0.82) + "'" + bst('#7FA06E') + '/>';
+        g += rectXY(tx - tw / 2, tx + tw / 2, gy, tTop, bst('#8A7256'));
+      } else if (it.kind === 'planter') {
+        g += rectXY(X(it.x0), X(it.x1), surf(d.v.x), surf(d.v.x) - Y(0.5), bst('#B4C9A4'));
+      } else if (it.kind === 'building') {
+        // plain facade: the building's end elevation from its face to its rear wall, standing on
+        // the sidewalk level; the setback in front of the face is dimensioned on the ground.
+        var f = d.f, top = Math.max(0, SW_TOP - Y(it.y1));
+        g += rectXY(X(f.faceX), X(f.backX), SW_TOP, top, bst('#B9B3A8'));
+        if ((f.setback || 0) > 0.01) {
+          var a = X(f.frontageX), b = X(f.faceX), yy = SW_TOP - 6;
+          g += "<line x1='" + f1(a) + "' y1='" + yy + "' x2='" + f1(b) + "' y2='" + yy + "' stroke='" + BINK + "' stroke-width='0.5'/>";
+          [a, b].forEach(function(q) { g += "<line x1='" + f1(q - 2.5) + "' y1='" + (yy + 2.5) + "' x2='" + f1(q + 2.5) + "' y2='" + (yy - 2.5) + "' stroke='" + BINK + "' stroke-width='0.8'/>"; });
+          if (Math.abs(b - a) > 26) g += "<text x='" + f1((a + b) / 2) + "' y='" + (yy - 3) + "' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='" + f2(LBL) + "' fill='" + BINK + "'>" + f.setback.toFixed(2) + '</text>';
+        }
+      } else if (it.kind === 'street') {
+        var cf = d.cf, sx = X(cx), w2 = (it.x1 - it.x0) / 2 * SC;
+        if (cf.type === 'P') { g += rectXY(sx - Y(0.085), sx + Y(0.085), SW_TOP, SW_TOP - Y(8.0), bst('#9C968E')); g += rectXY(sx - Y(0.11), sx + Y(0.11), SW_TOP, SW_TOP - Y(0.22), bst('#9C968E')); }
+        else if (cf.type === 'H') { g += rectXY(sx - Y(0.13), sx + Y(0.13), SW_TOP, SW_TOP - Y(0.55), bst('#B42C2C')); g += rectXY(sx - w2, sx + w2, SW_TOP - Y(0.55), SW_TOP - Y(0.645), bst('#B42C2C')); }
+        else g += rectXY(sx - w2, sx + w2, SW_TOP, SW_TOP - Y(1.2), bst('#9C968E'));
+      } else if (it.kind === 'manhole') {
+        g += rectXY(X(it.x0), X(it.x1), surf(cx), surf(cx) - 3, bst('#8E8A84'));
+      } else if (it.kind === 'bollard') {
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(0.9), bst('#D86820'));
+      } else if (it.kind === 'deck') {
+        g += rectXY(X(it.x0), X(it.x1), DECK_BOT, pkSurface, bst('#D6AE74'));
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, DECK_BOT, bst('#D6AE74'));
+      } else if (it.kind === 'end-planter') {
+        g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('#B4C9A4'));
+      } else if (it.kind === 'wheel-stop') {
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), bst('#C8C3BA'));
+      }
+      bv += g + '</g>';
     });
-    if (_zEnd('sidewalk') !== null) XSW = _zEnd('sidewalk');
-    if (_zEnd('parklet')  !== null) XPK = _zEnd('parklet');
-    const _blEnd = _zEnd('buf-bl') !== null ? _zEnd('buf-bl')
-                 : _zEnd('bike-lane') !== null ? _zEnd('bike-lane')
-                 : _zEnd('buf-pk') !== null ? _zEnd('buf-pk') : null;
-    if (_blEnd !== null) XBL = _blEnd; else if (!_sg.find(function(s){return s.type==='bike-lane'||s.type==='buf-pk'||s.type==='buf-bl';})) XBL = XPK;
-    const _tlanes = _segZones['travel-lane'] || [];
-    if (_tlanes.length) {
-      XLN = _tlanes[_tlanes.length-1].x1;
-      XLN_actual = XLN;
-    }
-    XTAIL = Math.max(_cx, XSW + _csRoad * SC) + TAIL_W;
-  }
 
-  const XLIM = XSW + maxPkW * SC;
-  const _cutWorldZ = getSectionCutWorldZ(); // world Z of section cut plane (= parklet-relative Z; parklet is at worldZ 0→L)
-  const _cutZ = _cutWorldZ;              // alias — both coordinates share the same origin
-  const _iTch = typeof drawingTheme!=='undefined' && drawingTheme.mode==='technical';
-  const NAVY='#1a1a1a';
-  const TDK = _iTch?'#D8D6D0':'#dedad4';
-  const TMD = _iTch?'#F0EFEC':'#ede6d0';
-  const BLT = _iTch?'#E8E7E4':'#dde8f0';
-  const WOOD= _iTch?'#D0CECC':'#c8a45c';
-  const RED = '#c03030';
-  const GRN = _iTch?'#E4E3DE':'#e0f0e4';
-  const GRNDK=_iTch?'#888884':'#4a9060';
-  const BLT2 = _iTch?'#E4E3E0':'#cce8f4';
-  const BLTDK= _iTch?'#666662':'#2a7aaa';
-  const BC=`font-family="'Barlow Condensed','Helvetica Neue',Arial,sans-serif"`;
-  const lnFill = laneOk ? BLT : (_iTch?'#E0DCDC':'#f0d4d4');
-  const lnTextCol = laneOk ? NAVY : (_iTch?'#333330':RED);
-  let s = `<defs>`;
-  s += `<pattern id='pocheH' patternUnits='userSpaceOnUse' width='5' height='5' patternTransform='rotate(45 0 0)'><line x1='0' y1='0' x2='0' y2='5' stroke='#b0ada8' stroke-width='1.1'/></pattern>`;
-  s += `</defs>`;
-  s += `<rect x='0' y='-18' width='${XTAIL.toFixed(1)}' height='266' fill='${_iTch?'#FAFAF8':'#f5f3f0'}'/>`;
-
-  const CURB_H = Math.max(8, Math.round(0.15 * SC));
-  const DECK_TK = Math.max(4, Math.round(0.065 * SC));
-  const SLAB_TK = 18, BASE_TK = 9;
-  const SBG = GY + SLAB_TK, SBASE = GY + SLAB_TK + BASE_TK;
-
-  // ── Context zones: section cut through configured buildings ────────────────
-  const CTX_L = 160, CTX_R = 280;
-  const hSc = paper ? SC : 12;           // paper: true scale; on screen                         // fixed 12 px/m — height/depth changes are visible
-  const flPx = Math.max(4, Math.round(3 * hSc)); // 3 m floor slab spacing in px
-  const allBHts2 = _csDM.buildings.L.concat(_csDM.buildings.R).map(function(b){return b.height;});
-  const maxBH2 = Math.max.apply(null, allBHts2.concat([3]));
-  const _bLblMinY = paper ? GY - Math.min(maxBH2, 4.5) * hSc + 12 : -Infinity;   // paper: building labels inside the 4.5 m cut
-  // Find buildings actually intersected by the section cut — no fallback; null = no building cut
-  const _bCuts = function(b){ const z0=b.zOffset||0; return _cutWorldZ>=z0 && _cutWorldZ<=z0+(b.length||30); };
-  const bL = _csDM.buildings.L.find(_bCuts) || null;
-  const bR0 = _csDM.buildings.R.find(_bCuts) || null;
-  const bLH = bL ? Math.round(bL.height * hSc) : 0;
-  const bLD = bL ? Math.min(CTX_L - 4, Math.round((bL.depth || 4) * hSc)) : 0;
-  const bRH = bR0 ? Math.round(bR0.height * hSc) : 0;
-
-  let _OBX1 = 0, _OBX_END = 0, _bRDcut = 0;
-  // ── Left context: sky tone + sidewalk fill + poche ───────────────────────
-  s += `<rect x='${-CTX_L}' y='-18' width='${CTX_L}' height='${GY+18}' fill='${_iTch?'#F0EFEC':'#ede9e3'}'/>`;
-  // Building poche only when section actually passes through a left building
-  if (bL && bLD > 0) {
-    s += `<rect x='${-bLD}' y='${GY-bLH}' width='${bLD}' height='${bLH}' fill='${_iTch?'#DCDBD8':'#e0ddd8'}'/>`;
-    s += `<rect x='${-bLD}' y='${GY-bLH}' width='${bLD}' height='${bLH}' fill='url(#pocheH)'/>`;
-    s += `<text x='${Math.round(-bLD/2)}' y='${Math.max(GY-bLH-5, _bLblMinY)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.1em'>BUILDING</text>`;
-  }
-
-  // ── Right context: sky tone + opposite sidewalk + poche ─────────────────
-  { const OBX0=XTAIL, OCB=14, OSW_PX=Math.max(24,Math.min(70,Math.round(_csSW*SC*0.6)));
-    const OBX1=OBX0+OCB+OSW_PX, OBX_END=OBX0+CTX_R;
-    const bRD = bR0 ? Math.min(OBX_END-OBX1-4, Math.round((bR0.depth||4)*hSc)) : 0;
-    // Sky + context bg
-    s += `<rect x='${OBX0}' y='-18' width='${CTX_R}' height='${GY+18}' fill='${_iTch?'#F0EFEC':'#ede9e3'}'/>`;
-    // Opposite curb face
-    s += `<rect x='${OBX0}' y='${GY-CURB_H}' width='${OCB}' height='${CURB_H}' fill='#888480'/>`;
-    s += `<rect x='${OBX0-1}' y='${GY-CURB_H-3}' width='${OCB+2}' height='3' fill='#555'/>`;
-    s += `<text x='${OBX0+OCB+Math.round(OSW_PX/2)}' y='14' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.06em'${paper ? ` textLength='${OSW_PX - 6}' lengthAdjust='spacingAndGlyphs'` : ''}>OPP SIDEWALK</text>`;   // paper: fitted to its strip
-    // Opposite building poche only when section actually passes through a right building
-    if (bR0 && bRD > 0) {
-      const bRHnet = Math.max(4, bRH - CURB_H);
-      s += `<rect x='${OBX1}' y='${GY-bRH}' width='${bRD}' height='${bRHnet}' fill='${_iTch?'#DCDBD8':'#e0ddd8'}'/>`;
-      s += `<rect x='${OBX1}' y='${GY-bRH}' width='${bRD}' height='${bRHnet}' fill='url(#pocheH)'/>`;
-      s += `<text x='${OBX1+Math.round(bRD/2)}' y='${Math.max(GY-bRH-5, _bLblMinY)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6.5' fill='#999' letter-spacing='.1em'>BUILDING</text>`;
-    }
-    _OBX1 = OBX1; _OBX_END = OBX_END; _bRDcut = bRD;
-  }
-
-
-  const _dk = `#222`, _md = `#555`, _lt = `#aaa`;
-  const blOkS = bld > 0.05 ? designBikeLaneW >= bikeLaneMinW() - 0.001 : true;
-  const zBLC = blOkS ? _md : RED;
-  // Buffer zone decomposition (EDM §8.5.4.5)
-  let bufAPW = (bld > 0.05 && bufPKType !== 'none') ? bufPKW : 0;
-  let bufBPW = (bld > 0.05 && bufBLType !== 'none') ? bufBLW : 0;
-  let XBPA = XPK + bufAPW * SC;
-  let XBPE = XBPA + (bld > 0.05 ? designBikeLaneW * SC : 0);
-  // Override bike sub-zone positions from segment walk
-  if (_segZones['buf-pk']) { bufAPW = _segZones['buf-pk'][0].width; XBPA = _zEnd('buf-pk'); }
-  else if (_segZones['bike-lane']) XBPA = _zStart('bike-lane');
-  else if (Object.keys(_segZones).length > 0) XBPA = XPK;
-  if (_segZones['bike-lane']) XBPE = _zEnd('bike-lane');
-  else if (Object.keys(_segZones).length > 0) XBPE = XBPA;
-  if (_segZones['buf-bl']) bufBPW = _segZones['buf-bl'][0].width;
-  const swX0 = bufW > 0.05 ? XBUF : XBF;
-  // ── Zone fills: below the cut line only ──────────────────────────────────
-  // Unified subgrade base (full width, shows where zone fills don't override)
-  s += `<rect x='${-CTX_L}' y='${GY}' width='${_OBX_END+CTX_L}' height='${SLAB_TK+BASE_TK}' fill='#ccc8c2'/>`;
-  // Zone-specific fills sit below the cut line (y=GY downward)
-  s += `<rect x='${XSW.toFixed(1)}' y='${GY}' width='${(XTAIL-XSW).toFixed(1)}' height='${SLAB_TK+BASE_TK}' fill='#b8b4af'/>`;
-  if (bld > 0.05) {
-    s += `<rect x='${XBPA.toFixed(1)}' y='${GY}' width='${(XBPE-XBPA).toFixed(1)}' height='${SLAB_TK+BASE_TK}' fill='#c4c0bb'/>`;
-    if (bufAPW > 0.01) s += `<rect x='${XPK.toFixed(1)}' y='${GY}' width='${(XBPA-XPK).toFixed(1)}' height='${SLAB_TK+BASE_TK}' fill='#d4dcd0'/>`;
-    if (bufBPW > 0.01) s += `<rect x='${XBPE.toFixed(1)}' y='${GY}' width='${(XBL-XBPE).toFixed(1)}' height='${SLAB_TK+BASE_TK}' fill='#d4dcd0'/>`;
-  }
-  s += `<rect x='${swX0.toFixed(1)}' y='${GY}' width='${(XSW-swX0).toFixed(1)}' height='${SLAB_TK+BASE_TK}' fill='#e0dbd5'/>`;
-  if (bufW > 0.05) s += `<rect x='${XBF.toFixed(1)}' y='${GY}' width='${(XBUF-XBF).toFixed(1)}' height='${SLAB_TK+BASE_TK}' fill='#d4dcd0'/>`;
-  const _csSh = state.pkShape, _csUse = _csSh && _csSh.active && _csSh.closed && _csSh.verts && _csSh.verts.length >= 3;
-  let _csX0 = XSW, _csX1 = XPK;
-  if (_csUse) {
-    const _bnds = shapeWidthAtLength(_csSh, _cutZ);
-    if (_bnds) { _csX0 = XSW + _bnds[0] * SC; _csX1 = XSW + _bnds[1] * SC; }
-    s += `<rect x='${XSW.toFixed(1)}' y='${GY-CURB_H-DECK_TK}' width='${(XPK-XSW).toFixed(1)}' height='${DECK_TK}' fill='#e8e4de' opacity='0.7'/>`;
-    s += `<rect x='${XSW.toFixed(1)}' y='${(GY-CURB_H-DECK_TK).toFixed(1)}' width='${(XPK-XSW).toFixed(1)}' height='${DECK_TK}' fill='none' stroke='#bbb' stroke-width='0.7' stroke-dasharray='3,2'/>`;
-  }
-  s += `<rect x='${_csX0.toFixed(1)}' y='${GY-CURB_H-DECK_TK}' width='${(_csX1-_csX0).toFixed(1)}' height='${DECK_TK}' fill='#b8b4ae'/>`;
-  s += `<rect x='${_csX0.toFixed(1)}' y='${(GY-CURB_H-DECK_TK).toFixed(1)}' width='${(_csX1-_csX0).toFixed(1)}' height='${DECK_TK}' fill='none' stroke='#333' stroke-width='1.2'/>`;
-  const pkW = _csX1 - _csX0, pks = Math.max(6, Math.round(pkW / 16));
-  for (let _px = _csX0 + pks; _px < _csX1 - 2; _px += pks) {
-    s += `<line x1='${_px.toFixed(1)}' y1='${GY-CURB_H-DECK_TK}' x2='${_px.toFixed(1)}' y2='${GY-CURB_H}' stroke='rgba(0,0,0,.12)' stroke-width='0.6'/>`;
-  }
-  if (_csUse) { s += `<text x='${((XSW+XPK)/2).toFixed(1)}' y='${(GY-CURB_H-DECK_TK-3.5).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='6' fill='#b8a45c' letter-spacing='.06em'>SECTION @ ${_cutZ.toFixed(2)} m</text>`; }
-  const cbW = Math.max(5, Math.round(0.08 * SC));
-  s += `<rect x='${(XSW-cbW/2).toFixed(1)}' y='${GY-CURB_H}' width='${cbW}' height='${CURB_H}' fill='#888480'/>`;
-  s += `<rect x='${(XPK-cbW/2).toFixed(1)}' y='${GY-CURB_H}' width='${cbW}' height='${CURB_H}' fill='${laneOk ? `#888480` : RED}'/>`;
-  // Single continuous cut profile line: left context → L-building → main section → R-building → right context
-  s += `<path d='M ${-CTX_L},${GY} L ${-bLD},${GY} L ${-bLD},${GY-bLH} L 0,${GY-bLH} L 0,${GY} L ${XTAIL.toFixed(1)},${GY} L ${XTAIL.toFixed(1)},${GY-CURB_H} L ${_OBX1},${GY-CURB_H} L ${_OBX1},${GY-bRH} L ${_OBX1+_bRDcut},${GY-bRH} L ${_OBX1+_bRDcut},${GY-CURB_H} L ${_OBX_END},${GY-CURB_H}' fill='none' stroke='#111' stroke-width='2.5' stroke-linejoin='miter'/>`;
-  s += `<line x1='${XSW.toFixed(1)}' y1='-12' x2='${XSW.toFixed(1)}' y2='${PB}' stroke='${_md}' stroke-width='0.8'/>`;
-  s += `<line x1='${XPK.toFixed(1)}' y1='-12' x2='${XPK.toFixed(1)}' y2='${PB}' stroke='${laneOk ? _md : RED}' stroke-width='${laneOk ? 0.8 : 1.5}'/>`;
-  if (bufW > 0.05) {
-    s += `<line x1='${XBUF.toFixed(1)}' y1='-12' x2='${XBUF.toFixed(1)}' y2='${PB}' stroke='${_md}' stroke-width='0.6' stroke-dasharray='3,2'/>`;
-  }
-  if (bld > 0.05) {
-    s += `<line x1='${XBL.toFixed(1)}' y1='-12' x2='${XBL.toFixed(1)}' y2='${PB}' stroke='${zBLC}' stroke-width='${blOkS ? 0.8 : 1.5}'/>`;
-    const blMx = (XBPA + XBPE) / 2;
-    const arW = Math.min((XBPE - XBPA) * 0.28, 10);
-    s += `<polygon points='${blMx.toFixed(1)},${GY-16} ${(blMx-arW).toFixed(1)},${GY-4} ${(blMx+arW).toFixed(1)},${GY-4}' fill='rgba(0,0,0,.18)'/>`;
-    // Bollards drawn above via _secObj.bollards (position-based intersection test)
-  }
-  const _totalLn = getTotalLanes();
-  if (_totalLn > 1 && residual > 0.001) {
-    for (let _ln = 1; _ln < _totalLn; _ln++) {
-      const _lx = XBL + _ln * (XLN - XBL) / _totalLn;
-      const _isCenter = ROAD_DIR === 'twoway' && _ln === LANES_A;
-      if (_isCenter) {
-        s += `<line x1='${(_lx-1.5).toFixed(1)}' y1='${GY-6}' x2='${(_lx-1.5).toFixed(1)}' y2='${GY}' stroke='#e8c040' stroke-width='1.2'/>`;
-        s += `<line x1='${(_lx+1.5).toFixed(1)}' y1='${GY-6}' x2='${(_lx+1.5).toFixed(1)}' y2='${GY}' stroke='#e8c040' stroke-width='1.2'/>`;
-      } else {
-        s += `<line x1='${_lx.toFixed(1)}' y1='${GY-6}' x2='${_lx.toFixed(1)}' y2='${GY}' stroke='rgba(0,0,0,.2)' stroke-width='0.6' stroke-dasharray='4,3'/>`;
+    // ── CUT: as before (poche / solid) ──────────────────────────────────────────────────────
+    var sv = '<defs>';
+    sv += '<pattern id="sePoché" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">' +
+          '<line x1="0" y1="0" x2="0" y2="4" stroke="#1a1a1a" stroke-width="0.9"/></pattern>';
+    sv += '<pattern id="seWarmHatch" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">' +
+          '<line x1="0" y1="0" x2="0" y2="5" stroke="rgba(80,40,0,.3)" stroke-width="0.8"/></pattern>';
+    sv += '</defs>';
+    function solid(tech, schem) { return isTech ? " fill='" + tech + "' stroke='#000' stroke-width='1'" : " fill='" + schem + "' stroke='#4A4744' stroke-width='1'"; }
+    scene.cut.forEach(function(it) {
+      var d = it.data, g = open('cut', it), cx = (it.x0 + it.x1) / 2;
+      if (it.kind === 'tree' || it.kind === 'planter') {
+        var v = d.v, tx = Math.round(X(v.x)), gy = d.atRoadLevel ? GROUND_Y : SW_TOP;
+        if (it.kind === 'planter') {
+          g += rectXY(X(it.x0), X(it.x1), gy, gy - Y(0.5), solid('#D9D9D9', '#C8C3BA'));
+        } else {
+          var tDiam = Math.max(2, Math.round(0.12 * SC)), tH = Math.round(2.0 * SC), cR = Math.round(Math.max(0.15, v.canopyR || 0.4) * SC);
+          var tTop = gy - tH, cCY = tTop - Math.round(cR * 0.3), cRY = Math.round(cR * 0.82);
+          if (isTech) {
+            g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + cR + '" ry="' + cRY + '" fill="none" stroke="#555" stroke-width="0.4" stroke-dasharray="3,2"/>';
+            g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="#2a2016" stroke="#000" stroke-width="1"/>';
+            g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="url(#sePoché)" opacity="0.6"/>';
+            g += '<line x1="' + (tx - tDiam) + '" y1="' + gy + '" x2="' + (tx + tDiam) + '" y2="' + gy + '" stroke="#000" stroke-width="1"/>';
+          } else {
+            g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + (cR + 2) + '" ry="' + (cRY + 2) + '" fill="rgba(60,120,40,.18)" stroke="none"/>';
+            g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + cR + '" ry="' + cRY + '" fill="rgba(80,155,60,.62)" stroke="#2a6818" stroke-width="1.5"/>';
+            g += '<ellipse cx="' + Math.round(tx - cR * 0.15) + '" cy="' + Math.round(cCY + cRY * 0.1) + '" rx="' + Math.round(cR * 0.55) + '" ry="' + Math.round(cRY * 0.5) + '" fill="rgba(50,110,30,.22)" stroke="none"/>';
+            g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="#7a4420" stroke="#4a2010" stroke-width="1"/>';
+          }
+        }
+      } else if (it.kind === 'bollard') {
+        var bDiam = Math.max(3, Math.round(0.124 * SC)), bH = Math.round(0.9 * SC), bx = Math.round(X(cx)), bTop = GROUND_Y - bH, bR = Math.round(bDiam / 6);
+        if (isTech) {
+          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + bTop + '" width="' + bDiam + '" height="' + bH + '" fill="#545458" stroke="#000" stroke-width="1" rx="' + bR + '"/>';
+          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + bTop + '" width="' + bDiam + '" height="' + bH + '" fill="url(#sePoché)" opacity="0.35"/>';
+        } else {
+          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + bTop + '" width="' + bDiam + '" height="' + bH + '" fill="#d86820" stroke="#8a3800" stroke-width="1" rx="' + bR + '"/>';
+          g += '<rect x="' + (bx - bDiam / 2).toFixed(1) + '" y="' + Math.round(GROUND_Y - bH * 0.35) + '" width="' + bDiam + '" height="' + Math.max(2, Math.round(bDiam * 0.4)) + '" fill="rgba(255,210,30,.9)"/>';
+        }
+      } else if (it.kind === 'furniture' || it.kind === 'entourage') {
+        var inst = d.inst, sp = flInstSpec(inst);
+        if (sp) {
+          var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface - Y(flSupportTop(inst));
+          g += flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0,
+            rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
+            xToPx: X, yDeck: b0, SC: SC, isBeyond: false, tech: isTech, id: inst.id });
+          var fl = Math.min(X(it.x0), X(it.x1)), fw = Math.abs(X(it.x1) - X(it.x0)), fh = Math.max(3, Y(it.y1 - it.y0));
+          if (fw > FL_ARCHETYPES[sp.type].label.length * FL_LABEL * 0.62 + 4) g += '<text x="' + Math.round(fl + fw / 2) + '" y="' + Math.round(b0 - fh / 2 + 2) + '" text-anchor="middle" font-family="Helvetica Neue,Arial,sans-serif" font-size="' + f2(FL_LABEL) + '" fill="' + (isTech ? '#222' : '#4a2810') + '" dominant-baseline="middle">' + FL_ARCHETYPES[sp.type].label.toUpperCase() + '</text>';
+        } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), solid('#d0ccc6', '#c4906a'));
+      } else if (it.kind === 'street') {
+        var cf = d.cf, sx = X(cx), w2 = (it.x1 - it.x0) / 2 * SC;
+        if (cf.type === 'P') g += rectXY(sx - Y(0.085), sx + Y(0.085), SW_TOP, SW_TOP - Y(8.0), solid('#8C8C8C', '#9a9a90'));
+        else if (cf.type === 'H') { g += rectXY(sx - Y(0.13), sx + Y(0.13), SW_TOP, SW_TOP - Y(0.55), solid('#6A6A6A', '#B42C2C')); g += rectXY(sx - w2, sx + w2, SW_TOP - Y(0.55), SW_TOP - Y(0.645), solid('#6A6A6A', '#8a1a1a')); }
+        else g += rectXY(sx - w2, sx + w2, SW_TOP, SW_TOP - Y(1.2), solid('#9A9A9A', '#9a9a9a'));
+      } else if (it.kind === 'manhole') {
+        g += rectXY(X(it.x0), X(it.x1), surf(cx), surf(cx) - 3, solid('#4A4A4A', '#6E6A64'));
+      } else if (it.kind === 'end-planter') {
+        g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), solid('#D9D9D9', '#DEDAD4'));
+        g += rectXY(X(it.x0) + xs * 2, X(it.x1) - xs * 2, pkSurface - Y(it.y1 - it.y0), pkSurface - Y(it.y1 - it.y0) + 4, isTech ? " fill='url(#sePoché)'" : " fill='#A9C29A'");
+      } else if (it.kind === 'wheel-stop') {
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), solid('#8C8C8C', '#8E8A84'));
       }
-    }
-  }
-  s += `<rect x='${(XSW-4).toFixed(1)}' y='${GY-CURB_H-3}' width='8' height='3' fill='${_dk}'/>`;
-  s += `<rect x='${(XPK-4).toFixed(1)}' y='${GY-CURB_H-3}' width='8' height='3' fill='${laneOk ? _dk : RED}'/>`;
-  // ── Metric grid overlay (full section width, elevation axis) ─────────────
-  const DECK_Y = GY - CURB_H - DECK_TK;
-  if (!paper && (typeof _gridEnabled === 'undefined' || _gridEnabled)) {
-    const _sgSp = (typeof _gridSpacing !== 'undefined' && _gridSpacing > 0) ? _gridSpacing : 0.5;
-    const _sgMajEvery = Math.max(1, Math.round(1.0 / _sgSp));
-    const _sgMaxH = 4.0, _sgTop = DECK_Y - _sgMaxH * SC;
-    const _gcol_maj = 'rgba(0,0,0,.12)', _gcol_min = 'rgba(0,0,0,.06)';
-    const _glw_maj = 0.7, _glw_min = 0.4;
-    // Cover full section: swX0 (sidewalk/facade left edge) to XLN (right lane edge)
-    const _sgX0 = Math.max(0, swX0 - 2 * SC), _sgX1 = Math.min(XLN + 2 * SC, XTAIL - TAIL_W);
-    const _sgStepPx = _sgSp * SC;
-    const _sgFirstIdx = Math.floor((swX0 - XSW) / _sgStepPx);
-    // Vertical grid lines (cross-street, _gridSpacing spacing, full width)
-    for (var _gxi = _sgFirstIdx; ; _gxi++) {
-      var _gx = XSW + _gxi * _sgStepPx;
-      if (_gx > _sgX1 + 0.5) break;
-      if (_gx < _sgX0 - 0.5) continue;
-      var _gIsMaj = (_gxi % _sgMajEvery === 0);
-      s += `<line x1='${_gx.toFixed(1)}' y1='${_sgTop.toFixed(1)}' x2='${_gx.toFixed(1)}' y2='${GY.toFixed(1)}' stroke='${_gIsMaj?_gcol_maj:_gcol_min}' stroke-width='${_gIsMaj?_glw_maj:_glw_min}'/>`;
-    }
-    // Horizontal grid lines (elevation, full width)
-    for (var _gyi = 0; _gyi * _sgSp <= _sgMaxH + 0.01; _gyi++) {
-      var _gy = DECK_Y - _gyi * _sgSp * SC;
-      var _gIsM2 = (_gyi % _sgMajEvery === 0);
-      s += `<line x1='${_sgX0.toFixed(1)}' y1='${_gy.toFixed(1)}' x2='${_sgX1.toFixed(1)}' y2='${_gy.toFixed(1)}' stroke='${_gIsM2?_gcol_maj:_gcol_min}' stroke-width='${_gIsM2?_glw_maj:_glw_min}'/>`;
-      if (_gIsM2 && _gyi > 0) s += `<text x='${(_sgX0-4).toFixed(1)}' y='${_gy.toFixed(1)}' text-anchor='end' font-family='Helvetica Neue,Arial,sans-serif' font-size='5.5' fill='rgba(0,0,0,.28)' dominant-baseline='middle'>${(_gyi*_sgSp).toFixed(1)}</text>`;
-    }
-  }
+      sv += g + '</g>';
+    });
 
-  // ── Objects at section cut: trees, bollards, furniture, street objects ────
-  const _x3D = (x) => XSW + x * SC;  // world X → SVG X
-  const _secObj = getSectionObjectsAt(_cutZ);
 
-  // Trees and planters that the section plane actually passes through
-  _secObj.trees.forEach(function(t) {
-    const tSvgX = _x3D(t.x);
-    if (t.type === 'trees') {
-      const tH = Math.min(GY - CURB_H - 4, Math.round(0.55 * SC));
-      const cRx = Math.max(4, Math.min(Math.round(t.radius * SC), Math.round(0.25 * SC)));
-      const cRy = Math.max(3, Math.min(Math.round(t.radius * SC * 0.7), Math.round(0.18 * SC)));
-      s += `<rect x='${(tSvgX-1.5).toFixed(1)}' y='${(GY-CURB_H-tH).toFixed(1)}' width='3' height='${tH}' fill='#6b4c2a'/>`;
-      s += `<ellipse cx='${tSvgX.toFixed(1)}' cy='${(GY-CURB_H-tH-4).toFixed(1)}' rx='${cRx}' ry='${cRy}' fill='#3d7a4e' opacity='0.85'/>`;
-    } else {
-      const pRx = Math.max(4, Math.round(t.radius * SC));
-      const pRy = Math.max(3, Math.round(t.radius * SC * 0.6));
-      s += `<ellipse cx='${tSvgX.toFixed(1)}' cy='${(GY-CURB_H-4).toFixed(1)}' rx='${pRx}' ry='${pRy}' fill='#4a8040' opacity='0.8'/>`;
-    }
-  });
-
-  // Bollards that the section plane actually passes through
-  _secObj.bollards.forEach(function(b) {
-    const bSvgX = _x3D(b.x);
-    const bH = Math.max(10, Math.round(0.75 * SC));
-    const bBW = Math.max(5, Math.round(0.13 * SC));
-    s += `<polygon points='${(bSvgX-bBW*0.5).toFixed(1)},${GY-CURB_H} ${(bSvgX+bBW*0.5).toFixed(1)},${GY-CURB_H} ${(bSvgX+bBW*0.28).toFixed(1)},${(GY-CURB_H-bH).toFixed(1)} ${(bSvgX-bBW*0.28).toFixed(1)},${(GY-CURB_H-bH).toFixed(1)}' fill='#f07030' stroke='#c84010' stroke-width='0.6'/>`;
-    const rbH = Math.max(2, Math.round(0.06 * SC));
-    s += `<rect x='${(bSvgX-bBW*0.32).toFixed(1)}' y='${(GY-CURB_H-bH*0.22).toFixed(1)}' width='${(bBW*0.64).toFixed(1)}' height='${rbH}' fill='white' opacity='0.85'/>`;
-  });
-
-  // Furniture: section elevation of each archetype piece (flSectionArchetype)
-  _secObj.furniture.forEach(function(furn) {
-    const box = furn.box;
-    const fx0 = _x3D(box.min.x);
-    const fx1 = _x3D(box.max.x);
-    const fH3d = box.max.y - box.min.y;
-    const fy_top = DECK_Y - fH3d * SC;
-    const fy_bot = DECK_Y;
-    const fw = fx1 - fx0;
-    const fh = fy_bot - fy_top;
-    if (fw < 1 || fh < 1) return;
-    const _cInst = (window.FL3D && FL3D.placed) ? FL3D.placed.find(function(i) { return i.id === furn.id; }) : null;
-    const _cSpec = _cInst ? flInstSpec(_cInst) : null;
-    if (_cSpec && flIsEntourage(_cSpec.type) && furn.isBeyond) return;   // entourage only where cut
-    const _cBase = (_cSpec && flBaseY(_cInst) === 0) ? ((_cInst.x || 0) < 0 ? GY - CURB_H : GY) : DECK_Y - (_cInst ? flSupportTop(_cInst) * SC : 0);
-    if (_cSpec) {
-      s += flSectionArchetype(_cSpec.type, _cSpec.params, {mats:_cSpec.mats, x:_cInst.x || 0,
-        rot:(typeof _cInst.userRotation === 'number' ? _cInst.userRotation : (_cInst.rotationY || 0)),
-        xToPx:_x3D, yDeck:_cBase, SC:SC, isBeyond:!!furn.isBeyond, tech:DS.mode() === 'technical', id:_cInst.id});
-      if (!furn.isBeyond && fw > 18) {
-        const _nm = FL_ARCHETYPES[_cSpec.type].label.toUpperCase();
-        s += `<text x='${((fx0+fx1)/2).toFixed(1)}' y='${((fy_top+fy_bot)/2).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='5' fill='#444' dominant-baseline='middle'>${_nm}</text>`;
-      }
-      return;
-    }
-    if (furn.isBeyond) {
-      s += `<rect x='${fx0.toFixed(1)}' y='${fy_top.toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' fill='none' stroke='rgba(100,70,30,.4)' stroke-width='0.6' stroke-dasharray='3,2'/>`;
-    } else {
-      s += `<rect x='${fx0.toFixed(1)}' y='${fy_top.toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' fill='#c8c0b0' stroke='#333' stroke-width='0.8'/>`;
-      s += `<rect x='${fx0.toFixed(1)}' y='${fy_top.toFixed(1)}' width='${fw.toFixed(1)}' height='${fh.toFixed(1)}' fill='url(#pocheH)' opacity='0.55'/>`;
-      if (fw > 18) { const _nm=furn.objId?furn.objId.replace(/-\d+$/,'').toUpperCase():'FURN'; s+=`<text x='${((fx0+fx1)/2).toFixed(1)}' y='${((fy_top+fy_bot)/2).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='5' fill='#444' dominant-baseline='middle'>${_nm}</text>`; }
-    }
-  });
-
-  // Street objects at the section cut (position-based)
-  const _hasP = _secObj.streetObjects.some(function(f){ return f.type === 'P'; });
-  const _hasS = _secObj.streetObjects.some(function(f){ return f.type === 'S'; });
-  const _hasH = _secObj.streetObjects.some(function(f){ return f.type === 'H'; });
-  if (_hasP || _hasS) {
-    const _pX = swX0 + (XSW - swX0) * 0.45;
-    const _pHpx = Math.min(GY + 15, Math.round((_hasS ? 5.5 : 6.0) * SC));
-    s += `<rect x='${(_pX-1.5).toFixed(1)}' y='${GY-_pHpx}' width='3' height='${_pHpx}' fill='#555'/>`;
-    s += `<rect x='${(_pX-5).toFixed(1)}' y='${GY-4}' width='10' height='4' fill='#555'/>`;
-    if (_hasS) {
-      const _aY = GY - _pHpx + 8;
-      s += `<line x1='${_pX.toFixed(1)}' y1='${_aY}' x2='${(_pX+22).toFixed(1)}' y2='${_aY}' stroke='#555' stroke-width='2'/>`;
-      s += `<rect x='${(_pX+18).toFixed(1)}' y='${_aY+2}' width='8' height='22' fill='#555' rx='1'/>`;
-    }
-    const _pHm = (_hasS ? 5.5 : 6.0).toFixed(1);
-    s += `<line x1='${(_pX+6).toFixed(1)}' y1='${GY-_pHpx}' x2='${(_pX+18).toFixed(1)}' y2='${GY-_pHpx}' stroke='${_lt}' stroke-width='0.5'/>`;
-    s += `<line x1='${(_pX+6).toFixed(1)}' y1='${GY}' x2='${(_pX+18).toFixed(1)}' y2='${GY}' stroke='${_lt}' stroke-width='0.5'/>`;
-    s += `<line x1='${(_pX+12).toFixed(1)}' y1='${GY-_pHpx}' x2='${(_pX+12).toFixed(1)}' y2='${GY}' stroke='${_lt}' stroke-width='0.6'/>`;
-    s += `<text x='${(_pX+14).toFixed(1)}' y='${(GY-_pHpx/2).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6' fill='${_lt}' dominant-baseline='middle'>${_pHm}m</text>`;
-  }
-  if (_hasH) {
-    const _hX = XSW - 8;
-    const _hH = Math.round(0.77 * SC);
-    const _hBH = Math.max(4, _hH - 10);
-    s += `<rect x='${(_hX-5).toFixed(1)}' y='${GY-_hH}' width='10' height='${_hBH}' fill='#e0e0de' stroke='#444' stroke-width='0.8'/>`;
-    s += `<rect x='${(_hX-7).toFixed(1)}' y='${GY-_hH-8}' width='14' height='10' fill='#e0e0de' stroke='#444' stroke-width='0.8'/>`;
-    s += `<rect x='${(_hX-3).toFixed(1)}' y='${GY-8}' width='6' height='8' fill='#ccc' stroke='#444' stroke-width='0.8'/>`;
-  }
-  _secObj.manholes.forEach(function(mh) {
-    const _mX = _x3D(mh.yM);
-    s += `<rect x='${(_mX-9).toFixed(1)}' y='${GY-3}' width='18' height='4' fill='#888' stroke='#333' stroke-width='0.8' rx='1'/>`;
-    s += `<line x1='${(_mX-7).toFixed(1)}' y1='${GY}' x2='${(_mX+7).toFixed(1)}' y2='${GY}' stroke='#444' stroke-width='0.6'/>`;
-  });
-  // (debug overlay removed)
-
-  if (Math.abs(XLIM - XPK) > 2) {
-    s += `<line x1='${XLIM.toFixed(1)}' y1='-12' x2='${XLIM.toFixed(1)}' y2='${GY+6}' stroke='${RED}' stroke-width='0.8' stroke-dasharray='3,2'/>`;
-    s += `<text x='${(XLIM+3).toFixed(1)}' y='-14' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' fill='${RED}' letter-spacing='.06em'>MAX ${maxPkW.toFixed(3)} M</text>`;
-  }
-  const zl = (x, txt) => {
-    s += `<text x='${x.toFixed(1)}' y='-4' text-anchor='middle' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' font-weight='600' letter-spacing='.15em' fill='#888'>${txt}</text>`;
-  
-}
-;
-  if (bufW > 0.05) {
-    zl((XBF+XBUF)/2, 'BUFFER');
-    zl((XBUF+XSW)/2, 'SIDEWALK');
-  } else {
-    zl((XBF+XSW)/2, 'SIDEWALK');
-  }
-  if (XPK-XSW > 42) zl((XSW+XPK)/2, 'PARKLET');
-  if (bld > 0.05 && XBPE-XBPA > 20) zl((XBPA+XBPE)/2, 'BIKE LANE');
-  if (ROAD_DIR === 'twoway' && residual > 0.001) {
-    const _cenX = XBL + LANES_A * (XLN - XBL) / getTotalLanes();
-    if (_cenX - XBL > 18) zl((_cenX + XBL) / 2, LANES_A > 1 ? `→ \xd7${LANES_A}` : '→');
-    if (XLN - _cenX > 18) zl((_cenX + XLN) / 2, LANES_B > 1 ? `← \xd7${LANES_B}` : '←');
-  } else {
-    zl((XBL+XLN)/2, getTotalLanes() > 1 ? `TRAVEL LANE \xd7${getTotalLanes()}` : 'TRAVEL LANE');
-  }
-
-// ── Dimension system (zoom-responsive, toggleable) ─────────────────────
-  if (paper) s = s.replace(/font-size='([\d.]+)'/g, function(m, v) { return "font-size='" + (v * fT).toFixed(2) + "'"; });
-  const _csInFS = !paper && _fsPanel && _fsPanel === document.getElementById('csPanel');
-  const zS = paper ? fT : _csInFS ? _csVB.w / _csBaseW : 1;
-  const DFV = 8 * zS;      // value text size
-  const DFL = 7 * zS;      // label text size
-  const DTK = (0.6 * zS).toFixed(2);   // dim line weight
-  const DEXT = (0.38 * zS).toFixed(2); // extension line weight
-  const DTCK = 2.5 * zS;   // tick half-height
-  const DGAP = 1.2 * zS;   // tick-to-line gap
-  const DCOL = '#444';      // single dim color
-
-  // Dim zone: fixed offsets below GY, safely within expanded viewBox
-  const DY_EXT = GY + 48;            // extension line bottom anchor
-  const DY_SUB = GY + 68;            // sub-zone chain
-  const DY1 = GY + 94;               // zone chain
-  const DY2 = DY1 + 28 * zS;        // overall chain (scales with zS)
-
-  if (dimsOn) {
-    s += `<g id='csDimLayer'>`;
-
-    // helper: extension lines (thin, from drawing boundary to dim chain bottom)
-    const extL = (x, yTop, yBot) => s += `<line x1='${x.toFixed(1)}' y1='${yTop.toFixed(1)}' x2='${x.toFixed(1)}' y2='${yBot.toFixed(1)}' stroke='#ccc' stroke-width='${DEXT}'/>`;
-
-    // helper: horizontal dim with ticks — value above line, small label above value
-    const dimH = (x1, x2, y, val, lbl, valCol) => {
-      const mx = (x1 + x2) / 2;
-      const vc = valCol || DCOL;
-      s += `<line x1='${(x1 + DGAP).toFixed(1)}' y1='${y.toFixed(1)}' x2='${(x2 - DGAP).toFixed(1)}' y2='${y.toFixed(1)}' stroke='${DCOL}' stroke-width='${DTK}'/>`;
-      s += `<line x1='${x1.toFixed(1)}' y1='${(y - DTCK).toFixed(1)}' x2='${x1.toFixed(1)}' y2='${(y + DTCK).toFixed(1)}' stroke='${DCOL}' stroke-width='${(parseFloat(DTK) * 1.8).toFixed(2)}'/>`;
-      s += `<line x1='${x2.toFixed(1)}' y1='${(y - DTCK).toFixed(1)}' x2='${x2.toFixed(1)}' y2='${(y + DTCK).toFixed(1)}' stroke='${DCOL}' stroke-width='${(parseFloat(DTK) * 1.8).toFixed(2)}'/>`;
-      s += `<text x='${mx.toFixed(1)}' y='${(y - DTCK - 2 * zS).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${DFV.toFixed(1)}' font-weight='500' fill='${vc}'>${val}</text>`;
-      if (lbl) s += `<text x='${mx.toFixed(1)}' y='${(y + DTCK + DFL + 2 * zS).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${DFL.toFixed(1)}' letter-spacing='.12em' fill='${DCOL}'>${lbl}</text>`;
-    };
-
-    // helper: vertical dim with rotated text
-    const hLdr = (x0, x1, y) => s += `<line x1='${x0.toFixed(1)}' y1='${y.toFixed(1)}' x2='${x1.toFixed(1)}' y2='${y.toFixed(1)}' stroke='#ddd' stroke-width='${DEXT}' stroke-dasharray='${(3 * zS).toFixed(1)},${(2 * zS).toFixed(1)}'/>`;
-    const dimV = (x, y1, y2, val, lbl) => {
-      const my = (y1 + y2) / 2, span = y2 - y1;
-      s += `<line x1='${x.toFixed(1)}' y1='${(y1 + DGAP).toFixed(1)}' x2='${x.toFixed(1)}' y2='${(y2 - DGAP).toFixed(1)}' stroke='${DCOL}' stroke-width='${DTK}'/>`;
-      s += `<line x1='${(x - DTCK).toFixed(1)}' y1='${y1.toFixed(1)}' x2='${(x + DTCK).toFixed(1)}' y2='${y1.toFixed(1)}' stroke='${DCOL}' stroke-width='${(parseFloat(DTK) * 1.8).toFixed(2)}'/>`;
-      s += `<line x1='${(x - DTCK).toFixed(1)}' y1='${y2.toFixed(1)}' x2='${(x + DTCK).toFixed(1)}' y2='${y2.toFixed(1)}' stroke='${DCOL}' stroke-width='${(parseFloat(DTK) * 1.8).toFixed(2)}'/>`;
-      if (span > DFV * 3) {
-        s += `<text x='${x.toFixed(1)}' y='${my.toFixed(1)}' text-anchor='middle' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${(DFV * 0.9).toFixed(1)}' fill='${DCOL}' transform='rotate(-90,${x.toFixed(1)},${my.toFixed(1)})'>${val}</text>`;
-      } else {
-        s += `<text x='${(x + DTCK + 2 * zS).toFixed(1)}' y='${my.toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${(DFV * 0.85).toFixed(1)}' fill='${DCOL}'>${val}</text>`;
-      }
-      if (lbl) s += `<text x='${(x + DTCK + 2 * zS + DFV * 3.2).toFixed(1)}' y='${my.toFixed(1)}' dominant-baseline='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='${DFL.toFixed(1)}' fill='${DCOL}' letter-spacing='.07em'>${lbl}</text>`;
-    };
-
-    // Extension lines: primary boundaries drop from drawing edge to DY2 bottom
-    [XBF, XSW, XPK, XLN].forEach(x => extL(x, PB + 2, DY2 + DTCK));
-    if (bld > 0.05) extL(XBL, PB + 2, DY2 + DTCK);
-    // Secondary ticks only to DY1
-    if (bufW > 0.05) extL(XBUF, PB + 2, DY1 + DTCK);
-    if (bld > 0.05 && bufAPW > 0.01) extL(XBPA, PB + 2, DY1 + DTCK);
-    if (bld > 0.05 && bufBPW > 0.01) extL(XBPE, PB + 2, DY1 + DTCK);
-
-    // ── Sub-zone dims (buffer A/B) ─────────────────────────────────────
-    if (bld > 0.05 && bufAPW > 0.01) dimH(XPK, XBPA, DY_SUB, `${bufPKW.toFixed(2)} m`, 'BUF A');
-    if (bld > 0.05 && bufBPW > 0.01) dimH(XBPE, XBL, DY_SUB, `${bufBLW.toFixed(2)} m`, 'BUF B');
-
-    // ── Zone dims (inner chain) ────────────────────────────────────────
-    if (bufW > 0.05) {
-      dimH(XBF, XBUF, DY1, `${bufW.toFixed(2)} m`, 'BUFFER');
-      dimH(XBUF, XSW, DY1, `${_csSW.toFixed(2)} m`, 'SIDEWALK');
-    } else {
-      dimH(XBF, XSW, DY1, `${_csSW.toFixed(2)} m`, 'SIDEWALK');
-    }
-    dimH(XSW, XPK, DY1, `${_csPkW.toFixed(2)} m`, 'PARKLET');
-    if (bld > 0.05) {
-      const blOk2 = designBikeLaneW >= bikeLaneMinW() - 0.001;
-      const blSub2 = blOk2 ? `BL >=​${bikeLaneMinW().toFixed(1)}m ✓` : `BL <${bikeLaneMinW().toFixed(1)}m ✗`;
-      dimH(XBPA, XBPE, DY1, `${designBikeLaneW.toFixed(2)} m`, blSub2, blOk2 ? null : '#c03030');
-    }
-    const _tln = getTotalLanes();
-    const laneSubLabel = laneOk ? `LN >=​${reqLane.toFixed(1)}m ✓` : `LN <${reqLane.toFixed(1)}m ✗`;
-    dimH(XBL, XLN_actual, DY1, `${laneW.toFixed(2)} m${_tln > 1 ? ' /LN' : ''}`, laneSubLabel, laneOk ? null : '#c03030');
-
-    // ── Overall carriageway (outer chain) ─────────────────────────────
-    dimH(XSW, XLN_actual, DY2, `${_csRoad.toFixed(2)} m`, 'CARRIAGEWAY');
-
-    // ── Vertical dims: heights at right margin ─────────────────────────
-    const curbTopY = GY - CURB_H;
-    const deckTopY = GY - CURB_H - DECK_TK;
-    const VDX0 = XLN + 22 * zS;
-    const VDS  = 16 * zS;
-    // Tiny detail dims only legible when zoomed in (zS < 0.75 = default/zoomed-out)
-    if (zS < 0.75) {
-      // 1. Curb height
-      hLdr(XPK, VDX0, curbTopY); hLdr(XPK, VDX0, GY);
-      dimV(VDX0, curbTopY, GY, `${(CURB_H / SC).toFixed(3)} m`, 'CURB');
-      // 2. Deck thickness
-      const _vdx1 = VDX0 + VDS;
-      hLdr(_csX1, _vdx1, deckTopY); hLdr(_csX1, _vdx1, curbTopY);
-      dimV(_vdx1, deckTopY, curbTopY, `${(DECK_TK / SC).toFixed(3)} m`, 'DECK');
-      // 3. Platform height
-      const _vdx2 = _vdx1 + VDS;
-      hLdr(_csX1, _vdx2, deckTopY); hLdr(XPK, _vdx2, GY);
-      dimV(_vdx2, deckTopY, GY, `${((CURB_H + DECK_TK) / SC).toFixed(3)} m`, 'PLATFORM');
-      // 4. Bollard (if protected bike lane)
-      if (designBikeLane === 'protected' && bld > 0.05) {
-        const bH2 = Math.max(10, Math.round(0.75 * SC));
-        const _vdx3 = _vdx2 + VDS;
-        hLdr(XBL, _vdx3, GY - CURB_H - bH2); hLdr(XBL, _vdx3, GY - CURB_H);
-        dimV(_vdx3, GY - CURB_H - bH2, GY - CURB_H, `0.75 m`, 'BOLLARD');
-      }
-    }
-    // 5. Pole/signal — always visible (significant height element)
-    if (_hasP || _hasS) {
-      const pX2 = swX0 + (XSW - swX0) * 0.45;
-      const pHpx2 = Math.min(GY + 15, Math.round((_hasS ? 5.5 : 6.0) * SC));
-      const VDX_P = VDX0 + VDS;
-      hLdr(pX2, VDX_P, GY - pHpx2); hLdr(pX2, VDX_P, GY);
-      dimV(VDX_P, GY - pHpx2, GY, `${(_hasS ? 5.5 : 6.0).toFixed(1)} m`, 'POLE');
-    }
-
-    s += `</g>`;
-  }
-  // static scale bar removed — dynamic zoom-aware scale bar renders as overlay
-  if (!paper) s += `<text x='${(XTAIL-4).toFixed(1)}' y='${PB+6}' text-anchor='end' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' fill='#bbb' letter-spacing='.1em'>SECTION A-A   ${(typeof drawingTheme!=='undefined'?drawingTheme.mode:'schematic').toUpperCase()}</text>`;
-  // ── Section measure overlay ─────────────────────────────────────────────
-  if (!paper && (_csMeasureP1 || _csMeasureP2)) {
-    var _csM1 = _csMeasureP1, _csM2 = _csMeasureP2;
-    if (_csM1) s += `<circle cx='${_csM1.x.toFixed(1)}' cy='${_csM1.y.toFixed(1)}' r='4' fill='none' stroke='#0696D7' stroke-width='1.5'/>`;
-    if (_csM1 && _csM2) {
-      var _cdx = _csM2.x - _csM1.x, _cdy = _csM2.y - _csM1.y;
-      var _cdist = Math.hypot(_cdx, _cdy) / SC;
-      var _cdxM = (_cdx / SC).toFixed(2), _cdyM = (-_cdy / SC).toFixed(2);
-      var _cmx = (_csM1.x + _csM2.x) / 2, _cmy = (_csM1.y + _csM2.y) / 2 - 8;
-      s += `<line x1='${_csM1.x.toFixed(1)}' y1='${_csM1.y.toFixed(1)}' x2='${_csM2.x.toFixed(1)}' y2='${_csM2.y.toFixed(1)}' stroke='#0696D7' stroke-width='1' stroke-dasharray='4,2'/>`;
-      s += `<circle cx='${_csM2.x.toFixed(1)}' cy='${_csM2.y.toFixed(1)}' r='4' fill='none' stroke='#0696D7' stroke-width='1.5'/>`;
-      s += `<rect x='${(_cmx-30).toFixed(1)}' y='${(_cmy-14).toFixed(1)}' width='60' height='18' rx='2' fill='rgba(255,255,255,.92)' stroke='#0696D7' stroke-width='0.8'/>`;
-      s += `<text x='${_cmx.toFixed(1)}' y='${(_cmy-3).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='7' font-weight='600' fill='#0696D7'>${_cdist.toFixed(2)} m</text>`;
-      s += `<text x='${_cmx.toFixed(1)}' y='${(_cmy+6).toFixed(1)}' text-anchor='middle' font-family='Helvetica Neue,Arial,sans-serif' font-size='5.5' fill='#555'>X:${_cdxM}  Y:${_cdyM}</text>`;
-    }
-  }
-  svg.innerHTML = s.replace(/[''']/g, '\x22');
-  const _newBaseW = Math.round(1200 + bufPX + bld * SC);
-  const _reqSkyPx = Math.ceil((paper ? Math.min(maxBH2, 4.5) : maxBH2) * hSc) + 20;   // paper: context buildings cut 4.5 m up
-  const _newVBY = Math.min(-18, GY - _reqSkyPx);
-  const _newVBH = 322 - _newVBY;
+  // ── paper: segment names at the top and the dimension chain under the ground ─────────────
+  var lab = '';
   if (paper) {
-    const vb = { x: -CTX_L, y: _newVBY, w: XTAIL + CTX_R + CTX_L, h: _newVBH };
-    svg.setAttribute('viewBox', [vb.x, vb.y, vb.w, vb.h].map(function(v) { return v.toFixed(2); }).join(' '));
-    return { vb: vb, pxPerM: SC, curbX: XSW };
+    var FNT = "font-family='DM Sans,Inter,Helvetica Neue,Arial,sans-serif'", INK = isTech ? '#1A1A1A' : '#3A3734', MIDC = '#6B6864';
+    var cy = STRIP_H + 18, tick = 4, fails = {};
+    (DM.lanes || []).forEach(function(a) { if (!a.c02) fails[a.id] = 1; });
+    var NAMES = { sidewalk: 'Sidewalk', parklet: 'Parklet', 'travel-lane': 'Travel lane', 'bike-lane': 'Bike lane', 'buf-pk': 'Buffer', 'buf-bl': 'Buffer', planting: 'Planting', parking: 'Parking', 'turn-lane': 'Turn lane', 'transit-lane': 'Transit', curb: 'Curb' };
+    var edges = [];
+    CS.forEach(function(q) {
+      var sp = sectionSpan(q.x0, q.x1, f), w = sp[1] - sp[0], name = (SE_TYPES[q.type] && SE_TYPES[q.type].label) || NAMES[q.type] || q.type;
+      var tw = name.length * LBL * 0.62;
+      var shown = w >= tw + 8 ? name : (w >= LBL * 3 ? name.substring(0, 3) : '');
+      if (shown) lab += "<text x='" + f1((sp[0] + sp[1]) / 2) + "' y='" + f1(6 + LBL) + "' text-anchor='middle' " + FNT + " font-size='" + f2(LBL) + "' font-weight='600' letter-spacing='.06em' fill='" + MIDC + "'>" + shown.toUpperCase() + '</text>';
+      if (w >= LBL * 2.6) lab += "<text x='" + f1((sp[0] + sp[1]) / 2) + "' y='" + f1(cy - 4) + "' text-anchor='middle' " + FNT + " font-size='" + f2(LBL) + "' fill='" + (fails[q.id] ? '#B42C2C' : INK) + "'>" + q.width.toFixed(2) + '</text>';
+      edges.push(sp[0], sp[1]);
+    });
+    if (Math.abs(f.remaining) >= 0.001) {
+      var su = sectionSpan(f.allocatedRight, f.xR, f);
+      if (su[1] - su[0] >= LBL * 2.6) lab += "<text x='" + f1((su[0] + su[1]) / 2) + "' y='" + f1(cy - 4) + "' text-anchor='middle' " + FNT + " font-size='" + f2(LBL) + "' fill='" + (f.over ? '#B42C2C' : MIDC) + "'>" + Math.abs(f.remaining).toFixed(2) + '</text>';
+      edges.push(su[0], su[1]);
+    }
+    var lo = Math.min.apply(null, edges), hi = Math.max.apply(null, edges);
+    lab += "<line x1='" + f1(lo) + "' y1='" + cy + "' x2='" + f1(hi) + "' y2='" + cy + "' stroke='" + INK + "' stroke-width='0.8'/>";
+    Array.from(new Set(edges.map(function(e) { return +e.toFixed(2); }))).forEach(function(e) { lab += "<line x1='" + f1(e) + "' y1='" + (cy - tick * 2) + "' x2='" + f1(e) + "' y2='" + (cy + tick) + "' stroke='" + INK + "' stroke-width='0.8'/>"; });
   }
-  const _widthChanged = _newBaseW !== _csBaseW, _topChanged = _newVBY !== _csBaseVBY;
-  _csBaseW = _newBaseW; _csBaseVBY = _newVBY;
-  if (!_csUserMod) { _csVB.x=-160; _csVB.y=_newVBY; _csVB.w=_newBaseW; _csVB.h=_newVBH; }
-  // When user has zoomed/panned, preserve their viewport exactly
-  svg.style.cursor = _csMeasureMode ? 'crosshair' : (_csInFS ? 'grab' : 'default');
-  svg.setAttribute('viewBox', _csVB.x.toFixed(2)+' '+_csVB.y.toFixed(2)+' '+_csVB.w.toFixed(2)+' '+_csVB.h.toFixed(2));
-  _csVB.pxM = SC; _svgAppendSB(svg, _csVB, _csBaseW, _newVBH); _initSVGZoom('crossSection', _csVB, _csBaseW, _newVBH);
-  svg._csBound = false; initSectionInteraction();
-  syncToolbarStates();
-  const lr = document.getElementById('laneReadout');
-  if (lr) {
-    lr.textContent = `Lane residual: ${carResidual.toFixed(3)} m`;
-    lr.style.background = laneOk ? 'rgba(76,184,122,.12)' : 'rgba(240,112,112,.12)';
-    lr.style.color = laneOk ? 'var(--st-pass)' : 'var(--st-fail)';
-  }
-  if (typeof window.seRenderObjects === 'function') try { window.seRenderObjects(); } catch(e) {}
+  function finishObjects(q) { if (typeof DS === 'undefined') return q; q = DS.restyleSectionObjects(q); return isTech ? DS.achromatic(DS.statusInk(q)) : q; }
+  var cutArch = isTech && typeof DS !== 'undefined' ? DS.achromatic(bg + s + arch) : bg + s + arch;
+  svgEl.setAttribute('width', f2(W)); svgEl.setAttribute('height', String(H));
+  svgEl.setAttribute('viewBox', '0 0 ' + f2(W) + ' ' + H);
+  svgEl.innerHTML = cutArch.replace('<g data-layer="cut-drawing"', finishObjects('<g data-layer="beyond">' + bv + '</g>') + '<g data-layer="cut-drawing"') +
+    finishObjects('<g data-layer="cut-objects">' + sv + '</g>') + lab;
+  return { frame: f, W: W, H: H, pxPerM: SC };
 }
 
 // ─────────────────────────────────────────────
@@ -6391,7 +5838,6 @@ const manholes = state['manholes'] || [];
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
   syncToolbarStates();
   initPlanInteraction();
-  initSectionInteraction();
   // the Section's objects follow the same model (cut position, deck length, furniture moves)
   if (typeof window.seRenderObjects === 'function') { try { window.seRenderObjects(); } catch (e) {} }
 
@@ -6540,13 +5986,6 @@ function planSVGCoords(e) {
 
 function nearMH(px, py) {
   return (state['manholes'] || []).findIndex(mh => { const p = worldToPlan(mh.yM, mh.xM); return Math.hypot(px - p.px, py - p.py) < 14; });
-}
-
-function initSectionInteraction() {
-  var csSvg = document.getElementById('crossSection');
-  if (!csSvg || csSvg._csBound) return;
-  csSvg._csBound = true;
-  csSvg.addEventListener('click', _csHandleClick);
 }
 
 function initPlanInteraction() {
@@ -7092,7 +6531,6 @@ function clearCurbType(t) {
 
 function syncToolbarStates() {
   var tb = function(id,on){var b=document.getElementById(id);if(b)b.classList.toggle('on',on);};
-  tb('dimToggleCS',_csDimsOn);
   tb('dimTogglePV',_pvDimsOn);
   tb('secTogglePV',_pvSectionOn);
 }
@@ -11484,10 +10922,8 @@ function cadToggleDim() {
   var btn = document.getElementById('cadDimBtn');
   if (btn) { btn.classList.toggle('active', _cadDimEnabled); btn.setAttribute('aria-pressed', String(_cadDimEnabled)); }
   if (typeof _pvDimsOn !== 'undefined') _pvDimsOn = _cadDimEnabled;
-  if (typeof _csDimsOn !== 'undefined') _csDimsOn = _cadDimEnabled;
-  var pb = document.getElementById('dimTogglePV'); var cb = document.getElementById('dimToggleCS');
+  var pb = document.getElementById('dimTogglePV');
   if (pb) pb.classList.toggle('active', _cadDimEnabled);
-  if (cb) cb.classList.toggle('active', _cadDimEnabled);
   try { if (typeof renderPlanView === 'function') renderPlanView(); } catch(e) {}
   try { if (typeof renderCrossSection === 'function') renderCrossSection(); } catch(e) {}
 }
@@ -12492,15 +11928,8 @@ var FURN_DRAG = {
   _scrollRaf: null
 };
 
-// ── Section metrics helper ────────────────────────────────────
-function _fdGetSectionMetrics() {
-  var VW = 760, FACADE_W = 28, TAIL_W = 32;
-  var _DM = _dmCurrent(), _LM = _DM.landmarks;
-  var SC = (VW - FACADE_W - TAIL_W) / (_LM.sidewalkW + _DM.totalRoad);
-  var XSW = FACADE_W + (_LM.bufferW + _LM.sidewalkW) * SC;
-  var XPK = XSW + _LM.deckW * SC;
-  return { SC: SC, XSW: XSW, XPK: XPK };
-}
+// Section drop target: the strip's drawing (#seDrawSVG) through the frame it was drawn with.
+function _fdSectionFrame() { return typeof window.seFrame === 'function' ? window.seFrame() : null; }
 
 // ── Ghost (floating drag label) ───────────────────────────────
 function _fdCreateGhost(objId, e) {
@@ -12568,21 +11997,13 @@ function _fdGetPlanWorld(e) {
 }
 
 function _fdGetSectionWorld(e) {
-  var svg = document.getElementById('crossSection');
-  if (!svg) return { valid: false };
-  var ctm = svg.getScreenCTM();
-  if (!ctm) return { valid: false };
-  var pt = svg.createSVGPoint();
-  pt.x = e.clientX; pt.y = e.clientY;
-  var sp = pt.matrixTransform(ctm.inverse());
-  var m = _fdGetSectionMetrics();
-  if (sp.x < m.XSW || sp.x > m.XPK) return { valid: false };
-  var wx = (sp.x - m.XSW) / m.SC;
-  var wz = (typeof getSectionCutWorldZ === 'function') ? getSectionCutWorldZ() :
-            _dmCurrent().parklet.length / 2;
-  return { valid: true, wx: wx, wz: wz };
+  var svg = document.getElementById('seDrawSVG'), f = _fdSectionFrame();
+  if (!svg || !f) return { valid: false };
+  var r = svg.getBoundingClientRect(); if (!r.width) return { valid: false };
+  var wx = sectionToWorld(e.clientX - r.left, 0, f).x, LM = _dmCurrent().landmarks;
+  if (wx < LM.deckX0 || wx > LM.deckX1) return { valid: false };
+  return { valid: true, wx: wx, wz: getSectionCutWorldZ() };
 }
-
 function _fdGet3DWorld(e) {
   if (!_3d || !_3d.renderer || !_3d.camera || !_3d.scene) return { valid: false };
   if (typeof FL3D === 'undefined' || !FL3D || !FL3D.floor || !FL3D._built ||
@@ -12634,7 +12055,8 @@ function _fdClearPlanPreview() {
 
 // ── Section preview (SVG rect) ────────────────────────────────
 function _fdUpdateSectionPreview(wx, wz, snap) {
-  var svg = document.getElementById('crossSection');
+  var svg = document.getElementById('seDrawSVG'), f = _fdSectionFrame();
+  if (!f) return;
   if (!svg) return;
   var grp = document.getElementById('_fdSecPrev');
   if (!grp) {
@@ -12642,12 +12064,11 @@ function _fdUpdateSectionPreview(wx, wz, snap) {
     grp.id = '_fdSecPrev';
     svg.appendChild(grp);
   }
-  var m = _fdGetSectionMetrics();
-  var cx = m.XSW + wx * m.SC;
-  var GY = 148; // deck-level Y in section SVG (constant from renderCrossSection)
+  var cx = worldToSection(wx, 0, f).px;
+  var GY = f.groundY - f.swRaise - f.deckTk;   // deck surface in the drawing
   var dims = flKeyDims(FURN_DRAG.objId);
-  var pw = Math.max(4, dims.d * m.SC);
-  var ph = Math.max(6, dims.h * m.SC);   // the piece height, from its params
+  var pw = Math.max(4, dims.d * f.SC);
+  var ph = Math.max(6, dims.h * f.SC);   // the piece height, from its params
   var snapLbl = snap ? (snap.label || snap.type || '') : '';
   var html =
     '<rect x="' + (cx - pw/2).toFixed(1) + '" y="' + (GY - ph).toFixed(1) + '"' +
@@ -13071,11 +12492,11 @@ function isPlanCanvasEmpty(pos) {
 
 function isSectionCanvasEmpty(svgX) {
   if (typeof FL3D === 'undefined' || !FL3D || !FL3D.placed) return true;
-  var sm = (typeof _fdGetSectionMetrics === 'function') ? _fdGetSectionMetrics() : null;
+  var sm = _fdSectionFrame();
   if (!sm) return true;
   for (var i = 0; i < FL3D.placed.length; i++) {
     var inst = FL3D.placed[i];
-    var cx = sm.XSW + (inst.x || 0) * sm.SC;
+    var cx = worldToSection(inst.x || 0, 0, sm).px;
     var dims = flInstDims(inst);
     var hw = dims.d * sm.SC / 2 + 6;
     if (Math.abs(svgX - cx) < hw) return false;
@@ -13098,25 +12519,6 @@ window.addEventListener('load', function() {
       e.stopPropagation(); // prevent zoom reset when deselecting
       e.preventDefault();
     }, true /* capture */);
-  }
-
-  // Section SVG — same pattern
-  var csvg = document.getElementById('crossSection');
-  if (csvg) {
-    csvg.addEventListener('dblclick', function(e) {
-      if (!FL3D || FL3D.selId === null) return;
-      var svg = document.getElementById('crossSection');
-      if (!svg) return;
-      var ctm = svg.getScreenCTM();
-      if (!ctm) return;
-      var pt = svg.createSVGPoint();
-      pt.x = e.clientX; pt.y = e.clientY;
-      var sp = pt.matrixTransform(ctm.inverse());
-      if (!isSectionCanvasEmpty(sp.x)) return;
-      clearFurnitureSelection();
-      e.stopPropagation();
-      e.preventDefault();
-    }, true);
   }
 
   // 3D — dblclick bubbles up from the renderer canvas to threeWrap
@@ -18594,9 +17996,9 @@ RPT.planAt = function(host, theme) {
 };
 // Section A-A: renderCrossSection into an offscreen SVG (one scale both ways). 1 m = pxPerM units.
 RPT.sectionSVG = function(host, theme) {
-  var svg = RPT.svgIn(host), r = renderCrossSection({ svg: svg, theme: theme, mmPerM: 20 });
+  var svg = RPT.svgIn(host), r = renderCrossSection(svg, { scale: 50, paper: true, labels: 'paper', pxPerM: 60, theme: theme });
   if (!r) return null;
-  return { el: svg, wPx: r.vb.w, hPx: r.vb.h, pxPerM: r.pxPerM, sec: DESIGN_MODEL.section };
+  return { el: svg, wPx: r.W, hPx: r.H, pxPerM: r.pxPerM, sec: DESIGN_MODEL.section };
 };
 // Axon: the Brief 06 isometric camera and its own offscreen WebGL renderer (AXE.renderer), at 2x
 // the sheet's 96 dpi size; entourage and agents hidden for the frame; the scene's lit objects in
@@ -18686,7 +18088,7 @@ RPT.sectionSheet = function(sx, d) {
   var tbl = "<table class='tbl segtbl'><thead><tr><th>Segment</th><th class='num'>x from (m)</th><th class='num'>x to (m)</th><th class='num'>Width (m)</th></tr></thead><tbody>" + rows + '</tbody></table>';
   var cut = "<p>Cut at z " + RPT.fx(S.z, 2) + ' m, looking ' + (S.dir > 0 ? '+Z (south)' : '-Z (north)') + '; objects up to ' + RPT.fx(S.depth, 1) + ' m beyond the cut (to z ' + RPT.fx(S.zFar, 2) + ' m) are drawn as beyond.</p>';
   var body = "<div class='drw sec'><div class='secrow'><figure class='fig secfig'>" + el.outerHTML + '</figure>' + RPT.cutKey(d) + '</div>' +
-    "<div class='secinfo'>" + tbl + "<div class='caption'>" + cut + '<p>x is across the street from the near curb (world metres); zone labels and widths in the drawing are the Section editor\'s segments. Context buildings are cut 4.5 m above the sidewalk.</p></div></div>' +
+    "<div class='secinfo'>" + tbl + "<div class='caption'>" + cut + '<p>x is across the street from the near curb (world metres); the drawing is the Section editor\'s own (renderCrossSection), its labels and widths are the segments.</p></div></div>' +
     RPT.titleBlock(no, title, '1:50 at A3', RPT.scaleBar(50, 5, 5), '', "<p>Street cross-section at the A-A cut, with depth (Brief 08).</p>") + '</div>';
   return RPT.sheet('a3', no, title, body, '1:50 at A3');
 };// key plan for the section: the deck and pieces, the A-A cut and the depth drawn beyond it
@@ -19059,7 +18461,7 @@ RPT.print = async function() {
   opacity: 0; pointer-events: none; transition: opacity .2s; }
 #seViewport { overflow-x: auto; overflow-y: hidden; width: 100%; padding: 0 12px 4px; box-sizing: border-box; overscroll-behavior-x: contain;
   scrollbar-width: thin; scrollbar-color: var(--d-lt) transparent; }
-#seStrip .se-seg { position: relative; height: 100%; flex-shrink: 0; box-sizing: border-box; background: transparent; border-right: 1px solid rgba(26,26,26,.08); }
+#seStrip .se-seg { position: absolute; top: 0; height: 100%; box-sizing: border-box; background: transparent; border-right: 1px solid rgba(26,26,26,.08); }
 #seStrip .se-seg:not(.se-fixed) { cursor: grab; }
 #seStrip .se-seg:not(.se-fixed):hover { background: rgba(26,26,26,.035); }
 #seStrip .se-seg.se-selected, #seStrip .se-seg:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: -2px; z-index: 2; }
@@ -19072,14 +18474,14 @@ RPT.print = async function() {
 #seStrip .se-seg:not(.se-fixed):hover .se-rh, #seStrip .se-seg.se-selected .se-rh { opacity: 1; }
 #seInsLine { display: none; position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -4.5px; z-index: 20; pointer-events: none; box-sizing: border-box;
   background: rgba(58,168,228,.22); border-left: 2px solid var(--accent-ui); border-right: 2px solid var(--accent-ui); }
-#seUnalloc { height: 100%; flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+#seUnalloc { position: absolute; top: 0; height: 100%; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   border: 1px dashed var(--d-mid); overflow: hidden; z-index: 5; }
 #seUnalloc.over { border-color: var(--st-fail-ink); }
 .se-unalloc-hdr { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--d-mid); pointer-events: none; white-space: nowrap; }
 #seUnalloc.over .se-unalloc-hdr { color: var(--st-fail-ink); }
 /* dimension chain: extension tick + slash at every edge, value above the line */
-#seDimRow { display: flex; height: 26px; position: relative; }
-.se-dim { flex-shrink: 0; position: relative; height: 26px; box-sizing: border-box; display: flex; justify-content: center; }
+#seDimRow { display: block; height: 26px; position: relative; }
+.se-dim { position: absolute; top: 0; height: 26px; box-sizing: border-box; display: flex; justify-content: center; }
 .se-dim:not(.se-dim-b) { background: linear-gradient(var(--d-ink), var(--d-ink)) 0 18px / 100% 1px no-repeat; }
 .se-dim::before { content: ''; position: absolute; left: -0.5px; top: 0; height: 24px; border-left: 1px solid var(--d-mid); }
 .se-dim::after { content: ''; position: absolute; left: -3.5px; top: 15px; width: 7px; height: 7px;
@@ -19121,12 +18523,11 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
    Looking +Z mirrors the section: segment order runs right to left, the resize
    handles and dimension ticks swap sides. Objects in the section are clickable;
    the selected one carries the accent. */
-.se-mirror #seStrip, .se-mirror #seDimRow { flex-direction: row-reverse !important; }   /* #seStrip carries an inline row */
 .se-mirror .se-rh { right: auto; left: 0; }
 .se-mirror .se-rh.se-rh-l { left: auto; right: 0; }
 .se-mirror .se-dim::before { left: auto; right: -0.5px; }
 .se-mirror .se-dim::after { left: auto; right: -3.5px; }
-#seBeyondSVG [data-inst], #seObjOverlay [data-inst] { pointer-events: bounding-box; cursor: pointer; }
-#seBeyondSVG .se-sel *, #seObjOverlay .se-sel * { stroke: var(--accent-ui) !important; }
+#seStrip:has(#seDrawSVG [data-inst]:hover) { cursor: pointer; }
+#seDrawSVG .se-sel * { stroke: var(--accent-ui) !important; }
 </style>
 </body></html>
