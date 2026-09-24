@@ -130,6 +130,14 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 - **Export:** offscreen renderer (`AXE.renderer`), so the viewport renderer is never resized. WebM through WebCodecs `VideoEncoder` (VP8) + an in-file WebM muxer when available (frame-exact, faster than real time); fallback `canvas.captureStream` + `MediaRecorder` (real time, may drop frames -- the export counts and reports). PNG-frame ZIP via a store-only writer. `AXE.export({download:false})` returns the blob (used for testing). Each preview/export ends with `AXE.check`: interactive camera, renderer vs `#threeWrap`, `FL3D.placed` count, `checkLandmarkConsistency`.
 - MP4 is not produced: no browser encoder for it; the UI says so.
 
+## Interface cleanup (Brief 07, branch ui-cleanup)
+- **Tokens** (`:root`, end of the head style): type 11/12/13/15/18 (`--fs-*`), `--font-ui` + `--font-mono`, spacing 4/8/12/16/24 (`--sp-*`), chrome greys `--c-*`, drawing greys `--d-*` (neutral), ONE accent `--accent-ui` (selection / focus / primary action / pressed state only), status `--st-pass/fail/warn` for dark chrome and `--st-*-ink` for paper. The final `<style id="ui07">` before `</body>` holds all Brief 07 presentation rules.
+- **Dock:** the nav rail is gone (`#ctxPanel` is the first child of `.app-body`). Panels are wrapped by `_initDkPanels` with explicit sentence-case titles; all closed by default, the open set is `state.__dockOpen` (saved by `saveSettings`, restored by `_dkLoad`). One Library panel (`lhsFwRender`) lists furniture, entourage and street components (chip "Street"); tiles drag via `_fdStartDrag` / `_sdStartDrag`. Context buildings: `BLDG_FIELDS` + `renderBldgList` (cards, unit inside the field, 20x60 key). Compliance: `buildCriterion` cards (short title = title without its trailing parenthetical).
+- **Section strip:** names only inside segments; widths in the dimension chain `#seDimRow` (click a value to type a width, `_editWidth`); `seFit()` toggles the fit state, `seSetFit(on)` sets it (Fit all uses it); stats row `.se-stats-row`, warnings `.se-warn`.
+- **Plan dimensions:** px-sized. `renderPlanView` computes `U` (plan units per screen px) and fits `_pvVB` to the panel with margins for the chains; `_pvSpread` de-overlaps labels (clusters, bounds, value-only fallback). `_pvAppendAnno` draws the scale bar and north arrow on the top-right margin. The plan re-renders on panel resize (`_vpSizeViewport`).
+- **Technical mode** is achromatic: `DS.achromatic` (Plan + Section SVG strings), `DS.ground3D` (3D ground planes), `DS.hatch3D` (planting dots / bike diagonal textures); only `DS.KEEP` (accent, pass, fail) keep a hue. `<html>` gets `.dm-technical`.
+- **Verification** (scratchpad `p7.ps1`, headless Edge via `cdp.ps1`): contrast of every chrome text node, plan label overlap at 1280/1440/1920, technical saturation scan (`sat.js`), accordion persistence across a reload, page errors.
+
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
@@ -155,9 +163,9 @@ $html = $html.Replace($old, $new)
 - Furniture popover `#furniturePanel` (`cadToggleFurniturePanel`, `_cadBuildFp`, `_cadRenderFp`) - its markup is gone, so it never shows. Candidate for deletion.
 
 ## Style system
-- Dark charcoal sidebar, `#c03030` red accent (`var(--acc)`)
-- Font: DM Sans
-- CSS variables: `--panel-bg`, `--border-c`, `--text-hi`, `--text-lo`, `--text-mu`, `--bg`, `--nav-bg`
+- Dark charcoal dock (`--c-bg #17191C`, `--c-panel #202328`), one blue accent `--accent-ui #3AA8E4` (Brief 07; the old red accent is retired)
+- Fonts: `--font-ui` (DM Sans stack) and `--font-mono`; Barlow Condensed remains for drawing labels
+- Older variables (`--panel-bg`, `--border-c`, `--text-hi`, `--text-lo`, `--text-mu`, `--acc`, ...) are aliases of the Brief 07 tokens
 
 ## To continue in a new session
 Tell Claude: "I want to continue working on parklet-checker.html" and mention this file.

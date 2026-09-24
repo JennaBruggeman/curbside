@@ -1142,7 +1142,7 @@ function buildCriterion(c) {
   const siteCondText = typeof c.siteCondition === 'function' ? c.siteCondition() : c.siteCondition;
   return `<div class="criterion ${st}" id="crit_${c.id}">` +
     `<div class="criterion-header" role="button" tabindex="0" onclick="toggleCrit('${c.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrit('${c.id}')}">` +
-      `<span class="crit-num">${c.num}</span><span class="crit-title">${c.title}</span>` +
+      `<span class="crit-num">${c.num}</span><span class="crit-title" title="${String(c.title).replace(/"/g, '&quot;')}">${String(c.title).replace(/\s*\([^)]*\)\s*$/, '')}</span>` +
       `<span class="badge ${badgeClass}" id="badge_${c.id}">${badgeText}</span></div>` +
     `<div class="crit-req">${c.requirement}</div>` +
     `<div class="criterion-body ${bodyClass}" id="body_${c.id}">` +
@@ -3844,7 +3844,7 @@ document.addEventListener('mouseup', function() {
     var compHtml = '', la = s.type==='travel-lane' ? m.laneById[s.id] : null;
     if (la) {
       var ok = la.c02;
-      compHtml = '<span style="margin-left:6px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:2px;letter-spacing:.06em;background:'+(ok?'rgba(45,106,79,.12)':'rgba(192,48,48,.1)')+';color:'+(ok?'rgba(45,106,79,.9)':'rgba(192,48,48,.85)')+'">'+
+      compHtml = '<span style="margin-left:6px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:2px;letter-spacing:.06em;border:1px solid;background:transparent;color:'+(ok?LANE_GREEN:LANE_RED)+'">'+
         (ok?'C02 PASS':'C02 FAIL &mdash; '+la.width.toFixed(2)+'m / '+la.req+'m min')+'</span>';
     }
 
@@ -3854,24 +3854,24 @@ document.addEventListener('mouseup', function() {
         '<input type="number" id="sePropW" data-id="'+s.id+'" value="'+s.width.toFixed(3)+
         '" min="'+wMin+'" max="'+wMax+'" step="0.05" '+
         'style="width:65px;padding:3px 6px;font-size:11px;font-weight:600;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--text)">'+
-        '<span style="font-size:11px;color:var(--muted)">m</span>'+compHtml+'</div>' :
+        '<span style="font-size:11px;color:var(--d-mid)">m</span>'+compHtml+'</div>' :
       '<span style="font-size:11px;font-weight:600;color:var(--text)">'+(s.width>0?s.width.toFixed(2)+'m':'context')+'</span>';
 
     var varHtml = '';
     if (def.variants && def.variants.length) {
-      varHtml = '<span style="font-size:11px;color:var(--muted)">Variant</span>'+
+      varHtml = '<span style="font-size:11px;color:var(--d-mid)">Variant</span>'+
         '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
         def.variants.map(function(v) {
-          return '<span class="se-var" data-id="'+s.id+'" data-v="'+v+'" style="font-size:11px;padding:2px 7px;border:1px solid var(--rule);border-radius:2px;cursor:pointer;font-weight:600;background:'+(s.variant===v?'var(--accent)':'var(--bg)')+';color:'+(s.variant===v?'#fff':'var(--muted)')+'">'+v+'</span>';
+          return '<span class="se-var" data-id="'+s.id+'" data-v="'+v+'" style="font-size:11px;padding:2px 7px;border:1px solid var(--d-lt);border-radius:2px;cursor:pointer;font-weight:600;background:'+(s.variant===v?'var(--accent-ui)':'var(--d-paper)')+';color:'+(s.variant===v?'var(--c-bg)':'var(--d-ink)')+'">'+v+'</span>';
         }).join('')+'</div>';
     }
 
     var ruleHtml = '';
-    if (s.type==='parklet') ruleHtml='<div style="font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--rule)">Vancouver Parklet Manual v1.0 (2016)</div>';
-    if (s.type==='bike-lane') ruleHtml='<div style="font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--rule)">Vancouver EDM 2026 &mdash; min 1.5m painted, 2.0m protected</div>';
+    if (s.type==='parklet') ruleHtml='<div style="font-size:11px;color:var(--d-mid);margin-top:6px;padding-top:6px;border-top:1px solid var(--rule)">Vancouver Parklet Manual v1.0 (2016)</div>';
+    if (s.type==='bike-lane') ruleHtml='<div style="font-size:11px;color:var(--d-mid);margin-top:6px;padding-top:6px;border-top:1px solid var(--rule)">Vancouver EDM 2026 &mdash; min 1.5m painted, 2.0m protected</div>';
     if (la) {
       var lst = _laneStatus(la), rk = laneRouteKey() === 'bus_truck' ? 'bus/truck route' : 'standard route';
-      ruleHtml='<div style="font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--rule);line-height:1.6">'+
+      ruleHtml='<div style="font-size:11px;color:var(--d-mid);margin-top:6px;padding-top:6px;border-top:1px solid var(--rule);line-height:1.6">'+
         '<strong>EDM 2026 Table 8-10</strong> &mdash; '+la.role+' lane, '+rk+': abs. min '+la.env.absMin.toFixed(1)+' m &middot; preferred '+la.env.preferred.toFixed(1)+' m &middot; max '+la.env.max.toFixed(1)+' m (exception to '+LANE_EXCEPTION_MAX.toFixed(1)+' m)<br>'+
         (lst.note ? '<span style="color:'+LANE_AMBER+';font-weight:700">'+lst.note+'</span><br>' : '')+
         'C02: Adjacent lane &ge;'+la.req+'m (Parklet Manual p.20)</div>';
@@ -3882,10 +3882,10 @@ document.addEventListener('mouseup', function() {
         '<strong style="font-size:11px;letter-spacing:.07em;text-transform:uppercase">'+(def.label||s.type)+'</strong>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:80px 1fr;gap:6px 10px;align-items:center">'+
-        '<span style="font-size:11px;color:var(--muted)">Width</span>'+wHtml+varHtml+
+        '<span style="font-size:11px;color:var(--d-mid)">Width</span>'+wHtml+varHtml+
       '</div>'+ruleHtml+
       '<div style="display:flex;gap:6px;margin-top:8px">'+
-        (def.del!==false?'<button id="sePropDel" data-id="'+s.id+'" style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border:1px solid rgba(192,48,48,.3);border-radius:3px;background:var(--bg);color:rgba(192,48,48,.75);cursor:pointer">Remove</button>':'')+
+        (def.del!==false?'<button id="sePropDel" data-id="'+s.id+'" style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border:1px solid var(--d-lt);border-radius:3px;background:var(--d-paper);color:var(--st-fail-ink);cursor:pointer">Remove</button>':'')+
       '</div>';
 
     var wi=document.getElementById('sePropW');
