@@ -193,10 +193,6 @@
 .vp-tools button.active { background:var(--ink) !important; border-color:var(--ink) !important; color:#fff !important; }
 .vp-tools button:disabled { opacity:.45; cursor:default; }
 .vp-tools button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
-/* Section: the editor's ADD palette is the Section toolstrip. */
-#viewportGrid #sePalette { padding:3px 8px !important; gap:3px !important; }
-#viewportGrid #sePalette > span { font-size:11px !important; margin-right:2px !important; }
-#viewportGrid .se-pal-item { padding:1px 5px 1px 3px !important; font-size:11px !important; gap:3px !important; line-height:16px; }
 /* #csToolbar drives the hidden static #crossSection SVG (superseded by the section editor). */
 #csToolbar { display:none !important; }
 #libraryCanvas { display:none; flex-direction:column; flex:1; overflow:auto; }
@@ -301,18 +297,6 @@
 /* === DRAWING THEME SWITCHER === */
 .theme-switcher { display:flex; align-items:center; gap:4px; padding:0 8px; border-left:1px solid #E0DFDB; margin-left:4px; flex-shrink:0; }
 
-
-
-
-}
-/* ── Section Editor ───────────────────────────────────── */
-.se-seg { transition:background 120ms; }
-.se-seg:not(.se-fixed):hover { background:rgba(0,0,0,.06) !important; }
-.se-seg.se-selected { outline:2px solid var(--accent); outline-offset:-2px; z-index:2; position:relative; background:rgba(0,0,0,.04) !important; }
-.se-seg.se-dragging { opacity:.35 !important; }
-.se-seg:not(.se-fixed):hover .se-rh, .se-seg.se-selected .se-rh { opacity:1 !important; }
-.se-pal-item:hover { background:var(--hover) !important; border-color:var(--muted) !important; color:var(--text) !important; }
-
 /* ======================================================================
    UI TOKENS (Brief 07) -- the only sizes, fonts, spacings and chrome
    colours the interface uses. Older variables below are aliases.
@@ -332,11 +316,12 @@
   --c-text: #F2F2F0;    /* 15.6:1 on panel */
   --c-text-dim: #9EA3A8;/* 6.9:1 on panel -- the dimmest text allowed */
   /* drawing (light sheets) */
-  --d-paper: #FFFFFF; --d-ink: #1A1A1A; --d-mid: #6E6C68; --d-lt: #D9D7D2; --d-xlt: #F2F1EE;
+  --d-paper: #FFFFFF; --d-ink: #1A1A1A; --d-mid: #62605C; --d-lt: #D9D7D2; --d-xlt: #F2F1EE;
   /* one accent: selection, focus, primary action only */
   --accent-ui: #3AA8E4; /* 6.9:1 on panel (the old #0696D7 is 4.3:1 as text) */
   /* status */
   --st-pass: #4CB87A; --st-fail: #F07070; --st-warn: #D69A1E;
+  --st-pass-ink: #23704A; --st-fail-ink: #B42C2C; --st-warn-ink: #8A5A00;   /* the same three on paper */
   /* legacy names -> tokens */
   --mono: var(--font-mono); --sans: var(--font-ui);
   --app-bg: var(--c-bg); --nav-bg: var(--c-panel); --panel-bg: var(--c-panel); --border-c: var(--c-rule);
@@ -3003,8 +2988,19 @@ document.addEventListener('mouseup', function() {
     var root = document.getElementById('seRoot');
     return (root && root.offsetWidth > 0) ? root.offsetWidth - 28 : 572;
   }
+  // 60 px/m, scrolling sideways when the street is wider than the viewport -- or, in the fit
+  // state (the header's FIT button), whatever scale shows the whole section at once.
+  var _fitMode = false;
   function _recomputeScale() {
     SECTION_PX_PER_M = 60;
+    if (!_fitMode) return;
+    var m = _segs.reduce(function(a, s){ return a + (s.type === 'building' ? 0 : s.width); }, 0);
+    var tr = (typeof TOTAL_ROAD !== 'undefined') ? TOTAL_ROAD : 0;
+    var alloc = _segs.reduce(function(a, s){ return a + (s.type === 'building' || s.type === 'sidewalk' ? 0 : s.width); }, 0);
+    m += Math.abs(tr - alloc);   // the unallocated (or over) gap is drawn too
+    var nb = _segs.filter(function(s){ return s.type === 'building'; }).length;
+    var avail = _vpWidth() - 26 - nb * 24;
+    if (m > 0 && avail > 40) SECTION_PX_PER_M = Math.max(8, Math.min(120, avail / m));
   }
   function _segPx(w) { return Math.max(8, Math.round(w * SECTION_PX_PER_M)); }
 
@@ -3183,7 +3179,7 @@ document.addEventListener('mouseup', function() {
       if (!_aw) {
         _aw = document.createElement('div');
         _aw.id = 'se-add-warn';
-        _aw.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#c03030;color:#fff;padding:8px 18px;border-radius:6px;font:bold 12px/1.6 monospace;z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.4);';
+        _aw.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--st-fail-ink);color:#fff;padding:8px 18px;border-radius:4px;font:500 var(--fs-12)/1.6 var(--font-ui);z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.4);';
         document.body.appendChild(_aw);
       }
       _aw.textContent = 'Cannot add ' + addW.toFixed(2) + '\u202fm ' + (def.label || type) + ': only ' + Math.max(0, _addRem).toFixed(2) + '\u202fm remains.';
@@ -3267,7 +3263,7 @@ document.addEventListener('mouseup', function() {
 
   // Colour + wording for one lane assessment: amber = EDM Table 8-10 note band (allowed
   // with conditions), red = below the Parklet Manual C02 minimum.
-  var LANE_AMBER = 'rgba(196,124,8,.95)', LANE_RED = 'rgba(192,48,48,.9)';
+  var LANE_AMBER = 'var(--st-warn-ink)', LANE_RED = 'var(--st-fail-ink)', LANE_GREEN = 'var(--st-pass-ink)';
   function _laneStatus(a) {
     if (!a) return { dot: '', text: '', note: '' };
     var amber = a.band === 'abs-min' || a.band === 'exception';
@@ -3279,6 +3275,7 @@ document.addEventListener('mouseup', function() {
 
   // ── Render ──────────────────────────────────────────────────────────
   function _seRender() {
+    if (_fitMode) _recomputeScale();
     _renderStrip(); _renderDimRow(); _renderStats(); _renderSel(); _renderProp(); _updateHistBtns();
     _seRenderObjects();
   }
@@ -3493,11 +3490,10 @@ document.addEventListener('mouseup', function() {
     var s = '<svg id="seArchSVG" xmlns="http://www.w3.org/2000/svg" width="' + totalW + '" height="' + STRIP_H + '" style="position:absolute;left:0;top:0;pointer-events:none;z-index:1;">';
     s += '<defs>';
     s += '<pattern id="sePoche" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + P.ink + '" stroke-width="0.9"/></pattern>';
-    s += '<pattern id="seSub" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="' + (isTech ? '#B4B2AD' : 'rgba(120,100,70,.18)') + '" stroke-width="0.45"/></pattern>';
+    s += '<pattern id="seSub" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="' + (isTech ? '#B4B2AD' : 'none') + '" stroke-width="0.45"/></pattern>';
     s += '<pattern id="seGrain" patternUnits="userSpaceOnUse" width="' + boardW + '" height="200"><line x1="' + boardW + '" y1="0" x2="' + boardW + '" y2="200" stroke="' + (isTech ? '#8E8C88' : 'rgba(110,70,30,.35)') + '" stroke-width="' + P.wGrain + '"/></pattern>';
-    s += '<pattern id="seSoilDot" patternUnits="userSpaceOnUse" width="6" height="6"><circle cx="1.5" cy="1.5" r="0.7" fill="' + (isTech ? '#B0AEA9' : 'rgba(90,60,30,.28)') + '"/><circle cx="4.5" cy="4.5" r="0.5" fill="' + (isTech ? '#C4C2BD' : 'rgba(90,60,30,.18)') + '"/></pattern>';
+    s += '<pattern id="seSoilDot" patternUnits="userSpaceOnUse" width="6" height="6"><circle cx="1.5" cy="1.5" r="0.7" fill="' + (isTech ? '#B0AEA9' : 'none') + '"/><circle cx="4.5" cy="4.5" r="0.5" fill="' + (isTech ? '#C4C2BD' : 'none') + '"/></pattern>';
     s += '<pattern id="seStip" patternUnits="userSpaceOnUse" width="5" height="5"><circle cx="2.5" cy="2.5" r="0.75" fill="' + (isTech ? '#6E6C68' : 'rgba(40,80,30,.35)') + '"/></pattern>';
-    if (!isTech) s += '<filter id="seGrainF" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.06"/></feComponentTransfer></filter>';
     s += '</defs>';
 
     // ── Paper + subgrade ─────────────────────────────────────────────────
@@ -3604,7 +3600,6 @@ document.addEventListener('mouseup', function() {
 
     // ── Ground datum (dominant line) ─
     s += '<line x1="0" y1="' + GROUND_Y + '" x2="' + totalW + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + (isTech ? 2.0 : 1.4) + '"/>';
-    if (!isTech) s += '<rect x="0" y="0" width="' + totalW + '" height="' + STRIP_H + '" filter="url(#seGrainF)" opacity="0.9"/>';
     s += '</svg>';
     var tmp = document.createElement('div');
     tmp.innerHTML = s;
@@ -3618,7 +3613,7 @@ document.addEventListener('mouseup', function() {
     var vpW = _vpWidth();
     var SC = SECTION_PX_PER_M;
     var STRIP_H = 260, GROUND_Y = STRIP_H - 32, SW_RAISE = Math.round(0.15 * SC), PK_RAISE = SW_RAISE;
-    var html = '<div id="seInsLine" style="display:none;position:absolute;top:-4px;bottom:-4px;width:3px;background:var(--accent);border-radius:2px;z-index:20;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.4)"></div>';
+    var html = '<div id="seInsLine" aria-hidden="true"></div>';
     var totalContentPx = 0;
     var segPxArr = [];
     for (var i = 0; i < _segs.length; i++) {
@@ -3627,46 +3622,35 @@ document.addEventListener('mouseup', function() {
       var px = s.type === 'building' ? 24 : _segPx(s.width);
       segPxArr.push(px);
       totalContentPx += px;
-      var narrow = px < 44, vNarrow = px < 22;
-      var _ls = s.type === 'travel-lane' ? _laneStatus(m.laneById[s.id]) : null;
-      var compDot = _ls ?
-        '<span data-lanedot="1" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:'+_ls.dot+';z-index:15;display:'+(_ls.dot?'block':'none')+'"></span>' : '';
+      // Handles on both edges of a resizable segment appear on hover (col-resize). The name is the
+      // only text inside a segment, at one size; its width sits in the dimension chain below.
       var rhHtml = (def.resize && !def.fixed) ?
-        '<div class="se-rh" data-rhid="'+s.id+'" style="position:absolute;right:-5px;top:20%;bottom:20%;width:10px;cursor:ew-resize;z-index:8;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 150ms">' +
-        '<div style="width:3px;height:70%;background:rgba(0,0,0,.3);border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.4)"></div></div>' : '';
-      var _isTechLbl = (typeof drawingTheme !== 'undefined' && drawingTheme.mode === 'technical');
-      var inner = '';
-      if (!vNarrow) {
-        var lblStyle = _isTechLbl
-          ? 'font-size:'+(narrow?'6':'7.5')+'px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(20,20,20,.55);text-align:center;line-height:1.2;word-break:break-all;hyphens:auto;'
-          : 'font-size:'+(narrow?'7':'8px')+';font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(60,56,50,.62);text-align:center;line-height:1.2;word-break:break-all;hyphens:auto;';
-        var dimStyle = _isTechLbl
-          ? 'font-size:11px;color:rgba(20,20,20,.4);font-variant-numeric:tabular-nums;'
-          : 'font-size:11px;color:rgba(60,56,50,.5);font-variant-numeric:tabular-nums;';
-        inner = '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;padding:2px;max-width:100%;overflow:hidden;position:absolute;top:6px;left:0;right:0;z-index:5">' +
-          '<span style="' + lblStyle + '">' +
-          (narrow ? (def.label||s.type).substring(0,3) : (def.label||s.type)) + '</span>';
-        if (!narrow && !def.fixed)
-          inner += '<span data-dim="1" style="' + dimStyle + (_ls && _ls.text ? 'color:' + _ls.text + ';font-weight:700;' : '') + '">'+s.width.toFixed(2)+'m</span>';
-        inner += '</div>';
+        '<div class="se-rh" data-rhid="'+s.id+'" aria-hidden="true"></div>' : '';
+      var lhHtml = '';
+      if (!def.fixed && i > 0) {
+        var prev = _segs[i-1], pdef = SE_TYPES[prev.type] || {};
+        if (pdef.resize && !pdef.fixed) lhHtml = '<div class="se-rh se-rh-l" data-rhid="'+prev.id+'" aria-hidden="true"></div>';
+      }
+      var name = def.label || s.type, inner = '';
+      if (!def.fixed) {
+        var fits = px >= name.length * 7.2 + 8;
+        var shown = fits ? name : (px >= 34 ? name.substring(0, 3) : '');
+        if (shown) inner = '<span class="se-name" title="' + name + '">' + shown + '</span>';
       }
       html += '<div class="se-seg'+(def.fixed?' se-fixed':'')+(s.id===_selId?' se-selected':'')+'" '+
         'id="seg_'+s.id+'" data-id="'+s.id+'" data-type="'+s.type+'" '+
-        (def.fixed?'':'tabindex="0" ')+
-        'style="width:'+px+'px;background:transparent;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:100%;flex-shrink:0;border-right:1px solid rgba(255,255,255,.07);box-sizing:border-box;overflow:hidden">'+
-        inner + compDot + rhHtml + '</div>';
+        (def.fixed?'':'tabindex="0" aria-label="' + name + ' ' + s.width.toFixed(2) + ' m" ')+
+        'style="width:'+px+'px">'+
+        inner + lhHtml + rhHtml + '</div>';
     }
     var unallocPx = Math.abs(m.remaining) >= 0.001 ? _segPx(Math.abs(m.remaining)) : 0;
     if (unallocPx > 0) {
       totalContentPx += unallocPx;
-      var uBorder = m.over ? '2px dashed rgba(192,48,48,.4)' : '2px dashed rgba(140,138,132,.25)';
-      var uTxtColor = m.over ? 'rgba(220,80,80,.9)' : 'rgba(170,168,162,.55)';
-      html += '<div id="seUnalloc" style="width:'+unallocPx+'px;height:100%;flex-shrink:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;border:'+uBorder+';background:transparent;z-index:5">'+
-        '<span class="se-unalloc-hdr" style="font-size:11px;font-weight:600;color:'+uTxtColor+';letter-spacing:.05em;text-transform:uppercase;pointer-events:none">'+(m.over?'OVER':'UNALLOC')+'</span>'+
-        '<span class="se-unalloc-label" style="font-size:11px;color:'+uTxtColor+';font-variant-numeric:tabular-nums;pointer-events:none">'+Math.abs(m.remaining).toFixed(2)+'m</span>'+
+      html += '<div id="seUnalloc" class="' + (m.over ? 'over' : '') + '" style="width:'+unallocPx+'px">'+
+        '<span class="se-unalloc-hdr">'+(m.over?'Over':'Unallocated')+'</span>'+
         '</div>';
     } else {
-      html += '<div id="seUnalloc" style="display:none;width:0;flex-shrink:0"></div>';
+      html += '<div id="seUnalloc" style="display:none;width:0"><span class="se-unalloc-hdr"></span></div>';
     }
     strip.innerHTML = html;
     var stripW = Math.max(vpW, totalContentPx);
@@ -3685,15 +3669,9 @@ document.addEventListener('mouseup', function() {
     var totalContentPx = 0;
     _segs.forEach(function(s) {
       var el = document.getElementById('seg_'+s.id); if (!el) return;
-      var px = s.type==='building' ? 20 : _segPx(s.width);
+      var px = s.type==='building' ? 24 : _segPx(s.width);
       totalContentPx += px;
       el.style.width = px+'px';
-      var d = el.querySelector('[data-dim]'); if (d) d.textContent = s.width.toFixed(2)+'m';
-      if (s.type === 'travel-lane') {   // live lane status while dragging
-        var ls = _laneStatus(m.laneById[s.id]), dot = el.querySelector('[data-lanedot]');
-        if (d) { d.style.color = ls.text || ''; d.style.fontWeight = ls.text ? '700' : ''; }
-        if (dot) { dot.style.display = ls.dot ? 'block' : 'none'; dot.style.background = ls.dot; }
-      }
     });
     // Update unallocated indicator in-place
     var unallocPx = Math.abs(m.remaining) >= 0.001 ? _segPx(Math.abs(m.remaining)) : 0;
@@ -3703,10 +3681,9 @@ document.addEventListener('mouseup', function() {
         totalContentPx += unallocPx;
         uEl.style.display = '';
         uEl.style.width = unallocPx+'px';
+        uEl.classList.toggle('over', m.over);
         var hdr = uEl.querySelector('.se-unalloc-hdr');
-        var lbl = uEl.querySelector('.se-unalloc-label');
-        if (hdr) hdr.textContent = m.over ? 'OVER' : 'UNALLOC';
-        if (lbl) lbl.textContent = Math.abs(m.remaining).toFixed(2)+'m';
+        if (hdr) hdr.textContent = m.over ? 'Over' : 'Unallocated';
       } else {
         uEl.style.display = 'none';
       }
@@ -3727,42 +3704,78 @@ document.addEventListener('mouseup', function() {
   function _renderDimRow() {
     var row = document.getElementById('seDimRow'); if (!row) return;
     var m = _metrics();
+    // One dimension chain under the strip: a tick at every segment edge, the width centred in
+    // each span (click to type a width), lane status carried by the value's colour.
     var html = '';
     _segs.forEach(function(s) {
-      if (s.type==='building') return;
-      var px = _segPx(s.width);
-      html += '<div style="width:'+px+'px;flex-shrink:0;display:flex;justify-content:center;font-size:11px;color:var(--muted);overflow:hidden;position:relative;box-sizing:border-box">' +
-        '<div style="position:absolute;left:0;top:0;width:1px;height:4px;background:var(--rule)"></div>'+
-        s.width.toFixed(2)+'m</div>';
+      if (s.type==='building') { html += '<div class="se-dim se-dim-b" style="width:24px"></div>'; return; }
+      var px = _segPx(s.width), def = SE_TYPES[s.type] || {};
+      var ls = s.type === 'travel-lane' ? _laneStatus(m.laneById[s.id]) : null;
+      var col = ls && ls.text ? ' style="color:' + ls.text + '"' : '';
+      var v = s.width.toFixed(2);
+      html += '<div class="se-dim" style="width:'+px+'px">' +
+        (px < 26 ? '' : def.resize
+          ? '<button class="se-dimv" data-edit="'+s.id+'"'+col+' title="'+(def.label||s.type)+' width, m - click to edit">'+v+'</button>'
+          : '<span class="se-dimv"'+col+'>'+v+'</span>') +
+        '</div>';
     });
     var unallocPx = Math.abs(m.remaining) >= 0.001 ? _segPx(Math.abs(m.remaining)) : 0;
-    if (unallocPx > 0) {
-      html += '<div style="width:'+unallocPx+'px;flex-shrink:0;display:flex;justify-content:center;font-size:11px;overflow:hidden;position:relative;box-sizing:border-box;color:var(--muted);opacity:.5">'+
-        '<div style="position:absolute;left:0;top:0;width:1px;height:4px;background:var(--rule)"></div>'+
-        Math.abs(m.remaining).toFixed(2)+'m</div>';
-    }
+    if (unallocPx > 0)
+      html += '<div class="se-dim se-dim-u' + (m.over ? ' over' : '') + '" style="width:'+unallocPx+'px">' +
+        (unallocPx < 26 ? '' : '<span class="se-dimv">'+Math.abs(m.remaining).toFixed(2)+'</span>') + '</div>';
+    html += '<div class="se-dim se-dim-b" style="width:0"></div>';   // closing tick
     row.innerHTML = html;
+  }
+
+  // Width typed into the chain: same history + commit path as the properties panel.
+  function _editWidth(id, btn) {
+    var s = _segs.find(function(x){ return x.id===id; }); if (!s) return;
+    var cell = btn.parentNode, start = s.width, done = false;
+    var inp = document.createElement('input');
+    inp.type = 'number'; inp.step = '0.05'; inp.className = 'se-dim-in'; inp.value = s.width.toFixed(2);
+    inp.setAttribute('aria-label', ((SE_TYPES[s.type]||{}).label||s.type) + ' width in metres');
+    cell.replaceChild(inp, btn); inp.focus(); inp.select();
+    function finish(commit) {
+      if (done) return; done = true;
+      var v = parseFloat(inp.value);
+      if (commit && !isNaN(v) && Math.abs(v - start) > 0.001) {
+        _seResize(id, v); _trigger();
+      }
+      _seRender();
+    }
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      e.stopPropagation();
+    });
+    inp.addEventListener('blur', function() { finish(true); });
   }
 
   function _renderStats() {
     var el = document.getElementById('seStats'); if (!el) return;
     var m = _metrics();
+    // One aligned row of four cells: caps label, then the value in mono.
+    function cell(lbl, val, col) {
+      return '<span class="se-stat"><span class="se-stat-l">' + lbl + '</span><span class="se-stat-v"' + (col ? ' style="color:' + col + '"' : '') + '>' + val + '</span></span>';
+    }
+    var lanes = m.assess.length
+      ? m.assess.map(function(a){ var st = _laneStatus(a); return '<span style="color:' + (st.text || LANE_GREEN) + '">' + a.width.toFixed(2) + '</span>'; }).join(' + ') +
+        ' <span style="color:' + (m.laneOk ? LANE_GREEN : LANE_RED) + '">' + (m.laneOk ? '&#10003;' : 'C02 &lt; ' + m.minLane) + '</span>'
+      : '&mdash;';
     el.innerHTML =
-      '<span style="display:flex;gap:4px;align-items:baseline"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Roadway</span><strong style="font-variant-numeric:tabular-nums;color:var(--text)">'+m.totalRoad.toFixed(3)+'m</strong></span>'+
-      '<span style="display:flex;gap:4px;align-items:baseline"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Allocated</span><strong style="font-variant-numeric:tabular-nums;color:'+(m.over?'rgba(192,48,48,.9)':'var(--text)')+'">'+m.allocated.toFixed(3)+'m</strong></span>'+
-      '<span style="display:flex;gap:4px;align-items:baseline"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">'+(m.over?'Over':'Remaining')+'</span><strong style="font-variant-numeric:tabular-nums;color:'+(m.over?'rgba(192,48,48,.9)':m.remaining>0.005?'rgba(45,106,79,.85)':'var(--text)')+'">'+Math.abs(m.remaining).toFixed(3)+'m</strong></span>'+
-      (m.assess.length?'<span style="display:flex;gap:4px;align-items:baseline"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Lane'+(m.assess.length>1?'s':'')+'</span>'+
-        m.assess.map(function(a){ var st=_laneStatus(a); return '<strong style="font-variant-numeric:tabular-nums;color:'+(st.text||'rgba(45,106,79,.85)')+'">'+a.width.toFixed(2)+'m</strong>'; }).join('<span>+</span>')+
-        '<strong style="color:'+(m.laneOk?'rgba(45,106,79,.85)':LANE_RED)+'">'+(m.laneOk?'&#10003;':'C02 &lt;'+m.minLane+'m')+'</strong></span>':'')+
+      '<div class="se-stats-row">' +
+        cell('Roadway', m.totalRoad.toFixed(3) + ' m') +
+        cell('Allocated', m.allocated.toFixed(3) + ' m', m.over ? LANE_RED : '') +
+        cell(m.over ? 'Over' : 'Remaining', Math.abs(m.remaining).toFixed(3) + ' m', m.over ? LANE_RED : '') +
+        cell('Lane' + (m.assess.length > 1 ? 's' : ''), lanes) +
+      '</div>' +
       // Widths the envelope (or the remaining roadway) clamped -- reported, never silent.
-      _laneNotes.map(function(n){ return '<span style="flex-basis:100%;font-size:11px;color:'+LANE_AMBER+'">&#9888; '+n+'</span>'; }).join('');
+      _laneNotes.map(function(n){ return '<div class="se-warn" title="' + n.replace(/"/g, '&quot;') + '">&#9888; ' + n + '</div>'; }).join('');
   }
 
   function _renderSel() {
     document.querySelectorAll('.se-seg').forEach(function(el) {
       el.classList.toggle('se-selected', el.dataset.id===_selId);
-      var rh = el.querySelector('.se-rh');
-      if (rh) rh.style.opacity = el.dataset.id===_selId ? '1' : '0';
     });
   }
 
@@ -3856,10 +3869,6 @@ document.addEventListener('mouseup', function() {
       _seSelect(seg.dataset.id);
       _startReorder(e, seg.dataset.id);
     });
-    strip.querySelectorAll('.se-seg:not(.se-fixed)').forEach(function(seg) {
-      seg.addEventListener('mouseenter', function(){ var rh=seg.querySelector('.se-rh'); if(rh) rh.style.opacity='1'; });
-      seg.addEventListener('mouseleave', function(){ var rh=seg.querySelector('.se-rh'); if(rh&&seg.dataset.id!==_selId) rh.style.opacity='0'; });
-    });
   }
 
   // ── Resize drag ────────────────────────────────────────────────────
@@ -3880,7 +3889,7 @@ document.addEventListener('mouseup', function() {
     var def = SE_TYPES[type]||{};
     _drag = { mode:'palette', type:type };
     _ghost = document.createElement('div');
-    _ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);border-radius:3px;box-shadow:0 6px 20px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.06em;text-transform:uppercase;opacity:.88;width:70px;height:45px;background:'+(def.color||'#888');
+    _ghost.className = 'se-ghost';
     _ghost.textContent = def.label||type;
     document.body.appendChild(_ghost);
     _moveGhost(e.clientX, e.clientY);
@@ -3900,7 +3909,7 @@ document.addEventListener('mouseup', function() {
         var el=document.getElementById('seg_'+_drag.id); if(el) el.classList.add('se-dragging');
         var def2=SE_TYPES[(_segs.find(function(x){ return x.id===_drag.id; })||{}).type]||{};
         _ghost=document.createElement('div');
-        _ghost.style.cssText='position:fixed;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);border-radius:3px;box-shadow:0 6px 20px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.06em;text-transform:uppercase;opacity:.88;width:70px;height:45px;background:'+(def2.color||'#888');
+        _ghost.className='se-ghost';
         _ghost.textContent=def2.label||_drag.id;
         document.body.appendChild(_ghost);
         var tr=document.getElementById('seTrash'); if(tr) tr.style.opacity='1';
@@ -3970,15 +3979,16 @@ document.addEventListener('mouseup', function() {
   // ── Palette ────────────────────────────────────────────────────────
   function _buildPalette() {
     var pal=document.getElementById('sePalette'); if(!pal) return;
-    var html='<span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px;align-self:center">Add:</span>';
+    var html='<span class="se-pal-lbl" title="Drag a segment into the section, or click to append it">Add segment<span class="se-pal-hint"> &ndash; drag into the section or click to append</span></span><span class="se-pal-chips">';
     SE_PALETTE.forEach(function(type){
       var def=SE_TYPES[type]||{};
-      html+='<div class="se-pal-item" data-paltype="'+type+'" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 5px;background:var(--bg);border:1px solid var(--rule);border-radius:3px;cursor:grab;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;user-select:none;white-space:nowrap">'+
-        '<span style="width:7px;height:14px;border-radius:1px;flex-shrink:0;background:'+(def.color||'#888')+'"></span>'+(def.label||type)+'</div>';
+      html+='<button type="button" class="se-pal-item" data-paltype="'+type+'" title="Drag into the section, or click to append">'+
+        '<span class="se-grip" aria-hidden="true"></span>'+(def.label||type)+'</button>';
     });
-    pal.innerHTML=html;
+    pal.innerHTML=html+'</span>';
     pal.querySelectorAll('.se-pal-item').forEach(function(el){
-      el.addEventListener('click', function(){ _seAdd(el.dataset.paltype); });
+      // A drag that ends over the strip inserts at the gap; a plain click appends (see _onUp).
+      el.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _seAdd(el.dataset.paltype); } });
       el.addEventListener('pointerdown', function(e){ if(e.button===0) _startPalDrag(e,el.dataset.paltype); });
     });
   }
@@ -4014,15 +4024,15 @@ document.addEventListener('mouseup', function() {
         '<span style="font-size:11px;color:var(--muted)">Click to select &middot; Drag to reorder &middot; Drag edge to resize &middot; Del to remove</span>'+
       '</div>'+
       // Palette
-      '<div id="sePalette" style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:7px 12px;border-bottom:1px solid var(--rule);background:var(--card)"></div>'+
+      '<div id="sePalette"></div>'+
       // Canvas
       '<div style="position:relative;padding:22px 0 6px 0;background:var(--bg)">'+
-        '<div id="seTrash" style="position:absolute;top:0;left:0;right:0;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(192,48,48,.65);background:rgba(192,48,48,.06);border-bottom:1.5px dashed rgba(192,48,48,.25);opacity:0;pointer-events:none;transition:opacity 200ms">Drag here to remove</div>'+
-        '<div id="seViewport" style="overflow-x:auto;overflow-y:visible;width:100%;padding:0 12px;box-sizing:border-box">'+
+        '<div id="seTrash">Drop here to remove the segment</div>'+
+        '<div id="seViewport">'+
           '<div id="seStrip" style="display:flex;flex-direction:row;align-items:stretch;height:260px;position:relative;border:1px solid var(--rule);border-radius:3px;overflow:visible;background:#eceae6"></div>'+
-          '<div id="seDimRow" style="display:flex;flex-direction:row;margin-top:4px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums"></div>'+
+          '<div id="seDimRow"></div>'+
         '</div>'+
-        '<div id="seStats" style="display:flex;gap:14px;padding:5px 12px 2px;font-size:11px;color:var(--muted);flex-wrap:wrap"></div>'+
+        '<div id="seStats"></div>'+
       '</div>'+
       // Prop panel
       '<div id="sePropPanel" style="display:none;padding:10px 12px;border-top:1px solid var(--rule);background:var(--card)"></div>';
@@ -4039,6 +4049,13 @@ document.addEventListener('mouseup', function() {
       _seRow.style.display = 'none';
     }
     _recomputeScale(); _seFromGlobals(); _buildPalette();
+    var _dimRow = document.getElementById('seDimRow');
+    if (_dimRow) _dimRow.addEventListener('click', function(e) {
+      var b = e.target.closest('button[data-edit]');
+      if (b) { _seSelect(b.dataset.edit); _editWidth(b.dataset.edit, b); }
+    });
+    var _fitB = document.getElementById('seFitBtn');
+    if (_fitB) { _fitB.classList.toggle('active', _fitMode); _fitB.setAttribute('aria-pressed', String(_fitMode)); _fitB.title = 'Fit the whole section in the view'; }
     _seRender();
     requestAnimationFrame(function() { _recomputeScale(); _seRender(); });
     // Furniture placement from section strip click
@@ -4076,7 +4093,12 @@ document.addEventListener('mouseup', function() {
   // seNormalizeLanes: external callers can trigger lane normalization.
   window.seNormalizeLanes = function() { _seNormalizeLanes(); _seRender(); };
   window.seRefreshLayout = function(){ _recomputeScale(); _seRender(); };
-  window.seFit = function(){ _recomputeScale(); _seRender(); };
+  window.seFit = function(){
+    _fitMode = !_fitMode;
+    var b = document.getElementById('seFitBtn');
+    if (b) { b.classList.toggle('active', _fitMode); b.setAttribute('aria-pressed', String(_fitMode)); b.title = _fitMode ? 'Showing the whole section - click for 1:1 scale (scrolls)' : 'Fit the whole section in the view'; }
+    _recomputeScale(); _seRender();
+  };
   window.getSectionGeometry = function(){
     // Return ordered segment geometry with world X coordinates.
     // WorldX=0 is defined as the LEFT edge of the parklet (curb line / XCL in 3D).
@@ -17406,5 +17428,73 @@ AXE.download = function(blob, name) {
 .vc-pass .vc-icon, .vc-pass .vc-lbl { color: var(--st-pass); }
 .ctx-section .vc-detail { color: var(--c-text-dim); }
 .ctx-section .summary-section h2 { opacity: 1; color: var(--c-text-dim); }
+
+/* -- Section strip (Phase 3) ---------------------------------------------- */
+#sePalette { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; row-gap: var(--sp-1); min-height: 34px; padding: var(--sp-1) var(--sp-3); box-sizing: border-box;
+  background: var(--d-paper); border-bottom: 1px solid var(--d-lt); overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--d-lt) transparent; }
+.se-pal-lbl { flex-shrink: 0; font: var(--fs-11) var(--font-ui); color: var(--d-mid); white-space: nowrap; }
+.se-pal-chips { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+.se-pal-item { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 var(--sp-2) 0 6px; margin: 0; background: var(--d-paper);
+  border: 1px solid var(--d-lt); border-radius: 3px; cursor: grab; font: 500 var(--fs-12) var(--font-ui); color: var(--d-ink); white-space: nowrap;
+  user-select: none; touch-action: none; }
+.se-pal-item:hover { border-color: var(--d-mid); }
+.se-pal-item:active { cursor: grabbing; }
+.se-pal-item:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 1px; }
+.se-grip { width: 6px; height: 12px; flex-shrink: 0; background-image: radial-gradient(circle, var(--d-mid) 0.9px, transparent 1.1px); background-size: 3px 3px; }
+.se-ghost { position: fixed; pointer-events: none; z-index: 9999; transform: translate(-50%, -50%); display: inline-flex; align-items: center;
+  height: 26px; padding: 0 10px; background: var(--d-paper); border: 1px solid var(--accent-ui); border-radius: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.22);
+  font: 500 var(--fs-12) var(--font-ui); color: var(--d-ink); white-space: nowrap; opacity: .95; }
+#seTrash { position: absolute; top: 0; left: 0; right: 0; height: 22px; display: flex; align-items: center; justify-content: center;
+  font: var(--fs-11) var(--font-ui); color: var(--st-fail-ink); background: #FBEDED; border-bottom: 1px dashed var(--st-fail-ink);
+  opacity: 0; pointer-events: none; transition: opacity .2s; }
+#seViewport { overflow-x: auto; overflow-y: hidden; width: 100%; padding: 0 12px 4px; box-sizing: border-box; overscroll-behavior-x: contain;
+  scrollbar-width: thin; scrollbar-color: var(--d-lt) transparent; }
+#seStrip .se-seg { position: relative; height: 100%; flex-shrink: 0; box-sizing: border-box; background: transparent; border-right: 1px solid rgba(26,26,26,.08); }
+#seStrip .se-seg:not(.se-fixed) { cursor: grab; }
+#seStrip .se-seg:not(.se-fixed):hover { background: rgba(26,26,26,.035); }
+#seStrip .se-seg.se-selected, #seStrip .se-seg:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: -2px; z-index: 2; }
+#seStrip .se-seg.se-dragging { opacity: .35; }
+.se-name { position: absolute; top: 6px; left: 2px; right: 2px; z-index: 5; text-align: center; pointer-events: none;
+  font: 600 var(--fs-11)/1.2 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--d-mid); white-space: nowrap; overflow: hidden; }
+.se-rh { position: absolute; top: 0; bottom: 0; right: 0; width: 8px; z-index: 8; cursor: col-resize; opacity: 0; transition: opacity .12s; }
+.se-rh.se-rh-l { right: auto; left: 0; }
+.se-rh::after { content: ''; position: absolute; top: 32%; bottom: 32%; left: 2.5px; width: 3px; border-radius: 2px; background: var(--d-ink); }
+#seStrip .se-seg:not(.se-fixed):hover .se-rh, #seStrip .se-seg.se-selected .se-rh { opacity: 1; }
+#seInsLine { display: none; position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -4.5px; z-index: 20; pointer-events: none; box-sizing: border-box;
+  background: rgba(58,168,228,.22); border-left: 2px solid var(--accent-ui); border-right: 2px solid var(--accent-ui); }
+#seUnalloc { height: 100%; flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  border: 1px dashed var(--d-mid); overflow: hidden; z-index: 5; }
+#seUnalloc.over { border-color: var(--st-fail-ink); }
+.se-unalloc-hdr { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--d-mid); pointer-events: none; white-space: nowrap; }
+#seUnalloc.over .se-unalloc-hdr { color: var(--st-fail-ink); }
+/* dimension chain: extension tick + slash at every edge, value above the line */
+#seDimRow { display: flex; height: 26px; position: relative; }
+.se-dim { flex-shrink: 0; position: relative; height: 26px; box-sizing: border-box; display: flex; justify-content: center; }
+.se-dim:not(.se-dim-b) { background: linear-gradient(var(--d-ink), var(--d-ink)) 0 18px / 100% 1px no-repeat; }
+.se-dim::before { content: ''; position: absolute; left: -0.5px; top: 0; height: 24px; border-left: 1px solid var(--d-mid); }
+.se-dim::after { content: ''; position: absolute; left: -3.5px; top: 15px; width: 7px; height: 7px;
+  background: linear-gradient(to bottom right, transparent calc(50% - .7px), var(--d-ink) calc(50% - .7px), var(--d-ink) calc(50% + .7px), transparent calc(50% + .7px)); }
+.se-dim-b:first-child::before, .se-dim-b:first-child::after { display: none; }
+.se-dim-b + .se-dim-b::before, .se-dim-b + .se-dim-b::after { display: none; }
+.se-dimv { position: relative; z-index: 1; margin-top: 2px; height: 15px; padding: 0 3px; background: none; border: 1px solid transparent; border-radius: 2px;
+  font: var(--fs-11)/13px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--d-ink); white-space: nowrap; }
+button.se-dimv { cursor: text; }
+button.se-dimv:hover { border-color: var(--d-lt); background: var(--d-paper); }
+button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 0; }
+.se-dim-u .se-dimv { color: var(--d-mid); }
+.se-dim-u.over .se-dimv { color: var(--st-fail-ink); }
+.se-dim-in { position: relative; z-index: 2; width: 58px; height: 17px; margin-top: 1px; padding: 0 2px; box-sizing: border-box; text-align: center;
+  font: var(--fs-11) var(--font-mono); color: var(--d-ink); background: var(--d-paper); border: 1px solid var(--accent-ui); border-radius: 2px; outline: none; -moz-appearance: textfield; }
+.se-dim-in::-webkit-inner-spin-button, .se-dim-in::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* stats: one aligned row, mono numbers; each warning one amber line */
+#seStats { padding: 2px var(--sp-3) var(--sp-1); container-type: inline-size; }
+@container (max-width: 540px) { .se-stats-row { grid-template-columns: repeat(2, max-content); row-gap: 2px; } }
+#seRoot { container-type: inline-size; }
+@container (max-width: 720px) { .se-pal-hint { display: none; } }
+.se-stats-row { display: grid; grid-template-columns: repeat(4, max-content); column-gap: var(--sp-6); align-items: baseline; white-space: nowrap; overflow: hidden; }
+.se-stat { display: flex; align-items: baseline; gap: var(--sp-2); }
+.se-stat-l { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--d-mid); }
+.se-stat-v { font: var(--fs-12) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--d-ink); }
+.se-warn { margin-top: 2px; font: var(--fs-12) var(--font-ui); color: var(--st-warn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </body></html>
