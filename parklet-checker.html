@@ -2649,8 +2649,13 @@ function onBufWidth(loc, val) {
   if (ro) ro.textContent = clamped.toFixed(2) + ' m';
   onLaneEnvelopeInput();
 }
+// The width solver: the widest parklet that leaves every travel lane its C02 minimum (the
+// lanes and the bike corridor share the rest of the roadway). Pure; autoSolveWidth applies it.
+function solveMaxParkletWidth() {
+  return parseFloat((TOTAL_ROAD - getBikeLaneD() - getReqLane() * getTotalLanes()).toFixed(3));
+}
 function autoSolveWidth() {
-  const maxW = parseFloat((TOTAL_ROAD - getBikeLaneD() - getReqLane() * getTotalLanes()).toFixed(3));
+  const maxW = solveMaxParkletWidth();
   designParkletWidth = Math.max(1.5, maxW);
   const sl = document.getElementById('widthSlider');
   if (sl) sl.value = designParkletWidth;
@@ -7017,16 +7022,22 @@ function clearDriveways() {
   try { if (typeof renderMassView === 'function') renderMassView(); } catch(e_) {}
 }
 
+// The check inputs derived from placed site objects, as pure functions of the deck length (the
+// update*() functions write them into state; the generator evaluates candidates with them).
+// Along-street distance from each object to the deck span 0..L (0 inside it), the nearest one.
+function _alongDist(list, L) {
+  let minDist = Infinity;
+  for (const o of list) { const d = o.xM < 0 ? -o.xM : o.xM > L ? o.xM - L : 0; minDist = Math.min(minDist, d); }
+  return minDist.toFixed(2);
+}
+function drivewayMinDist(L) { const dvs = state[`driveways`] || []; return dvs.length ? _alongDist(dvs, L) : null; }
+function curbFeatureMinDist(type, L) { const it = (state[`curb_features`] || []).filter(f => f.type === type); return it.length ? _alongDist(it, L) : null; }
+function manholeMinDist() { const mhs = state['manholes'] || []; return mhs.length ? Math.min.apply(null, mhs.map(manholeClearance)).toFixed(2) : null; }
+
 function updateDrivewayDist() {
   const L = designParkletLength;
-  const dvs = state[`driveways`] || [];
-  if (!dvs.length) { saveSettings(); return; }
-  let minDist = Infinity;
-  for (const dv of dvs) {
-    const d = dv.xM < 0 ? -dv.xM : dv.xM > L ? dv.xM - L : 0;
-    minDist = Math.min(minDist, d);
-  }
-  const dist = minDist.toFixed(2);
+  const dist = drivewayMinDist(L);
+  if (dist === null) { saveSettings(); return; }
   state[`driveway_dist`] = dist;
   const el = document.getElementById(`driveway_dist`);
   if (el) el.value = dist;
@@ -7036,18 +7047,11 @@ function updateDrivewayDist() {
 
 function updateCurbFeatureDists() {
   const L = designParkletLength;
-  const fts = state[`curb_features`] || [];
   const defs = {H:{key:`hydrant_dist`,crit:`c5`}, P:{key:`pole_dist`,crit:`c7`}, S:{key:`signal_box_dist`,crit:`c8`}};
   for (const sym of [`H`, `P`, `S`]) {
     const def = defs[sym];
-    const items = fts.filter(f => f.type === sym);
-    if (!items.length) continue;
-    let minDist = Infinity;
-    for (const f of items) {
-      const d = f.xM < 0 ? -f.xM : f.xM > L ? f.xM - L : 0;
-      minDist = Math.min(minDist, d);
-    }
-    const dist = minDist.toFixed(2);
+    const dist = curbFeatureMinDist(sym, L);
+    if (dist === null) continue;
     state[def.key] = dist;
     const el = document.getElementById(def.key);
     if (el) el.value = dist;
@@ -7057,10 +7061,8 @@ function updateCurbFeatureDists() {
 }
 
 function updateManholeCrit() {
-  const mhs = state['manholes'] || [];
-  if (!mhs.length) { saveSettings(); return; }
-  const min = Math.min.apply(null, mhs.map(manholeClearance));
-  const dist = min.toFixed(2);
+  const dist = manholeMinDist();
+  if (dist === null) { saveSettings(); return; }
   state['manhole_dist'] = dist;
   const el = document.getElementById('manhole_dist');
   if (el) el.value = dist;
@@ -17908,6 +17910,13 @@ GEN.renderResults = function() {
   }
   if (typeof GEN.renderCards === 'function') GEN.renderCards();
 };
+// Plain list (Phase 2); the cards replace it.
+GEN.renderCards = function() {
+  var R = GEN.result, bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
+  bar.innerHTML = "<span class='gen-title'>Generated schemes</span><span>seed " + R.seed + ' &middot; ' + R.stats.built + ' built, ' + R.stats.passed + ' passed all 15 checks &middot; ' + R.ms + ' ms</span>';
+  if (R.error) { grid.innerHTML = "<div class='gen-empty empty-state'>" + GEN.esc(R.error) + '</div>'; return; }
+  grid.innerHTML = R.schemes.map(function(c) { return "<div class='empty-state'>" + GEN.esc(c.tpl.label + ' / ' + c.fp.label + ' / ' + c.pal.label + ' - ' + c.m.seats + ' seats, checks ' + c.ev.pass + '/15') + '</div>'; }).join('');
+};
 GEN.run = function() { if (typeof GEN.generate === 'function') GEN.generate(); };
 GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.savePrefs(); GEN.renderDock(); GEN.run(); };
 </script>
@@ -17944,6 +17953,557 @@ GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.sav
 .gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); padding: var(--sp-4); align-content: start; }
 .gen-empty { grid-column: 1 / -1; padding: var(--sp-6) 0; }
 </style>
+<script>
+// ── GENERATE (Brief 09 Phase 2): the generator ──────────────────────────────────────────────
+// Frame: a candidate is built in the CURRENT plan frame (z = 0 at the current deck start) and
+// then translated so its deck starts at z = 0, as every design does: site objects, buildings
+// and typed distances move with it. Nothing here writes the live model.
+
+// Seeded PRNG (mulberry32): same seed, same sequence.
+GEN.rng = function(seed) {
+  var a = seed >>> 0;
+  return function() { a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+};
+GEN.pick = function(r, list, w) {   // weighted choice
+  if (!w) return list[Math.floor(r() * list.length) % list.length];
+  var tot = w.reduce(function(a, b) { return a + b; }, 0), x = r() * tot;
+  for (var i = 0; i < list.length; i++) { x -= w[i]; if (x <= 0) return list[i]; }
+  return list[list.length - 1];
+};
+GEN.r3 = function(v) { return Math.round(v * 1000) / 1000; };
+
+// ── Scratch evaluation: the EXISTING checks on a candidate DESIGN_STATE ────────────────────
+// The checks read the live globals, state[] and DESIGN_MODEL. withScratch swaps the candidate's
+// values in, rebuilds DESIGN_MODEL from them (buildDesignModel, with the candidate's segments
+// and no furniture), runs fn, and restores every value in a finally block. Synchronous: no
+// render, no save, no DOM, so nothing observable touches the live design.
+GEN.G_KEYS = ['TOTAL_ROAD', 'SIDEWALK_W', 'NUM_LANES', 'ROAD_DIR', 'LANES_A', 'LANES_B', 'designBikeLane', 'designBikeLaneW',
+  'bufPKType', 'bufPKW', 'bufBLType', 'bufBLW', 'designParkletWidth', 'designParkletLength', 'designBufferEnabled', 'designBufferW', 'BLDG_L', 'BLDG_R'];
+GEN.getG = function() {
+  return { TOTAL_ROAD: TOTAL_ROAD, SIDEWALK_W: SIDEWALK_W, NUM_LANES: NUM_LANES, ROAD_DIR: ROAD_DIR, LANES_A: LANES_A, LANES_B: LANES_B,
+    designBikeLane: designBikeLane, designBikeLaneW: designBikeLaneW, bufPKType: bufPKType, bufPKW: bufPKW, bufBLType: bufBLType, bufBLW: bufBLW,
+    designParkletWidth: designParkletWidth, designParkletLength: designParkletLength, designBufferEnabled: designBufferEnabled, designBufferW: designBufferW,
+    BLDG_L: BLDG_L, BLDG_R: BLDG_R };
+};
+GEN.setG = function(g) {
+  TOTAL_ROAD = g.TOTAL_ROAD; SIDEWALK_W = g.SIDEWALK_W; NUM_LANES = g.NUM_LANES; ROAD_DIR = g.ROAD_DIR; LANES_A = g.LANES_A; LANES_B = g.LANES_B;
+  designBikeLane = g.designBikeLane; designBikeLaneW = g.designBikeLaneW; bufPKType = g.bufPKType; bufPKW = g.bufPKW; bufBLType = g.bufBLType; bufBLW = g.bufBLW;
+  designParkletWidth = g.designParkletWidth; designParkletLength = g.designParkletLength; designBufferEnabled = g.designBufferEnabled; designBufferW = g.designBufferW;
+  BLDG_L = g.BLDG_L; BLDG_R = g.BLDG_R;
+};
+GEN.ST_KEYS = ['parking_restrictions', 'route_type', 'intersection_dist', 'slope', 'hydrant_dist', 'driveway_dist', 'pole_dist', 'pole_trolley',
+  'signal_box_dist', 'manhole_dist', 'fire_exit_block', 'drainage_clear', 'boulevard_clear', 'parking_setback', 'platform_gap', 'load_capacity',
+  'manholes', 'curb_features', 'driveways', 'pkShape'];
+GEN.withScratch = function(ds, fn) {
+  var g0 = GEN.getG(), st0 = {}, dm0 = {}, seg0 = window.seGetSegs, pl0 = (window.FL3D && FL3D.placed) || null;
+  GEN.ST_KEYS.forEach(function(k) { st0[k] = { has: Object.prototype.hasOwnProperty.call(state, k), v: state[k] }; });
+  Object.keys(DESIGN_MODEL).forEach(function(k) { dm0[k] = DESIGN_MODEL[k]; });
+  try {
+    var s = ds.site;
+    GEN.setG({ TOTAL_ROAD: s.totalRoad, SIDEWALK_W: s.sidewalkW, NUM_LANES: s.numLanes, ROAD_DIR: s.roadDir, LANES_A: s.lanesA, LANES_B: s.lanesB,
+      designBikeLane: s.bikeLane, designBikeLaneW: s.bikeLaneW, bufPKType: s.bufPKType, bufPKW: s.bufPKW, bufBLType: s.bufBLType, bufBLW: s.bufBLW,
+      designParkletWidth: s.parkletWidth, designParkletLength: s.parkletLength, designBufferEnabled: s.bufferEnabled, designBufferW: s.bufferW,
+      BLDG_L: s.bldgL, BLDG_R: s.bldgR });
+    Object.keys(ds.compliance).forEach(function(k) { state[k] = ds.compliance[k]; });
+    state.manholes = ds.siteObjects.manholes; state.curb_features = ds.siteObjects.curb_features;
+    state.driveways = ds.siteObjects.driveways; state.pkShape = ds.siteObjects.pkShape;
+    var n = 0, segs = (ds.crossSection || []).map(function(x) { return Object.assign({ id: 'gs' + (++n) }, x); });
+    window.seGetSegs = function() { return segs; };
+    if (window.FL3D) FL3D.placed = [];
+    buildDesignModel();
+    return fn();
+  } finally {
+    GEN.setG(g0);
+    GEN.ST_KEYS.forEach(function(k) { if (st0[k].has) state[k] = st0[k].v; else delete state[k]; });
+    Object.keys(DESIGN_MODEL).forEach(function(k) { if (!(k in dm0)) delete DESIGN_MODEL[k]; });
+    Object.keys(dm0).forEach(function(k) { DESIGN_MODEL[k] = dm0[k]; });
+    window.seGetSegs = seg0;
+    if (window.FL3D && pl0) FL3D.placed = pl0;
+  }
+};
+// All 15 checks through getCriterionStatus, on a candidate. -> {status: {c1: 'pass', ...}, pass: n}
+GEN.evaluate = function(ds) {
+  return GEN.withScratch(ds, function() {
+    var out = { status: {}, pass: 0 };
+    criteria.forEach(function(c) { var st = getCriterionStatus(c); out.status[c.id] = st; if (st === 'pass') out.pass++; });
+    return out;
+  });
+};
+
+// ── Envelope ─────────────────────────────────────────────────────────────────────────────
+// Width: the existing solver on the candidate site (minus any extra road segments the
+// cross-section carries), capped at 3.0 m. Length: the frontage minus every clearance zone
+// around placed site objects (checks 05-09) and the bounds typed distances impose (03, 13 and
+// 05-09 without placed objects): distance for a deck [a, b] inside the current deck [0, L0] is
+// at least typed + min(a, L0 - b), so typed >= req holds for a >= req - typed and
+// b <= L0 + typed - req. The longest free run is the envelope.
+GEN.MIN_LEN = 5.0;
+GEN.envelope = function(S, base) {
+  var L0 = base.site.parkletLength, why = [];
+  var ds = GEN.siteState(S, base, 2.0, L0, 0);
+  var Wmax = GEN.withScratch(ds, function() {
+    var extra = DESIGN_MODEL.crossSection.filter(function(s) { return ['planting', 'parking', 'turn-lane', 'transit-lane', 'curb'].indexOf(s.type) >= 0; })
+      .reduce(function(a, s) { return a + s.width; }, 0);
+    return solveMaxParkletWidth() - extra;
+  });
+  var W = GEN.r3(Math.min(3.0, Wmax));
+  if (!(W >= 1.5)) return { ok: false, why: ['No width: curb to curb ' + S.road + ' m leaves ' + (Wmax > 0 ? Wmax.toFixed(2) : '0') + ' m after the lanes need their C02 minimum (' + (S.route === 'bus_truck' ? 3.2 : 3.0) + ' m) - a parklet needs 1.5 m.'] };
+  var lo = S.frontage[0], hi = S.frontage[1], ex = [], C = base.compliance, so = base.siteObjects;
+  var cf = so.curb_features || [], mh = so.manholes || [], dv = so.driveways || [];
+  function typed(key, req, label) {
+    var n = parseFloat(C[key]); if (isNaN(n)) return;
+    lo = Math.max(lo, req - n); hi = Math.min(hi, L0 + n - req);
+    if (n < req) why.push(label + ' typed ' + n + ' m < ' + req + ' m: the deck is inset ' + (req - n).toFixed(2) + ' m from the current ends.');
+  }
+  typed('intersection_dist', 6, '03 intersection');
+  typed('parking_setback', 1.5, '13 parking setback');
+  var poleReq = C.pole_trolley === 'no' ? 1.0 : 2.4, M = 0.02;
+  [['H', 'hydrant_dist', 5, '05 hydrant'], ['P', 'pole_dist', poleReq, '07 pole'], ['S', 'signal_box_dist', 2, '08 signal box']].forEach(function(r) {
+    var items = cf.filter(function(f) { return f.type === r[0]; });
+    if (items.length) items.forEach(function(f) { ex.push({ z0: f.xM - r[2] - M, z1: f.xM + r[2] + M, what: r[3] + ' at z ' + (+f.xM).toFixed(2) }); });
+    else typed(r[1], r[2], r[3]);
+  });
+  if (dv.length) dv.forEach(function(d) { ex.push({ z0: d.xM - 1.5 - M, z1: d.xM + 1.5 + M, what: '06 driveway at z ' + (+d.xM).toFixed(2) }); });
+  else typed('driveway_dist', 1.5, '06 driveway');
+  if (mh.length) mh.forEach(function(m) {
+    var dx = Math.max(0, -m.yM, m.yM - W); if (dx >= 1) return;
+    var h = Math.sqrt(1 - dx * dx) + (typeof MANHOLE_R_M !== 'undefined' ? 0 : 0);
+    ex.push({ z0: m.xM - h - M, z1: m.xM + h + M, what: '09 manhole at z ' + (+m.xM).toFixed(2) });
+  });
+  else typed('manhole_dist', 1, '09 manhole');
+  // free runs = [lo, hi] minus the union of the exclusion intervals
+  ex.sort(function(a, b) { return a.z0 - b.z0; });
+  var runs = [], cur = lo;
+  ex.forEach(function(e) { if (e.z1 <= cur || e.z0 >= hi) return; if (e.z0 > cur) runs.push([cur, Math.min(e.z0, hi)]); cur = Math.max(cur, e.z1); });
+  if (cur < hi) runs.push([cur, hi]);
+  runs = runs.map(function(r) { return [GEN.r3(r[0]), GEN.r3(r[1])]; }).filter(function(r) { return r[1] - r[0] >= GEN.MIN_LEN; });
+  if (!runs.length) return { ok: false, W: W, ex: ex, why: why.concat(['No free run of ' + GEN.MIN_LEN + ' m in the frontage ' + S.frontage[0] + '..' + S.frontage[1] + ' m' +
+    (ex.length ? ' once the clearance zones are removed: ' + ex.map(function(e) { return e.what + ' (' + e.z0.toFixed(2) + '..' + e.z1.toFixed(2) + ')'; }).join('; ') : '') + '.']) };
+  runs.sort(function(a, b) { return (b[1] - b[0]) - (a[1] - a[0]) || a[0] - b[0]; });
+  return { ok: true, W: W, run: runs[0], runs: runs, ex: ex, why: why };
+};
+
+// ── Candidate DESIGN_STATE skeleton: site + cross-section + compliance, deck [a, a+L] ─────
+GEN.siteState = function(S, base, W, L, a) {
+  var b = base.site, sh = function(list) { return (list || []).map(function(o) { var c = JSON.parse(JSON.stringify(o)); c.xM = GEN.r3(o.xM - a); return c; }); };
+  var shB = function(B) { var c = JSON.parse(JSON.stringify(B || { buildings: [] })); (c.buildings || []).forEach(function(x) { if (typeof x.zOffset === 'number') x.zOffset = GEN.r3(x.zOffset - a); }); return c; };
+  var site = { totalRoad: S.road, sidewalkW: S.sidewalk, numLanes: S.dir === 'twoway' ? b.numLanes : S.lanes, roadDir: S.dir, lanesA: S.lanesA, lanesB: S.lanesB,
+    bldgL: shB(b.bldgL), bldgR: shB(b.bldgR), parkletWidth: W, parkletLength: GEN.r3(L), bikeLane: S.bike, bikeLaneW: S.bike === 'none' ? 0 : S.bikeW,
+    bufferEnabled: b.bufferEnabled, bufferW: b.bufferW,
+    bufPKType: S.bike === 'none' ? 'none' : b.bufPKType, bufPKW: b.bufPKW, bufBLType: S.bike === 'none' ? 'none' : b.bufBLType, bufBLW: b.bufBLW };
+  // cross-section: sidewalk, parklet, bike corridor, the base's other road segments, lanes
+  var segs = [{ type: 'sidewalk', width: S.sidewalk }, { type: 'parklet', width: W }];
+  if (S.bike !== 'none') {
+    if (site.bufPKType !== 'none') segs.push({ type: 'buf-pk', width: site.bufPKW, variant: site.bufPKType });
+    segs.push({ type: 'bike-lane', width: S.bikeW, variant: S.bike });
+    if (site.bufBLType !== 'none') segs.push({ type: 'buf-bl', width: site.bufBLW, variant: site.bufBLType });
+  }
+  (base.crossSection || []).forEach(function(x) { if (['planting', 'parking', 'turn-lane', 'transit-lane', 'curb'].indexOf(x.type) >= 0) segs.push(JSON.parse(JSON.stringify(x))); });
+  var nL = S.dir === 'twoway' ? S.lanesA + S.lanesB : S.lanes;
+  var comp = JSON.parse(JSON.stringify(base.compliance));
+  comp.route_type = S.route;
+  var ds = { schemaVersion: base.schemaVersion, project: base.project, site: site, section: { z: null, dir: -1, depth: 6 }, crossSection: segs,
+    compliance: comp, siteObjects: { manholes: sh(base.siteObjects.manholes), curb_features: sh(base.siteObjects.curb_features),
+      driveways: sh(base.siteObjects.driveways), pkShape: null }, furniture: { placed: [] } };
+  // lane widths from the one normaliser, with the candidate's route and roadway
+  var used = segs.filter(function(x) { return x.type !== 'sidewalk'; }).reduce(function(s2, x) { return s2 + x.width; }, 0);
+  var r0 = { has: Object.prototype.hasOwnProperty.call(state, 'route_type'), v: state.route_type }, widths;
+  try { state.route_type = S.route; widths = normaliseLaneWidths(S.road - used, nL); }   // the envelope row is the route's
+  finally { if (r0.has) state.route_type = r0.v; else delete state.route_type; }
+  widths.forEach(function(w) { segs.push({ type: 'travel-lane', width: w }); });
+  return ds;
+};
+// Compliance inputs the candidate's geometry decides: 05-09 from its (translated) site objects
+// with the same functions the live update*() use; typed distances moved with the deck; 03 and
+// 13 moved with the deck (13 = 1.5 m at an end where a parking stall is reinstated); the
+// design commitments 12, 14, 15.
+GEN.applyDerived = function(ds, a, L, L0, reinstated) {
+  var C = ds.compliance, base = GEN._base.compliance, shift = Math.min(a, L0 - (a + L));
+  GEN.withScratch(ds, function() {
+    [['H', 'hydrant_dist'], ['P', 'pole_dist'], ['S', 'signal_box_dist']].forEach(function(r) {
+      var d = curbFeatureMinDist(r[0], L); if (d !== null) C[r[1]] = d; else if (base[r[1]] !== '' && base[r[1]] !== undefined && !isNaN(parseFloat(base[r[1]]))) C[r[1]] = (parseFloat(base[r[1]]) + shift).toFixed(2);
+    });
+    var dd = drivewayMinDist(L); if (dd !== null) C.driveway_dist = dd; else if (!isNaN(parseFloat(base.driveway_dist))) C.driveway_dist = (parseFloat(base.driveway_dist) + shift).toFixed(2);
+    var md = manholeMinDist(); if (md !== null) C.manhole_dist = md; else if (!isNaN(parseFloat(base.manhole_dist))) C.manhole_dist = (parseFloat(base.manhole_dist) + shift).toFixed(2);
+  });
+  if (!isNaN(parseFloat(base.intersection_dist))) C.intersection_dist = (parseFloat(base.intersection_dist) + shift).toFixed(2);
+  if (!isNaN(parseFloat(base.parking_setback))) {
+    var s0 = parseFloat(base.parking_setback);
+    var sa = s0 + a, sb = s0 + (L0 - (a + L));
+    if (reinstated === 'end') sb = 1.5; if (reinstated === 'start') sa = 1.5;
+    C.parking_setback = Math.min(sa, sb).toFixed(2);
+  }
+  C.boulevard_clear = 'not_used'; C.platform_gap = '12'; C.load_capacity = '7.2';
+};
+
+// ── Footprints ───────────────────────────────────────────────────────────────────────────
+// All inside the envelope run. Shapes are pkShape polygons {x: along, y: across} in metres.
+GEN.STALL = 6.0;
+GEN.footprints = function(env, pref) {
+  var a = env.run[0], b = env.run[1], len = b - a, W = env.W, out = [];
+  function rect() { return null; }
+  out.push({ id: 'full', label: 'Full-length', a: a, L: len, shape: rect() });
+  if (len - GEN.STALL - 1.5 >= 8) out.push({ id: 'short', label: 'Shortened (parking kept)', a: a, L: len - GEN.STALL - 1.5, shape: rect(), reinstated: 'end', stalls: 1 });
+  if (pref !== 'single') {
+    var nd = Math.min(0.9, W - 1.6);
+    if (nd >= 0.4) {
+      out.push({ id: 'notch1', label: 'Notched end', a: a, L: len, notch: [[len - 1.1 - 1.5, len - 1.1]], nd: nd });
+      out.push({ id: 'notch2', label: 'Notched both ends', a: a, L: len, notch: [[1.1, 2.6], [len - 2.6, len - 1.1]], nd: nd });
+    }
+    var sd = W - 1.6;
+    if (sd >= 0.6 && len >= 12) out.push({ id: 'linked', label: 'Split (linked pair)', a: a, L: len, notch: [[len / 2 - 1.5, len / 2 + 1.5]], nd: sd });
+  }
+  // a curved traffic edge only as deep as the seating band + the 1.5 m route allow
+  var cv = Math.min(0.5, W - 2.5);
+  if (pref === 'free' && cv >= 0.12) out.push({ id: 'curved', label: 'Curved edge', a: a, L: len, curve: GEN.r3(cv) });
+  out.forEach(function(f) { f.W = W; f.shape = GEN.shapeOf(f); });
+  return out;
+};
+GEN.shapeOf = function(f) {
+  var L = GEN.r3(f.L), W = f.W;
+  if (f.notch) {
+    // traffic side (y = W) steps in by nd over each notch z-range
+    var v = [{ x: 0, y: 0 }, { x: L, y: 0 }, { x: L, y: W }];
+    f.notch.slice().sort(function(p, q) { return q[0] - p[0]; }).forEach(function(n) {
+      v.push({ x: GEN.r3(n[1]), y: W }, { x: GEN.r3(n[1]), y: GEN.r3(W - f.nd) }, { x: GEN.r3(n[0]), y: GEN.r3(W - f.nd) }, { x: GEN.r3(n[0]), y: W });
+    });
+    v.push({ x: 0, y: W });
+    return { active: true, closed: true, verts: v, segs: v.map(function() { return { arc: false, sag: 0 }; }) };
+  }
+  if (f.curve) {
+    var vc = [{ x: 0, y: 0 }, { x: L, y: 0 }, { x: L, y: W }, { x: GEN.r3(L - 1.1), y: W }, { x: 1.1, y: W }, { x: 0, y: W }];
+    var sg = vc.map(function() { return { arc: false, sag: 0 }; });
+    sg[3] = { arc: true, sag: f.curve };
+    var sh = { active: true, closed: true, verts: vc, segs: sg };
+    var w = shapeWidthAtLength(sh, L / 2);           // the arc must bow inward (toward the curb)
+    if (w && w[1] > W) sg[3].sag = -f.curve;
+    return sh;
+  }
+  return null;
+};
+// Deck's traffic-side edge (max y) over [z0, z1], and the notch ranges it must stay 0.45 m from.
+GEN.edgeAt = function(fp, z0, z1) {
+  if (!fp.shape) return fp.W;
+  var m = fp.W;
+  var zs = [z0, z1]; for (var z = Math.ceil(z0 / 0.05) * 0.05; z < z1; z += 0.05) zs.push(z);   // a fixed 5 cm grid + the ends
+  zs.forEach(function(zq) { var w = shapeWidthAtLength(fp.shape, Math.min(fp.L - 1e-3, Math.max(1e-3, zq))); if (w) m = Math.min(m, w[1]); });
+  return m;
+};
+
+// ── Programme templates (data) ─────────────────────────────────────────────────────────
+// A template = zones along the deck (share of the usable length, a zone kind, its mix) + the
+// preference it serves. Zone kinds are placed by GEN.ZONES (the placement rules, in one place).
+GEN.TEMPLATES = [
+  { id: 'linear_seating', label: 'Linear seating', zones: [{ k: 'bench_row', f: 1 }], fit: { seating: 3, open: 1 }, char: { social: 2, urban: 3, quiet_green: 1, cafe: 1 } },
+  { id: 'cafe_rows', label: 'Cafe rows', zones: [{ k: 'cafe', f: 0.75 }, { k: 'bike', f: 0.25 }], fit: { dining: 3, shade: 2, bike: 1 }, char: { cafe: 3, social: 1 } },
+  { id: 'social_cluster', label: 'Social cluster', zones: [{ k: 'bench_row', f: 0.35 }, { k: 'cluster', f: 0.3 }, { k: 'bench_row', f: 0.35 }], fit: { seating: 2, dining: 1, lounging: 1 }, char: { social: 3, cafe: 1 } },
+  { id: 'green_edge', label: 'Green edge', zones: [{ k: 'green', f: 1 }], fit: { green: 3, seating: 1 }, char: { quiet_green: 3, social: 1 } },
+  { id: 'bike_hub', label: 'Bike hub', zones: [{ k: 'bike', f: 0.4 }, { k: 'bench_row', f: 0.6 }], fit: { bike: 3, seating: 1 }, char: { urban: 2, social: 1 } },
+  { id: 'lounge_end', label: 'Lounge end', zones: [{ k: 'bench_row', f: 0.55 }, { k: 'lounge', f: 0.45 }], fit: { lounging: 3, seating: 1, green: 1 }, char: { quiet_green: 2, social: 1 } },
+  { id: 'open_flex', label: 'Open flex', zones: [{ k: 'green', f: 0.25 }, { k: 'open', f: 0.5 }, { k: 'green', f: 0.25 }], fit: { open: 3, green: 1 }, char: { urban: 2, social: 1 } },
+  { id: 'play_street', label: 'Play street', zones: [{ k: 'bench_row', f: 0.45 }, { k: 'play', f: 0.55 }], fit: { play: 3, seating: 1 }, char: { social: 2, quiet_green: 1 } }
+];
+GEN.EDGES = [
+  { id: 'screens', label: 'screens behind seats, planters between' },
+  { id: 'planters', label: 'planters along the edge' },
+  { id: 'glass', label: 'glass screens, planters between' }
+];
+// Material palettes: the material for each group; part roles take the first group they allow.
+GEN.PALETTES = {
+  warm_wood: [{ id: 'oak_galv', label: 'oak + galvanized', m: { wood: 'oak', metal: 'galvanized', powder: 'ral_7016', mineral: 'concrete', other: 'composite_decking' }, order: ['wood', 'metal', 'mineral', 'powder', 'other'] },
+              { id: 'thermo_anth', label: 'thermowood + anthracite', m: { wood: 'thermowood', metal: 'galvanized', powder: 'ral_7016', mineral: 'precast_grey', other: 'composite_decking' }, order: ['wood', 'powder', 'metal', 'mineral', 'other'] }],
+  black_steel: [{ id: 'black_oak', label: 'black steel + oak', m: { wood: 'oak', metal: 'black_steel', powder: 'ral_9005', mineral: 'granite', other: 'recycled_black' }, order: ['metal', 'powder', 'wood', 'mineral', 'other'] },
+                { id: 'black_black', label: 'black steel + black stain', m: { wood: 'black_stain', metal: 'black_steel', powder: 'ral_9005', mineral: 'granite', other: 'recycled_black' }, order: ['metal', 'powder', 'wood', 'mineral', 'other'] }],
+  corten: [{ id: 'corten_ipe', label: 'corten + ipe', m: { wood: 'ipe', metal: 'corten', powder: 'ral_7016', mineral: 'concrete', other: 'composite_decking' }, order: ['metal', 'wood', 'powder', 'mineral', 'other'] }],
+  colour: [{ id: 'yellow_pine', label: 'rape yellow + pine', m: { wood: 'pine', metal: 'galvanized', powder: 'ral_1021', mineral: 'terrazzo', other: 'hpl_grey' }, order: ['powder', 'wood', 'metal', 'mineral', 'other'] },
+           { id: 'blue_pine', label: 'gentian blue + pine', m: { wood: 'pine', metal: 'galvanized', powder: 'ral_5010', mineral: 'terrazzo', other: 'hpl_grey' }, order: ['powder', 'wood', 'metal', 'mineral', 'other'] },
+           { id: 'orange_oak', label: 'pure orange + oak', m: { wood: 'oak', metal: 'galvanized', powder: 'ral_2004', mineral: 'terrazzo', other: 'hpl_grey' }, order: ['powder', 'wood', 'metal', 'mineral', 'other'] }],
+  recycled: [{ id: 'recycled_grey', label: 'recycled plastic grey', m: { wood: 'weathered_cedar', metal: 'galvanized', powder: 'ral_7016', mineral: 'precast_grey', other: 'recycled_grey' }, order: ['other', 'metal', 'wood', 'mineral', 'powder'] },
+             { id: 'recycled_green', label: 'recycled plastic green', m: { wood: 'weathered_cedar', metal: 'galvanized', powder: 'ral_6009', mineral: 'precast_grey', other: 'recycled_green' }, order: ['other', 'powder', 'metal', 'wood', 'mineral'] }]
+};
+GEN.materialsFor = function(type, pal) {
+  var parts = (FL_ARCHETYPES[type] || {}).parts || {}, out = {};
+  Object.keys(parts).forEach(function(role) {
+    var spec = String(parts[role]).split('|'), groups = spec[0].split(' ');
+    if (groups.indexOf('fixed') >= 0) return;
+    var g = pal.order.find(function(x) { return groups.indexOf(x) >= 0; });
+    if (g && pal.m[g]) out[role] = pal.m[g];
+  });
+  return out;
+};
+
+// ── Placement rules (the one place) ──────────────────────────────────────────────────────
+// Deck frame: x = across (0 curb edge .. W traffic edge), z = along (0 .. L). Rules:
+//  - the traffic edge always gets screens / planters (edge band: the outer 0.45 m);
+//  - nothing else within 0.45 m of any deck edge (incl. notches and the curve);
+//  - the usable length is clear of the 1.1 m wheel-stop / end-planter zones;
+//  - an internal clear route >= target (1.5 m; 1.65 / 1.8 at accessibility 2 / 3) runs end to
+//    end on the curb side -- a GUIDELINE: no Parklet Manual check in this tool covers it;
+//  - seats face the sidewalk (-x) or along the deck, never the traffic; table chairs face
+//    their table (0.6 m per seat, 0.9 m pull-back); bike racks at the ends; no entourage.
+// Rotation u (userRotation): a seat faces (cos u, 0, -sin u): u = PI faces the sidewalk,
+// u = PI/2 faces -z, u = -PI/2 faces +z. Pieces are modelled with their length along z at u = 0.
+GEN.EDGE_BAND = 0.45; GEN.END = 1.1;
+GEN.ZONES = {};
+(function() {
+  var P = Math.PI;
+  function put(ctx, type, x, z, u, params) {
+    var p = flResolveParams(type, params || {}, { placing: true }), d = flEnvelope(flParts(type, p));
+    ctx.items.push({ type: type, x: GEN.r3(x), z: GEN.r3(z), u: +(u || 0).toFixed(6), params: p, l: d.l, d: d.d, h: d.h });
+  }
+  // footprint of an item in the deck frame (rotations are multiples of 90 degrees)
+  GEN.aabb = function(it) {
+    var q = Math.round(it.u / (P / 2)) % 2 !== 0, hx = (q ? it.l : it.d) / 2, hz = (q ? it.d : it.l) / 2;
+    if (it.type === 'bike_rack') hx = Math.max(hx, 0.3);           // parked bikes: 0.6 m handlebars
+    return { x0: it.x - hx, x1: it.x + hx, z0: it.z - hz, z1: it.z + hz };
+  };
+  // traffic-edge line element behind a z-range
+  function edgeRun(ctx, z0, z1, kind) {
+    var len = z1 - z0; if (len < 0.6) return;
+    if (kind === 'planters') {
+      var n = Math.max(1, Math.floor(len / 1.3)), l = Math.min(1.2, len / n - 0.1);
+      for (var i = 0; i < n; i++) { var zc = z0 + (i + 0.5) * len / n, xe = GEN.edgeAt(ctx.fp, zc - l / 2, zc + l / 2);
+        put(ctx, 'planter', xe - 0.05 - 0.2, zc, 0, { l: l, d: 0.4, h: 0.6, plant: ctx.plantKind }); }
+    } else {
+      var t = kind === 'glass' ? 'glass_screen' : 'screen', m = Math.max(1, Math.round(len / 1.8)), ls = len / m - 0.05;
+      for (var j = 0; j < m; j++) { var zs = z0 + (j + 0.5) * len / m, xs = GEN.edgeAt(ctx.fp, zs - ls / 2, zs + ls / 2);
+        put(ctx, t, xs - 0.05, zs, 0, { l: Math.max(0.6, Math.min(3, ls)), d: 0.05, h: 1.1 }); }
+    }
+  }
+  // x of the inner face of the edge band over [z0, z1] (seats and tables sit inside it)
+  function bandX(ctx, z0, z1) { return GEN.edgeAt(ctx.fp, z0 - GEN.EDGE_BAND, z1 + GEN.EDGE_BAND) - GEN.EDGE_BAND; }
+  // depth a piece may take from the band and still leave the clear route
+  function cap(ctx, z0, z1) { return bandX(ctx, z0, z1) - ctx.target; }
+  function gaps(ctx, z0, z1) {   // edge planting where no seat stands (planting intensity)
+    if (z1 - z0 >= 0.9) edgeRun(ctx, z0 + 0.05, z1 - 0.05, ctx.planting >= 1 ? 'planters' : (ctx.edge === 'glass' ? 'glass' : 'screens'));
+  }
+  GEN.ZONES.bench_row = function(ctx, z0, z1) {
+    var type = ctx.green >= 2 && ctx.r() < 0.5 && cap(ctx, z0, z1) >= 1.0 ? 'planter_bench' : 'bench', bl = type === 'planter_bench' ? 2.0 : 1.8, step = bl + (ctx.planting >= 2 ? 1.3 : 0.4);
+    var n = Math.floor((z1 - z0 + (step - bl)) / step); if (n < 1) { gaps(ctx, z0, z1); return; }
+    var used = n * bl + (n - 1) * (step - bl), zc = z0 + (z1 - z0 - used) / 2 + bl / 2;
+    var arms = ctx.access >= 2;
+    for (var i = 0; i < n; i++, zc += step) {
+      var dpt = type === 'planter_bench' ? 1.0 : 0.55, xb = bandX(ctx, zc - bl / 2, zc + bl / 2) - dpt / 2;
+      put(ctx, type, xb, zc, P, type === 'bench' ? { l: bl, d: 0.55, back: true, arms: arms } : { l: bl });
+      if (ctx.edge !== 'planters') edgeRun(ctx, zc - bl / 2, zc + bl / 2, ctx.edge === 'glass' ? 'glass' : 'screens');
+      else edgeRun(ctx, zc - bl / 2, zc + bl / 2, 'planters');
+      if (i < n - 1) gaps(ctx, zc + bl / 2, zc + step - bl / 2);
+    }
+  };
+  GEN.ZONES.cafe = function(ctx, z0, z1) {
+    var set = 0.6 + 2 * 0.9, n = Math.floor((z1 - z0) / (set + 0.3)); if (n < 1) { gaps(ctx, z0, z1); return; }
+    var pitch = (z1 - z0) / n;
+    for (var i = 0; i < n; i++) {
+      var zc = z0 + (i + 0.5) * pitch, xt = bandX(ctx, zc - set / 2, zc + set / 2) - 0.3;
+      put(ctx, 'cafe_table', xt, zc, 0, { l: 0.6 });
+      put(ctx, 'chair', xt, zc - 0.3 - 0.45, -P / 2, {});           // faces +z, toward the table
+      put(ctx, 'chair', xt, zc + 0.3 + 0.45, P / 2, {});            // faces -z
+      if (ctx.shade >= 2) put(ctx, 'umbrella', xt, zc, 0, { l: 1.5 });   // pole through the table, canopy over the deck
+      edgeRun(ctx, zc - set / 2, zc + set / 2, ctx.edge === 'planters' ? 'planters' : ctx.edge === 'glass' ? 'glass' : 'screens');
+    }
+  };
+  GEN.ZONES.cluster = function(ctx, z0, z1) {
+    var len = 0.8 + 2 * 0.85; if (z1 - z0 < len) { gaps(ctx, z0, z1); return; }
+    var zc = (z0 + z1) / 2, xt = bandX(ctx, zc - len / 2, zc + len / 2) - 0.3;
+    put(ctx, 'game_table', xt, zc, 0, { l: 0.6, d: 0.6 });
+    put(ctx, 'armchair', xt, zc - 0.3 - 0.45, -P / 2, { l: 0.6, d: 0.6 });
+    put(ctx, 'armchair', xt, zc + 0.3 + 0.45, P / 2, { l: 0.6, d: 0.6 });
+    edgeRun(ctx, zc - len / 2, zc + len / 2, 'planters');
+    gaps(ctx, z0, zc - len / 2 - 0.2); gaps(ctx, zc + len / 2 + 0.2, z1);
+  };
+  GEN.ZONES.green = function(ctx, z0, z1) {
+    edgeRun(ctx, z0, z1, 'planters');
+    // one backless bench per 5 m facing the sidewalk, in front of the planting
+    var n = Math.floor((z1 - z0) / 5);
+    for (var i = 0; i < n; i++) { var zc = z0 + (i + 0.5) * (z1 - z0) / n; put(ctx, 'backless_bench', bandX(ctx, zc - 0.9, zc + 0.9) - 0.225, zc, P, { l: 1.8, d: 0.45 }); }
+  };
+  GEN.ZONES.bike = function(ctx, z0, z1) {
+    var n = Math.max(1, Math.min(4, Math.floor((z1 - z0) / 1.9)));
+    for (var i = 0; i < n; i++) { var zc = z0 + (i + 0.5) * (z1 - z0) / n; put(ctx, 'bike_rack', bandX(ctx, zc - 0.95, zc + 0.95) - 0.3, zc, 0, { l: 0.9, type: 'u', count: 1 }); }
+    edgeRun(ctx, z0, z1, 'screens');
+  };
+  GEN.ZONES.lounge = function(ctx, z0, z1) {
+    var n = Math.min(2, Math.floor((z1 - z0) / 2.2)); if (n < 1) { gaps(ctx, z0, z1); return; }
+    for (var i = 0; i < n; i++) {
+      var zc = z0 + (i + 0.5) * (z1 - z0) / n, xl = bandX(ctx, zc - 0.8, zc + 0.8) - 0.3;
+      put(ctx, 'lounge', xl, zc, i % 2 ? P / 2 : -P / 2, { l: 0.6, d: 1.6 });
+      edgeRun(ctx, zc - 1.0, zc + 1.0, 'planters');
+    }
+  };
+  GEN.ZONES.play = function(ctx, z0, z1) {
+    var n = Math.min(3, Math.floor((z1 - z0) / 1.6)); if (n < 1) { gaps(ctx, z0, z1); return; }
+    for (var i = 0; i < n; i++) { var zc = z0 + (i + 0.5) * (z1 - z0) / n; put(ctx, 'play_element', bandX(ctx, zc - 0.3, zc + 0.3) - 0.3, zc, 0, { l: 0.6, d: 0.6, h: 0.45 }); }
+    edgeRun(ctx, z0, z1, 'screens');
+  };
+  GEN.ZONES.open = function(ctx, z0, z1) { edgeRun(ctx, z0, z1, ctx.edge === 'planters' ? 'planters' : 'screens'); };
+})();
+
+// Lay a template out on a footprint -> {items, metrics, ok, reasons}
+GEN.layout = function(tpl, fp, opt) {
+  var ctx = { items: [], fp: fp, r: opt.r, edge: opt.edge, planting: opt.planting, green: opt.green, access: opt.access, shade: opt.shade, target: opt.access >= 3 ? 1.8 : 1.5,
+    plantKind: opt.planting >= 3 ? 'tree' : opt.planting >= 2 ? 'shrub' : 'grass' };
+  var z0 = GEN.END + 0.1, z1 = fp.L - GEN.END - 0.1, len = z1 - z0, zones = opt.flip ? tpl.zones.slice().reverse() : tpl.zones, cur = z0;
+  // Notches: no programme within them or 0.45 m of their sides - only thin screens along the
+  // edge, so the curb-side route keeps its width there.
+  var keepOut = (fp.notch || []).map(function(n) { return [n[0] - GEN.EDGE_BAND, n[1] + GEN.EDGE_BAND]; });
+  function pieces(a, b) {
+    var out = [[a, b]];
+    keepOut.forEach(function(k) {
+      out = out.reduce(function(acc, p) {
+        if (k[1] <= p[0] || k[0] >= p[1]) acc.push(p);
+        else { if (k[0] > p[0]) acc.push([p[0], k[0]]); if (k[1] < p[1]) acc.push([k[1], p[1]]); }
+        return acc;
+      }, []);
+    });
+    return out.filter(function(p) { return p[1] - p[0] >= 0.6; });
+  }
+  zones.forEach(function(zn) {
+    var zl = len * zn.f, a = cur, b = cur + zl; cur = b;
+    pieces(a + 0.15, b - 0.15).forEach(function(p) { GEN.ZONES[zn.k](ctx, p[0], p[1]); });
+  });
+  keepOut.forEach(function(k) { GEN.ZONES.open(Object.assign({}, ctx, { edge: ctx.edge === 'glass' ? 'glass' : 'screens' }), Math.max(z0, k[0]) + 0.05, Math.min(z1, k[1]) - 0.05); });
+  // validate: inside the deck, the 0.45 m rule, no overlaps, the clear route
+  var reasons = [], items = ctx.items, EB = GEN.EDGE_BAND - 0.001;
+  var edgeTypes = { screen: 1, glass_screen: 1, railing: 1, planter: 1, planter_barrier: 1 };
+  items.forEach(function(it, i) {
+    var b = GEN.aabb(it), inner = GEN.edgeAt(fp, b.z0 - 0.45, b.z1 + 0.45);
+    if (b.z0 < GEN.END - 0.001 || b.z1 > fp.L - GEN.END + 0.001) reasons.push(it.type + ' in an end zone');
+    if (it.type === 'umbrella') { if (b.x0 < 0 || b.x1 > GEN.edgeAt(fp, b.z0, b.z1) + 0.001) reasons.push('umbrella canopy off the deck'); }
+    else if (edgeTypes[it.type]) { if (b.x1 > GEN.edgeAt(fp, b.z0, b.z1) + 0.001 || b.x0 < 0) reasons.push(it.type + ' off the deck'); }
+    else if (b.x0 < EB || b.x1 > inner - EB) reasons.push(it.type + ' within 0.45 m of the deck edge');
+    if (it.type === 'umbrella') return;                  // overhead: the canopy is not a floor footprint
+    for (var j = i + 1; j < items.length; j++) {
+      if (items[j].type === 'umbrella') continue;
+      var c = GEN.aabb(items[j]);
+      if (b.x0 < c.x1 - 0.005 && c.x0 < b.x1 - 0.005 && b.z0 < c.z1 - 0.005 && c.z0 < b.z1 - 0.005) { reasons.push(it.type + ' overlaps ' + items[j].type); }
+    }
+  });
+  var minX = fp.W;
+  items.forEach(function(it) { if (it.type === 'umbrella') return; minX = Math.min(minX, GEN.aabb(it).x0); });
+  var route = GEN.r3(minX), target = opt.access >= 3 ? 1.8 : 1.5;
+  if (route < target - 0.001) reasons.push('clear route ' + route.toFixed(2) + ' m < ' + target + ' m');
+  return { items: items, route: route, routeTarget: target, ok: reasons.length === 0, reasons: reasons };
+};
+
+// Metrics of a layout (what the score and the cards read)
+GEN.SEAT_M = 0.6;
+GEN.metrics = function(lay, fp) {
+  var m = { seats: 0, tables: 0, bike: 0, planting: 0, shade: 0, play: 0, pieces: lay.items.length, route: lay.route, lounges: 0 };
+  lay.items.forEach(function(it) {
+    var t = it.type;
+    if (t === 'bench' || t === 'backless_bench' || t === 'planter_bench' || t === 'seat_wall') m.seats += Math.floor(it.params.l / GEN.SEAT_M + 1e-6);
+    else if (t === 'chair' || t === 'armchair' || t === 'stool') m.seats += 1;
+    else if (t === 'lounge') { m.seats += 1; m.lounges += 1; }
+    if (t === 'cafe_table' || t === 'table' || t === 'game_table' || t === 'communal_table') m.tables += 1;
+    if (t === 'bike_rack') m.bike += 2 * (it.params.count || 1);
+    if (t === 'planter' || t === 'planter_barrier' || t === 'planter_bench') m.planting += it.l * it.d;
+    if (t === 'umbrella') m.shade += Math.PI * Math.pow(it.params.l / 2, 2);
+    if (t === 'play_element' || t === 'game_table') m.play += 1;
+  });
+  var endPl = 2 * Math.max(0, fp.W - 0.16) * 0.94;   // the end planters (DESIGN_MODEL.parklet.ends)
+  m.planting = GEN.r3(m.planting + endPl);
+  m.area = GEN.r3(fp.W * fp.L - (fp.notch ? fp.notch.reduce(function(s, n) { return s + (n[1] - n[0]) * fp.nd; }, 0) : 0));
+  m.plantingPct = GEN.r3(m.planting / m.area);
+  m.shade = GEN.r3(m.shade);
+  var foot = lay.items.reduce(function(s, it) { return it.type === 'umbrella' ? s : s + it.l * it.d; }, 0);
+  m.openPct = GEN.r3(1 - foot / m.area);
+  return m;
+};
+// Preference fit - clutter. Each feature normalised to 0..1, weighted by the 0-3 preferences.
+GEN.score = function(m, P, fp) {
+  var L = fp.L, w = Object.assign({}, P.prog); w.green = w.green + P.planting;
+  var f = { seating: Math.min(1, m.seats / (L * 0.9)), dining: Math.min(1, m.tables * 2.4 / L), lounging: Math.min(1, m.lounges / 2),
+    bike: Math.min(1, m.bike / 8), green: Math.min(1, m.plantingPct / 0.2), shade: Math.min(1, m.shade / (m.area * 0.25)),
+    play: Math.min(1, m.play / 3), open: Math.min(1, Math.max(0, (m.openPct - 0.6) / 0.35)) };
+  var tot = 0, s = 0;
+  Object.keys(f).forEach(function(k) { tot += w[k]; s += w[k] * f[k]; });
+  var clutter = Math.max(0, m.pieces / m.area - 0.9) * 0.5;
+  var access = P.access >= 2 ? Math.min(0.1, (m.route - 1.5) * 0.2) : 0;
+  return GEN.r3((tot ? s / tot : 0) - clutter + access);
+};
+// Feature vector for diversity (footprint, programme mix, palette, seats, planting %)
+GEN.features = function(c) {
+  var fps = ['full', 'short', 'notch1', 'notch2', 'linked', 'curved'], v = [];
+  fps.forEach(function(f) { v.push(c.fp.id === f ? 1 : 0); });
+  GEN.TEMPLATES.forEach(function(t) { v.push(c.tpl.id === t.id ? 1 : 0); });
+  v.push(c.pal.idx * 0.5, Math.min(1, c.m.seats / 30), c.m.plantingPct * 3, Math.min(1, c.m.bike / 8), Math.min(1, c.m.tables / 6));
+  return v;
+};
+GEN.dist = function(a, b) { var s = 0; for (var i = 0; i < a.length; i++) s += (a[i] - b[i]) * (a[i] - b[i]); return Math.sqrt(s); };
+
+// ── Search ─────────────────────────────────────────────────────────────────────────────
+// Seeded sampling of templates x footprints x edges x palettes (N * 20 samples), each built
+// into a DESIGN_STATE and run through all 15 checks; passers are scored; N are selected by
+// farthest-point diversity, best score first. Same inputs + seed = identical schemes.
+GEN.generate = function() {
+  var P = GEN.prefs, S = GEN.site, t0 = performance.now();
+  var base = getDesignState(); base.furniture = { placed: [] };
+  GEN._base = base;
+  var facts = GEN.facts(), missing = facts.filter(function(f) { return !f.ok; }), blocked = facts.filter(function(f) { return f.blocks; });
+  var res = { seed: P.seed, n: P.n, schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0 }, notes: [] };
+  if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; return GEN.finish(res, t0); }
+  if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; return GEN.finish(res, t0); }
+  var env = GEN.envelope(S, base);
+  res.envelope = env;
+  if (!env.ok) { res.error = 'No compliant envelope. ' + env.why.join(' '); return GEN.finish(res, t0); }
+  var fps = GEN.footprints(env, P.footprint);
+  var pals = GEN.PALETTES[P.material] || GEN.PALETTES.warm_wood;
+  var r = GEN.rng(P.seed * 7919 + 13);
+  var tw = GEN.TEMPLATES.map(function(t) {
+    var fit = 0; Object.keys(t.fit).forEach(function(k) { fit += t.fit[k] * (P.prog[k] || 0); });
+    return 0.5 + fit + 3 * ((t.char || {})[P.character] || 0);
+  });
+  var N = P.n, total = N * 20, cands = [], seen = {};
+  for (var i = 0; i < total; i++) {
+    res.stats.sampled++;
+    var tpl = GEN.pick(r, GEN.TEMPLATES, tw), fp = GEN.pick(r, fps), edge = GEN.pick(r, GEN.EDGES), pi = Math.floor(r() * pals.length) % pals.length, flip = r() < 0.5;
+    var key = [tpl.id, fp.id, edge.id, pi, flip ? 1 : 0].join('|');
+    if (seen[key]) continue; seen[key] = 1;
+    var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip });
+    if (!lay.ok) { res.stats.layoutRejects++; continue; }
+    var pal = Object.assign({ idx: pi }, pals[pi]);
+    var ds = GEN.buildState(S, base, env, fp, lay, pal);
+    res.stats.built++;
+    var ev = GEN.evaluate(ds);
+    if (ev.pass !== criteria.length) { res.stats.checkRejects++; continue; }
+    res.stats.passed++;
+    var m = GEN.metrics(lay, fp), c = { key: key, tpl: tpl, fp: fp, edge: edge, pal: pal, flip: flip, lay: lay, ds: ds, ev: ev, m: m, score: GEN.score(m, P, fp) };
+    c.f = GEN.features(c);
+    cands.push(c);
+  }
+  // selection: locked schemes first, then best score, then farthest point (ties: score, key)
+  var sel = Object.keys(GEN.locked).map(function(k) { return GEN.locked[k]; });
+  cands.sort(function(a, b) { return b.score - a.score || (a.key < b.key ? -1 : 1); });
+  var pool = cands.filter(function(c) { return !GEN.locked[c.key]; });
+  if (!sel.length && pool.length) sel.push(pool.shift());
+  while (sel.length < N && pool.length) {
+    var best = -1, bi = 0;
+    pool.forEach(function(c, j) { var dmin = Math.min.apply(null, sel.map(function(s2) { return GEN.dist(c.f, s2.f); })); var v = dmin + 0.25 * c.score; if (v > best + 1e-9) { best = v; bi = j; } });
+    sel.push(pool.splice(bi, 1)[0]);
+  }
+  res.schemes = sel;
+  if (!sel.length) res.error = 'No candidate passed all 15 checks (' + res.stats.built + ' built). ' + (env.why || []).join(' ');
+  return GEN.finish(res, t0);
+};
+GEN.finish = function(res, t0) {
+  res.ms = Math.round(performance.now() - t0);
+  GEN.result = res;
+  GEN.renderResults();
+  return res;
+};
+// The candidate as a DESIGN_STATE: site skeleton at deck [a, a + L], shape, derived inputs,
+// furniture with palette materials. Deterministic: no ids, no timestamps.
+GEN.buildState = function(S, base, env, fp, lay, pal) {
+  var ds = GEN.siteState(S, base, fp.W, fp.L, fp.a);
+  ds.siteObjects.pkShape = fp.shape ? JSON.parse(JSON.stringify(fp.shape)) : null;
+  GEN.applyDerived(ds, fp.a, fp.L, base.site.parkletLength, fp.reinstated);
+  ds.furniture.placed = lay.items.map(function(it) {
+    return { objId: 'GEN-' + it.type, x: it.x, z: it.z, rotationY: it.u, userRotation: it.u, archetype: it.type,
+      params: it.params, materials: GEN.materialsFor(it.type, pal), meshUrl: null };
+  });
+  return ds;
+};
+</script>
 <style id="ui07">
 /* ======================================================================
    UI 07 -- presentation layer (Brief 07). Last in the document so it wins
