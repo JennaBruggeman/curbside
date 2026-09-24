@@ -138,6 +138,14 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 - **Technical mode** is achromatic: `DS.achromatic` (Plan + Section SVG strings), `DS.ground3D` (3D ground planes), `DS.hatch3D` (planting dots / bike diagonal textures); only `DS.KEEP` (accent, pass, fail) keep a hue. `<html>` gets `.dm-technical`.
 - **Verification** (scratchpad `p7.ps1`, headless Edge via `cdp.ps1`): contrast of every chrome text node, plan label overlap at 1280/1440/1920, technical saturation scan (`sat.js`), accordion persistence across a reload, page errors.
 
+## Section direction and depth (Brief 08, branch section-depth)
+- **Model:** `SECTION = {z, dir, depth}` is what the user set (saved as `state.__section` and `section` in the cloud save); `DESIGN_MODEL.section = {z, dir, depth, zFar}` is the resolved value (z clamped to the parklet, depth 0.5..scene edge). Change it only through `setSection(patch, {live|silent})`, which redraws Plan, Section and the 3D helper. `_pvSectionXM` is gone.
+- **Query:** `getSectionScene(section)` -> `{cut, beyond}` items `{kind, key, id?, x0..z1, d}`; beyond is sorted far to near. Kinds: tree, planter, bollard, furniture, entourage, street, manhole, end-planter, wheel-stop (cut or beyond), building and deck (beyond only; at the cut they are the strip's own poche). `getSectionObjectsAt` is a thin legacy wrapper over `.cut`. `DESIGN_MODEL.parklet.ends` holds the end planters and wheel stops.
+- **Plan:** section mark from the model (cut line, A tags with arrowheads in dir, dashed depth box). Drag the line = z, drag the far edge = depth, click a tag = flip (`_pvSecDown`, `_pvSecFlip`).
+- **Section:** layers `#seArchBg` (paper) < `#seBeyondSVG` (elevation beyond) < `#seArchSVG` (cut) < `#seObjOverlay` (cut objects). dir +1 mirrors via `.se-mirror` (row-reverse + SVG matrix), X() maps world x to strip px (`window._seWorldX` inverts). The near-building column is `_bldgPx()` wide (24 px + buffer + deepest setback); the cut poche is the building at z (`_cutBuildingL`). Clicking an object selects it everywhere (`fl3DSelect`).
+- **3D:** `_3dSectionHelper()` adds a translucent plane + depth box to `_3d.scene` (not the design group) while A-A is on; `AXE.draw` hides it.
+- **Check:** `checkLandmarkConsistency` compares drawn `[data-sec]` groups with `getSectionScene` lengths.
+
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
