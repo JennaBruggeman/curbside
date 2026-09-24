@@ -316,7 +316,7 @@
   --c-text: #F2F2F0;    /* 15.6:1 on panel */
   --c-text-dim: #9EA3A8;/* 6.9:1 on panel -- the dimmest text allowed */
   /* drawing (light sheets) */
-  --d-paper: #FFFFFF; --d-ink: #1A1A1A; --d-mid: #62605C; --d-lt: #D9D7D2; --d-xlt: #F2F1EE;
+  --d-paper: #FFFFFF; --d-ink: #1A1A1A; --d-mid: #616161; --d-lt: #D8D8D8; --d-xlt: #F1F1F1;
   /* one accent: selection, focus, primary action only */
   --accent-ui: #3AA8E4; /* 6.9:1 on panel (the old #0696D7 is 4.3:1 as text) */
   /* status */
@@ -2699,7 +2699,7 @@ function _pvAppendAnno(svg, vb, sb, baseW) {
   const U = ok ? Math.max(vb.w / r.width, vb.h / r.height) : (vb.U || vb.w / 760);
   const visW = ok ? r.width * U : vb.w, visH = ok ? r.height * U : vb.h;   // meet: what is on screen
   const vx = vb.x + (vb.w - visW) / 2, vy = vb.y + (vb.h - visH) / 2;
-  const INK = '#1A1A1A', LBL = '#3A3835', PAPER = (typeof DS !== 'undefined') ? DS.t().paper : '#FFFFFF';
+  const INK = '#1A1A1A', LBL = '#3A3A3A', PAPER = (typeof DS !== 'undefined') ? DS.t().paper : '#FFFFFF';
   const f = function(v) { return v.toFixed(2); };
   const FNT = 'font-family="Helvetica Neue,Arial,sans-serif" font-size="' + f(10 * U) + '" fill="' + LBL + '"';
   // north arrow: circle r 9 px in a 42 px box on the 12 px margin
@@ -3485,7 +3485,7 @@ document.addEventListener('mouseup', function() {
 
     sv += '</svg>';
     var tmp = document.createElement('div');
-    if (typeof DS !== 'undefined') sv = DS.restyleSectionObjects(sv); tmp.innerHTML = sv;
+    if (typeof DS !== 'undefined') { sv = DS.restyleSectionObjects(sv); if (isTech) sv = DS.achromatic(DS.statusInk(sv)); } tmp.innerHTML = sv;
     var svgEl = tmp.firstElementChild;
     if (svgEl) strip.appendChild(svgEl);
   }
@@ -3527,6 +3527,7 @@ document.addEventListener('mouseup', function() {
     s += '<pattern id="seGrain" patternUnits="userSpaceOnUse" width="' + boardW + '" height="200"><line x1="' + boardW + '" y1="0" x2="' + boardW + '" y2="200" stroke="' + (isTech ? '#8E8C88' : 'rgba(110,70,30,.35)') + '" stroke-width="' + P.wGrain + '"/></pattern>';
     s += '<pattern id="seSoilDot" patternUnits="userSpaceOnUse" width="6" height="6"><circle cx="1.5" cy="1.5" r="0.7" fill="' + (isTech ? '#B0AEA9' : 'none') + '"/><circle cx="4.5" cy="4.5" r="0.5" fill="' + (isTech ? '#C4C2BD' : 'none') + '"/></pattern>';
     s += '<pattern id="seStip" patternUnits="userSpaceOnUse" width="5" height="5"><circle cx="2.5" cy="2.5" r="0.75" fill="' + (isTech ? '#6E6C68' : 'rgba(40,80,30,.35)') + '"/></pattern>';
+    if (isTech) s += '<pattern id="seBikeH" patternUnits="userSpaceOnUse" width="3.5" height="3.5" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="3.5" stroke="#6E6E6E" stroke-width="0.6"/></pattern>';   // technical: bike lane = 45-degree hatch
     s += '</defs>';
 
     // ── Paper + subgrade ─────────────────────────────────────────────────
@@ -3591,7 +3592,7 @@ document.addEventListener('mouseup', function() {
 
         case 'bike-lane': {
           s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? '#E6E4DF' : '#D3DCC6') + '"/>';
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="url(#seSub)"/>';
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (isTech ? 'url(#seBikeH)' : 'url(#seSub)') + '"/>';
           s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + P.wProf + '"/>';
           break;
         }
@@ -3635,7 +3636,7 @@ document.addEventListener('mouseup', function() {
     s += '<line x1="0" y1="' + GROUND_Y + '" x2="' + totalW + '" y2="' + GROUND_Y + '" stroke="' + P.ink + '" stroke-width="' + (isTech ? 2.0 : 1.4) + '"/>';
     s += '</svg>';
     var tmp = document.createElement('div');
-    tmp.innerHTML = s;
+    tmp.innerHTML = (isTech && typeof DS !== 'undefined') ? DS.achromatic(s) : s;
     var svgEl = tmp.firstElementChild;
     if (svgEl) strip.insertBefore(svgEl, strip.firstChild);
   }
@@ -3680,7 +3681,7 @@ document.addEventListener('mouseup', function() {
     if (unallocPx > 0) {
       totalContentPx += unallocPx;
       html += '<div id="seUnalloc" class="' + (m.over ? 'over' : '') + '" style="width:'+unallocPx+'px">'+
-        '<span class="se-unalloc-hdr">'+(m.over?'Over':'Unallocated')+'</span>'+
+        '<span class="se-unalloc-hdr">'+(unallocPx < (m.over ? 48 : 96) ? '' : (m.over?'Over':'Unallocated'))+'</span>'+
         '</div>';
     } else {
       html += '<div id="seUnalloc" style="display:none;width:0"><span class="se-unalloc-hdr"></span></div>';
@@ -3716,7 +3717,7 @@ document.addEventListener('mouseup', function() {
         uEl.style.width = unallocPx+'px';
         uEl.classList.toggle('over', m.over);
         var hdr = uEl.querySelector('.se-unalloc-hdr');
-        if (hdr) hdr.textContent = m.over ? 'Over' : 'Unallocated';
+        if (hdr) hdr.textContent = unallocPx < (m.over ? 48 : 96) ? '' : (m.over ? 'Over' : 'Unallocated');
       } else {
         uEl.style.display = 'none';
       }
@@ -3859,7 +3860,6 @@ document.addEventListener('mouseup', function() {
     panel.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
         '<strong style="font-size:11px;letter-spacing:.07em;text-transform:uppercase">'+(def.label||s.type)+'</strong>'+
-        '<span style="font-size:11px;padding:1px 6px;border-radius:2px;font-weight:600;background:'+(def.color||'#888')+';color:'+(def.light?'rgba(0,0,0,.65)':'rgba(255,255,255,.85)')+'">'+s.type.toUpperCase().replace(/-/g,' ')+'</span>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:80px 1fr;gap:6px 10px;align-items:center">'+
         '<span style="font-size:11px;color:var(--muted)">Width</span>'+wHtml+varHtml+
@@ -5116,15 +5116,69 @@ WM.rebuildAll = function() { syncDesignModel('rebuildAll'); };
 // ═════════════════════════════════════════════════════════════════
 var DS = {
   tokens: {
-    technical: { paper:'#FFFFFF', ink:'#1A1A1A', mid:'#8E8C88', lt:'#D9D7D2', xlt:'#F2F1EE', label:'#6E6C68',
-                 sidewalk:'#F1F0ED', road:'#FFFFFF', deck:'#EAE8E3', deckLine:'#9C9A95', plant:'#DCDAD5', bike:'#F4F4F2', bikeLine:'#8E8C88',
-                 wCut:1.6, wProf:0.7, wHair:0.3, bg3d:0xFFFFFF, edge3d:0x2A2A28 },
+    technical: { paper:'#FFFFFF', ink:'#1A1A1A', mid:'#8C8C8C', lt:'#D8D8D8', xlt:'#F1F1F1', label:'#6C6C6C',
+                 sidewalk:'#F0F0F0', road:'#FFFFFF', deck:'#E8E8E8', deckLine:'#9A9A9A', plant:'#DADADA', bike:'#EEEEEE', bikeLine:'#8C8C8C',
+                 wCut:1.6, wProf:0.7, wHair:0.3, bg3d:0xFFFFFF, edge3d:0x2A2A2A },
     schematic: { paper:'#F6F3EC', ink:'#3A342C', mid:'#9C968E', lt:'#DDD9D2', xlt:'#ECE8E0', label:'#8A857C',
                  sidewalk:'#E6E1D7', road:'#E4E1DB', deck:'#D6AE74', deckLine:'rgba(90,60,30,.22)', plant:'#A9C29A', bike:'#DCE6D5', bikeLine:'#7FA06E',
                  wCut:1.4, wProf:0.6, wHair:0.35, bg3d:0xF6F3EC, edge3d:0x6A5E50 }
   },
   mode: function() { return (typeof drawingTheme !== 'undefined' && drawingTheme.mode === 'technical') ? 'technical' : 'schematic'; },
   t: function() { return DS.tokens[DS.mode()]; },
+  // Technical drawings are achromatic: every colour becomes its luma grey except the three the
+  // interface allows in a drawing -- the accent, pass green and fail red (exact tokens below).
+  KEEP: ['#3AA8E4', '#4CB87A', '#23704A', '#F07070', '#B42C2C'],
+  _grey: function(r, g, b) { return Math.round(0.299 * r + 0.587 * g + 0.114 * b); },
+  _hex2: function(v) { return ('0' + v.toString(16)).slice(-2); },
+  _keep: function(hex) { return DS.KEEP.some(function(k) { return k.toLowerCase() === hex.toLowerCase(); }); },
+  // Status colours drawn by the older renderers, moved onto the pass / fail tokens first.
+  statusInk: function(s) {
+    [['#c03030', '#B42C2C'], ['#b5272b', '#B42C2C'], ['#e05060', '#B42C2C'], ['#2d6a4f', '#23704A']].forEach(function(p) {
+      s = s.split(p[0]).join(p[1]).split(p[0].toUpperCase()).join(p[1]);
+    });
+    return s;
+  },
+  achromatic: function(s) {
+    s = s.replace(/(?<!&)#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])/g, function(m, h) {
+      if (DS._keep(m)) return m;
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      var v = DS._hex2(DS._grey(parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)));
+      return '#' + v + v + v;
+    });
+    return s.replace(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(,\s*[\d.]+\s*)?\)/g, function(m, r, g, b, a) {
+      if (DS._keep('#' + DS._hex2(+r) + DS._hex2(+g) + DS._hex2(+b))) return m;
+      var v = DS._grey(+r, +g, +b);
+      return (a ? 'rgba(' : 'rgb(') + v + ',' + v + ',' + v + (a || '') + ')';
+    });
+  },
+  // 3D ground colour (0xRRGGBB) in the current style: grey in technical unless it is a kept token.
+  ground3D: function(c) {
+    if (DS.mode() !== 'technical') return c;
+    var r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+    if (DS._keep('#' + DS._hex2(r) + DS._hex2(g) + DS._hex2(b))) return c;
+    var v = DS._grey(r, g, b);
+    return (v << 16) | (v << 8) | v;
+  },
+  // Technical ground hatch for 3D planes: 'dots' (planting) or 'diag' (bike lane), as a tiled
+  // canvas texture at 0.5 m per tile.
+  _hatchTex: {},
+  hatch3D: function(mesh, kind, w, d) {
+    if (DS.mode() !== 'technical' || !mesh || typeof THREE === 'undefined') return;
+    var tex = DS._hatchTex[kind];
+    if (!tex) {
+      var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+      var x = cv.getContext('2d');
+      x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, 64, 64);
+      x.fillStyle = x.strokeStyle = '#7A7A7A';
+      if (kind === 'dots') { [[16, 16], [48, 48]].forEach(function(p) { x.beginPath(); x.arc(p[0], p[1], 3.2, 0, Math.PI * 2); x.fill(); }); }
+      else { x.lineWidth = 3; [-64, 0, 64].forEach(function(o) { x.beginPath(); x.moveTo(o, 64); x.lineTo(o + 64, 0); x.stroke(); }); }
+      tex = DS._hatchTex[kind] = new THREE.CanvasTexture(cv);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    }
+    var t = tex.clone(); t.needsUpdate = true;
+    t.repeat.set(Math.max(1, w / 0.5), Math.max(1, d / 0.5));
+    mesh.material.map = t; mesh.material.needsUpdate = true;
+  },
   // Remap for the Section A–A objects overlay (_seRenderObjects): trees, bollards, cut furniture
   restyleSectionObjects: function(sv) {
     var tech = DS.mode() === 'technical';
@@ -5148,9 +5202,9 @@ var DS = {
   // 3D (ground plane) so the views read the same. Values are the colours Plan finally
   // displays in each drawing style, so restylePlan leaves them untouched.
   segPalette: {
-    technical: { 'travel-lane':'#FFFFFF', 'travel-lane-fail':'#EAE6E4', 'transit-lane':'#F4F2EE', 'turn-lane':'#F6F5F2',
-                 'parking':'#EFEEEB', 'parklet':'#EFEEEB', 'bike-lane':'#F4F4F2', 'bike-lane-fail':'#EAE6E4',
-                 'buf-pk':'#F1F1EE', 'buf-bl':'#F1F1EE', 'planting':'#E9EDE6', 'curb':'#D9D7D2', 'unallocated':'#F9F9F7' },
+    technical: { 'travel-lane':'#FFFFFF', 'travel-lane-fail':'#E6E6E6', 'transit-lane':'#F3F3F3', 'turn-lane':'#F5F5F5',
+                 'parking':'#EEEEEE', 'parklet':'#EEEEEE', 'bike-lane':'#EEEEEE', 'bike-lane-fail':'#E6E6E6',
+                 'buf-pk':'#F1F1F1', 'buf-bl':'#F1F1F1', 'planting':'#EBEBEB', 'curb':'#D8D8D8', 'unallocated':'#F8F8F8' },
     schematic: { 'travel-lane':'#E4E1DB', 'travel-lane-fail':'#EDD9D3', 'transit-lane':'#E8DDCB', 'turn-lane':'#E7E3D1',
                  'parking':'#DDD9D2', 'parklet':'#DDD9D2', 'bike-lane':'#D6E4EC', 'bike-lane-fail':'#EDD9D3',
                  'buf-pk':'#DCE6D5', 'buf-bl':'#DCE6D5', 'planting':'#C9D9BE', 'curb':'#B9B3A8', 'unallocated':'#EFEDE8' }
@@ -5274,6 +5328,9 @@ function renderPlanView() {
   if (_useCS) _clipD = buildPlanShapePath(_pkShp);
   let _defsStr = `<defs><pattern id='hPV' patternUnits='userSpaceOnUse' width='5' height='5' patternTransform='rotate(45 0 0)'><line x1='0' y1='0' x2='0' y2='5' stroke='rgba(0,0,0,.25)' stroke-width='1.1'/></pattern>`;
   if (_clipD) _defsStr += `<clipPath id='pkSC'><path d='` + _clipD + `'/></clipPath>`;
+  // technical hatches: dots = planting, 45-degree lines = bike lane
+  if (_iTch) _defsStr += `<pattern id='pvDot' patternUnits='userSpaceOnUse' width='4' height='4'><circle cx='1' cy='1' r='0.6' fill='#6A6A6A'/><circle cx='3' cy='3' r='0.6' fill='#6A6A6A'/></pattern>` +
+    `<pattern id='pvDiag' patternUnits='userSpaceOnUse' width='3.5' height='3.5' patternTransform='rotate(45 0 0)'><line x1='0' y1='0' x2='0' y2='3.5' stroke='#7A7A7A' stroke-width='0.5'/></pattern>`;
   _defsStr += `</defs>`;
   s += _defsStr;
   s += `<rect width='${VW}' height='${VH}' fill='white'/>`;
@@ -5293,6 +5350,8 @@ function renderPlanView() {
     const fill = DS.segColor(sg.type === 'bike-lane' && !blOkPV ? 'bike-lane-fail'
                            : sg.type === 'travel-lane' && !_lanesPass ? 'travel-lane-fail' : sg.type);
     s += `<rect x='0' y='${sg.y0.toFixed(2)}' width='${VW}' height='${(sg.y1 - sg.y0).toFixed(2)}' fill='${fill}' data-seg='${sg.id}'/>`;
+    if (_iTch && (sg.type === 'planting' || sg.type === 'bike-lane'))
+      s += `<rect x='0' y='${sg.y0.toFixed(2)}' width='${VW}' height='${(sg.y1 - sg.y0).toFixed(2)}' fill='url(#${sg.type === 'planting' ? 'pvDot' : 'pvDiag'})' pointer-events='none'/>`;
     if (_segLbl[sg.type]) {
       s += `<line x1='0' y1='${sg.y0.toFixed(2)}' x2='${VW}' y2='${sg.y0.toFixed(2)}' stroke='#aaa' stroke-width='0.8' stroke-dasharray='8,4'/>`;
       if (sg.y1 - sg.y0 > 9) s += `<text x='8' y='${(sg.y1 - 3).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='rgba(0,0,0,.35)'>${_segLbl[sg.type]}</text>`;
@@ -5310,9 +5369,15 @@ function renderPlanView() {
   // (ellipse radii use each axis's own px/m). Tagged data-veg='<index>' for the check.
   _pvDM.vegetation.forEach(function(v, i) {
     const c = worldToPlan(v.x, v.z), rx = v.canopyR * HS, ry = v.canopyR * pvSC;
-    if (v.type === 'tree') {
+    if (v.type === 'tree' && _iTch) {   // technical: open canopy circle + centre dot
+      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='none' stroke='#1A1A1A' stroke-width='0.6' data-veg='${i}'/>`;
+      s += `<circle cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' r='1.3' fill='#1A1A1A'/>`;
+    } else if (v.type === 'tree') {
       s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='rgba(111,154,90,.30)' stroke='#5d8a52' stroke-width='0.7' stroke-dasharray='3,2' data-veg='${i}'/>`;
       s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${Math.max(1, v.trunkR * HS).toFixed(2)}' ry='${Math.max(1, v.trunkR * pvSC).toFixed(2)}' fill='#6b4c2a'/>`;
+    } else if (_iTch) {   // technical planter: light grey with the planting dot hatch
+      s += `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}' rx='1.5' fill='#EBEBEB' stroke='#1A1A1A' stroke-width='0.6' data-veg='${i}'/>`;
+      s += `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}' rx='1.5' fill='url(#pvDot)' pointer-events='none'/>`;
     } else {   // planter: footprint of the 3D planter box (2r x 2r)
       s += `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}' rx='1.5' fill='#8fae78' stroke='#6f5a3e' stroke-width='0.7' data-veg='${i}'/>`;
     }
@@ -5362,7 +5427,8 @@ function renderPlanView() {
   if (_pvLM.bufferW > 0.05) {
     const _bfY0 = worldToPlan(_pvLM.bufferL.x0, 0).py, _bfY1 = worldToPlan(_pvLM.bufferL.x1, 0).py, _bfH = _bfY1 - _bfY0;
     s += `<rect x='0' y='${_bfY0.toFixed(2)}' width='${VW}' height='${_bfH.toFixed(2)}' fill='#d8f0dc'/>`;
-    for (let bx=20; bx<VW-16; bx+=24) {
+    if (_iTch) s += `<rect x='0' y='${_bfY0.toFixed(2)}' width='${VW}' height='${_bfH.toFixed(2)}' fill='url(#pvDot)' pointer-events='none'/>`;
+    else for (let bx=20; bx<VW-16; bx+=24) {
       s += `<circle cx='${bx}' cy='${(_bfY0+_bfH/2).toFixed(1)}' r='3' fill='rgba(74,144,96,.3)'/>`;
     }
     s += `<text x='8' y='${(_bfY1-2).toFixed(1)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='6.5' font-weight='600' letter-spacing='.12em' fill='#4a9060'>VEG. BUFFER</text>`;
@@ -5960,6 +6026,7 @@ const manholes = state['manholes'] || [];
     const _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
     window._pvNorthV = { x: _nx / _nm, y: _ny / _nm }; }
     s = DS.restylePlan(s, { vb: _pvVB });
+    if (_iTch) s = DS.achromatic(DS.statusInk(s));
     svg.innerHTML = s.replace(/[''']/g, '\x22');
   svg.style.background = DS.t().paper;
   // _pvVB was fitted to the panel (drawing + chain margins) with the dimensions above; a
@@ -6937,7 +7004,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     const geom = new THREE.PlaneGeometry(x1-x0, z1-z0);
     // Ground surfaces are flat colour: unlit and unfogged, so the rendered pixel is exactly the
     // palette colour the caller passes (DS.segColor3D, re-read on every renderMassView).
-    const mat  = new THREE.MeshBasicMaterial({ color: col, fog: false });
+    const mat  = new THREE.MeshBasicMaterial({ color: DS.ground3D(col), fog: false });   // grey in technical
     const mesh = new THREE.Mesh(geom, mat);
     mesh.rotation.x = -Math.PI/2;
     mesh.position.set((x0+x1)/2,y,(z0+z1)/2);
@@ -6988,7 +7055,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
   // Vegetated buffer strip (between building face and sidewalk)
   if (bufW > 0.05) {
-    mplane(XSWL - bufW, ZS, XSWL, ZE, 0.003, 0x90c890, 0.88);
+    DS.hatch3D(mplane(XSWL - bufW, ZS, XSWL, ZE, 0.003, 0x90c890, 0.88), 'dots', bufW, ZE - ZS);
     mbox(XSWL - 0.05, 0, ZS, XSWL + 0.05, 0.07, ZE, 0x3a7050, 0.9);
     const plantR = Math.min(bufW * 0.28, 0.2);
     for (let z = ZS + 0.6; z < ZE; z += plantR * 2 + 0.7) {
@@ -7021,6 +7088,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     const m = seg.type === 'curb' ? mbox(seg.x0, 0, ZS, seg.x1, 0.15, ZE, col, 0.95)
                                   : mplane(seg.x0, ZS, seg.x1, ZE, 0.002, col, 0.97);
     m.userData.seg = seg.id;
+    if (seg.type === 'planting') DS.hatch3D(m, 'dots', seg.x1 - seg.x0, ZE - ZS);
   });
   // Roadway no segment covers, up to the far curb (same band as Plan).
   if (_LM.roadRight - _LM.allocatedRight > 0.005)
@@ -7040,6 +7108,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     }
     // Bike lane surface
     { const _blm = mplane(blX0, ZS, blX1, ZE, 0.003, DS.segColor3D(blOk ? 'bike-lane' : 'bike-lane-fail'), 0.93);
+      DS.hatch3D(_blm, 'diag', blX1 - blX0, ZE - ZS);
       if (_blS) _blm.userData.seg = _blS.id; }
     // Buffer B surface (traffic side)
     if (bufB3d > 0.01 && _bbS) {
@@ -7047,7 +7116,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       if (bufBLType === 'raised') mbox(_bbS.x0 + 0.05, 0.003, ZS, _bbS.x1 - 0.05, 0.14, ZE, 0x8aa098, 0.85);
     }
     // Edge stripe at bike lane / traffic boundary
-    mplane(blX1 - 0.05, ZS, blX1 + 0.05, ZE, 0.005, blOk ? 0x2a7aaa : 0xc03030, 0.85);
+    mplane(blX1 - 0.05, ZS, blX1 + 0.05, ZE, 0.005, blOk ? 0x2a7aaa : 0xB42C2C, 0.85);
     // Chevrons inside bike lane
     const chW = Math.min(designBikeLaneW * 0.38, 0.28);
     const chMx = blX0 + designBikeLaneW / 2;
@@ -8638,8 +8707,9 @@ function _3dUpdateCompass() {
     ctx.fillStyle = color;
     ctx.fillText(label, cx + dir.x * (r+6), cy + dir.y * (r+6));
   }
-  _drawAxis(nDir, '#c03030', 'N');  // red:   N = -Z
-  _drawAxis(eDir, '#c07010', 'E');  // amber: E = +X
+  var _tch = typeof DS !== 'undefined' && DS.mode() === 'technical';   // technical: achromatic
+  _drawAxis(nDir, _tch ? '#FFFFFF' : '#c03030', 'N');  // red:   N = -Z
+  _drawAxis(eDir, _tch ? '#9A9A9A' : '#c07010', 'E');  // amber: E = +X
 }
 window._3dUpdateCompass = _3dUpdateCompass;
 
@@ -10512,6 +10582,7 @@ var drawingTheme = { mode: 'schematic' };
 function setDrawingTheme(mode) {
   if (drawingTheme.mode === mode) return;
   drawingTheme.mode = mode;
+  document.documentElement.classList.toggle('dm-technical', mode === 'technical');   // CSS: achromatic drawing chrome
   var sSc = document.getElementById('themeSchematic');
   var sTc = document.getElementById('themeTechnical');
   if (sSc) sSc.classList.toggle('active', mode==='schematic');
@@ -17551,5 +17622,11 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
 .se-stat-l { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--d-mid); }
 .se-stat-v { font: var(--fs-12) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--d-ink); }
 .se-warn { margin-top: 2px; font: var(--fs-12) var(--font-ui); color: var(--st-warn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* -- Technical mode (Phase 5): the drawings are achromatic ------------------
+   Only the accent (selection), pass green and fail red keep a hue; the lane
+   "conditional" amber reads as ink inside the drawing. */
+.dm-technical #seStrip, .dm-technical #seDimRow { --st-warn-ink: var(--d-ink); }
+.dm-technical #seStrip { background: #FFFFFF !important; border-color: var(--d-lt) !important; }
 </style>
 </body></html>
