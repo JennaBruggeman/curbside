@@ -2139,7 +2139,68 @@ function buildDesignModel() {
     if (dz1 - dz0 > 1) add('deck', 'deck', null, dx, 0, dz0 + 0.4, dz1 - 0.4);
     DESIGN_MODEL.paths = paths;
   })();
+  // Report facts (Brief 10): what a sheet prints that no view had in the model yet, each in one
+  // place. Lanes are the segments assessed against EDM Table 8-10 (the same assessLanes C02 and the
+  // Section editor read); the deck area follows the sketched shape; a compliance input is either a
+  // value with its source or not entered -- never a placeholder.
+  (function() {
+    var DM = DESIGN_MODEL;
+    function field(id) { var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
+    DM.project = { name: field('projectName') || 'New Parklet', address: field('streetAddress') };
+    DM.lanes = typeof assessLanes === 'function' ? assessLanes(segs).map(function(a) {
+      var s = segs.find(function(q) { return q.id === a.id; }) || {};
+      return Object.assign(a, { x0: s.x0, x1: s.x1, direction: s.direction });
+    }) : [];
+    var bike = segs.find(function(s) { return s.type === 'bike-lane'; });
+    DM.street = {
+      direction: (typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'twoway') ? 'two-way' : 'one-way',
+      route: typeof laneRouteKey === 'function' ? laneRouteKey() : 'standard',
+      travelLanes: DM.lanes.length,
+      bikeLane: bike ? { type: (typeof designBikeLane !== 'undefined' ? designBikeLane : 'bike lane'), width: bike.width } : null,
+      buffers: segs.filter(function(s) { return s.type === 'buf-pk' || s.type === 'buf-bl' || s.type === 'planting'; })
+        .map(function(s) { return { id: s.id, type: s.type, width: s.width, variant: s.variant || null }; })
+    };
+    var sh = (typeof state !== 'undefined') ? state.pkShape : null, L = DM.parklet.length, A = DM.parklet.width * L;
+    if (sh && sh.active && sh.verts && sh.verts.length >= 3 && typeof shapeWidthAtLength === 'function') {
+      A = 0; for (var z = 0.005; z < L; z += 0.01) { var w = shapeWidthAtLength(sh, z); if (w) A += (w[1] - w[0]) * 0.01; }
+    }
+    DM.parklet.area = +A.toFixed(3);
+    DM.parklet.shape = sh && sh.active ? 'sketched' : 'rectangle';
+    var st = (typeof state !== 'undefined') ? state : {}, cf = st.curb_features || [];
+    var nOf = function(t) { return cf.filter(function(f) { return f.type === t; }).length; };
+    DM.siteObjects = { hydrants: nOf('H'), poles: nOf('P'), signalBoxes: nOf('S'), manholes: (st.manholes || []).length, driveways: (st.driveways || []).length };
+    // distances measured from placed site objects (updateCurbFeatureDists / updateDrivewayDist / updateManholeCrit)
+    var placed = { hydrant_dist: DM.siteObjects.hydrants, pole_dist: DM.siteObjects.poles, signal_box_dist: DM.siteObjects.signalBoxes,
+                   driveway_dist: DM.siteObjects.driveways, manhole_dist: DM.siteObjects.manholes };
+    DM.inputs = {};
+    if (typeof criteria !== 'undefined') criteria.forEach(function(c) {
+      [[c.inputId, c.inputLabel, c.inputUnit, c.inputType, c.selectOptions], [c.inputId2, c.inputLabel2, c.inputUnit2, c.inputType2, c.selectOptions2]].forEach(function(r) {
+        if (!r[0]) return;
+        var v = st[r[0]], entered = !(v === undefined || v === null || String(v).trim() === '' || (r[3] === 'number' && isNaN(parseFloat(v))));
+        var opt = entered && r[4] ? r[4].find(function(o) { return String(o.value) === String(v); }) : null;
+        DM.inputs[r[0]] = { id: r[0], crit: c.id, label: r[1] || r[0], unit: r[2] || '', value: entered ? v : null, text: opt ? opt.label : null,
+          entered: entered, source: !entered ? null : placed[r[0]] ? 'placed site objects' : 'entered' };
+      });
+    });
+  })();
   return DESIGN_MODEL;
+}
+// One row per check for anything that reports compliance (the report sheets): the check's own
+// status and result text, the inputs it read, and which are not entered.
+function complianceRows() {
+  var DM = _dmCurrent();
+  return criteria.map(function(c) {
+    var status = getCriterionStatus(c), ins = [DM.inputs[c.inputId], c.inputId2 ? DM.inputs[c.inputId2] : null].filter(Boolean);
+    var missing = ins.filter(function(i) { return !i.entered; });
+    var cond = typeof c.siteCondition === 'function' ? c.siteCondition() : (c.siteCondition || '');
+    var msg = '';
+    if (!(status === 'unclear' && missing.length)) {
+      try { msg = c.evalMsg ? c.evalMsg(state[c.inputId], c.inputId2 ? state[c.inputId2] : undefined) : ''; } catch (e) { msg = ''; }
+      msg = String(msg || '').replace(/^[\s✓✗✔✘⚠?]+/, '').trim();
+      if (!msg) msg = ins.filter(function(i) { return i.entered; }).map(function(i) { return i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : ''); }).join('; ');
+    }
+    return { id: c.id, num: c.num, title: c.title, page: c.page, status: status, msg: msg, condition: cond, inputs: ins, missing: missing };
+  });
 }
 
 // syncDesignModel â€” THE single canonical update path.
@@ -10649,13 +10710,13 @@ function renderParkletProps() {
   var W=_DM.parklet.width.toFixed(3);
   var L=_DM.parklet.length.toFixed(1);
   var road=_DM.totalRoad;
-  var area=(parseFloat(W)*parseFloat(L)).toFixed(2);
-  var laneW=(road-parseFloat(W)).toFixed(3);
-  var minL=(typeof ROUTE_TYPE!=='undefined'&&ROUTE_TYPE==='bus_truck')?3.2:3.0;
-  var ok=(road-parseFloat(W))>=minL;
+  var area=(_DM.parklet.area||0).toFixed(2);
+  // lanes as the model assessed them (EDM Table 8-10 / C02); the narrowest governs
+  var lanes=_DM.lanes||[], laneW=lanes.length?Math.min.apply(null,lanes.map(function(a){return a.width;})).toFixed(3):'-';
+  var ok=lanes.length>0&&lanes.every(function(a){return a.c02;});
   return '<div class="rp-obj-name">Parklet</div>'+
     _rpS('GEOMETRY')+_rpR('Width',W,'m')+_rpR('Length',L,'m')+_rpR('Area',area,'m²')+
-    _rpS('LANE')+_rpR('Residual lane',laneW,'m')+
+    _rpS('LANE')+_rpR(lanes.length>1?'Narrowest travel lane':'Travel lane',laneW,'m')+
     '<div class="rp-status '+(ok?'rp-pass':'rp-fail')+'">'+(ok?'✓ PASS':'✗ FAIL')+' — C02</div>'+
     _rpS('ADJUST')+
     '<div class="rp-control-row"><label class="rp-ctrl-label">Width</label>'+
