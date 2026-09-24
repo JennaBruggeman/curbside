@@ -18493,6 +18493,49 @@ GEN.ZONES = {};
       } }
   };
   GEN.PATTERN_IDS = Object.keys(GEN.PATTERNS);
+
+  // Infill (utilisation): level 1 puts planter troughs in the traffic-edge band wherever it is free
+  // (in front of a screen they are 0.34 m deep, between the screen and the seats); level 2 makes
+  // them 1.0 m deep in free runs >= 2.6 m, 0.9 m short of each end (wheelchair spaces stay open).
+  GEN.infill = function(ctx, z0, z1, level) {
+    if (!level) return;
+    var C = 0.05, n = Math.round((z1 - z0) / C), free = [];
+    var boxes = ctx.items.filter(function(it) { return it.type !== 'umbrella'; }).map(function(it) { return GEN.aabb(it); });
+    function clear(za, zb, xa, xb) { return !boxes.some(function(b) { return b.z0 < zb - 0.005 && b.z1 > za + 0.005 && b.x0 < xb - 0.005 && b.x1 > xa + 0.005; }); }
+    for (var k = 0; k < n; k++) { var za = z0 + k * C, e = GEN.edgeAt(ctx.fp, za, za + C); free.push(clear(za, za + C, e - 0.44, e - 0.11)); }
+    var runs = [], s = -1;
+    for (k = 0; k <= n; k++) { if (k < n && free[k]) { if (s < 0) s = k; } else if (s >= 0) { runs.push([z0 + s * C + 0.05, z0 + k * C - 0.05]); s = -1; } }
+    runs.forEach(function(r) {
+      var len = r[1] - r[0]; if (len < 0.6) return;
+      var e = GEN.edgeAt(ctx.fp, r[0], r[1]), deep = level >= 2 && len >= 2.6;
+      if (deep) {
+        var d0 = r[0] + 0.9, d1 = r[1] - 0.9, x0 = Math.max(GEN.TURN + 0.05, e - 1.05);
+        if (clear(d0, d1, x0, e - 0.01)) {
+          var m = Math.max(1, Math.ceil((d1 - d0) / 1.3)), ld = Math.min(1.2, (d1 - d0) / m - 0.1), dd = GEN.r3(Math.min(1.0, e - 0.05 - x0));
+          for (var i = 0; i < m; i++) plant(e - 0.05 - dd / 2, d0 + (i + 0.5) * (d1 - d0) / m, ld, dd);
+          runStrip(r[0], d0 - 0.05, e); runStrip(d1 + 0.05, r[1], e);
+          return;
+        }
+      }
+      runStrip(r[0], r[1], e);
+    });
+    function runStrip(a, b, e) {
+      var len = b - a; if (len < 0.6) return;
+      var screen = !clear(a, b, e - 0.1, e - 0.01), dd = screen ? 0.34 : 0.4, xc = screen ? e - 0.44 + dd / 2 : e - 0.05 - dd / 2;
+      var m = Math.max(1, Math.ceil(len / 1.3)), l = Math.min(1.2, len / m - 0.1);
+      for (var i = 0; i < m; i++) {
+        var zc = a + (i + 0.5) * len / m, el = GEN.edgeAt(ctx.fp, zc - l / 2, zc + l / 2);   // the edge where this one stands
+        plant(xc + (el - e), zc, l, dd);
+      }
+    }
+    // a planter only where its own box is clear of every piece and on the deck
+    function plant(x, z, l, d) {
+      var b = { x0: x - d / 2, x1: x + d / 2, z0: z - l / 2, z1: z + l / 2 };
+      if (b.x1 > GEN.edgeAt(ctx.fp, b.z0, b.z1) + 0.001 || !clear(b.z0, b.z1, b.x0, b.x1)) return;
+      put(ctx, 'planter', x, z, 0, { l: l, d: d, h: 0.6, plant: ctx.plantKind });
+      boxes.push(b);
+    }
+  };
 })();
 
 // Lay a template out on a footprint -> {items, metrics, ok, reasons}
@@ -18526,8 +18569,9 @@ GEN.layout = function(tpl, fp, opt) {
     });
   });
   keepOut.forEach(function(k) { GEN.ZONES.open(Object.assign({}, ctx, { edge: ctx.edge === 'glass' ? 'glass' : 'screens' }), Math.max(z0, k[0]) + 0.05, Math.min(z1, k[1]) - 0.05); });
+  GEN.infill(ctx, z0, z1, opt.fill || 0);
   var lay = GEN.validate(ctx.items, fp);
-  lay.patterns = used;
+  lay.patterns = used; lay.fill = opt.fill || 0;
   // the scheme's pattern: the requested one if laid over >= 30 % of the zones, else the longest
   var tot = Object.keys(used).reduce(function(s, k) { return s + used[k]; }, 0);
   lay.pattern = used[opt.pattern] >= 0.3 * tot ? opt.pattern : (Object.keys(used).sort(function(p, q) { return used[q] - used[p]; })[0] || 'traffic_band');
@@ -18689,27 +18733,53 @@ GEN.metrics = function(lay, fp) {
   m.shade = GEN.r3(m.shade);
   var foot = lay.items.reduce(function(s, it) { return it.type === 'umbrella' ? s : s + it.l * it.d; }, 0);
   m.openPct = GEN.r3(1 - foot / m.area);
+  m.util = GEN.utilisation(lay.items, fp);
   return m;
 };
-// Preference fit - clutter. Each feature normalised to 0..1, weighted by the 0-3 preferences.
+// Utilisation: occupied footprint / deck area, on a 0.05 m grid over the deck shape. Occupied =
+// under any piece (the union: a lounge on a raised level counts once) or the two end planters;
+// the umbrella canopy is overhead and does not count.
+GEN.UTIL_C = 0.05;
+GEN.utilisation = function(items, fp) {
+  var C = GEN.UTIL_C, W = fp.W, L = fp.L, nx = Math.ceil(W / C - 1e-6), nz = Math.ceil(L / C - 1e-6), occ = new Uint8Array(nx * nz), deck = 0, used = 0, j, i;
+  var boxes = items.filter(function(it) { return it.type !== 'umbrella'; }).map(function(it) { return GEN.aabb(it); });
+  boxes.push({ x0: 0.08, x1: W - 0.08, z0: 0.08, z1: GEN.END_PL }, { x0: 0.08, x1: W - 0.08, z0: L - GEN.END_PL, z1: L - 0.08 });
+  boxes.forEach(function(b) {
+    for (j = Math.max(0, Math.round(b.z0 / C)); j < Math.min(nz, Math.round(b.z1 / C)); j++)
+      for (i = Math.max(0, Math.round(b.x0 / C)); i < Math.min(nx, Math.round(b.x1 / C)); i++) occ[j * nx + i] = 1;
+  });
+  for (j = 0; j < nz; j++) {
+    var e = GEN.edgeAt(fp, j * C, Math.min(L, (j + 1) * C));
+    for (i = 0; i < nx && (i + 0.5) * C < e; i++) { deck++; if (occ[j * nx + i]) used++; }
+  }
+  return deck ? GEN.r3(used / deck) : 0;
+};
+// The utilisation band the score aims at: 30-60 %, shifted down by the openness preference.
+GEN.utilBand = function(P) { var s = 0.05 * ((P.prog.open || 0) - 1); return [GEN.r3(0.30 - s), GEN.r3(0.60 - s)]; };
+// Preference fit - clutter - utilisation outside its band + access. Each feature normalised to 0..1, weighted by the 0-3 preferences.
 GEN.score = function(m, P, fp) {
   var L = fp.L, w = Object.assign({}, P.prog); w.green = w.green + P.planting;
   var f = { seating: Math.min(1, m.seats / (L * 0.9)), dining: Math.min(1, m.tables * 2.4 / L), lounging: Math.min(1, m.lounges / 2),
     bike: Math.min(1, m.bike / 8), green: Math.min(1, m.plantingPct / 0.2), shade: Math.min(1, m.shade / (m.area * 0.25)),
-    play: Math.min(1, m.play / 3), open: Math.min(1, Math.max(0, (m.openPct - 0.6) / 0.35)) };
+    play: Math.min(1, m.play / 3), open: 0 };
+  // utilisation: outside the band is penalised (< lo empty, > hi cluttered); inside, event / open
+  // space is scored by how far the scheme sits toward the band's open end
+  var band = GEN.utilBand(P), u = m.util;
+  f.open = Math.min(1, Math.max(0, (band[1] - u) / (band[1] - band[0])));
+  var util = 3 * (Math.max(0, band[0] - u) + Math.max(0, u - band[1]));
   var tot = 0, s = 0;
   Object.keys(f).forEach(function(k) { tot += w[k]; s += w[k] * f[k]; });
   var clutter = Math.max(0, m.pieces / m.area - 0.9) * 0.5;
   var access = P.access / 3 * (Math.min(0.06, (m.route - GEN.ROUTE_W) * 0.1) + Math.min(0.06, (m.access - 1) * 0.015));
-  return GEN.r3((tot ? s / tot : 0) - clutter + access);
+  return GEN.r3((tot ? s / tot : 0) - clutter - util + access);
 };
-// Feature vector for diversity (footprint, programme mix, palette, seats, planting %)
+// Feature vector for diversity (footprint, programme mix, pattern, palette, seats, planting %, utilisation)
 GEN.features = function(c) {
   var fps = ['full', 'short', 'notch1', 'notch2', 'linked', 'curved'], v = [];
   fps.forEach(function(f) { v.push(c.fp.id === f ? 1 : 0); });
   GEN.TEMPLATES.forEach(function(t) { v.push(c.tpl.id === t.id ? 1 : 0); });
   GEN.PATTERN_IDS.forEach(function(p) { v.push(c.pattern === p ? 1.5 : 0); });
-  v.push(c.pal.idx * 0.5, Math.min(1, c.m.seats / 30), c.m.plantingPct * 3, Math.min(1, c.m.bike / 8), Math.min(1, c.m.tables / 6));
+  v.push(c.pal.idx * 0.5, Math.min(1, c.m.seats / 30), c.m.plantingPct * 3, Math.min(1, c.m.bike / 8), Math.min(1, c.m.tables / 6), c.m.util * 4);
   return v;
 };
 GEN.dist = function(a, b) { var s = 0; for (var i = 0; i < a.length; i++) s += (a[i] - b[i]) * (a[i] - b[i]); return Math.sqrt(s); };
@@ -18740,10 +18810,10 @@ GEN.generate = function() {
   for (var i = 0; i < total; i++) {
     res.stats.sampled++;
     var tpl = GEN.pick(r, GEN.TEMPLATES, tw), fp = GEN.pick(r, fps), edge = GEN.pick(r, GEN.EDGES), pi = Math.floor(r() * pals.length) % pals.length, flip = r() < 0.5;
-    var pat = GEN.pick(r, GEN.PATTERN_IDS);
-    var key = [tpl.id, pat, fp.id, edge.id, pi, flip ? 1 : 0].join('|');
+    var pat = GEN.pick(r, GEN.PATTERN_IDS), fill = Math.floor(r() * 3) % 3;
+    var key = [tpl.id, pat, fp.id, edge.id, pi, flip ? 1 : 0, fill].join('|');
     if (seen[key]) continue; seen[key] = 1;
-    var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip, pattern: pat });
+    var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip, pattern: pat, fill: fill });
     if (!lay.ok) {
       res.stats.layoutRejects++;
       lay.reasons.forEach(function(w) { w = w.split(' (')[0]; res.stats.why[w] = (res.stats.why[w] || 0) + 1; });
@@ -18767,7 +18837,11 @@ GEN.generate = function() {
     return ok;
   });
   cands.sort(function(a, b) { return b.score - a.score || (a.key < b.key ? -1 : 1); });
-  var pool = cands.filter(function(c) { return !GEN.locked[c.key]; });
+  // schemes inside the utilisation band first; outside it only if too few are inside
+  var band = GEN.utilBand(P), inBand = function(c) { return c.m.util >= band[0] - 1e-9 && c.m.util <= band[1] + 1e-9; };
+  var pool = cands.filter(function(c) { return !GEN.locked[c.key] && inBand(c); }), rest = cands.filter(function(c) { return !GEN.locked[c.key] && !inBand(c); });
+  res.stats.inBand = pool.length;
+  if (pool.length < N - sel.length) { res.notes.push('Only ' + pool.length + ' candidates within ' + Math.round(band[0] * 100) + '-' + Math.round(band[1] * 100) + ' % utilisation.'); pool = pool.concat(rest.slice(0, N - sel.length - pool.length)); }
   if (!sel.length && pool.length) sel.push(pool.shift());
   while (sel.length < N && pool.length) {
     var best = -1, bi = 0;
@@ -18807,7 +18881,7 @@ GEN.rationale = function(c) {
   if (m.seats) bits.push(m.seats + ' seats');
   if (m.tables) bits.push(m.tables + ' table' + (m.tables > 1 ? 's' : ''));
   if (m.bike) bits.push(m.bike + ' bike spaces');
-  bits.push(m.planting.toFixed(1) + ' m² of planting');
+  bits.push(m.planting.toFixed(1) + ' m² of planting'); bits.push(Math.round(m.util * 100) + ' % of the deck occupied');
   return GEN.PATTERNS[c.pattern || 'traffic_band'].label + ' layout on a ' + c.fp.label.toLowerCase() + ' deck, ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m, with ' + bits.join(', ') +
     '; ' + c.edge.label + ' on the traffic side, and a ' + m.route.toFixed(2) + ' m accessible route from ' + m.entries + ' entr' + (m.entries > 1 ? 'ies' : 'y') + ' to ' + m.access + ' accessible seat' + (m.access > 1 ? 's' : '') + '.';
 };
@@ -18916,7 +18990,7 @@ GEN.renderCards = function() {
       "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
       "<div class='gen-metrics'>" +
         "<span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.bike + '</b>bike spaces</span>' +
-        '<span><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Narrowest clear width on the flood-filled route from each entry to an accessible seat (guideline; GEN.ROUTE_W = ' + GEN.ROUTE_W + ' m)"><b>' + m.route.toFixed(2) + '</b>route m</span><span title="Accessible seating positions (bench ends, tables with knee clearance) reached from the entries"><b>' + m.access + '</b>access</span>' +
+        '<span><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Occupied footprint / deck area (aim ' + GEN.utilBand(GEN.prefs).map(function(v) { return Math.round(v * 100); }).join('-') + ' %)"><b>' + Math.round(m.util * 100) + '%</b>utilisation</span><span title="Narrowest clear width on the flood-filled route from each entry to an accessible seat (guideline; GEN.ROUTE_W = ' + GEN.ROUTE_W + ' m)"><b>' + m.route.toFixed(2) + '</b>route m</span><span title="Accessible seating positions (bench ends, tables with knee clearance) reached from the entries"><b>' + m.access + '</b>access</span>' +
         "<span class='gen-pass'><b>" + c.ev.pass + '/' + criteria.length + '</b>checks</span></div>' +
       "<p class='gen-why' data-why='" + i + "'>" + GEN.esc(c.why || GEN.rationale(c)) + '</p>' +
       "<div class='gen-card-ft'><button class='gen-primary' onclick='GEN.open(" + i + ")'>Open in Design</button>" +
