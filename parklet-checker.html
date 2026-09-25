@@ -20049,6 +20049,7 @@ RVZ.exportAll = async function() {
    caption burned in (RVZP.composite). Results are cached in IndexedDB by (design hash, preset,
    prompt hash, strength, provider mode). */
 var RVZP = {
+  PIPELINE: 'p2',   // p2: the generated image at 1536 x 864 (p1 kept a ControlNet preview)
   LONG: 1536, CAPTION: 'AI-assisted visualisation - indicative',
   o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0 },
   WEATHER: { sunny: 'sunny, clear sky', overcast: 'overcast, soft diffuse light', golden: 'golden hour, warm low light', rain: 'just after rain, wet reflective pavement' },
@@ -20332,7 +20333,8 @@ RVZP.clear = async function() {
 };
 RVZP.key = function(hash, preset, prompt, strength) {
   var mode = RVZP.proxy && RVZP.proxy.mode || 'live';
-  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode].join('|');
+  // RVZP.PIPELINE: bumped whenever what a key produces changes, so older results never return from the cache
+  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode, RVZP.PIPELINE].join('|');
 };
 
 // ── Render 4 ─────────────────────────────────────────────────────────────────────────────────
@@ -20345,7 +20347,9 @@ RVZP.runPreset = async function(preset, prompt, strength) {
   var P = RVZP.passes(preset), images = { colour: P.colour.toDataURL('image/jpeg', 0.92), depth: P.depth.toDataURL('image/png'), edges: P.edges.toDataURL('image/png') };
   var ad = RVZP.adapters[RVZP.adapter], sD = Math.max(0.2, +(strength - 0.15).toFixed(2)), sC = Math.min(0.9, +(strength + 0.15).toFixed(2));
   RVZP._set(preset, 'submitted', 'design ' + sD + ' / context ' + sC);
-  var jobs = await Promise.all([sD, sC].map(function(s) { return ad.submit(images, prompt, { strength: s, seed: RVZP.o.seed, width: P.W, height: P.H }); }));
+  // one pass at a time: providers throttle bursts (Replicate: burst 1 on a low-credit account)
+  var jobs = [];
+  for (var si = 0; si < 2; si++) jobs.push(await ad.submit(images, prompt, { strength: [sD, sC][si], seed: RVZP.o.seed, width: P.W, height: P.H }));
   var got = [null, null], t0 = Date.now();
   while (!got[0] || !got[1]) {
     if (Date.now() - t0 > 6 * 60 * 1000) throw new Error('the provider took longer than 6 minutes');
