@@ -352,6 +352,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <nav class='topbar-tabs'>
     <button class='ttab active' onclick='appSetMode("site")'>Site</button>
     <button class='ttab' onclick='appSetMode("design")'>Design</button>
+    <button class='ttab' onclick='appSetMode("visualize")'>Visualize</button>
     <button class='ttab' onclick='appSetMode("generate")'>Generate</button>
     <button class='ttab' onclick='appSetMode("check")'>Check</button>
     <button class='ttab' onclick='appSetMode("furniture")'>Furniture</button>
@@ -456,6 +457,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
         <div id='lhsFwPlacingInd' style='display:none;margin-top:var(--sp-2);font-size:var(--fs-12);color:var(--c-text);'></div>
         <button class='txt-btn' onclick='appSetMode("furniture")'>Open the full library &rsaquo;</button>
       </div>      </div>
+<div class='ctx-section' id='ctxVisualize' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Visualize</span></div><div id='rvzCtx'></div></div>
 <div class='ctx-section' id='ctxGenerate' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Generate</span></div>
 <div class='sb-section' id='genSecSite'><div class='sb-section-lbl'>Site constraints</div><div id='genSite'></div></div>
 <div class='sb-section' id='genSecFacts'><div class='sb-section-lbl'>Site facts</div><div id='genFacts'></div></div>
@@ -570,6 +572,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fit the plan to its drawing'>FIT</button><button class='drw-tb-toggle' id='secTogglePV' title='Show the Section A-A cut line' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView();_3dSectionHelper()'>A&ndash;A</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measure distance'>Measure</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Toggle snap'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
 <div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
+<div id='workspaceVisualize' style='display:none'><div id='rvzView'><p class='rvz-info' id='rvzViewInfo' aria-live='polite'></p></div><aside id='rvzRail' aria-label='Render controls'></aside></div>
 <div id='workspaceGenerate' style='display:none'><div class='gen-bar' id='genBar'></div><div class='gen-grid' id='genGrid'></div></div>
 <div id='workspaceExport' style='display:none;flex:1;overflow:hidden;'>
 <div class='exp-body'>
@@ -9932,7 +9935,7 @@ function appSetMode(mode) {
 
 
   // LHS context sections
-  var sections = ['ctxSite', 'ctxDesign', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport'];
+  var sections = ['ctxSite', 'ctxDesign', 'ctxVisualize', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport'];
   sections.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -9959,6 +9962,9 @@ function appSetMode(mode) {
   var gw = document.getElementById('workspaceGenerate');
   if (gw) gw.style.display = (mode === 'generate') ? 'flex' : 'none';
   if (mode === 'generate' && typeof GEN !== 'undefined') GEN.onOpen();
+  var vw = document.getElementById('workspaceVisualize');
+  if (vw) vw.style.display = (mode === 'visualize') ? 'flex' : 'none';
+  if (mode === 'visualize' && typeof RVZ !== 'undefined') RVZ.onOpen();
   if (ct) ct.style.display = isCanvas ? '' : 'none';
   if (tb) tb.style.display = isCanvas ? '' : 'none';
   // After every display change above: the grid may have been resized while hidden.
@@ -18569,4 +18575,1088 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
 #seStrip:has(#seDrawSVG [data-inst]:hover) { cursor: pointer; }
 #seDrawSVG .se-sel * { stroke: var(--accent-ui) !important; }
 </style>
+<style>
+/* ── Visualize (Brief 11b): the rendered viewport and its right rail (Brief 07 tokens) ── */
+#workspaceVisualize { flex: 1; flex-direction: row; min-width: 0; min-height: 0; background: var(--c-bg); }
+#rvzView { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background: #C9D6DF; }
+#rvzView canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+#rvzView canvas:active { cursor: grabbing; }
+.rvz-info { position: absolute; left: var(--sp-3); bottom: var(--sp-3); margin: 0; padding: 3px var(--sp-2); border-radius: 3px; background: rgba(23,25,28,.78); color: var(--c-text); font: var(--fs-11) var(--font-ui); font-variant-numeric: tabular-nums; pointer-events: none; }
+#rvzRail { width: 292px; flex-shrink: 0; overflow-y: auto; background: var(--c-panel); border-left: 1px solid var(--c-rule); color: var(--c-text); font: var(--fs-12) var(--font-ui); }
+.rvz-sec { display: flex; flex-direction: column; gap: 6px; padding: 10px var(--sp-4); border-bottom: 1px solid var(--c-rule); }
+.rvz-lbl { margin: 0; font: 600 var(--fs-11) var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--c-text-dim); }
+.rvz-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-1); }
+.rvz-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.rvz-row label, .rvz-row > span { color: var(--c-text-dim); }
+.rvz-val { font-variant-numeric: tabular-nums; color: var(--c-text); }
+.rvz-btn { height: 28px; padding: 0 var(--sp-2); border: 1px solid var(--c-rule); border-radius: 3px; background: var(--c-bg); color: var(--c-text); font: 500 var(--fs-12) var(--font-ui); cursor: pointer; }
+.rvz-btn:hover:not(:disabled) { background: var(--c-raise); }
+.rvz-btn[aria-pressed='true'] { background: var(--accent-ui); border-color: var(--accent-ui); color: var(--c-bg); }
+.rvz-btn:focus-visible, .rvz-chip:focus-visible, #rvzRail select:focus-visible, #rvzRail input:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 1px; }
+.rvz-btn:disabled { opacity: .45; cursor: not-allowed; }
+.rvz-primary { background: var(--accent-ui); border-color: var(--accent-ui); color: var(--c-bg); font-weight: 600; }
+.rvz-primary:hover:not(:disabled) { background: var(--accent-ui); filter: brightness(1.08); }
+.rvz-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; border: 1px solid var(--c-rule); border-radius: 3px; background: var(--c-bg); }
+.rvz-seg .rvz-btn { height: 24px; border-color: transparent; background: transparent; }
+.rvz-seg .rvz-btn[aria-pressed='true'] { background: var(--accent-ui); color: var(--c-bg); }
+.rvz-seg2 { grid-template-columns: repeat(2, 56px); }
+.rvz-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.rvz-chip { height: 22px; padding: 0 var(--sp-2); border: 1px solid var(--c-rule); border-radius: 11px; background: transparent; color: var(--c-text-dim); font: var(--fs-11) var(--font-ui); cursor: pointer; }
+.rvz-chip:hover { color: var(--c-text); background: var(--c-raise); }
+#rvzRail input[type=range] { width: 100%; margin: 0; accent-color: var(--accent-ui); }
+#rvzRail select { height: 26px; padding: 0 var(--sp-1); border: 1px solid var(--c-rule); border-radius: 3px; background: var(--c-bg); color: var(--c-text); font: var(--fs-12) var(--font-ui); }
+.rvz-check { display: flex; align-items: center; gap: var(--sp-2); color: var(--c-text); cursor: pointer; }
+.rvz-check input { accent-color: var(--accent-ui); }
+.rvz-note, .rvz-status { margin: 0; color: var(--c-text-dim); font-size: var(--fs-11); line-height: 1.45; }
+.rvz-status { min-height: 16px; }
+.rvz-read { margin: 0; color: var(--c-text); font-size: var(--fs-12); line-height: 1.5; font-variant-numeric: tabular-nums; }
+.rvz-read b { font-weight: 600; }
+.rvz-dim { color: var(--c-text-dim); font-size: var(--fs-11); }
+#rvzProg { width: 100%; height: 6px; accent-color: var(--accent-ui); }
+.rvz-path { width: 100%; height: auto; max-height: 112px; display: block; }
+.rvz-p-rim { fill: rgba(255,255,255,.03); stroke: var(--c-text-dim); stroke-width: 1; }
+.rvz-p-ring { fill: none; stroke: var(--c-rule); stroke-width: 1; }
+.rvz-p-street { stroke: var(--c-text-dim); stroke-width: 1; stroke-dasharray: 4 3; }
+.rvz-p-day { fill: none; stroke: #E0B23A; stroke-width: 2; stroke-linejoin: round; }
+.rvz-p-sun { fill: #E0B23A; stroke: var(--c-panel); stroke-width: 1.5; }
+.rvz-p-n { fill: var(--c-text); font: 600 10px var(--font-ui); text-anchor: middle; }
+.rvz-p-t { fill: var(--c-text); font: 600 11px var(--font-ui); }
+.rvz-p-k { fill: var(--c-text-dim); font: 10px var(--font-ui); }
+.rvz-p-kd, .rvz-p-ks { fill: #E0B23A; }
+.rvz-p-kx { fill: var(--c-text-dim); }
+.ctx-section .rvz-ctx { margin: 0 0 var(--sp-2); color: var(--c-text); font-size: var(--fs-12); line-height: 1.5; }
+.ctx-section .rvz-ctx.rvz-dim { color: var(--c-text-dim); font-size: var(--fs-11); }
+</style>
+<script>
+/* ── VISUALIZE (Brief 11b): rendered views ────────────────────────────────────────────────────
+   A second renderer over DESIGN_MODEL and FL3D.placed, like the axon exporter. buildRenderScene()
+   makes its own THREE.Scene from the model; the Visualize viewport and the exports have their own
+   WebGL renderers and cameras. The live 3D scene, its camera and its renderer are never read or
+   touched, so nothing is restored after a render.
+   - Furniture and entourage are the archetype geometry (fl3DBuildInst / fl3DArchetype); every
+     material is keyed by its FL_MATERIALS id (RVZ.mat). The few context surfaces no furniture
+     uses (asphalt, road paint, facades) are RVZ.SURF.
+   - Heights follow the Section drawing (sectionFrame swRaise / deckTk) and GEN.axonThumb:
+     sidewalks 0.15 m above the road, the deck surface 0.215 m. (The live 3D view keeps its
+     0.065 m deck on the road.)
+   - Sun: RVZ.solar (NOAA / SunCalc low-precision formulae) from the date, the Vancouver civil
+     time and Project North (projectNorthDeg: the clockwise angle from world -Z to true north;
+     0 = the CAD_CARDINAL convention, N = -Z).
+   - Ambient occlusion: three r128's core has no AO pass (SSAOPass is an examples add-on this
+     file does not load), so AO is baked: vertex AO toward the surface each piece stands on,
+     plus a soft contact shadow under every piece, planter and building. */
+var RVZ = {
+  SW_RAISE: 0.15, DECK_TOP: 0.215, EXT: 30,
+  SITE: { lat: 49.2827, lon: -123.1207, place: 'Vancouver' },
+  RES: { '720': [1280, 720], '1080': [1920, 1080], '1440': [2560, 1440] },
+  PRESETS: [['street', 'Street'], ['sidewalk', 'Sidewalk'], ['corner', 'Corner'], ['aerial', 'Aerial']],
+  o: { preset: 'street', appearance: 'rendered', doy: 172, min: 720, year: new Date().getFullYear(), res: '1080', scale: 2, people: true },
+  cache: new Map(), CACHE_MAX: 24, _tex: {}, _mats: {}, _envs: [], _live: null, busy: false
+};
+function buildRenderScene(o) { return RVZ.build(o); }
+
+// ── Sun ─────────────────────────────────────────────────────────────────────────────────────
+// Civil date and time in Vancouver -> the UTC instant. North American DST (since 2007): from the
+// second Sunday of March 02:00 to the first Sunday of November 02:00 (PDT = UTC-7, PST = UTC-8).
+RVZ.localDate = function(doy, min, year) {
+  var y = year || RVZ.o.year, dt = new Date(Date.UTC(y, 0, 1) + (doy - 1) * 864e5), m = dt.getUTCMonth(), day = dt.getUTCDate();
+  function sunday(month, n) { var f = new Date(Date.UTC(y, month, 1)).getUTCDay(); return 1 + (7 - f) % 7 + 7 * (n - 1); }
+  var wall = Date.UTC(y, m, day) + min * 6e4;   // the wall-clock time, read as if it were UTC
+  var dst = wall >= Date.UTC(y, 2, sunday(2, 2), 2) && wall < Date.UTC(y, 10, sunday(10, 1), 2);
+  return { utc: new Date(wall + (dst ? 7 : 8) * 36e5), zone: dst ? 'PDT' : 'PST', month: m, day: day };
+};
+// Solar position for a UTC instant: {altitude, azimuth} in degrees, azimuth clockwise from true
+// north. Mean anomaly, equation of centre, ecliptic longitude -> declination and right ascension;
+// local sidereal time -> hour angle -> altitude / azimuth (after Meeus; SunCalc's formulation).
+RVZ.solar = function(date, lat, lon) {
+  var rad = Math.PI / 180, d = date.getTime() / 864e5 - 0.5 + 2440588 - 2451545;   // days since J2000.0
+  var M = rad * (357.5291 + 0.98560028 * d);
+  var C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+  var Ls = M + C + rad * 102.9372 + Math.PI, e = rad * 23.4397;                     // ecliptic longitude; obliquity
+  var dec = Math.asin(Math.sin(e) * Math.sin(Ls)), ra = Math.atan2(Math.sin(Ls) * Math.cos(e), Math.cos(Ls));
+  var H = rad * (280.16 + 360.9856235 * d) + rad * lon - ra, phi = rad * lat;        // hour angle
+  var alt = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+  var azS = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi));   // from south, west +
+  return { altitude: alt / rad, azimuth: ((azS / rad + 180) % 360 + 360) % 360 };
+};
+RVZ.northDeg = function() { return typeof projectNorthDeg === 'number' && isFinite(projectNorthDeg) ? projectNorthDeg : 0; };
+// Unit vector toward the sun in world coordinates: a compass bearing az lies (northDeg + az)
+// clockwise (seen from above) from world -Z, so bearing 90 = +X and 180 = +Z at northDeg 0.
+RVZ.sunVectorWorld = function(alt, az, northDeg) {
+  var r = Math.PI / 180, th = (az + (northDeg || 0)) * r, c = Math.cos(alt * r);
+  return new THREE.Vector3(Math.sin(th) * c, Math.sin(alt * r), -Math.cos(th) * c);
+};
+RVZ.COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+RVZ.compass = function(deg) { return RVZ.COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]; };
+// The sun for a set of options: position, world vector, and the shadow of a 1 m vertical post.
+RVZ.sun = function(o) {
+  o = o || RVZ.o;
+  var ld = RVZ.localDate(o.doy, o.min, o.year), s = RVZ.solar(ld.utc, RVZ.SITE.lat, RVZ.SITE.lon), n = RVZ.northDeg();
+  var dir = RVZ.sunVectorWorld(s.altitude, s.azimuth, n), up = s.altitude > 0;
+  var sh = up ? { x: -dir.x / dir.y, z: -dir.z / dir.y } : null;
+  if (sh) { sh.len = Math.hypot(sh.x, sh.z); sh.bearing = (s.azimuth + 180) % 360; }
+  return { alt: s.altitude, az: s.azimuth, dir: dir, up: up, shadow: sh, zone: ld.zone, month: ld.month, day: ld.day, north: n };
+};
+// The day's path (every 10 min) and sunrise / sunset (upper limb with refraction: -0.833 deg).
+RVZ.dayPath = function(o) {
+  o = o || RVZ.o;
+  var pts = [], rise = null, set = null, prev = null;
+  for (var m = 0; m <= 1440; m += 10) {
+    var s = RVZ.solar(RVZ.localDate(o.doy, m, o.year).utc, RVZ.SITE.lat, RVZ.SITE.lon);
+    pts.push({ min: m, alt: s.altitude, az: s.azimuth });
+    if (prev) {
+      var t = prev.min + 10 * (-0.833 - prev.alt) / (s.altitude - prev.alt);
+      if (prev.alt < -0.833 && s.altitude >= -0.833) rise = t;
+      if (prev.alt >= -0.833 && s.altitude < -0.833) set = t;
+    }
+    prev = { min: m, alt: s.altitude };
+  }
+  return { pts: pts, rise: rise, set: set };
+};
+RVZ.hhmm = function(min) { if (min == null) return '--:--'; var h = Math.floor(min / 60), m = Math.round(min % 60); if (m === 60) { h++; m = 0; } return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; };
+RVZ.MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+RVZ.doyOf = function(month, day, year) { return Math.round((Date.UTC(year || RVZ.o.year, month, day) - Date.UTC(year || RVZ.o.year, 0, 1)) / 864e5) + 1; };
+
+// ── Procedural textures (canvas, generated once on first use: the file stays self-contained) ──
+// Surface textures are grey modulators (the colour is the material's FL_MATERIALS colour);
+// userData.mean lets the material divide the modulation back out, so the average rendered
+// albedo stays the table colour. userData.tile = metres per repeat [u, v].
+RVZ._hash = function(seed) {
+  return function(i, j) {
+    var n = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(seed, 1442695041);
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  };
+};
+// Tileable value noise over the unit tile, px x py lattice cells; fbm sums octaves.
+RVZ._noise = function(seed) {
+  var h = RVZ._hash(seed), w = function(k, P) { return ((k % P) + P) % P; };
+  return function(u, v, px, py) {
+    var x = u * px, y = v * py, i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
+    var sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), i0 = w(i, px), i1 = w(i + 1, px), j0 = w(j, py), j1 = w(j + 1, py);
+    var a = h(i0, j0), b = h(i1, j0), c = h(i0, j1), d = h(i1, j1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  };
+};
+RVZ._fbm = function(n, u, v, px, py, oct) { var s = 0, a = 1, t = 0; for (var k = 0; k < oct; k++) { s += a * n(u, v, px << k, py << k); t += a; a *= 0.5; } return s / t; };
+RVZ._pixTex = function(w, h, tile, fn) {
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  var cx = cv.getContext('2d'), im = cx.createImageData(w, h), d = im.data, sum = 0;
+  for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+    var g = Math.max(0, Math.min(1, fn((x + 0.5) / w, (y + 0.5) / h))), k = (y * w + x) * 4, b = Math.round(g * 255);
+    d[k] = d[k + 1] = d[k + 2] = b; d[k + 3] = 255; sum += g;
+  }
+  cx.putImageData(im, 0, 0);
+  var t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.encoding = THREE.LinearEncoding;
+  t.userData = { tile: tile, mean: sum / (w * h) };
+  return t;
+};
+RVZ.TEX = {
+  // wood grain for furniture: grain along u (a piece's length), rings across v
+  wood: function() { var n = RVZ._noise(11), f = RVZ._noise(12); return RVZ._pixTex(512, 512, [0.6, 0.6], function(u, v) {
+    var w = RVZ._fbm(n, u, v, 2, 3, 3), g = 0.5 + 0.5 * Math.sin(Math.PI * 2 * (v * 22 + w * 3.2));
+    return 0.95 - 0.16 * Math.pow(g, 4) - 0.07 * f(u, v, 4, 96) + 0.03 * w; }); },
+  // deck boards: 8 boards of 145 mm + 5 mm gaps across u (world x), along v (world z) with
+  // staggered butt joints, grain along the board, a tone per board
+  deck: function() { var n = RVZ._noise(21), f = RVZ._noise(22), hb = RVZ._hash(23); return RVZ._pixTex(512, 1024, [1.2, 2.4], function(u, v) {
+    var b = Math.floor(u * 8), fu = u * 8 - b, jv = hb(b, 0), dv = Math.abs(v - jv);
+    if (fu > 0.967 || Math.min(dv, 1 - dv) < 0.0015) return 0.32;
+    var w = RVZ._fbm(n, u, v, 8, 2, 3), g = 0.5 + 0.5 * Math.sin(Math.PI * 2 * (u * 8 * 5 + w * 2.6));
+    return (0.9 + 0.08 * hb(b, 1)) - 0.12 * Math.pow(g, 4) - 0.05 * f(u, v, 64, 8); }); },
+  // sidewalk pavers: 0.6 m slabs (2 x 2 per 1.2 m tile), 8 mm joints, a tone per slab
+  pavers: function() { var n = RVZ._noise(31), hb = RVZ._hash(32); return RVZ._pixTex(512, 512, [1.2, 1.2], function(u, v) {
+    var i = Math.floor(u * 2), j = Math.floor(v * 2), fu = u * 2 - i, fv = v * 2 - j;
+    if (fu < 0.007 || fu > 0.993 || fv < 0.007 || fv > 0.993) return 0.55;
+    return 0.9 + 0.07 * hb(i, j) - 0.06 * RVZ._fbm(n, u, v, 16, 16, 3) + (hb(Math.floor(u * 512), Math.floor(v * 512)) > 0.985 ? -0.12 : 0); }); },
+  concrete: function() { var n = RVZ._noise(41), hb = RVZ._hash(42); return RVZ._pixTex(512, 512, [2, 2], function(u, v) {
+    var p = hb(Math.floor(u * 512), Math.floor(v * 512));
+    return 0.93 - 0.09 * RVZ._fbm(n, u, v, 6, 6, 4) + (p > 0.992 ? -0.14 : p < 0.006 ? 0.05 : 0); }); },
+  asphalt: function() { var n = RVZ._noise(51), hb = RVZ._hash(52); return RVZ._pixTex(512, 512, [1.5, 1.5], function(u, v) {
+    var p = hb(Math.floor(u * 512), Math.floor(v * 512)), a = RVZ._fbm(n, u, v, 8, 8, 3);
+    return 0.82 + 0.16 * p * p - 0.1 * a + (p > 0.985 ? 0.12 : 0); }); },
+  foliage: function() { var n = RVZ._noise(61); return RVZ._pixTex(256, 256, [0.8, 0.8], function(u, v) {
+    var a = RVZ._fbm(n, u, v, 12, 12, 3); return 0.5 + 0.5 * Math.pow(Math.min(1, a * 1.35), 1.6); }); },
+  soil: function() { var n = RVZ._noise(71), hb = RVZ._hash(72); return RVZ._pixTex(256, 256, [1, 1], function(u, v) {
+    return 0.78 + 0.18 * RVZ._fbm(n, u, v, 10, 10, 3) + (hb(Math.floor(u * 256), Math.floor(v * 256)) > 0.97 ? 0.08 : 0); }); },
+  bark: function() { var n = RVZ._noise(81); return RVZ._pixTex(256, 256, [0.5, 1.5], function(u, v) {
+    return 0.72 + 0.26 * RVZ._fbm(n, u, v, 24, 3, 3); }); },
+  // facade (a colour texture): one bay 2.4 m x one storey 3.5 m, rendered wall, a window with its
+  // frame and a sky-to-ground reflection gradient
+  facade: function() {
+    var cv = document.createElement('canvas'); cv.width = 256; cv.height = 373;
+    var x = cv.getContext('2d'), n = RVZ._noise(91), W = 256, H = 373, im = x.createImageData(W, H), d = im.data;
+    for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) {
+      var k = (yy * W + xx) * 4, g = 0.94 + 0.06 * RVZ._fbm(n, xx / W, yy / H, 4, 6, 3);
+      d[k] = 217 * g; d[k + 1] = 211 * g; d[k + 2] = 199 * g; d[k + 3] = 255;
+    }
+    x.putImageData(im, 0, 0);
+    var wx0 = W * 0.17, wx1 = W * 0.83, wy0 = H * 0.2, wy1 = H * 0.76;
+    x.fillStyle = '#8C8A86'; x.fillRect(wx0 - 5, wy0 - 5, wx1 - wx0 + 10, wy1 - wy0 + 10);
+    var gr = x.createLinearGradient(0, wy0, 0, wy1); gr.addColorStop(0, '#9FB3C2'); gr.addColorStop(0.55, '#5E717E'); gr.addColorStop(1, '#3E4A53');
+    x.fillStyle = gr; x.fillRect(wx0, wy0, wx1 - wx0, wy1 - wy0);
+    x.fillStyle = '#8C8A86'; x.fillRect((wx0 + wx1) / 2 - 2, wy0, 4, wy1 - wy0);
+    x.fillStyle = '#C9C3B7'; x.fillRect(wx0 - 9, wy1 + 5, wx1 - wx0 + 18, 7);
+    var t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.encoding = THREE.sRGBEncoding;
+    t.userData = { tile: [2.4, 3.5], mean: 1, srgb: true };
+    return t;
+  },
+  // decals (RGBA): bike stencil, painted-buffer hatch, contact shadow
+  bike: function() {
+    var cv = document.createElement('canvas'); cv.width = 256; cv.height = 512;
+    var x = cv.getContext('2d'); x.strokeStyle = '#FFFFFF'; x.fillStyle = '#FFFFFF'; x.lineWidth = 11; x.lineCap = 'round'; x.lineJoin = 'round';
+    x.translate(128, 150); x.rotate(-Math.PI / 2); x.translate(-128, -120);   // the bike points up the lane (+v)
+    x.beginPath(); x.arc(58, 150, 44, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(198, 150, 44, 0, Math.PI * 2); x.stroke();
+    x.beginPath(); x.moveTo(58, 150); x.lineTo(104, 84); x.lineTo(176, 84); x.lineTo(198, 150); x.moveTo(104, 84); x.lineTo(128, 150); x.lineTo(176, 84); x.moveTo(128, 150); x.lineTo(58, 150); x.stroke();
+    x.beginPath(); x.moveTo(92, 66); x.lineTo(120, 66); x.moveTo(176, 84); x.lineTo(168, 56); x.lineTo(190, 50); x.stroke();
+    x.setTransform(1, 0, 0, 1, 0, 0); x.beginPath(); x.moveTo(128, 330); x.lineTo(84, 390); x.lineTo(112, 390); x.lineTo(112, 470); x.lineTo(144, 470); x.lineTo(144, 390); x.lineTo(172, 390); x.closePath(); x.fill();
+    var t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; t.userData = { mean: 1, srgb: true }; return t;
+  },
+  hatch: function() {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    var x = cv.getContext('2d'); x.strokeStyle = '#FFFFFF'; x.lineWidth = 16;
+    [-128, 0, 128].forEach(function(o) { x.beginPath(); x.moveTo(o, 128); x.lineTo(o + 128, 0); x.stroke(); });
+    var t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
+    t.userData = { tile: [0.9, 0.9], mean: 1, srgb: true }; return t;
+  },
+  contact: function() {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    var x = cv.getContext('2d'), g = x.createRadialGradient(64, 64, 8, 64, 64, 64);
+    g.addColorStop(0, 'rgba(0,0,0,0.85)'); g.addColorStop(0.55, 'rgba(0,0,0,0.45)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    var t = new THREE.CanvasTexture(cv); t.userData = { mean: 1 }; return t;
+  }
+};
+RVZ.tex = function(k) { return RVZ._tex[k] || (RVZ._tex[k] = RVZ.TEX[k]()); };
+
+// ── Materials: one per FL_MATERIALS id (or RVZ.SURF key, or a custom hex) and appearance ────
+RVZ.SURF = {   // context surfaces that no furniture uses; everything else is an FL_MATERIALS id
+  asphalt:      { color: '#4E4F52', rough: 0.95, metal: 0, tex: 'asphalt' },
+  transit:      { color: '#7C3B35', rough: 0.92, metal: 0, tex: 'asphalt' },
+  paint:        { color: '#E9E8E3', rough: 0.6,  metal: 0, decal: true },
+  paint_yellow: { color: '#E0B23A', rough: 0.6,  metal: 0, decal: true },
+  facade:       { color: '#FFFFFF', rough: 0.85, metal: 0, tex: 'facade' },
+  roof:         { color: '#8E8D8A', rough: 0.9,  metal: 0, tex: 'concrete' }
+};
+// the texture an FL_MATERIALS entry takes in the rendered appearance
+RVZ.texOf = function(m) {
+  if (m.group === 'wood' || m.id === 'composite_decking') return 'wood';
+  if (m.group === 'mineral' || m.id === 'recycled_grey') return 'concrete';
+  if (m.id === 'foliage' || m.id === 'grass') return 'foliage';
+  if (m.id === 'soil') return 'soil';
+  if (m.id === 'bark') return 'bark';
+  return null;
+};
+// ref: FL_MATERIALS id | RVZ.SURF key | '#RRGGBB'; tex: override the texture (deck boards, pavers).
+RVZ.mat = function(ref, tex, app) {
+  app = app || RVZ._app || 'rendered';
+  var key = app + ':' + ref + '@' + (tex || ''), c = RVZ._mats[key];
+  if (c) return c;
+  var s = RVZ.SURF[ref], m;
+  if (s) m = Object.assign({ id: ref, group: 'surface' }, s);
+  else if (/^#[0-9a-f]{6}$/i.test(ref)) m = { id: ref.toUpperCase(), group: 'hex', color: ref, rough: 0.7, metal: 0 };
+  else m = flMatInfo(ref);
+  var col = new THREE.Color(m.color).convertSRGBToLinear(), mat;
+  if (app === 'schematic') {
+    mat = new THREE.MeshLambertMaterial({ color: col, vertexColors: !m.decal, side: THREE.DoubleSide });
+  } else {
+    mat = new THREE.MeshPhysicalMaterial({ color: col, roughness: m.rough, metalness: m.metal, vertexColors: !m.decal, side: THREE.DoubleSide, envMapIntensity: 0.45 });
+    var tk = tex || (s ? s.tex : RVZ.texOf(m));
+    if (tk) {
+      var t = RVZ.tex(tk);
+      mat.map = t;
+      if (!t.userData.srgb) {
+        mat.color.multiplyScalar(1 / t.userData.mean);   // the average albedo is the table colour
+        mat.color.r = Math.min(1, mat.color.r); mat.color.g = Math.min(1, mat.color.g); mat.color.b = Math.min(1, mat.color.b);
+        mat.bumpMap = t; mat.bumpScale = 0.0015;
+      }
+    }
+    if (m.group === 'powder') { mat.clearcoat = 0.35; mat.clearcoatRoughness = 0.3; }
+    if (/^fabric_/.test(m.id)) mat.sheen = new THREE.Color(0.22, 0.22, 0.22);
+    if (m.id === 'glazing' || /^glass_/.test(m.id)) { mat.clearcoat = 1; mat.clearcoatRoughness = 0.04; }
+  }
+  if (m.opacity !== undefined) { mat.transparent = true; mat.opacity = m.opacity; mat.depthWrite = false; }
+  if (m.emissive) { mat.emissive = new THREE.Color(m.color).convertSRGBToLinear(); mat.emissiveIntensity = m.emissive; }
+  if (m.decal) { mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -4; }
+  mat.userData.flMatId = m.id;
+  return (RVZ._mats[key] = mat);
+};
+// the render material for a mesh built by the shared builders (flMat, the street factories)
+RVZ.matFrom = function(src) {
+  if (Array.isArray(src)) return src.map(RVZ.matFrom);
+  if (src && src.userData && src.userData.flMatId) return RVZ.mat(src.userData.flMatId);
+  return RVZ.mat('#' + (src && src.color ? src.color.getHexString() : '808080'));
+};
+// decal material (stencils, hatch, contact shadows): unlit, blended, never writes depth
+RVZ.decal = function(kind, color, opacity) {
+  var key = 'decal:' + kind + ':' + (RVZ._app || 'rendered'), c = RVZ._mats[key];
+  if (c) return c;
+  c = new THREE.MeshBasicMaterial({ map: RVZ.tex(kind), color: new THREE.Color(color || '#FFFFFF').convertSRGBToLinear(), transparent: true, opacity: opacity == null ? 1 : opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+  return (RVZ._mats[key] = c);
+};
+
+// ── Per-vertex UVs and AO ─────────────────────────────────────────────────────────────────────
+// UVs in metres / tile, projected on the dominant axis of each vertex normal, in frame M (a
+// piece's own frame for furniture, so grain runs along its length; the world for context).
+RVZ._uv = function(mesh, M) {
+  var g = mesh.geometry, mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  var map = null; mats.forEach(function(m) { if (!map && m && m.map && m.map.userData && m.map.userData.tile) map = m.map; });
+  if (!map || !g.attributes.normal) return;
+  var tl = map.userData.tile, pos = g.attributes.position, nor = g.attributes.normal, uv = new Float32Array(pos.count * 2);
+  var p = new THREE.Vector3(), n = new THREE.Vector3(), NM = new THREE.Matrix3().getNormalMatrix(M);
+  for (var i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i).applyMatrix4(M); n.fromBufferAttribute(nor, i).applyMatrix3(NM);
+    var ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z), a, b;
+    if (ay >= ax && ay >= az) { a = p.x; b = p.z; } else if (ax >= az) { a = p.z; b = p.y; } else { a = p.x; b = p.y; }
+    uv[2 * i] = a / tl[0]; uv[2 * i + 1] = b / tl[1];
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+};
+// Vertex AO: darker toward the surface a piece stands on (height y0 in frame M, fading out over
+// `reach` metres, by `depth`), undersides darker still. Without it the colour is white.
+RVZ._ao = function(mesh, M, y0, reach, depth) {
+  var g = mesh.geometry, pos = g.attributes.position, nor = g.attributes.normal, col = new Float32Array(pos.count * 3);
+  var p = new THREE.Vector3(), n = new THREE.Vector3(), NM = new THREE.Matrix3().getNormalMatrix(M);
+  for (var i = 0; i < pos.count; i++) {
+    var a = 1;
+    if (reach) {
+      p.fromBufferAttribute(pos, i).applyMatrix4(M);
+      var t = Math.max(0, Math.min(1, (p.y - y0) / reach));
+      a = 1 - depth * (1 - t * t * (3 - 2 * t));
+      if (nor) { n.fromBufferAttribute(nor, i).applyMatrix3(NM); if (n.y < -0.6) a *= 0.78; }
+    }
+    col[3 * i] = col[3 * i + 1] = col[3 * i + 2] = a;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+};
+
+// ── The scene ──────────────────────────────────────────────────────────────────────────────
+// o: {appearance: 'rendered' | 'schematic', people: bool, shadow: map size}. Returns {scene,
+// sun, hemi, sky, far (meshes the aerial cuts away), dispose()}.
+RVZ.build = function(o) {
+  o = o || {};
+  var app = RVZ._app = o.appearance === 'schematic' ? 'schematic' : 'rendered', R = app === 'rendered';
+  var DM = buildDesignModel(), LM = DM.landmarks, L = DM.parklet.length, SR = RVZ.SW_RAISE, DT = RVZ.DECK_TOP;
+  var zA = LM.sceneMinZ - RVZ.EXT, zB = LM.sceneMaxZ + RVZ.EXT, sc = new THREE.Scene(), root = new THREE.Group(), far = [];
+  var PAL = DS.segPalette.schematic, TOK = DS.tokens.schematic, farX = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight;
+  sc.add(root);
+  root.rotation.x = -Math.atan((parseFloat(typeof state !== 'undefined' ? state.slope : 0) || 0) / 100);   // as the live view
+  var M = function(rendered, schematic) { return RVZ.mat(R ? rendered : schematic); };
+  function add(mesh, opt) {
+    opt = opt || {};
+    mesh.castShadow = opt.cast !== false; mesh.receiveShadow = true;
+    root.add(mesh); mesh.updateMatrix();
+    RVZ._uv(mesh, mesh.matrix);
+    RVZ._ao(mesh, mesh.matrix, opt.y0 || 0, R && opt.ao ? opt.ao[0] : 0, opt.ao ? opt.ao[1] : 0);
+    if (opt.far || (opt.x0 !== undefined && opt.x0 >= farX - 0.01)) far.push(mesh);
+    return mesh;
+  }
+  function box(x0, y0, z0, x1, y1, z1, mat, opt) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.001, x1 - x0), Math.max(0.001, y1 - y0), Math.max(0.001, z1 - z0)), mat);
+    m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    opt = opt || {}; if (opt.x0 === undefined) opt.x0 = Math.min(x0, x1);
+    return add(m, opt);
+  }
+  function plane(x0, z0, x1, z1, y, mat, opt) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.001, x1 - x0), Math.max(0.001, z1 - z0)), mat);
+    m.rotation.x = -Math.PI / 2; m.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+    opt = Object.assign({ cast: false, x0: Math.min(x0, x1) }, opt || {});
+    return add(m, opt);
+  }
+  // a soft contact shadow under a footprint (rendered appearance)
+  function contact(cx, cz, l, d, yaw, y, op) {
+    if (!R) return;
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(l, d), RVZ.decal('contact', '#000000', op == null ? 0.55 : op));
+    m.rotation.set(-Math.PI / 2, 0, yaw || 0, 'YXZ'); m.position.set(cx, y + 0.004, cz);
+    m.castShadow = false; m.receiveShadow = false; m.renderOrder = 1; root.add(m);
+  }
+  // surface height under a world point: the deck, a raised sidewalk / buffer / setback, or the road
+  var surfY = RVZ.surfY = function(x, z) {
+    if (x >= LM.deckX0 && x <= LM.deckX1 && z >= 0 && z <= L) return DT;
+    return (x < LM.roadLeft - 0.001 || x > LM.roadRight + 0.001) ? SR : 0;
+  };
+  // an archetype / street-factory group: render materials, UVs and AO in its own frame, then placed
+  function dress(g, x, y, z, yaw, opt) {
+    opt = opt || {};
+    g.position.set(0, 0, 0); g.rotation.set(0, 0, 0); g.updateMatrixWorld(true);
+    var box3 = new THREE.Box3().setFromObject(g), sz = box3.getSize(new THREE.Vector3());
+    g.traverse(function(c) {
+      if (!c.isMesh) return;
+      c.material = RVZ.matFrom(c.material);
+      c.castShadow = true; c.receiveShadow = !opt.noReceive;
+      RVZ._uv(c, c.matrixWorld);
+      RVZ._ao(c, c.matrixWorld, 0, R ? Math.min(0.25, Math.max(0.12, sz.y * 0.25)) : 0, 0.3);
+    });
+    g.position.set(x, y, z); g.rotation.y = yaw || 0;
+    root.add(g);
+    var l = g.userData.l || sz.x, d = g.userData.d || sz.z;
+    if (opt.contact !== false) contact(x, z, l + 0.35, d + 0.35, (yaw || 0) - FL_BASE_YAW, y, opt.contactOp);
+    return g;
+  }
+  RVZ._dress = dress;
+
+  // Ground beyond the street
+  plane(LM.sceneMinX - 80, zA - 80, LM.sceneMaxX + 80, zB + 80, -0.02, M('precast_grey', '#DDD9D2'), { x0: -1e9 });
+  // Roadway: one surface per cross-section segment, at its model x0..x1
+  var lanes = DM.crossSection.filter(function(s) { return s.type === 'travel-lane'; });
+  function variantOf(s) {
+    var v = s.variant;
+    if (!v || v === 'none') v = s.type === 'buf-pk' ? bufPKType : s.type === 'buf-bl' ? bufBLType : v;
+    return v || 'none';
+  }
+  DM.crossSection.forEach(function(s) {
+    if (s.type === 'sidewalk' || s.x1 - s.x0 < 0.001) return;
+    if (s.type === 'curb') { box(s.x0, 0, zA, s.x1, SR, zB, M('precast_grey', PAL.curb)); return; }
+    var ref = R ? (s.type === 'transit-lane' ? 'transit' : s.type === 'planting' ? 'soil' : 'asphalt') : (PAL[s.type] || PAL['travel-lane']);
+    plane(s.x0, zA, s.x1, zB, 0, RVZ.mat(ref));
+    var cxs = (s.x0 + s.x1) / 2;
+    if (s.type === 'bike-lane') {
+      [s.x0 + 0.05, s.x1 - 0.05].forEach(function(x) { plane(x - 0.05, zA, x + 0.05, zB, 0.004, RVZ.mat('paint')); });
+      var dir = (DM.paths || []).find(function(p) { return p.segId === s.id; }), dz = dir && dir.dirZ < 0 ? -1 : 1;
+      for (var z = LM.sceneMinZ + 2; z < LM.sceneMaxZ; z += 12) {
+        var st = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(1.1, (s.x1 - s.x0) * 0.72), 2.2), RVZ.decal('bike', '#FFFFFF', 0.92));
+        st.rotation.set(-Math.PI / 2, 0, dz < 0 ? Math.PI : 0, 'YXZ'); st.position.set(cxs, 0.005, z); st.renderOrder = 1; root.add(st);
+      }
+      if (typeof designBikeLane !== 'undefined' && designBikeLane === 'protected') {
+        var bx = lanes.length ? lanes[0].x0 : s.x1;
+        for (var bz = 0; bz <= L; bz += 2) bollard(bx, bz);
+      }
+    } else if (s.type === 'buf-pk' || s.type === 'buf-bl') {
+      var v = variantOf(s);
+      if (v === 'raised') box(s.x0 + 0.05, 0, zA, s.x1 - 0.05, 0.14, zB, M('precast_grey', PAL.curb), { ao: [0.1, 0.2] });
+      else if (v === 'bollards') { for (var bz2 = 0; bz2 <= L; bz2 += 2) bollard(cxs, bz2); }
+      else if (v !== 'trees' && v !== 'planters' && R) {
+        var hm = new THREE.Mesh(new THREE.PlaneGeometry(s.x1 - s.x0 - 0.1, zB - zA), RVZ.decal('hatch', '#FFFFFF', 0.85));
+        hm.rotation.x = -Math.PI / 2; hm.position.set(cxs, 0.004, (zA + zB) / 2); hm.renderOrder = 1; root.add(hm);
+        hm.updateMatrix(); RVZ._uv(hm, hm.matrix);
+      }
+    } else if (s.type === 'planting') {
+      plane(s.x0 + 0.05, zA, s.x1 - 0.05, zB, 0.02, M('grass', PAL.planting));
+    }
+  });
+  if (LM.roadRight - LM.allocatedRight > 0.005) plane(LM.allocatedRight, zA, LM.roadRight, zB, 0, M('asphalt', PAL.unallocated));
+  function bollard(x, z) {   // flexible delineator: orange post, two white bands
+    var g = new THREE.Group(), pm = RVZ.mat('ral_2004'), wm = RVZ.mat('ral_9016');
+    var p = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.062, 0.75, 12), pm); p.position.y = 0.375; g.add(p);
+    [0.56, 0.66].forEach(function(y) { var r = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.046, 0.05, 12), wm); r.position.y = y; g.add(r); });
+    dress(g, x, 0, z, 0, { contactOp: 0.4 });
+  }
+  // Lane lines: dashed white between lanes of one direction (3 m line, 6 m gap), a double yellow
+  // line between opposing lanes, edge lines at both curbs
+  for (var i = 1; i < lanes.length; i++) {
+    var a = lanes[i - 1], b = lanes[i], lx = b.x0;
+    if (Math.abs(a.x1 - b.x0) > 0.01) continue;
+    if ((a.dirZ || 1) !== (b.dirZ || 1)) [-0.1, 0.1].forEach(function(o) { plane(lx + o - 0.05, zA, lx + o + 0.05, zB, 0.004, RVZ.mat('paint_yellow')); });
+    else for (var z2 = zA; z2 < zB; z2 += 9) plane(lx - 0.05, z2, lx + 0.05, z2 + 3, 0.004, RVZ.mat('paint'));
+  }
+  plane(LM.roadLeft + 0.02, zA, LM.roadLeft + 0.12, zB, 0.004, RVZ.mat('paint'));
+  plane(LM.roadRight - 0.12, zA, LM.roadRight - 0.02, zB, 0.004, RVZ.mat('paint'));
+
+  // Sidewalks (raised 0.15 m, the last 0.15 m is the curb), landscape buffers, setbacks
+  var swl = LM.sidewalkL, swr = LM.sidewalkR;
+  box(swl.x0, 0, zA, swl.x1 - 0.15, SR, zB, R ? RVZ.mat('concrete', 'pavers') : RVZ.mat(TOK.sidewalk));
+  box(swl.x1 - 0.15, 0, zA, swl.x1, SR, zB, M('precast_grey', PAL.curb));
+  if (swr && swr.x1 - swr.x0 > 0.01) {
+    box(swr.x0, 0, zA, swr.x0 + 0.15, SR, zB, M('precast_grey', PAL.curb));
+    box(swr.x0 + 0.15, 0, zA, swr.x1, SR, zB, R ? RVZ.mat('concrete', 'pavers') : RVZ.mat(TOK.sidewalk));
+  }
+  [[LM.bufferL, false], [LM.bufferR, true]].forEach(function(bf) {
+    var b = bf[0]; if (!b || b.x1 - b.x0 < 0.05) return;
+    box(b.x0, 0, zA, b.x1, SR + 0.03, zB, M('soil', TOK.plant), { far: bf[1] });
+    plane(b.x0 + 0.04, zA, b.x1 - 0.04, zB, SR + 0.031, M('grass', TOK.plant), { far: bf[1] });
+    for (var z3 = LM.sceneMinZ + 0.6; z3 < LM.sceneMaxZ; z3 += 1.3) shrub((b.x0 + b.x1) / 2, SR + 0.03, z3, Math.min((b.x1 - b.x0) * 0.3, 0.24), bf[1]);
+  });
+  // Buildings: massing with a facade, a plinth, a parapet; full-length ones run the whole street
+  ['L', 'R'].forEach(function(side) {
+    (DM.buildings[side] || []).forEach(function(bd) {
+      var f = bd.footprint; if (!f.visible) return;
+      var x0 = Math.min(f.faceX, f.backX), x1 = Math.max(f.faceX, f.backX), h = bd.height || 8;
+      var z0 = f.z0 <= LM.sceneMinZ + 0.01 ? zA : f.z0, z1 = f.z1 >= LM.sceneMaxZ - 0.01 ? zB : f.z1, isFar = side === 'R';
+      if (f.setback > 0.05) box(Math.min(f.frontageX, f.faceX), 0, z0, Math.max(f.frontageX, f.faceX), SR, z1, M('concrete', TOK.sidewalk), { far: isFar });
+      var fac = R ? RVZ.mat('facade') : RVZ.mat('#F2F0EC'), roof = R ? RVZ.mat('roof') : RVZ.mat('#E0DDD6');
+      var m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, h, z1 - z0), [fac, fac, roof, roof, fac, fac]);
+      m.position.set((x0 + x1) / 2, h / 2, (z0 + z1) / 2); m.userData.rvzBldg = side;
+      add(m, { far: isFar, ao: [1.2, 0.3], y0: SR });
+      box(x0 - 0.03, 0, z0, x1 + 0.03, 0.75, z1, M('granite', '#D9D5CC'), { far: isFar, ao: [0.4, 0.3], y0: SR });
+      box(x0, h, z0, x1, h + 0.6, z1, roof, { far: isFar, cast: true });
+      var face = side === 'L' ? x1 : x0;
+      contact(face + (side === 'L' ? 0.35 : -0.35), (z0 + z1) / 2, z1 - z0 + 0.6, 1.4, Math.PI / 2, SR, 0.35);
+    });
+  });
+
+  // The parklet: the deck (sketched shape or rectangle) from the road to 0.215 m, the road-side
+  // railing, the end planters and wheel stops of DESIGN_MODEL.parklet.ends
+  var sk = typeof state !== 'undefined' ? state.pkShape : null, deckMat = R ? RVZ.mat('pine', 'deck') : RVZ.mat(TOK.deck);
+  if (sk && sk.active && sk.closed && sk.verts && sk.verts.length >= 3) {
+    var shp = new THREE.Shape(), vv = sk.verts; shp.moveTo(vv[0].y, -vv[0].x);
+    for (var k = 0; k < vv.length; k++) {
+      var va = vv[k], vb = vv[(k + 1) % vv.length], sg = (sk.segs && sk.segs[k]) || {};
+      if (sg.arc && Math.abs(sg.sag || 0) > 0.001 && typeof shapeArcCtrl === 'function') { var cp = shapeArcCtrl(va, vb, sg.sag); shp.quadraticCurveTo(cp.y, -cp.x, vb.y, -vb.x); }
+      else shp.lineTo(vb.y, -vb.x);
+    }
+    var eg = new THREE.ExtrudeGeometry(shp, { depth: DT, bevelEnabled: false }); eg.rotateX(-Math.PI / 2);
+    add(new THREE.Mesh(eg, deckMat), {});
+  } else box(LM.deckX0, 0, 0, LM.deckX1, DT, L, deckMat);
+  var rail = RVZ.mat('galvanized'), rx = LM.deckX1;
+  for (var rz = 0.2; rz < L - 0.1; rz += 1.0) box(rx - 0.03, DT, rz, rx + 0.03, DT + 0.9, rz + 0.05, rail, { ao: [0.2, 0.3], y0: DT });
+  box(rx - 0.025, DT + 0.86, 0, rx + 0.025, DT + 0.92, L, rail);
+  box(rx - 0.012, DT + 0.45, 0, rx + 0.012, DT + 0.48, L, rail);
+  (DM.parklet.ends || []).forEach(function(e) {
+    if (e.kind === 'end-planter') {
+      var y1 = DT + (e.y1 - e.y0);
+      box(e.x0, DT, e.z0, e.x1, y1, e.z1, M('precast_grey', '#DEDAD4'), { ao: [0.3, 0.35], y0: DT });
+      plane(e.x0 + 0.05, e.z0 + 0.05, e.x1 - 0.05, e.z1 - 0.05, y1 - 0.04, M('soil', '#8A7256'));
+      contact((e.x0 + e.x1) / 2, (e.z0 + e.z1) / 2, e.x1 - e.x0 + 0.3, e.z1 - e.z0 + 0.3, 0, DT, 0.45);
+      var rnd = AXE.rng(Math.round(e.z0 * 100) + 7);
+      for (var q = 0; q < 7; q++) shrub(e.x0 + 0.2 + rnd() * (e.x1 - e.x0 - 0.4), y1 - 0.05, e.z0 + 0.18 + rnd() * (e.z1 - e.z0 - 0.36), 0.16 + rnd() * 0.1);
+    } else if (e.kind === 'wheel-stop') {
+      box(e.x0, 0, e.z0, e.x1, e.y1, e.z1, M('concrete', '#C8C3BA'), { ao: [0.08, 0.3] });
+      plane(e.x0 + 0.02, e.z0 + 0.02, e.x1 - 0.02, e.z1 - 0.02, e.y1 + 0.001, M('safety_yellow', '#E4C860'));
+    }
+  });
+  // a low shrub of three foliage clumps
+  function shrub(x, y, z, r, isFar) {
+    var g = new THREE.Group(), fm = RVZ.mat('foliage'), rnd = AXE.rng(Math.round((x * 31 + z * 17) * 100));
+    for (var c = 0; c < 3; c++) {
+      var s = new THREE.Mesh(new THREE.IcosahedronGeometry(r * (0.7 + rnd() * 0.4), 1), fm);
+      s.position.set((rnd() - 0.5) * r, r * (0.55 + rnd() * 0.3), (rnd() - 0.5) * r); s.scale.y = 0.8; g.add(s);
+    }
+    dress(g, x, y, z, 0, { contactOp: 0.3 });
+    if (isFar) g.traverse(function(m) { if (m.isMesh) far.push(m); });
+  }
+  // Trees and planters (DESIGN_MODEL.vegetation, every view's one list): a tapered trunk to the
+  // Section's 2.0 m and a canopy of foliage clumps inside the model's canopy radius
+  (DM.vegetation || []).forEach(function(v) {
+    var y = surfY(v.x, v.z), rnd = AXE.rng(Math.round(v.z * 1000) + 3);
+    if (v.type === 'tree') {
+      var g = new THREE.Group(), r = Math.max(0.25, v.canopyR), tr = Math.max(0.05, v.trunkR || 0.08);
+      var tk = new THREE.Mesh(new THREE.CylinderGeometry(tr * 0.65, tr, 2.3, 10), RVZ.mat('bark')); tk.position.y = 1.15; g.add(tk);
+      for (var c = 0; c < 8; c++) {
+        var cl = new THREE.Mesh(new THREE.IcosahedronGeometry(r * (0.5 + rnd() * 0.25), 1), RVZ.mat('foliage'));
+        var th = rnd() * Math.PI * 2, rr = r * 0.55 * Math.sqrt(rnd());
+        cl.position.set(Math.cos(th) * rr, 2.0 + r * (0.5 + rnd() * 1.0), Math.sin(th) * rr); g.add(cl);
+      }
+      dress(g, v.x, y, v.z, rnd() * 6.28, { contactOp: 0.35 });
+      if (y > 0) box(v.x - 0.5, y, v.z - 0.5, v.x + 0.5, y + 0.01, v.z + 0.5, M('soil', TOK.plant), { cast: false });
+    } else {
+      var d = 2 * v.canopyR;
+      box(v.x - d / 2, y, v.z - d / 2, v.x + d / 2, y + 0.25, v.z + d / 2, M('precast_grey', '#9A7A58'), { ao: [0.12, 0.3], y0: y });
+      contact(v.x, v.z, d + 0.3, d + 0.3, 0, y, 0.4);
+      for (var q = 0; q < 3; q++) shrub(v.x + (rnd() - 0.5) * d * 0.4, y + 0.24, v.z + (rnd() - 0.5) * d * 0.4, Math.max(0.1, d * 0.22));
+    }
+  });
+  // Site objects on the curb and the road (the live renderer's data; Standard Detail meshes)
+  function streetMesh(type) {
+    var so = typeof STREET_OBJ !== 'undefined' ? STREET_OBJ.find(function(s) { return s.type === type; }) : null;
+    return so && FL3D_FACTORY[so.id] ? FL3D_FACTORY[so.id]({}) : null;
+  }
+  var cfs = (typeof state !== 'undefined' && state.curb_features) || [];
+  cfs.forEach(function(cf) {
+    var g = streetMesh(cf.type === 'H' ? 'hydrant' : cf.type === 'P' ? 'pole' : 'controller'); if (!g) return;
+    dress(g, LM.roadLeft - 0.22 - (cf.type === 'S' ? 0.2 : 0), SR, cf.xM, 0, { contactOp: 0.4 });
+  });
+  ((typeof state !== 'undefined' && state.manholes) || []).forEach(function(mh) {
+    var g = streetMesh('manhole'); if (!g) return;
+    dress(g, mh.yM, surfY(mh.yM, mh.xM) - 0.05, mh.xM, 0, { contact: false });
+  });
+
+  // Placed furniture and entourage: the archetype geometry, on the deck (and any step under it)
+  // or on the surface under an entourage piece
+  (FL3D.placed || []).forEach(function(inst) {
+    var g; try { g = fl3DBuildInst(inst); } catch (e) { g = null; }
+    if (!g) return;
+    var sp = flInstSpec(inst), x = inst.x || 0, z = inst.z || 0;
+    var y = sp && !flIsEntourage(sp.type) ? DT + flSupportTop(inst) : surfY(x, z);
+    g.userData.rvzInst = inst.id;
+    dress(g, x, y, z, FL_BASE_YAW + (inst.userRotation || 0), { noReceive: sp && flIsEntourage(sp.type), contactOp: sp && flIsEntourage(sp.type) ? 0.3 : 0.55 });
+  });
+  if (o.people) RVZ._people(DM, dress);
+
+  // Lights and sky
+  var hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.5), sun = new THREE.DirectionalLight(0xffffff, 1);
+  sun.castShadow = true;
+  var S = o.shadow || 2048; sun.shadow.mapSize.set(S, S);
+  sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.025;
+  sc.add(hemi); sc.add(sun); sc.add(sun.target);
+  var sky = RVZ._skyMesh(400); sc.add(sky);
+  var out = { scene: sc, root: root, sun: sun, hemi: hemi, sky: sky, far: far, app: app,
+    bounds: { x0: LM.sceneMinX - 2, x1: LM.sceneMaxX + 2, z0: zA, z1: zB, h: Math.max(LM.buildingL.height, LM.buildingR.height) + 1 },
+    dispose: function() {
+      sc.traverse(function(m) { if (m.geometry) m.geometry.dispose(); });
+      sky.material.dispose();
+      if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    } };
+  return out;
+};
+// Static people and traffic (Brief 05 entourage): 40 % of the seats taken, walkers on each
+// sidewalk, a cyclist in each bike lane, a car in the first travel lane past the deck. Seeded,
+// so every render of one design shows the same scene.
+RVZ._people = function(DM, dress) {
+  if (typeof AXE === 'undefined') return;
+  var rnd = AXE.rng(20260924), LM = DM.landmarks, L = DM.parklet.length, DT = RVZ.DECK_TOP;
+  function put(it, x, z, y, head) { dress(fl3DArchetype(it.type, it.params, it.mats), x, y, z, FL_BASE_YAW + head, { noReceive: true, contactOp: 0.3 }); }
+  var seats = AXE.seats(), order = seats.map(function(s, i) { return [rnd(), i]; }).sort(function(a, b) { return a[0] - b[0]; });
+  order.slice(0, seats.length ? Math.max(1, Math.round(seats.length * 0.4)) : 0).forEach(function(e) {
+    var s = seats[e[1]], it = AXE.item(rnd, 'person_seated'); it.params.seatH = s.seatH;
+    var hip = 0.165 * it.params.h / 1.75;
+    put(it, s.x + Math.sin(s.head) * hip, s.z + Math.cos(s.head) * hip, DT, s.head);
+  });
+  var firstLane = true;
+  (DM.paths || []).forEach(function(p) {
+    if (p.kind === 'sidewalk') {
+      for (var i = 0; i < 2; i++) {
+        var d = rnd() < 0.5 ? 1 : -1, z = LM.sceneMinZ + 1 + rnd() * (LM.sceneMaxZ - LM.sceneMinZ - 2);
+        put(AXE.item(rnd, AXE.pick(rnd, AXE.PEOPLE_MIX)), p.x - d * 0.35, z, RVZ.surfY(p.x, z), d > 0 ? 0 : Math.PI);
+      }
+    } else if (p.kind === 'bike') {
+      var zb = p.dirZ < 0 ? L + 3 : -3;
+      put(AXE.item(rnd, 'person_cycling'), p.x, zb, 0, p.dirZ < 0 ? Math.PI : 0);
+    } else if (p.kind === 'lane' && firstLane) {
+      firstLane = false;
+      var zc = p.dirZ < 0 ? -5.5 : L + 5.5;
+      put(AXE.item(rnd, 'car_small'), p.x, zc, 0, p.dirZ < 0 ? Math.PI : 0);
+    }
+  });
+};
+// Procedural sky: zenith / horizon / ground gradient with a sun disc and glow, in linear light,
+// tone-mapped and encoded by three's own chunks (so the PMREM capture of it is HDR RGBE).
+RVZ._skyMesh = function(radius) {
+  var mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { top: { value: new THREE.Color() }, horizon: { value: new THREE.Color() }, ground: { value: new THREE.Color() },
+      sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color(1, 1, 1) }, sunI: { value: 1 } },
+    vertexShader: 'varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: [
+      'uniform vec3 top; uniform vec3 horizon; uniform vec3 ground; uniform vec3 sunDir; uniform vec3 sunCol; uniform float sunI;',
+      'varying vec3 vDir;',
+      'void main() {',
+      '  vec3 d = normalize(vDir); float h = d.y;',
+      '  vec3 c = h > 0.0 ? mix(horizon, top, pow(h, 0.55)) : mix(horizon, ground, pow(min(-h * 5.0, 1.0), 0.5));',
+      '  float s = max(dot(d, normalize(sunDir)), 0.0);',
+      '  c += sunCol * (pow(s, 1400.0) * 40.0 + pow(s, 14.0) * 0.22) * sunI;',
+      '  gl_FragColor = vec4(c, 1.0);',
+      '  #include <tonemapping_fragment>',
+      '  #include <encodings_fragment>',
+      '}'].join('\n')
+  });
+  var m = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 24), mat);
+  m.frustumCulled = false; m.renderOrder = -1; m.userData.rvzSky = true;
+  return m;
+};
+// Sky, sun and hemisphere for the sun of o, fitted to the scene S. Returns the sun info.
+RVZ.lightScene = function(S, o) {
+  var s = RVZ.sun(o), R = S.app === 'rendered', lin = function(h) { return new THREE.Color(h).convertSRGBToLinear(); };
+  var t = Math.max(0, Math.min(1, s.alt / 35)), dusk = Math.max(0, Math.min(1, (s.alt + 6) / 12));
+  var top = lin('#0E1624').lerp(lin('#4A83C8'), dusk), hor = lin('#28324A').lerp(lin('#F0C9A0'), dusk).lerp(lin('#D2E2EE'), t), gnd = lin('#3A3834').lerp(lin('#B3A895'), dusk);
+  var sunCol = new THREE.Color(1, 0.68, 0.46).lerp(new THREE.Color(1, 0.96, 0.9), t);
+  var u = S.sky.material.uniforms;
+  u.top.value.copy(top); u.horizon.value.copy(hor); u.ground.value.copy(gnd); u.sunDir.value.copy(s.dir); u.sunCol.value.copy(sunCol); u.sunI.value = s.up ? 1 : 0;
+  S.scene.fog = new THREE.Fog(hor.clone(), 60, 220);
+  S.hemi.color.copy(top).lerp(new THREE.Color(1, 0.98, 0.95), 0.85); S.hemi.groundColor.copy(gnd);
+  S.hemi.intensity = (R ? 0.75 : 0.55) * (0.25 + 0.75 * dusk);
+  S.sun.color.copy(sunCol);
+  S.sun.intensity = s.up ? (R ? 2.9 : 0.62) * Math.min(1, 0.35 + s.alt / 20) : 0;
+  S.sun.castShadow = s.up;
+  // the shadow camera: an orthographic box around the scene, seen from the sun
+  var b = S.bounds, c = new THREE.Vector3((b.x0 + b.x1) / 2, 0, (Math.max(b.z0, -20) + Math.min(b.z1, DESIGN_MODEL.parklet.length + 20)) / 2);
+  var dir = s.up ? s.dir.clone() : new THREE.Vector3(0, 1, 0);
+  S.sun.target.position.copy(c); S.sun.position.copy(c).addScaledVector(dir, 150);
+  S.sun.updateMatrixWorld(true); S.sun.target.updateMatrixWorld(true);
+  // (a camera, not a plain Object3D: cameras look down -Z, as the light's shadow camera does)
+  var cam = S.sun.shadow.camera, look = new THREE.OrthographicCamera(); look.position.copy(S.sun.position); look.lookAt(c); look.updateMatrixWorld(true);
+  var inv = new THREE.Matrix4().copy(look.matrixWorld).invert(), lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9], p = new THREE.Vector3();
+  var zs = [Math.max(b.z0, -20), Math.min(b.z1, DESIGN_MODEL.parklet.length + 20)];
+  [b.x0, b.x1].forEach(function(x) { [0, b.h].forEach(function(y) { zs.forEach(function(z) {
+    p.set(x, y, z).applyMatrix4(inv); lo[0] = Math.min(lo[0], p.x); hi[0] = Math.max(hi[0], p.x); lo[1] = Math.min(lo[1], p.y); hi[1] = Math.max(hi[1], p.y); lo[2] = Math.min(lo[2], -p.z); hi[2] = Math.max(hi[2], -p.z);
+  }); }); });
+  cam.left = lo[0]; cam.right = hi[0]; cam.bottom = lo[1]; cam.top = hi[1]; cam.near = Math.max(0.5, lo[2] - 5); cam.far = hi[2] + 5;
+  cam.updateProjectionMatrix();
+  return s;
+};
+// Environment map (PMREM of the sky) for one renderer: a render target belongs to its GL context.
+RVZ.envFor = function(r, S) {
+  var u = S.sky.material.uniforms, key = [u.top.value.getHexString(), u.horizon.value.getHexString(), u.sunDir.value.toArray().map(function(v) { return v.toFixed(3); }).join(), u.sunI.value].join('|');
+  var e = RVZ._envs.find(function(x) { return x.r === r; });
+  if (e && e.key === key) return e.rt.texture;
+  if (e) { e.rt.dispose(); RVZ._envs.splice(RVZ._envs.indexOf(e), 1); }
+  var es = new THREE.Scene(), sm = RVZ._skyMesh(50);
+  Object.keys(u).forEach(function(k) { sm.material.uniforms[k].value = u[k].value.clone ? u[k].value.clone() : u[k].value; });
+  // as ambient light the sky is desaturated by half: a pure sky-blue fill turns every shadow navy
+  ['top', 'horizon'].forEach(function(k) { var c = sm.material.uniforms[k].value, y = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; c.lerp(new THREE.Color(y, y, y), 0.5); });
+  es.add(sm);
+  var pm = new THREE.PMREMGenerator(r), rt = pm.fromScene(es, 0.02, 0.1, 200);
+  pm.dispose(); sm.geometry.dispose(); sm.material.dispose();
+  RVZ._envs.push({ r: r, key: key, rt: rt });
+  return rt.texture;
+};
+RVZ.setupRenderer = function(r, app) {
+  r.outputEncoding = THREE.sRGBEncoding;
+  r.toneMapping = app === 'rendered' ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+  r.toneMappingExposure = app === 'rendered' ? 1.0 : 1;
+  r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+  r.physicallyCorrectLights = false;
+};
+// Render S with camera cam through renderer r: sun, environment, the aerial cutaway.
+RVZ.renderWith = function(r, S, cam, o, aerial) {
+  RVZ.setupRenderer(r, S.app);
+  var s = RVZ.lightScene(S, o);
+  S.scene.environment = S.app === 'rendered' ? RVZ.envFor(r, S) : null;
+  S.far.forEach(function(m) { m.visible = !aerial; });
+  if (cam.isOrthographicCamera) S.scene.fog = null;   // the axon camera stands 150 m off: no aerial perspective
+  S.sky.position.copy(cam.position);
+  r.shadowMap.needsUpdate = true;
+  r.render(S.scene, cam);
+  return s;
+};
+
+// ── Cameras ───────────────────────────────────────────────────────────────────────────────
+// Presets are world positions / targets computed from the landmarks, so they frame any deck:
+// each one slides its camera back along a line until the deck (and 2.4 m above it) fits.
+RVZ._fitPts = function(z0, z1) {
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, out = [];
+  [LM.deckX0 - 0.3, LM.deckX1 + 0.3].forEach(function(x) { [0, RVZ.DECK_TOP + 2.4].forEach(function(y) { [z0 == null ? -0.5 : z0, z1 == null ? L + 0.5 : z1].forEach(function(z) { out.push(new THREE.Vector3(x, y, z)); }); }); });
+  return out;
+};
+RVZ._fits = function(cam, pts, m) {
+  return pts.every(function(p) { var v = p.clone().project(cam); return v.z < 1 && v.z > -1 && Math.abs(v.x) <= m && Math.abs(v.y) <= m; });
+};
+RVZ.presets = function(aspect) {
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, cx = (LM.deckX0 + LM.deckX1) / 2, pts = RVZ._fitPts(), out = {};
+  var xMaxCam = LM.sidewalkR ? LM.sidewalkR.x1 - 0.4 : LM.roadRight;   // never inside the far buildings
+  function solve(fov, posAt, tgt, s1, m, P) {
+    var c = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1200), s = 0;
+    for (; s <= s1; s += 0.25) { c.position.fromArray(posAt(s)); c.lookAt(tgt); c.updateMatrixWorld(true); if (RVZ._fits(c, P || pts, m || 0.9)) break; }
+    return { pos: posAt(Math.min(s, s1)), target: tgt.toArray(), fov: fov };
+  }
+  // Street: across the road at eye level (1.6 m over the far sidewalk), sliding back along the street
+  var xf = LM.sidewalkR && LM.sidewalkR.x1 - LM.sidewalkR.x0 > 0.5 ? (LM.sidewalkR.x0 + LM.sidewalkR.x1) / 2 : LM.roadRight - 0.6;
+  var yf = RVZ.surfYAt(xf) + 1.6;
+  var hw = Math.min(L / 2, 5.5) + 0.3;
+  out.street = solve(55, function(s) { return [xf, yf, L / 2 - 1.5 - s]; }, new THREE.Vector3(cx, RVZ.DECK_TOP + 0.75, L / 2), 80, 0.9, RVZ._fitPts(L / 2 - hw, L / 2 + hw));
+  // Sidewalk: walking past on the near sidewalk, eye level, before the start end
+  var xs = -LM.sidewalkW * 0.45;
+  out.sidewalk = solve(55, function(s) { return [xs, RVZ.SW_RAISE + 1.6, -2 - s]; }, new THREE.Vector3(cx + 0.3, RVZ.DECK_TOP + 0.7, Math.min(L, 10) * 0.6), 80, 0.92, RVZ._fitPts(-0.5, Math.min(L, 10)));
+  // Corner: a 3/4 view 4 m high from the road side, 40 deg off the street axis, past the start end
+  var a = 40 * Math.PI / 180;
+  out.corner = solve(45, function(s) { var d = 5 + s; return [Math.min(cx + d * Math.sin(a), xMaxCam), 4, L / 2 - d * Math.cos(a)]; }, new THREE.Vector3(cx, RVZ.DECK_TOP + 0.4, L / 2), 90);
+  out.aerial = { ortho: true, note: 'AXE.camera(iso)' };
+  return out;
+};
+RVZ.surfYAt = function(x) { var LM = _dmCurrent().landmarks; return (x < LM.roadLeft - 0.001 || x > LM.roadRight + 0.001) ? RVZ.SW_RAISE : 0; };
+// A camera for a preset at an aspect (the aerial is the Brief 06 isometric axon camera).
+RVZ.cameraFor = function(preset, aspect) {
+  if (preset === 'aerial') return AXE.camera('iso', aspect);
+  var p = RVZ.presets(aspect)[preset] || RVZ.presets(aspect).street, c = new THREE.PerspectiveCamera(p.fov, aspect, 0.1, 1200);
+  c.position.fromArray(p.pos); c.lookAt(new THREE.Vector3().fromArray(p.target)); c.updateMatrixWorld(true);
+  c.userData.target = p.target;
+  return c;
+};
+
+// ── Cache: renders per design-state hash ────────────────────────────────────────────────────
+// The key is the design (getDesignState(), FNV-1a) plus everything that changes the picture.
+// The report and the Generate cards read RVZ.cached(hash, opts) instead of re-rendering.
+RVZ.fnv = function(s) { var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return ('0000000' + (h >>> 0).toString(16)).slice(-8); };
+RVZ.designHash = function() { return RVZ.fnv(JSON.stringify(getDesignState())); };
+RVZ.renderKey = function(o, W, H) { return [o.preset, o.appearance, o.year + '-' + o.doy, o.min, 'N' + RVZ.northDeg(), W + 'x' + H, o.people ? 'people' : 'empty'].join('|'); };
+RVZ.cached = function(hash, o, W, H) {
+  var m = RVZ.cache.get(hash); if (!m) return null;
+  if (W) return m.get(RVZ.renderKey(o, W, H)) || null;
+  var best = null; m.forEach(function(e) { if (e.opts.preset === o.preset && (!o.appearance || e.opts.appearance === o.appearance) && (!best || e.w > best.w)) best = e; });
+  return best;
+};
+RVZ._cachePut = function(hash, key, e) {
+  if (!RVZ.cache.has(hash)) RVZ.cache.set(hash, new Map());
+  RVZ.cache.get(hash).set(key, e);
+  var n = 0; RVZ.cache.forEach(function(m) { n += m.size; });
+  while (n > RVZ.CACHE_MAX) {   // drop the oldest design's oldest render
+    var h0 = RVZ.cache.keys().next().value, m0 = RVZ.cache.get(h0);
+    m0.delete(m0.keys().next().value); if (!m0.size) RVZ.cache.delete(h0); n--;
+  }
+};
+
+// ── Stills: offscreen, tiled, at full quality ─────────────────────────────────────────────────
+// Its own renderer and canvas (never the viewport's), a scene built for the export (4096 shadow
+// map), the picture drawn in tiles of the base resolution through camera.setViewOffset and
+// composited on a 2D canvas. Nothing live is touched, so nothing is restored.
+RVZ._exportRenderer = function() {
+  if (!RVZ._xr) {
+    var cv = document.createElement('canvas');
+    cv.id = 'rvzExportCanvas';
+    cv.style.cssText = 'position:fixed;left:-20000px;top:0;width:2px;height:2px;pointer-events:none;';
+    document.body.appendChild(cv);
+    RVZ._xr = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
+    RVZ._xr.setPixelRatio(1);
+  }
+  return RVZ._xr;
+};
+RVZ._yield = function() { return new Promise(function(r) { setTimeout(r, 0); }); };
+RVZ.renderStill = async function(over, onProgress) {
+  var o = Object.assign({}, RVZ.o, over || {}), base = RVZ.RES[o.res] || RVZ.RES['1080'], W = base[0] * o.scale, H = base[1] * o.scale;
+  var hash = RVZ.designHash(), key = RVZ.renderKey(o, W, H), hit = RVZ.cached(hash, o, W, H);
+  if (hit) {
+    console.log('[visualize] cache hit: ' + o.preset + ' ' + W + 'x' + H + ' (design ' + hash + ') -- not re-rendered');
+    RVZ.stats.hits++;
+    return Object.assign({ cached: true }, hit);
+  }
+  var t0 = performance.now(), r = RVZ._exportRenderer(), S = RVZ.build({ appearance: o.appearance, people: o.people, shadow: 4096 });
+  var cam = RVZ.cameraFor(o.preset, W / H), tw = base[0], th = base[1], nx = Math.ceil(W / tw), ny = Math.ceil(H / th);
+  var out = document.createElement('canvas'); out.width = W; out.height = H;
+  var ctx = out.getContext('2d'), sunInfo = null;
+  r.setSize(tw, th, false);
+  try {
+    for (var ty = 0; ty < ny; ty++) for (var tx = 0; tx < nx; tx++) {
+      cam.setViewOffset(W, H, tx * tw, ty * th, tw, th); cam.updateProjectionMatrix();
+      sunInfo = RVZ.renderWith(r, S, cam, o, o.preset === 'aerial');
+      ctx.drawImage(r.domElement, tx * tw, ty * th);
+      if (onProgress) onProgress((ty * nx + tx + 1) / (nx * ny), 'Tile ' + (ty * nx + tx + 1) + ' of ' + nx * ny);
+      await RVZ._yield();
+    }
+  } finally { cam.clearViewOffset(); S.dispose(); }
+  var blob = await new Promise(function(res) { out.toBlob(res, 'image/png'); });
+  var e = { blob: blob, w: W, h: H, key: key, design: hash, opts: { preset: o.preset, appearance: o.appearance, doy: o.doy, min: o.min, year: o.year, people: o.people },
+    sun: sunInfo ? { alt: sunInfo.alt, az: sunInfo.az, zone: sunInfo.zone } : null, ms: Math.round(performance.now() - t0), at: Date.now() };
+  RVZ._cachePut(hash, key, e);
+  RVZ.stats.renders++;
+  console.log('[visualize] rendered ' + o.preset + ' ' + W + 'x' + H + ' in ' + (e.ms / 1000).toFixed(1) + ' s (design ' + hash + '), cached');
+  return Object.assign({ cached: false }, e);
+};
+RVZ.stats = { renders: 0, hits: 0 };
+RVZ.fileName = function(e) {
+  var pn = document.getElementById('projectName'), ld = RVZ.localDate(e.opts.doy, e.opts.min, e.opts.year);
+  var sun = RVZ.MONTHS[ld.month].toLowerCase() + ld.day + '-' + RVZ.hhmm(e.opts.min).replace(':', '');
+  return PX.slug(pn && pn.value) + '-' + e.opts.preset + '-' + e.opts.appearance + '-' + sun + '-' + e.w + 'x' + e.h + '.png';
+};
+RVZ.download = function(e) { PX.download(e.blob, RVZ.fileName(e), 'image/png'); };
+
+// ── The Visualize tab ─────────────────────────────────────────────────────────────────────────
+RVZ.onOpen = function() {
+  RVZ._ui();
+  if (typeof THREE === 'undefined') { RVZ._status('3D is not available in this browser (WebGL).'); return; }
+  var L = RVZ._live || (RVZ._live = RVZ._makeLive());
+  if (!L) return;
+  var h = RVZ.designHash();
+  if (!L.S || L.hash !== h || L.app !== RVZ.o.appearance || L.people !== RVZ.o.people) RVZ._rebuildLive(h);
+  RVZ._resize();
+  if (!L.placed) { L.placed = true; RVZ.setPreset(RVZ.o.preset); }
+  RVZ._sync(); RVZ.draw();
+};
+RVZ._makeLive = function() {
+  var view = document.getElementById('rvzView'); if (!view) return null;
+  var r; try { r = new THREE.WebGLRenderer({ antialias: true }); } catch (e) { RVZ._status('WebGL could not start: ' + (e.message || e)); return null; }
+  r.setPixelRatio(1);   // reduced quality: the exports render at full size offscreen
+  view.insertBefore(r.domElement, view.firstChild);
+  r.domElement.setAttribute('aria-label', 'Rendered view of the parklet');
+  var L = { r: r, persp: new THREE.PerspectiveCamera(50, 16 / 9, 0.1, 1200), ortho: null, cam: null };
+  L.cam = L.persp;
+  L.ctl = new THREE.OrbitControls(L.persp, r.domElement);
+  L.ctl.enableDamping = false; L.ctl.maxPolarAngle = Math.PI * 0.495; L.ctl.minDistance = 1; L.ctl.maxDistance = 150;
+  L.ctl.addEventListener('change', function() { if (!RVZ._setting) { RVZ._free = true; RVZ._syncPresets(); } RVZ.draw(); });
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(function() { RVZ._resize(); RVZ.draw(); }).observe(view);
+  return L;
+};
+RVZ._rebuildLive = function(h) {
+  var L = RVZ._live;
+  if (L.S) L.S.dispose();
+  L.S = RVZ.build({ appearance: RVZ.o.appearance, people: RVZ.o.people, shadow: 2048 });
+  L.hash = h || RVZ.designHash(); L.app = RVZ.o.appearance; L.people = RVZ.o.people;
+};
+RVZ._resize = function() {
+  var L = RVZ._live, v = document.getElementById('rvzView'); if (!L || !v) return;
+  var w = Math.max(1, v.clientWidth), h = Math.max(1, v.clientHeight);
+  L.r.setSize(w, h, false); L.r.domElement.style.width = '100%'; L.r.domElement.style.height = '100%';
+  L.persp.aspect = w / h; L.persp.updateProjectionMatrix();
+  if (RVZ.o.preset === 'aerial' && !RVZ._free) RVZ._aerialCam(w / h);
+};
+RVZ._aerialCam = function(aspect) {
+  var L = RVZ._live, c = AXE.camera('iso', aspect);
+  L.ortho = c; L.cam = c;
+  L.ctl.object = c;
+  var b = AXE.frameBox(); L.ctl.target.set((b.x0 + b.x1) / 2, 0, (b.z0 + b.z1) / 2); c.lookAt(L.ctl.target);
+};
+RVZ.setPreset = function(p) {
+  var L = RVZ._live; RVZ.o.preset = p; RVZ._free = false;
+  if (!L) { RVZ._syncPresets(); return; }
+  var v = document.getElementById('rvzView'), asp = v && v.clientHeight ? v.clientWidth / v.clientHeight : 16 / 9;
+  RVZ._setting = true;
+  if (p === 'aerial') RVZ._aerialCam(asp);
+  else {
+    var q = RVZ.presets(asp)[p];
+    L.cam = L.persp; L.ctl.object = L.persp;
+    L.persp.fov = q.fov; L.persp.position.fromArray(q.pos); L.ctl.target.fromArray(q.target); L.persp.updateProjectionMatrix();
+  }
+  L.ctl.update(); RVZ._setting = false;
+  RVZ._syncPresets(); RVZ.draw();
+};
+RVZ.draw = function() {
+  if (RVZ._drawT) return;
+  RVZ._drawT = setTimeout(function() {
+    RVZ._drawT = 0;
+    var L = RVZ._live, v = document.getElementById('rvzView');
+    if (!L || !L.S || !v || !v.clientWidth) return;
+    var s = RVZ.renderWith(L.r, L.S, L.cam, RVZ.o, RVZ.o.preset === 'aerial' && !RVZ._free ? true : L.cam.isOrthographicCamera);
+    RVZ._info(s);
+  }, 0);
+};
+RVZ.set = function(k, v) {
+  RVZ.o[k] = v;
+  if (k === 'appearance' || k === 'people') { if (RVZ._live && RVZ._live.S) RVZ._rebuildLive(); }
+  try { localStorage.setItem('pkt_rvz', JSON.stringify({ preset: RVZ.o.preset, appearance: RVZ.o.appearance, doy: RVZ.o.doy, min: RVZ.o.min, res: RVZ.o.res, scale: RVZ.o.scale, people: RVZ.o.people })); } catch (e) {}
+  RVZ._sync(); RVZ.draw();
+};
+(function() {   // per-viewer conveniences only (the renders never depend on them)
+  try { var s = JSON.parse(localStorage.getItem('pkt_rvz') || 'null'); if (s) Object.keys(s).forEach(function(k) { if (k in RVZ.o) RVZ.o[k] = s[k]; }); } catch (e) {}
+})();
+
+// Rail and context panel (built once; values synced from RVZ.o)
+RVZ._ui = function() {
+  var rail = document.getElementById('rvzRail'); if (!rail || rail._built) return;
+  rail._built = true;
+  var h = function(t) { return String(t).replace(/[&<>']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;' }[c]; }); };
+  rail.innerHTML =
+    "<section class='rvz-sec' aria-labelledby='rvzHCam'><h3 class='rvz-lbl' id='rvzHCam'>Camera</h3>" +
+      "<div class='rvz-grid2' role='group' aria-label='Camera preset'>" + RVZ.PRESETS.map(function(p) {
+        return "<button type='button' class='rvz-btn' id='rvzPre_" + p[0] + "' data-preset='" + p[0] + "' aria-pressed='false'>" + h(p[1]) + '</button>'; }).join('') + '</div>' +
+      "<p class='rvz-note' id='rvzCamNote'></p></section>" +
+    "<section class='rvz-sec' aria-labelledby='rvzHSun'><h3 class='rvz-lbl' id='rvzHSun'>Sun</h3>" +
+      "<div class='rvz-row'><label for='rvzDoy'>Date</label><span class='rvz-val' id='rvzDoyV'></span></div>" +
+      "<input type='range' id='rvzDoy' min='1' max='365' step='1'>" +
+      "<div class='rvz-chips' role='group' aria-label='Key dates'>" +
+        "<button type='button' class='rvz-chip' data-md='5,21'>21 Jun</button><button type='button' class='rvz-chip' data-md='2,20'>20 Mar</button><button type='button' class='rvz-chip' data-md='11,21'>21 Dec</button></div>" +
+      "<div class='rvz-row'><label for='rvzMin'>Time</label><span class='rvz-val' id='rvzMinV'></span></div>" +
+      "<input type='range' id='rvzMin' min='300' max='1320' step='15'>" +
+      "<svg class='rvz-path' id='rvzPath' viewBox='0 0 240 132' role='img' aria-label='Sun path for the day'></svg>" +
+      "<p class='rvz-read' id='rvzSunRead' aria-live='polite'></p></section>" +
+    "<section class='rvz-sec' aria-labelledby='rvzHApp'><h3 class='rvz-lbl' id='rvzHApp'>Appearance</h3>" +
+      "<div class='rvz-seg' role='group' aria-label='Appearance'>" +
+        "<button type='button' class='rvz-btn' data-app='schematic' aria-pressed='false'>Schematic</button>" +
+        "<button type='button' class='rvz-btn' data-app='rendered' aria-pressed='false'>Rendered</button>" +
+        "<button type='button' class='rvz-btn' disabled title='Technical is a drawing mode (Plan, Section, 3D), not a render mode'>Technical</button></div>" +
+      "<label class='rvz-check'><input type='checkbox' id='rvzPeople'> People and traffic</label></section>" +
+    "<section class='rvz-sec' aria-labelledby='rvzHOut'><h3 class='rvz-lbl' id='rvzHOut'>Output</h3>" +
+      "<div class='rvz-row'><label for='rvzRes'>Resolution</label><select id='rvzRes'>" +
+        Object.keys(RVZ.RES).map(function(k) { return "<option value='" + k + "'>" + RVZ.RES[k][0] + ' × ' + RVZ.RES[k][1] + '</option>'; }).join('') + '</select></div>' +
+      "<div class='rvz-row'><span>Scale</span><div class='rvz-seg rvz-seg2' role='group' aria-label='Scale'>" +
+        "<button type='button' class='rvz-btn' data-scale='2' aria-pressed='false'>2×</button><button type='button' class='rvz-btn' data-scale='4' aria-pressed='false'>4×</button></div></div>" +
+      "<p class='rvz-note' id='rvzOutPx'></p>" +
+      "<button type='button' class='rvz-btn rvz-primary' id='rvzStill'>Render still</button>" +
+      "<button type='button' class='rvz-btn' id='rvzAll'>Render all presets</button>" +
+      "<progress id='rvzProg' max='1' value='0' aria-label='Render progress'></progress>" +
+      "<p class='rvz-status' id='rvzStatus' role='status'></p></section>";
+  rail.addEventListener('click', function(ev) {
+    var b = ev.target.closest('button'); if (!b || b.disabled) return;
+    if (b.dataset.preset) RVZ.setPreset(b.dataset.preset);
+    else if (b.dataset.md) { var md = b.dataset.md.split(','); RVZ.set('doy', RVZ.doyOf(+md[0], +md[1])); }
+    else if (b.dataset.app) RVZ.set('appearance', b.dataset.app);
+    else if (b.dataset.scale) RVZ.set('scale', +b.dataset.scale);
+    else if (b.id === 'rvzStill') RVZ.exportStill();
+    else if (b.id === 'rvzAll') RVZ.exportAll();
+  });
+  document.getElementById('rvzDoy').addEventListener('input', function(e) { RVZ.set('doy', +e.target.value); });
+  document.getElementById('rvzMin').addEventListener('input', function(e) { RVZ.set('min', +e.target.value); });
+  document.getElementById('rvzRes').addEventListener('change', function(e) { RVZ.set('res', e.target.value); });
+  document.getElementById('rvzPeople').addEventListener('change', function(e) { RVZ.set('people', e.target.checked); });
+};
+RVZ._syncPresets = function() {
+  RVZ.PRESETS.forEach(function(p) { var b = document.getElementById('rvzPre_' + p[0]); if (b) b.setAttribute('aria-pressed', String(!RVZ._free && RVZ.o.preset === p[0])); });
+  var n = document.getElementById('rvzCamNote');
+  if (n) n.textContent = RVZ._free ? 'Free orbit. Stills use the ' + RVZ.o.preset + ' preset; choose a preset to return to it.' : 'Drag to orbit, scroll to zoom.';
+};
+RVZ._sync = function() {
+  var o = RVZ.o, g = function(id) { return document.getElementById(id); };
+  if (!g('rvzDoy')) return;
+  var s = RVZ.sun(o), dp = RVZ.dayPath(o);
+  g('rvzDoy').value = o.doy; g('rvzMin').value = o.min; g('rvzRes').value = o.res; g('rvzPeople').checked = !!o.people;
+  g('rvzDoyV').textContent = s.day + ' ' + RVZ.MONTHS[s.month] + ' ' + o.year;
+  g('rvzMinV').textContent = RVZ.hhmm(o.min) + ' ' + s.zone;
+  document.querySelectorAll('#rvzRail [data-app]').forEach(function(b) { b.setAttribute('aria-pressed', String(b.dataset.app === o.appearance)); });
+  document.querySelectorAll('#rvzRail [data-scale]').forEach(function(b) { b.setAttribute('aria-pressed', String(+b.dataset.scale === o.scale)); });
+  var base = RVZ.RES[o.res]; g('rvzOutPx').textContent = 'PNG, ' + base[0] * o.scale + ' × ' + base[1] * o.scale + ' px, offscreen at full quality.';
+  g('rvzSunRead').innerHTML = s.up
+    ? 'Altitude <b>' + s.alt.toFixed(1) + '°</b> · azimuth <b>' + s.az.toFixed(0) + '° ' + RVZ.compass(s.az) + '</b><br>A 1 m post casts a <b>' + s.shadow.len.toFixed(2) + ' m</b> shadow toward ' + RVZ.compass(s.shadow.bearing) + '.'
+    : 'The sun is below the horizon (altitude ' + s.alt.toFixed(1) + '°).';
+  g('rvzSunRead').innerHTML += '<br><span class=\'rvz-dim\'>Sunrise ' + RVZ.hhmm(dp.rise) + ' · sunset ' + RVZ.hhmm(dp.set) + ' ' + s.zone + ' · ' + RVZ.SITE.place + ' ' + RVZ.SITE.lat.toFixed(2) + '° N ' + Math.abs(RVZ.SITE.lon).toFixed(2) + '° W · Project North ' + Math.round(s.north) + '° (set in Settings)</span>';
+  RVZ._drawPath(s, dp);
+  RVZ._syncPresets(); RVZ._ctx();
+};
+// Sun path: a polar plot, true north up (altitude 90 at the centre, the horizon on the rim),
+// the day's path, the sun now, and the street axis (world Z) at its compass bearing.
+RVZ._drawPath = function(s, dp) {
+  var svg = document.getElementById('rvzPath'); if (!svg) return;
+  var cx = 66, cy = 66, R = 58, P = function(alt, az) { var r = R * (1 - Math.max(0, alt) / 90), a = az * Math.PI / 180; return [cx + r * Math.sin(a), cy - r * Math.cos(a)]; };
+  var d = '', on = false;
+  dp.pts.forEach(function(p) { if (p.alt > 0) { var q = P(p.alt, p.az); d += (on ? ' L ' : ' M ') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); on = true; } else on = false; });
+  var sb = ((-s.north) % 180 + 180) % 180, sa = sb * Math.PI / 180, sx = Math.sin(sa) * R, sy = Math.cos(sa) * R;
+  var now = s.up ? P(s.alt, s.az) : null;
+  svg.innerHTML =
+    "<circle cx='" + cx + "' cy='" + cy + "' r='" + R + "' class='rvz-p-rim'/>" +
+    [30, 60].map(function(a) { return "<circle cx='" + cx + "' cy='" + cy + "' r='" + (R * (1 - a / 90)).toFixed(1) + "' class='rvz-p-ring'/>"; }).join('') +
+    "<line x1='" + (cx - sx).toFixed(1) + "' y1='" + (cy + sy).toFixed(1) + "' x2='" + (cx + sx).toFixed(1) + "' y2='" + (cy - sy).toFixed(1) + "' class='rvz-p-street'/>" +
+    "<text x='" + cx + "' y='6' class='rvz-p-n'>N</text>" +
+    (d ? "<path d='" + d + "' class='rvz-p-day'/>" : '') +
+    (now ? "<circle cx='" + now[0].toFixed(1) + "' cy='" + now[1].toFixed(1) + "' r='4.5' class='rvz-p-sun'/>" : '') +
+    "<text x='140' y='22' class='rvz-p-t'>Sun path</text>" +
+    "<text x='140' y='40' class='rvz-p-k'><tspan class='rvz-p-kd'>—</tspan> the day</text>" +
+    "<text x='140' y='56' class='rvz-p-k'><tspan class='rvz-p-ks'>●</tspan> now</text>" +
+    "<text x='140' y='72' class='rvz-p-k'><tspan class='rvz-p-kx'>- -</tspan> street axis</text>" +
+    "<text x='140' y='96' class='rvz-p-k'>rings: 30°, 60°</text>" +
+    "<text x='140' y='112' class='rvz-p-k'>rim: horizon</text>";
+};
+RVZ._ctx = function() {
+  var el = document.getElementById('rvzCtx'); if (!el) return;
+  var DM = _dmCurrent(), n = (FL3D.placed || []).length, hash = null;
+  try { hash = RVZ.designHash(); } catch (e) {}
+  var m = hash && RVZ.cache.get(hash);
+  el.innerHTML = "<div class='sb-section'><div class='sb-section-lbl'>Scene</div>" +
+    "<p class='rvz-ctx'>Renders the current design: a " + DM.parklet.length.toFixed(1) + ' × ' + DM.landmarks.deckW.toFixed(2) + ' m deck, ' + n + ' placed piece' + (n === 1 ? '' : 's') + ', the street from the Section editor. Edit the design in Design; this tab only looks.</p>' +
+    "<p class='rvz-ctx rvz-dim'>Sidewalks and the deck stand at the Section drawing's heights (0.15 m and 0.215 m above the road).</p></div>" +
+    "<div class='sb-section'><div class='sb-section-lbl'>Cached renders</div><p class='rvz-ctx'>" + (m && m.size ? m.size + ' for this design' : 'None for this design yet') + (hash ? " <span class='rvz-dim'>(design " + hash + ')</span>' : '') + '</p></div>';
+};
+RVZ._info = function(s) {
+  var el = document.getElementById('rvzViewInfo'); if (!el) return;
+  var lbl = RVZ._free ? 'Free orbit' : (RVZ.PRESETS.find(function(p) { return p[0] === RVZ.o.preset; }) || [0, ''])[1];
+  el.textContent = lbl + ' · ' + (RVZ.o.appearance === 'rendered' ? 'Rendered' : 'Schematic') + ' · preview · ' + (s.up ? 'sun ' + s.alt.toFixed(0) + '° / ' + s.az.toFixed(0) + '°' : 'sun below horizon');
+};
+RVZ._status = function(t, p) {
+  var el = document.getElementById('rvzStatus'), pr = document.getElementById('rvzProg');
+  if (el) el.textContent = t || '';
+  if (pr && p != null) pr.value = p;
+};
+RVZ._lock = function(on) { RVZ.busy = on; ['rvzStill', 'rvzAll'].forEach(function(id) { var b = document.getElementById(id); if (b) b.disabled = on; }); };
+RVZ.exportStill = async function(over) {
+  if (RVZ.busy) return null;
+  RVZ._lock(true);
+  try {
+    RVZ._status('Rendering ' + (over && over.preset || RVZ.o.preset) + '…', 0);
+    var e = await RVZ.renderStill(over, function(p, t) { RVZ._status(t, p); });
+    RVZ.download(e);
+    RVZ._status((e.cached ? 'From the cache: ' : 'Saved ') + RVZ.fileName(e) + ', ' + e.w + ' × ' + e.h + (e.cached ? '' : ' (' + (e.ms / 1000).toFixed(1) + ' s)'), 1);
+    RVZ._ctx();
+    return e;
+  } catch (err) {
+    console.error('[visualize] render failed', err);
+    RVZ._status('The render failed: ' + (err && err.message ? err.message : err) + '. Try a lower resolution or scale.', 0);
+    return null;
+  } finally { RVZ._lock(false); }
+};
+RVZ.exportAll = async function() {
+  if (RVZ.busy) return [];
+  RVZ._lock(true);
+  var done = [];
+  try {
+    for (var i = 0; i < RVZ.PRESETS.length; i++) {
+      var p = RVZ.PRESETS[i][0];
+      var e = await RVZ.renderStill({ preset: p }, function(f, t) { RVZ._status(RVZ.PRESETS[i][1] + ' (' + (i + 1) + ' of 4): ' + t, (i + f) / 4); });
+      RVZ.download(e); done.push(e);
+      await new Promise(function(r) { setTimeout(r, 400); });   // browsers accept a run of downloads spaced out
+    }
+    RVZ._status('Saved 4 stills (' + done.filter(function(e) { return e.cached; }).length + ' from the cache).', 1);
+    RVZ._ctx();
+  } catch (err) {
+    console.error('[visualize] render failed', err);
+    RVZ._status('The render failed: ' + (err && err.message ? err.message : err) + '.', 0);
+  } finally { RVZ._lock(false); }
+  return done;
+};
+</script>
 </body></html>
