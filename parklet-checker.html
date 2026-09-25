@@ -1669,8 +1669,24 @@ window.debugLandmarks = function() {
 // Standing check: recomputes each landmark independently from the raw inputs, compares it
 // with DESIGN_MODEL, and checks the Plan interaction helpers against what the renderer last
 // drew. Runs after every syncDesignModel(); silent when everything agrees.
+// A check that throws reports nothing: failures of the check itself are reported, not thrown.
 window.checkLandmarkConsistency = function(verbose) {
-  var DM = DESIGN_MODEL, LM = DM && DM.landmarks, bad = [];
+  try { return _checkLandmarkConsistency(verbose); }
+  catch (e) { (console.warn || console.log).call(console, '[checkLandmarkConsistency] the check itself failed: ' + (e && e.message ? e.message : e)); return false; }
+};
+// DOM is measured only where it is displayed and styled: a hidden element measures 0 x 0, and
+// while the document is still parsing the stylesheet at its end has not applied. What cannot be
+// measured is skipped and noted in info (window._lastConsistencyInfo), never reported as a warning.
+function _checkLandmarkConsistency(verbose) {
+  var DM = DESIGN_MODEL, LM = DM && DM.landmarks, bad = [], info = [];
+  var styled = document.readyState !== 'loading';
+  if (!styled) info.push('page still loading, DOM checks skipped');
+  var shown = function(el) { return styled && !!el && (el.offsetParent !== null || (getComputedStyle(el).position === 'fixed' && el.getClientRects().length > 0)); };
+  // 3D is compared only when its scene is current (a hidden viewport defers rebuilds) ...
+  var v3d = typeof _3d !== 'undefined' && !!_3d && !!_3d.group && typeof THREE !== 'undefined' && !(typeof _3dSceneDirty !== 'undefined' && _3dSceneDirty);
+  if (typeof _3d !== 'undefined' && _3d && _3d.group && !v3d) info.push('3D scene out of date (view hidden), 3D checks skipped');
+  // ... and the orientation check (the live camera) only when the 3D view is displayed.
+  var v3dShown = v3d && shown(document.getElementById('threeWrap'));
   if (!LM) { console.warn('[checkLandmarkConsistency] no landmarks -- buildDesignModel() has not run.'); return false; }
   function chk(name, model, live) {
     if (typeof model !== 'number' || typeof live !== 'number' || Math.abs(model - live) > 0.001)
@@ -1709,7 +1725,8 @@ window.checkLandmarkConsistency = function(verbose) {
     // Project an along-street pair (P1->P2) and an across-street pair (P3->P4) through
     // worldToPlan and through the live camera (screen y down). A rotation keeps the sign
     // of their 2D cross product; a mirror flips it. Valid while the camera is above ground.
-    var cam = (typeof _3d !== 'undefined' && _3d) ? _3d.camera : null;
+    var cam = v3dShown ? _3d.camera : null;
+    if (!v3dShown && v3d) info.push('3D view hidden, orientation check skipped');
     if (cam && typeof THREE !== 'undefined') {
       var dX = (LM.deckX0 + LM.deckX1) / 2, zMid = DM.parklet.length / 2;
       var P = [[dX, 1], [dX, DM.parklet.length - 1], [LM.sidewalkL.x0 / 2, zMid], [LM.roadCenterX, zMid]];
@@ -1731,7 +1748,7 @@ window.checkLandmarkConsistency = function(verbose) {
   // and compare z0 / z1 / faceX / backX with the model footprint (tolerance 0.01 m).
   var planSvg = document.getElementById('planView'), rows = [];
   var meshes = {};
-  if (typeof _3d !== 'undefined' && _3d && _3d.group && typeof THREE !== 'undefined')
+  if (v3d)
     _3d.group.traverse(function(o){ if (o.userData && o.userData.bldg) meshes[o.userData.bldg] = o; });
   ['L', 'R'].forEach(function(side) {
     DM.buildings[side].forEach(function(b, i) {
@@ -1772,7 +1789,7 @@ window.checkLandmarkConsistency = function(verbose) {
   // planToWorld must span exactly its model x0..x1 (tolerance 0.01 m).
   // The same segments must each have exactly one tagged 3D ground plane over x0..x1.
   var segRows = [], seg3d = {};
-  if (typeof _3d !== 'undefined' && _3d && _3d.group)
+  if (v3d)
     _3d.group.traverse(function(o){ if (o.userData && o.userData.seg) (seg3d[o.userData.seg] = seg3d[o.userData.seg] || []).push(o); });
   var have3d = Object.keys(seg3d).length > 0;
   var bands = DM.crossSection.slice();
@@ -1806,7 +1823,7 @@ window.checkLandmarkConsistency = function(verbose) {
   // Manholes: stored in metres (yM, xM). The drawn Plan centre must equal worldToPlan(yM, xM)
   // within 0.5 px, and the 3D cover must sit at world (yM, xM) within 0.01 m.
   var mhRows = [], mh3d = {};
-  if (typeof _3d !== 'undefined' && _3d && _3d.group)
+  if (v3d)
     _3d.group.traverse(function(o){ if (o.userData && o.userData.mh !== undefined) mh3d[o.userData.mh] = o; });
   (state['manholes'] || []).forEach(function(mh) {
     if (typeof mh.yM !== 'number' || 'yF' in mh) { bad.push({ value: 'manhole ' + mh.id + ' not stored in metres', model: 'yM', independent: JSON.stringify(mh) }); return; }
@@ -1830,9 +1847,9 @@ window.checkLandmarkConsistency = function(verbose) {
   // Vegetation: Plan and 3D must each draw exactly DESIGN_MODEL.vegetation.length plants, and
   // every plant must sit at worldToPlan(x, z) in Plan (0.5 px) and at (x, z) in 3D (0.01 m).
   var veg = DM.vegetation || [], vegPlan = planSvg ? planSvg.querySelectorAll('[data-veg]') : [], veg3d = {};
-  if (typeof _3d !== 'undefined' && _3d && _3d.group)
+  if (v3d)
     _3d.group.traverse(function(o){ if (o.userData && o.userData.veg !== undefined) veg3d[o.userData.veg] = o; });
-  var n3d = Object.keys(veg3d).length, have3dScene = typeof _3d !== 'undefined' && _3d && _3d.group && _3d.group.children.length > 0;
+  var n3d = Object.keys(veg3d).length, have3dScene = v3d && _3d.group.children.length > 0;
   if (planSvg && planSvg.childElementCount && vegPlan.length !== veg.length)
     bad.push({ value: 'Plan vegetation count', model: veg.length, independent: vegPlan.length });
   if (have3dScene && n3d !== veg.length)
@@ -1853,11 +1870,12 @@ window.checkLandmarkConsistency = function(verbose) {
   // Furniture: every archetype piece's 3D size (its non-veg meshes, measured in the piece's own
   // frame so rotation does not inflate the box) and its Plan glyph (local metres) must equal the
   // size its params give (flInstDims), within 5 mm.
-  var furnRows = [];
+  var furnRows = [], planShown = !!planSvg && shown(planSvg.parentNode);
+  if (!planShown && FL3D && FL3D.placed && FL3D.placed.length) info.push('Plan hidden, furniture glyph bbox check skipped');
   if (typeof FL3D !== 'undefined' && FL3D && FL3D.placed && typeof THREE !== 'undefined') FL3D.placed.forEach(function(inst) {
     if (!inst.archetype) return;
     var want = flInstDims(inst), row = { id: inst.id, archetype: inst.archetype, model: [want.l, want.d, want.h] };
-    if (inst.mesh) {
+    if (v3d && inst.mesh) {
       var b = new THREE.Box3(), inv = new THREE.Matrix4();
       inst.mesh.updateMatrixWorld(true); inv.copy(inst.mesh.matrixWorld).invert();
       inst.mesh.traverse(function(c) {
@@ -1867,7 +1885,7 @@ window.checkLandmarkConsistency = function(verbose) {
       });
       var sz = b.getSize(new THREE.Vector3()); row.view3d = [sz.x, sz.z, sz.y];
     }
-    var g = (planSvg && planSvg.getBoundingClientRect().width > 0) ? planSvg.querySelector("g.pv-furn[data-inst='" + inst.id + "']") : null;
+    var g = planShown ? planSvg.querySelector("g.pv-furn[data-inst='" + inst.id + "']") : null;
     if (g) {
       var u = null;
       [].forEach.call(g.querySelectorAll('.fl-part'), function(e) {
@@ -1895,26 +1913,41 @@ window.checkLandmarkConsistency = function(verbose) {
     chk('section: cut objects drawn vs getSectionScene', scn.cut.filter(noEnt).length, _seSvg.querySelectorAll('[data-sec="cut"]').length);
     chk('section: beyond objects drawn vs getSectionScene', scn.beyond.filter(noEnt).length, _seSvg.querySelectorAll('[data-sec="beyond"]').length);
   }
-  // Section strip: each segment's overlay box edges = worldToSection of its x0 / x1 (0.5 px).
-  var _seF = typeof window.seFrame === 'function' ? window.seFrame() : null, _seStrip = document.getElementById('seStrip');
-  if (_seF && _seStrip && _seStrip.offsetWidth > 0) {
-    var _sr = _seStrip.getBoundingClientRect();
+  // Section strip. (1) The edges the overlay laid out (window.seBoxes) = worldToSection of each
+  // segment's x0 / x1 in a frame built fresh from the model (0.5 px) - no DOM. (2) Only when the
+  // strip is displayed: each box in the DOM sits on its laid-out edges (0.5 px).
+  var _seF = typeof window.seFrame === 'function' ? window.seFrame() : null, _seB = typeof window.seBoxes === 'function' ? window.seBoxes() : null;
+  if (_seF && _seB) {
+    var _seFresh = sectionFrame(DM, { pxPerM: _seF.SC, minWidth: _seF.minWidth });
     DM.crossSection.forEach(function(q) {
-      var el = document.getElementById('seg_' + q.id); if (!el) { bad.push({ value: 'section box ' + q.id + ' missing', model: 1, independent: 0 }); return; }
-      var r = el.getBoundingClientRect(), sp = sectionSpan(q.x0, q.x1, _seF), l = r.left - _sr.left - _seStrip.clientLeft, rr = l + r.width;
-      if (Math.abs(l - sp[0]) > 0.5 || Math.abs(rr - sp[1]) > 0.5)
-        bad.push({ value: 'section box ' + q.type + ' ' + q.id + ' edges', model: sp[0].toFixed(2) + '..' + sp[1].toFixed(2), independent: l.toFixed(2) + '..' + rr.toFixed(2) });
+      var b = _seB[q.id], sp = sectionSpan(q.x0, q.x1, _seFresh);
+      if (!b) { bad.push({ value: 'section box ' + q.type + ' ' + q.id + ' not laid out', model: 'box', independent: 'missing' }); return; }
+      if (Math.abs(b[0] - sp[0]) > 0.5 || Math.abs(b[1] - sp[1]) > 0.5)
+        bad.push({ value: 'section box ' + q.type + ' ' + q.id + ' laid out off the model', model: sp[0].toFixed(2) + '..' + sp[1].toFixed(2), independent: b[0].toFixed(2) + '..' + b[1].toFixed(2) });
     });
+    var _seStrip = document.getElementById('seStrip');
+    if (shown(_seStrip)) {
+      var _sr = _seStrip.getBoundingClientRect();
+      DM.crossSection.forEach(function(q) {
+        var el = document.getElementById('seg_' + q.id), b = _seB[q.id]; if (!b) return;
+        if (!el) { bad.push({ value: 'section box ' + q.type + ' ' + q.id + ' missing from the DOM', model: 'box', independent: 'missing' }); return; }
+        var r = el.getBoundingClientRect(), l = r.left - _sr.left - _seStrip.clientLeft, rr = l + r.width;
+        if (Math.abs(l - b[0]) > 0.5 || Math.abs(rr - b[1]) > 0.5)
+          bad.push({ value: 'section box ' + q.type + ' ' + q.id + ' DOM edges', model: b[0].toFixed(2) + '..' + b[1].toFixed(2), independent: l.toFixed(2) + '..' + rr.toFixed(2) });
+      });
+    } else info.push('section strip hidden, DOM check skipped');
   }
+  window._lastConsistencyInfo = info;
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL: ' +
       bad.map(function(b){ return b.value; }).join('; '));
-    console.table(bad);
+    (console.table || console.log).call(console, bad);
   } else if (verbose !== false) {
     console.log('[checkLandmarkConsistency] OK -- landmarks, globals and Plan helpers agree.');
   }
+  if (info.length && verbose !== false) (console.info || console.log).call(console, '[checkLandmarkConsistency] ' + info.join('; '));
   return bad.length === 0;
-};
+}
 
 // Build (or rebuild) DESIGN_MODEL from the canonical source.
 // CANONICAL SOURCE: window.seGetSegs() â€” the section editor's _segs array.
@@ -3436,7 +3469,9 @@ document.addEventListener('mouseup', function() {
     var q = (DESIGN_MODEL.crossSection || []).find(function(x) { return x.id === s.id; });
     return q ? sectionSpan(q.x0, q.x1, f) : [0, 0];
   }
-  function _place(el, b) { el.style.left = b[0].toFixed(2) + 'px'; el.style.width = Math.max(0, b[1] - b[0]).toFixed(2) + 'px'; }
+  // the edges each box was laid out on (px), for the consistency check: computed, not measured
+  var _boxes = {};
+  function _place(el, b, id) { el.style.left = b[0].toFixed(2) + 'px'; el.style.width = Math.max(0, b[1] - b[0]).toFixed(2) + 'px'; if (id) _boxes[id] = [+b[0].toFixed(2), +(+b[0].toFixed(2) + +Math.max(0, b[1] - b[0]).toFixed(2)).toFixed(2)]; }
   function _renderStrip() {
     var strip = document.getElementById('seStrip'); if (!strip) return;
     var f = _frameNow(), m = _metrics();
@@ -3445,6 +3480,8 @@ document.addEventListener('mouseup', function() {
       var s = _segs[i];
       var def = SE_TYPES[s.type] || {};
       var bx = _boxOf(s, f), px = bx[1] - bx[0];
+      if (i === 0) _boxes = {};
+      _boxes[s.id] = [+bx[0].toFixed(2), +(+bx[0].toFixed(2) + +px.toFixed(2)).toFixed(2)];
       // Handles on both edges of a resizable segment appear on hover (col-resize). The name is the
       // only text inside a segment, at one size; its width sits in the dimension chain below.
       var rhHtml = (def.resize && !def.fixed) ?
@@ -3489,7 +3526,8 @@ document.addEventListener('mouseup', function() {
   function _renderWidths() {
     var strip = document.getElementById('seStrip'); if (!strip) return;
     var f = _frameNow(), m = _metrics();
-    _segs.forEach(function(s) { var el = document.getElementById('seg_'+s.id); if (el) _place(el, _boxOf(s, f)); });
+    _boxes = {};
+    _segs.forEach(function(s) { var el = document.getElementById('seg_'+s.id); if (el) _place(el, _boxOf(s, f), s.id); });
     var uEl = document.getElementById('seUnalloc');
     if (uEl) {
       var ub = _boxOf('unalloc', f), unallocPx = Math.abs(m.remaining) >= 0.001 ? ub[1] - ub[0] : 0;
@@ -3969,6 +4007,7 @@ document.addEventListener('mouseup', function() {
   // the model changed (cut, depth, direction, furniture, widths): boxes, chain and drawing follow
   window.seRenderObjects = function() { _renderWidths(); };
   window.seFrame = function() { return _frame; };
+  window.seBoxes = function() { return _boxes; };
 
 })();
 
@@ -4164,7 +4203,7 @@ function sectionFrame(DM, o) {
   var mir = !!(DM.section && DM.section.dir === 1);
   return { SC: SC, xL: xL, xR: xR, W: W, H: SECTION_H + (o.labels === 'paper' ? 44 : 0), groundY: SECTION_GROUND_Y,
     mir: mir, xs: mir ? -1 : 1, x0: mir ? W - SECTION_POCHE_PX + xL * SC : SECTION_POCHE_PX - xL * SC,
-    poche: SECTION_POCHE_PX, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
+    poche: SECTION_POCHE_PX, minWidth: o.minWidth || 0, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
     swRaise: Math.round(0.15 * SC), deckTk: Math.max(3, Math.round(0.065 * SC)) };
 }
 function worldToSection(x, y, f) { return { px: f.x0 + f.xs * x * f.SC, py: f.groundY - (y || 0) * f.SC }; }
