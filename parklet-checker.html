@@ -19374,8 +19374,21 @@ RVZ.build = function(o) {
     if ((a.dirZ || 1) !== (b.dirZ || 1)) [-0.1, 0.1].forEach(function(o) { plane(lx + o - 0.05, zA, lx + o + 0.05, zB, 0.004, RVZ.mat('paint_yellow')); });
     else for (var z2 = zA; z2 < zB; z2 += 9) plane(lx - 0.05, z2, lx + 0.05, z2 + 3, 0.004, RVZ.mat('paint'));
   }
-  plane(LM.roadLeft + 0.02, zA, LM.roadLeft + 0.12, zB, 0.004, RVZ.mat('paint'));
-  plane(LM.roadRight - 0.12, zA, LM.roadRight - 0.02, zB, 0.004, RVZ.mat('paint'));
+  // The road reads as a road: a 0.3 m concrete gutter pan along both curbs (the curb line), the
+  // parking lane's edge line and bay ticks either side of the deck (the parklet takes the parking
+  // lane, deckX0..deckX1) and along any parking segment. No painted line at the curb itself.
+  var gut = M('precast_grey', '#CFCBC3');
+  plane(LM.roadLeft, zA, LM.roadLeft + 0.3, zB, 0.003, gut);
+  plane(LM.roadRight - 0.3, zA, LM.roadRight, zB, 0.003, gut);
+  function bays(x0, x1, z0, z1, from, dir) {   // edge line on the traffic side x1; a tick every 6.5 m from z = from, going dir
+    if (z1 - z0 < 0.5) return;
+    plane(x1 - 0.1, z0, x1, z1, 0.004, RVZ.mat('paint'));
+    for (var zt = from; zt >= z0 - 0.01 && zt <= z1 + 0.01; zt += dir * 6.5) plane(x1 - 0.6, zt - 0.05, x1 - 0.1, zt + 0.05, 0.004, RVZ.mat('paint'));
+  }
+  bays(LM.deckX0, LM.deckX1, zA, -0.6, -0.6, -1);
+  bays(LM.deckX0, LM.deckX1, L + 0.6, zB, L + 0.6, 1);
+  DM.crossSection.forEach(function(s) { if (s.type === 'parking') bays(s.x0, s.x1, zA, zB, 0, 1); });
+  RVZ._bays = { x0: LM.deckX0, x1: LM.deckX1, before: -0.6, after: L + 0.6, len: 6.5 };
 
   // Sidewalks (raised 0.15 m, the last 0.15 m is the curb), landscape buffers, setbacks
   var swl = LM.sidewalkL, swr = LM.sidewalkR;
@@ -19526,6 +19539,12 @@ RVZ._people = function(DM, dress) {
     var hip = 0.165 * it.params.h / 1.75;
     put(it, s.x + Math.sin(s.head) * hip, s.z + Math.cos(s.head) * hip, DT, s.head);
   });
+  // a car parked in the first bay beyond each end of the deck (street context, not design)
+  var B = RVZ._bays;
+  if (B) [B.before - B.len / 2, B.after + B.len / 2].forEach(function(zz, i) {
+    var it = AXE.item(rnd, i ? 'car_suv' : 'car_small');
+    dress(fl3DArchetype(it.type, it.params, it.mats), (B.x0 + B.x1) / 2 + 0.1, 0, zz, FL_BASE_YAW, { noReceive: true, contactOp: 0.3 });
+  });
   var firstLane = true;
   (DM.paths || []).forEach(function(p) {
     if (p.kind === 'sidewalk') {
@@ -19635,35 +19654,36 @@ RVZ.renderWith = function(r, S, cam, o, aerial) {
 };
 
 // ── Cameras ───────────────────────────────────────────────────────────────────────────────
-// Presets are world positions / targets computed from the landmarks, so they frame any deck:
-// each one slides its camera back along a line until the deck (and 2.4 m above it) fits.
-RVZ._fitPts = function(z0, z1) {
-  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, out = [];
-  [LM.deckX0 - 0.3, LM.deckX1 + 0.3].forEach(function(x) { [0, RVZ.DECK_TOP + 2.4].forEach(function(y) { [z0 == null ? -0.5 : z0, z1 == null ? L + 0.5 : z1].forEach(function(z) { out.push(new THREE.Vector3(x, y, z)); }); }); });
-  return out;
+// Presets are world positions / targets computed from the landmarks (RVZ.presets below).
+// Lens: a horizontal field of view on a 36 mm-wide frame (the full-frame equivalent), turned into
+// three's vertical fov for the aspect. 40 deg = 49.5 mm; nothing wider than 35 mm (54.4 deg) is used.
+RVZ.LENS = { hfov: 40, minMm: 35 };
+RVZ.mmOf = function(hfov) { return 18 / Math.tan(hfov * Math.PI / 360); };
+RVZ.vfov = function(hfov, aspect) {
+  var h = Math.min(hfov, 2 * Math.atan(18 / RVZ.LENS.minMm) * 180 / Math.PI);
+  return 2 * Math.atan(Math.tan(h * Math.PI / 360) / aspect) * 180 / Math.PI;
 };
-RVZ._fits = function(cam, pts, m) {
-  return pts.every(function(p) { var v = p.clone().project(cam); return v.z < 1 && v.z > -1 && Math.abs(v.x) <= m && Math.abs(v.y) <= m; });
-};
+// Presets from the landmarks, so they work for any deck: a normal lens, eye height 1.5 m, aimed at
+// the deck centre at 0.9 m. Positions are fixed offsets from the deck, not slid back to fit the
+// whole deck in frame: a long deck runs out of the frame, as it would to the eye.
+//   Street:   in the near travel lane, 5.5 m from the deck's traffic-side edge, ~35 deg off the
+//             street axis, looking back at the parklet (sidewalk and building behind it). On a
+//             narrow lane the camera stays 0.4 m inside the lane and the angle narrows.
+//   Sidewalk: on the near sidewalk, 6 m along from the deck centre, eye 1.5 m over the walk,
+//             looking obliquely across the deck (road and far side behind it).
+//   Corner:   3 m out from the deck's start end, at its traffic-side corner, 2.2 m high.
+//   Aerial:   the Brief 06 isometric axon camera (unchanged).
 RVZ.presets = function(aspect) {
-  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, cx = (LM.deckX0 + LM.deckX1) / 2, pts = RVZ._fitPts(), out = {};
-  var xMaxCam = LM.sidewalkR ? LM.sidewalkR.x1 - 0.4 : LM.roadRight;   // never inside the far buildings
-  function solve(fov, posAt, tgt, s1, m, P) {
-    var c = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1200), s = 0;
-    for (; s <= s1; s += 0.25) { c.position.fromArray(posAt(s)); c.lookAt(tgt); c.updateMatrixWorld(true); if (RVZ._fits(c, P || pts, m || 0.9)) break; }
-    return { pos: posAt(Math.min(s, s1)), target: tgt.toArray(), fov: fov };
-  }
-  // Street: across the road at eye level (1.6 m over the far sidewalk), sliding back along the street
-  var xf = LM.sidewalkR && LM.sidewalkR.x1 - LM.sidewalkR.x0 > 0.5 ? (LM.sidewalkR.x0 + LM.sidewalkR.x1) / 2 : LM.roadRight - 0.6;
-  var yf = RVZ.surfYAt(xf) + 1.6;
-  var hw = Math.min(L / 2, 5.5) + 0.3;
-  out.street = solve(55, function(s) { return [xf, yf, L / 2 - 1.5 - s]; }, new THREE.Vector3(cx, RVZ.DECK_TOP + 0.75, L / 2), 80, 0.9, RVZ._fitPts(L / 2 - hw, L / 2 + hw));
-  // Sidewalk: walking past on the near sidewalk, eye level, before the start end
-  var xs = -LM.sidewalkW * 0.45;
-  out.sidewalk = solve(55, function(s) { return [xs, RVZ.SW_RAISE + 1.6, -2 - s]; }, new THREE.Vector3(cx + 0.3, RVZ.DECK_TOP + 0.7, Math.min(L, 10) * 0.6), 80, 0.92, RVZ._fitPts(-0.5, Math.min(L, 10)));
-  // Corner: a 3/4 view 4 m high from the road side, 40 deg off the street axis, past the start end
-  var a = 40 * Math.PI / 180;
-  out.corner = solve(45, function(s) { var d = 5 + s; return [Math.min(cx + d * Math.sin(a), xMaxCam), 4, L / 2 - d * Math.cos(a)]; }, new THREE.Vector3(cx, RVZ.DECK_TOP + 0.4, L / 2), 90);
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, cx = (LM.deckX0 + LM.deckX1) / 2, zc = L / 2, SR = RVZ.SW_RAISE;
+  var tgt = [cx, 0.9, zc], fov = RVZ.vfov(RVZ.LENS.hfov, aspect), mm = +RVZ.mmOf(RVZ.LENS.hfov).toFixed(1), out = {};
+  var lane = DM.crossSection.filter(function(s) { return s.type === 'travel-lane' && s.x0 >= LM.deckX1 - 0.01; }).sort(function(p, q) { return p.x0 - q.x0; })[0];
+  var D = 5.5, a = 35 * Math.PI / 180, across = D * Math.sin(a);
+  if (lane) across = Math.max(0.6, Math.min(across, lane.x1 - 0.4 - LM.deckX1));
+  var along = Math.sqrt(D * D - across * across);
+  out.street = { pos: [LM.deckX1 + across, 1.5, zc - along], target: tgt, fov: fov, mm: mm, angleDeg: +(Math.atan2(across, along) * 180 / Math.PI).toFixed(1), fromEdge: D };
+  var xs = -LM.sidewalkW * 0.5;
+  out.sidewalk = { pos: [xs, SR + 1.5, zc - 6], target: tgt, fov: fov, mm: mm, angleDeg: +(Math.atan2(cx - xs, 6) * 180 / Math.PI).toFixed(1) };
+  out.corner = { pos: [LM.deckX1, 2.2, -3], target: tgt, fov: fov, mm: mm, angleDeg: +(Math.atan2(Math.abs(cx - LM.deckX1), zc + 3) * 180 / Math.PI).toFixed(1) };
   out.aerial = { ortho: true, note: 'AXE.camera(iso)' };
   return out;
 };
@@ -20050,7 +20070,7 @@ RVZ.exportAll = async function() {
    caption burned in (RVZP.composite). Results are cached in IndexedDB by (design hash, preset,
    prompt hash, strength, provider mode). */
 var RVZP = {
-  PIPELINE: 'p2',   // p2: the generated image at 1536 x 864 (p1 kept a ControlNet preview)
+  PIPELINE: 'p3',   // p3: normal-lens presets, blur by distance from the deck (p2: 1536 x 864 output; p1 kept a ControlNet preview)
   LONG: 1536, CAPTION: 'AI-assisted visualisation - indicative',
   o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0, entInContext: false },
   WEATHER: { sunny: 'sunny, clear sky', overcast: 'overcast, soft diffuse light', golden: 'golden hour, warm low light', rain: 'just after rain, wet reflective pavement' },
@@ -20097,6 +20117,11 @@ RVZP.passes = function(preset, po) {
       fragmentShader: 'uniform float dn; uniform float df; varying float vz; void main() { float d = clamp((vz - dn) / (df - dn), 0.0, 1.0); gl_FragColor = vec4(vec3(1.0 - d), 1.0); }' });
     out.depth = pass(function() { return dm; });
     out.depthRange = [+dn.toFixed(2), +df.toFixed(2)];
+    // distance from the deck centre along the street, |world Z - L/2| / 24 m (sky = 1): the blur's map
+    var zm = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { zc: { value: DESIGN_MODEL.parklet.length / 2 } },
+      vertexShader: 'varying float wz; void main() { vec4 w = modelMatrix * vec4(position, 1.0); wz = w.z; gl_Position = projectionMatrix * viewMatrix * w; }',
+      fragmentShader: 'uniform float zc; varying float wz; void main() { gl_FragColor = vec4(vec3(clamp(abs(wz - zc) / 24.0, 0.0, 1.0)), 1.0); }' });
+    r.setClearColor(0xffffff, 1); out.zdist = pass(function() { return zm; }); r.setClearColor(0x000000, 1); zm.dispose();
     var nm = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
     out.normals = pass(function() { return nm; });
     // restore (the scene is disposed below, but its materials are the shared RVZ cache)
@@ -20233,19 +20258,19 @@ RVZP.ready = function() { return !!(RVZP.proxy && RVZP.proxy.proxy && RVZP.proxy
 RVZP._img = function(blob) { return createImageBitmap(blob); };
 RVZP._blob = function(cv, type, q) { return new Promise(function(res) { cv.toBlob(res, type || 'image/png', q); }); };
 // out = mask' * lerp(aiDesign, base colour, fidelity) + (1 - mask') * context, where mask' is the
-// mask feathered 6 px and the context is the high-strength pass blurred by depth: sharp at the
-// deck's depth, up to 6 px where the scene is far behind (or in front of) it. Then the caption.
+// mask feathered 6 px and the context is the high-strength pass, blurred by distance from the deck
+// (below). Then the caption.
 RVZP.composite = function(L, fidelity) {
   var W = L.W, H = L.H, cv = function() { var c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
   var get = function(src, blur) { var c = cv(), x = c.getContext('2d'); if (blur) x.filter = 'blur(' + blur + 'px)'; x.drawImage(src, 0, 0, W, H); return x.getImageData(0, 0, W, H).data; };
-  var base = get(L.colour), des = get(L.aiDesign), c0 = get(L.aiContext), c1 = get(L.aiContext, 2.5), c2 = get(L.aiContext, 6), mk = get(L.mask, 6), dp = get(L.depth), mkS = get(L.mask);
-  // focus = the median depth of the design region
-  var hist = new Uint32Array(256), nIn = 0;
-  for (var i = 0; i < mkS.length; i += 4) if (mkS[i] > 127) { hist[dp[i]]++; nIn++; }
-  var acc = 0, focus = 128; for (var h = 0; h < 256; h++) { acc += hist[h]; if (acc >= nIn / 2) { focus = h; break; } }
+  // The blur follows distance from the DECK along the street (L.zdist: |world Z - deck centre| / 24 m),
+  // not depth from the camera: sharp within +-6 m of the deck centre (the road and sidewalk beside
+  // it, the near facade), easing to 2 px at 12 m and 4 px (the maximum) from 18 m. No zdist layer
+  // (an entry from before it): no blur.
+  var base = get(L.colour), des = get(L.aiDesign), c0 = get(L.aiContext), c1 = get(L.aiContext, 2), c2 = get(L.aiContext, 4), mk = get(L.mask, 6), zd = L.zdist ? get(L.zdist) : null;
   var out = cv(), ox = out.getContext('2d'), im = ox.createImageData(W, H), o = im.data, f = Math.max(0, Math.min(1, fidelity || 0));
   for (var k = 0; k < o.length; k += 4) {
-    var m = mk[k] / 255, dz = Math.min(1, Math.abs(dp[k] - focus) / 90), a = Math.min(1, dz * 2), b = Math.max(0, dz * 2 - 1);
+    var m = mk[k] / 255, dm = zd ? zd[k] / 255 * 24 : 0, bl = Math.max(0, Math.min(1, (dm - 6) / 12)), a = Math.min(1, bl * 2), b = Math.max(0, bl * 2 - 1);
     for (var ch = 0; ch < 3; ch++) {
       var ctx = c0[k + ch] * (1 - a) + (c1[k + ch] * (1 - b) + c2[k + ch] * b) * a;
       var dsg = des[k + ch] * (1 - f) + base[k + ch] * f;
@@ -20360,12 +20385,12 @@ RVZP.runPreset = async function(preset, prompt, strength) {
     for (var i = 0; i < 2; i++) if (!got[i]) got[i] = await ad.poll(jobs[i]);
     RVZP._set(preset, 'running', (got[0] ? 1 : 0) + (got[1] ? 1 : 0) + ' of 2 passes back');
   }
-  var L = { W: P.W, H: P.H, colour: P.colour, depth: P.depth, mask: P.mask, aiDesign: await RVZP._img(got[0]), aiContext: await RVZP._img(got[1]) };
+  var L = { W: P.W, H: P.H, colour: P.colour, depth: P.depth, zdist: P.zdist, mask: P.mask, aiDesign: await RVZP._img(got[0]), aiContext: await RVZP._img(got[1]) };
   var fin = RVZP.composite(L, RVZP.o.fidelity), dsgCv = RVZP._copy(L.aiDesign, P.W, P.H);
   var al = RVZP.alignment(dsgCv, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P);
   var e = { key: key, preset: preset, design: hash, strength: strength, prompt: prompt.text, negative: prompt.negative, created: Date.now(), W: P.W, H: P.H, useInReport: false,
     meta: { strengths: [sD, sC], depthRange: P.depthRange, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
-    blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), aiDesign: got[0], aiContext: got[1], final: await RVZP._blob(fin) } };
+    blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), zdist: await RVZP._blob(P.zdist), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), aiDesign: got[0], aiContext: got[1], final: await RVZP._blob(fin) } };
   await RVZP.dbPut(e);
   RVZP.entries[preset] = e;
   console.log('[photoreal] rendered ' + preset + ' ' + P.W + 'x' + P.H + ' (design ' + hash + ', strengths ' + sD + ' / ' + sC + '), edge IoU in the mask vs edges.png ' + al.edges + ' (base render ' + al.ceiling + ', relative ' + al.relative + '), vs the base render ' + al.base + ', benches in the design region ' + benches.visibleInMask + ' of ' + benches.placed + ' placed; cached');
@@ -20481,7 +20506,7 @@ RVZP._gallery = async function() {
   gl.querySelectorAll('.rvzp-fid').forEach(function(sl) {
     sl.oninput = async function() {   // replay the composite from the stored layers: nothing is re-rendered
       var e = RVZP.entries[sl.dataset.preset], im = function(b) { return RVZP._img(b); };
-      var L = { W: e.W, H: e.H, colour: await im(e.blobs.colour), depth: await im(e.blobs.depth), mask: await im(e.blobs.mask), aiDesign: await im(e.blobs.aiDesign), aiContext: await im(e.blobs.aiContext) };
+      var L = { W: e.W, H: e.H, colour: await im(e.blobs.colour), depth: await im(e.blobs.depth), zdist: e.blobs.zdist ? await im(e.blobs.zdist) : null, mask: await im(e.blobs.mask), aiDesign: await im(e.blobs.aiDesign), aiContext: await im(e.blobs.aiContext) };
       var c = RVZP.composite(L, +sl.value), img = sl.closest('.rvzp-card').querySelector('.rvzp-final');
       c.toBlob(function(b) { img.src = url(b); });
     };
