@@ -434,6 +434,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 </div>
 
 <div class='ctx-section' id='ctxSite'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site</span></div><div class="sb-section">        <div class="sb-section-lbl">Site Setup</div>                <div class="ff">          <label>Street address</label>          <input type="text" id="streetAddress" placeholder="e.g. 1000-block Robson St"                 oninput="saveSettings()">        </div>
+        <div class='site-map-row'><button type='button' class='ctx-btn' id='siteMapBtn' onclick='SM.open()'>Locate on map</button><span class='hint' id='siteMapHint'>Search an address, click the street, then the parklet's side. Uses OpenStreetMap.</span></div>
         <div class='site-orient-block' id='siteOrient'>
           <div class='ff'>
             <label>Street runs <span class='hint'>bearing of the street axis, clockwise from true north</span></label>
@@ -452,7 +453,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
           <div class='ff'>
             <label for='sitePaste'>Paste coordinates</label>
             <input type='text' id='sitePaste' placeholder='49.2827, -123.1207' autocomplete='off' oninput='siteParsePaste(this.value)'>
-            <span class='hint'>Paste "lat, lon" in decimal degrees from a map. There is no address lookup: nothing is geocoded.</span>
+            <span class='hint'>Paste "lat, lon" in decimal degrees from a map, or use Locate on map above to search an address.</span>
             <span class='hint site-msg' id='sitePasteMsg' role='status'></span>
           </div>
           <div class='site-rose-wrap'><div id='siteRose'></div><p class='site-orient-txt' id='siteOrientTxt' aria-live='polite'></p></div>
@@ -21067,5 +21068,236 @@ RVZP._gallery = async function() {
     };
   });
 };
+</script>
+<style>
+/* -- Site from map (Brief 13): the map picker ----------------------------------------------- */
+#smModal { position: fixed; inset: 0; z-index: 900; display: none; background: rgba(10, 12, 14, .62); }
+#smModal.open { display: flex; align-items: center; justify-content: center; }
+.sm-box { width: min(1100px, 94vw); height: min(760px, 90vh); display: grid; grid-template-rows: auto auto 1fr auto; background: var(--c-panel, #202328); color: var(--c-text, #F2F2F0); border: 1px solid var(--c-rule, #2E3338); border-radius: 6px; overflow: hidden; font: var(--fs-13, 13px) var(--font-ui, sans-serif); }
+.sm-head { display: flex; align-items: center; gap: var(--sp-2, 8px); padding: var(--sp-2, 8px) var(--sp-3, 12px); border-bottom: 1px solid var(--c-rule, #2E3338); }
+.sm-head h3 { margin: 0; font-size: var(--fs-13, 13px); font-weight: 600; letter-spacing: .02em; flex: 1; }
+.sm-search { display: flex; gap: var(--sp-2, 8px); padding: var(--sp-2, 8px) var(--sp-3, 12px); border-bottom: 1px solid var(--c-rule, #2E3338); position: relative; }
+.sm-search input { flex: 1; height: 28px; padding: 0 8px; background: var(--c-bg, #17191C); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; color: var(--c-text, #F2F2F0); font: inherit; }
+.sm-search input:focus { outline: none; border-color: var(--accent-ui, #3AA8E4); }
+.sm-btn { height: 28px; padding: 0 12px; background: var(--c-bg, #17191C); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; color: var(--c-text, #F2F2F0); font: inherit; cursor: pointer; }
+.sm-btn:hover { border-color: var(--accent-ui, #3AA8E4); }
+.sm-btn:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
+.sm-btn.primary { background: var(--accent-ui, #3AA8E4); border-color: var(--accent-ui, #3AA8E4); color: var(--c-bg, #17191C); font-weight: 600; }
+.sm-btn:disabled { opacity: .45; cursor: default; }
+.sm-results { position: absolute; left: var(--sp-3, 12px); right: 110px; top: 40px; z-index: 5; margin: 0; padding: 0; list-style: none; background: var(--c-bg, #17191C); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; max-height: 240px; overflow: auto; }
+.sm-results li { padding: 6px 8px; cursor: pointer; border-bottom: 1px solid var(--c-rule, #2E3338); }
+.sm-results li:hover, .sm-results li:focus { background: rgba(58, 168, 228, .16); outline: none; }
+#smMap { position: relative; min-height: 0; background: #C9D6DF; }
+#smMap .sm-offline { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; color: #2B2B2B; line-height: 1.5; }
+.sm-foot { display: flex; align-items: center; gap: var(--sp-2, 8px); padding: var(--sp-2, 8px) var(--sp-3, 12px); border-top: 1px solid var(--c-rule, #2E3338); }
+.sm-status { flex: 1; color: var(--c-text-dim, #9AA0A6); line-height: 1.4; }
+.sm-status b { color: var(--c-text, #F2F2F0); font-weight: 600; }
+.site-map-row { display: flex; align-items: center; gap: var(--sp-2, 8px); margin: 2px 0 var(--sp-2, 8px); }
+.site-map-row .hint { flex: 1; }
+</style>
+<div id='smModal' role='dialog' aria-modal='true' aria-labelledby='smTitle'>
+  <div class='sm-box'>
+    <div class='sm-head'><h3 id='smTitle'>Locate the parklet on the map</h3><button type='button' class='sm-btn' id='smClose' onclick='SM.close()'>Close</button></div>
+    <form class='sm-search' onsubmit='SM.search(); return false;'>
+      <input type='search' id='smQuery' placeholder='Search an address in Vancouver, e.g. 1000 Robson St' autocomplete='off' aria-label='Address search'>
+      <button type='submit' class='sm-btn' id='smGo'>Search</button>
+      <ul class='sm-results' id='smResults' hidden></ul>
+    </form>
+    <div id='smMap'></div>
+    <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
+      <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' disabled>Use this location</button></div>
+  </div>
+</div>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// SITE FROM MAP (Brief 13) - Phase 1: the map picker
+// A MapLibre GL map (OSM raster tiles, attribution shown), an address search (Nominatim), a
+// click on a street that snaps to the nearest OSM highway way (Overpass), a second click for the
+// parklet's side. "Use this location" writes the site orientation through siteSet (lat, lon,
+// streetBearing from the way's segment at the snapped point, parkletSide) and the street address.
+// Network: only from the page, to services that allow CORS; the render proxy is not involved.
+// Nominatim: at most 1 request / s, one query per search (on submit, never per keystroke: its
+// policy forbids autocomplete). A browser cannot set User-Agent, so requests identify the app by
+// the Referer the browser sends; SM.contact() (localStorage 'pkt_osm_contact', empty by default)
+// is added as Nominatim's email parameter only when the user sets it. Responses are cached in
+// IndexedDB 'pkt-sitemap' for 7 days, keyed by the rounded lat / lon (or the query text).
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var SM = {
+  LIB: 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl',
+  NOMINATIM: 'https://nominatim.openstreetmap.org',
+  OVERPASS: 'https://overpass-api.de/api/interpreter',
+  TTL: 7 * 24 * 3600 * 1000,
+  VAN: { lon: -123.1207, lat: 49.2827, bbox: '-123.27,49.33,-123.02,49.19' },
+  HIGHWAY: '^(trunk|primary|secondary|tertiary|unclassified|residential|living_street|service)(_link)?$',
+  map: null, pick: null, _last: {}
+};
+SM.contact = function() { try { return (localStorage.getItem('pkt_osm_contact') || '').trim(); } catch (e) { return ''; } };
+SM.status = function(html) { var el = document.getElementById('smStatus'); if (el) el.innerHTML = html; };
+SM.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); };
+
+// ── Cache (IndexedDB, 7 days) ────────────────────────────────────────────────────────────────
+SM._db = function() {
+  if (SM._dbp) return SM._dbp;
+  SM._dbp = new Promise(function(res, rej) {
+    var q = indexedDB.open('pkt-sitemap', 1);
+    q.onupgradeneeded = function() { q.result.createObjectStore('cache', { keyPath: 'key' }); };
+    q.onsuccess = function() { res(q.result); }; q.onerror = function() { rej(q.error); };
+  });
+  return SM._dbp;
+};
+SM.cacheGet = async function(key) {
+  try {
+    var db = await SM._db(), v = await new Promise(function(res, rej) { var r = db.transaction('cache').objectStore('cache').get(key); r.onsuccess = function() { res(r.result); }; r.onerror = function() { rej(r.error); }; });
+    return v && Date.now() - v.t < SM.TTL ? v.data : null;
+  } catch (e) { return null; }
+};
+SM.cachePut = async function(key, data) {
+  try { var db = await SM._db(); db.transaction('cache', 'readwrite').objectStore('cache').put({ key: key, t: Date.now(), data: data }); } catch (e) {}
+};
+SM.round = function(v) { return (+v).toFixed(4); };   // ~10 m: the cache cell
+
+// ── Network: one request at a time per service, Nominatim spaced 1 s ───────────────────────────
+SM.fetchJSON = async function(service, key, url, init) {
+  var hit = await SM.cacheGet(key);
+  if (hit) { console.log('[site-map] cache hit: ' + key); return hit; }
+  var gap = service === 'nominatim' ? 1000 : 0, wait = (SM._last[service] || 0) + gap - Date.now();
+  if (wait > 0) await new Promise(function(r) { setTimeout(r, wait); });
+  SM._last[service] = Date.now();
+  var r;
+  try { r = await fetch(url, Object.assign({ headers: { Accept: 'application/json' } }, init || {})); }
+  catch (e) { var err = new Error('offline'); err.offline = true; throw err; }
+  if (!r.ok) throw new Error(service + ' answered HTTP ' + r.status + (r.status === 429 ? ' (too many requests: wait a minute)' : ''));
+  var j = await r.json();
+  SM.cachePut(key, j);
+  return j;
+};
+SM.overpass = function(key, q) {
+  return SM.fetchJSON('overpass', 'overpass|' + key, SM.OVERPASS, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'data=' + encodeURIComponent(q) });
+};
+SM.offlineText = 'Map data can\'t be reached: the network is offline or the map services are blocked. The Site tab still works: set the street bearing, side and coordinates by hand.';
+
+// ── Local metres around a point (equirectangular; ample within 100 m) ─────────────────────────
+SM.enu = function(lat0, lon0) {
+  var ky = 110574, kx = 111320 * Math.cos(lat0 * Math.PI / 180);
+  return { to: function(lat, lon) { return { e: (lon - lon0) * kx, n: (lat - lat0) * ky }; }, from: function(e, n) { return { lat: lat0 + n / ky, lon: lon0 + e / kx }; } };
+};
+// Nearest point on the ways (Overpass `out geom`) to (lat, lon): {way, seg, e, n, dist, bearing (0-179, the segment's axis)}
+SM.snap = function(ways, lat, lon) {
+  var T = SM.enu(lat, lon), best = null;
+  ways.forEach(function(w) {
+    var g = (w.geometry || []).map(function(p) { return T.to(p.lat, p.lon); });
+    for (var i = 1; i < g.length; i++) {
+      var a = g[i - 1], b = g[i], dx = b.e - a.e, dy = b.n - a.n, l2 = dx * dx + dy * dy; if (l2 < 1e-6) continue;
+      var t = Math.max(0, Math.min(1, -(a.e * dx + a.n * dy) / l2)), pe = a.e + t * dx, pn = a.n + t * dy, d = Math.hypot(pe, pn);
+      if (!best || d < best.dist) best = { way: w, seg: i, e: pe, n: pn, dist: d, bearing: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI, 180), len: Math.sqrt(l2) };
+    }
+  });
+  if (best) { var ll = T.from(best.e, best.n); best.lat = ll.lat; best.lon = ll.lon; }
+  return best;
+};
+
+// ── The picker ────────────────────────────────────────────────────────────────────────────────
+SM.loadLib = function() {
+  if (window.maplibregl) return Promise.resolve();
+  if (SM._libp) return SM._libp;
+  SM._libp = new Promise(function(res, rej) {
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = SM.LIB + '.css'; document.head.appendChild(css);
+    var s = document.createElement('script'); s.src = SM.LIB + '.js'; s.onload = function() { res(); }; s.onerror = function() { SM._libp = null; rej(new Error('offline')); };
+    document.head.appendChild(s);
+  });
+  return SM._libp;
+};
+SM.open = async function() {
+  var m = document.getElementById('smModal'); m.classList.add('open');
+  SM.pick = null; document.getElementById('smUse').disabled = true;
+  document.getElementById('smQuery').focus();
+  SM.status('Loading the map...');
+  try { await SM.loadLib(); }
+  catch (e) {
+    document.getElementById('smMap').innerHTML = "<div class='sm-offline'>" + SM.offlineText + '</div>';
+    SM.status('The map library could not be loaded.'); return;
+  }
+  if (!SM.map) {
+    var so = SITE_ORIENT, c = so && so.lat ? [so.lon, so.lat] : [SM.VAN.lon, SM.VAN.lat];
+    SM.map = new maplibregl.Map({ container: 'smMap', center: c, zoom: 16, attributionControl: false,
+      style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' } },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }] } });
+    SM.map.addControl(new maplibregl.AttributionControl({ compact: false }), 'bottom-right');
+    SM.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    SM.map.on('load', function() {
+      SM.map.addSource('smWay', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      SM.map.addLayer({ id: 'smWay', type: 'line', source: 'smWay', paint: { 'line-color': '#3AA8E4', 'line-width': 6, 'line-opacity': 0.75 } });
+    });
+    SM.map.on('click', function(e) { SM.onClick(e.lngLat.lat, e.lngLat.lng); });
+  } else SM.map.resize();
+  SM.status('Search an address or pan the map, then <b>click the street</b> where the parklet goes.');
+};
+SM.close = function() { document.getElementById('smModal').classList.remove('open'); document.getElementById('smResults').hidden = true; };
+SM.search = async function() {
+  var q = document.getElementById('smQuery').value.trim(), ul = document.getElementById('smResults');
+  if (!q || SM._searching) return;
+  if (SM._lastQ === q && Date.now() - (SM._lastQt || 0) < 1500) return;   // a repeated submit is not a second query
+  SM._searching = true; SM._lastQ = q; SM._lastQt = Date.now();
+  var ct = SM.contact(), url = SM.NOMINATIM + '/search?format=jsonv2&limit=5&countrycodes=ca&viewbox=' + SM.VAN.bbox + '&q=' + encodeURIComponent(q) + (ct ? '&email=' + encodeURIComponent(ct) : '');
+  SM.status('Searching...');
+  try {
+    var res = await SM.fetchJSON('nominatim', 'search|' + q.toLowerCase(), url);
+    ul.innerHTML = res.length ? res.map(function(r, i) { return "<li tabindex='0' data-i='" + i + "'>" + SM.esc(r.display_name) + '</li>'; }).join('') : '<li>No match. Try the street and block, e.g. 1000 Robson St.</li>';
+    ul.hidden = false; SM._res = res;
+    ul.onclick = ul.onkeydown = function(ev) {
+      if (ev.type === 'keydown' && ev.key !== 'Enter') return;
+      var li = ev.target.closest('li'), r = li && SM._res[+li.getAttribute('data-i')]; if (!r) return;
+      ul.hidden = true; SM._addr = r.display_name.split(',').slice(0, 3).join(',').trim();
+      if (SM.map) SM.map.flyTo({ center: [+r.lon, +r.lat], zoom: 18 });
+      SM.status('<b>' + SM.esc(SM._addr) + '</b>. Now click the street where the parklet goes.');
+    };
+    SM.status(res.length ? 'Pick a result.' : 'No match.');
+  } catch (e) { SM.status(e.offline ? SM.offlineText : SM.esc(e.message)); }
+  finally { SM._searching = false; }
+};
+// First click: the street (snap to the nearest highway way within 30 m). Second click: the side.
+SM.onClick = async function(lat, lon) {
+  if (SM.pick && SM.pick.snap) return SM.setSide(lat, lon);
+  SM.status('Finding the street...');
+  var q = '[out:json][timeout:15];way(around:30,' + lat + ',' + lon + ')[highway~"' + SM.HIGHWAY + '"];out tags geom;';
+  try {
+    var j = await SM.overpass('ways|' + SM.round(lat) + ',' + SM.round(lon), q), sn = SM.snap(j.elements || [], lat, lon);
+    if (!sn) { SM.status('No street within 30 m of that point. Click on a street.'); return; }
+    var t = sn.way.tags || {};
+    SM.pick = { snap: sn, wayId: sn.way.id, name: t.name || '', highway: t.highway || '', tags: t, fetchedAt: new Date().toISOString() };
+    SM.map.getSource('smWay').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: sn.way.geometry.map(function(p) { return [p.lon, p.lat]; }) } });
+    if (SM._mk) SM._mk.remove(); if (SM._mkS) { SM._mkS.remove(); SM._mkS = null; }
+    SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([sn.lon, sn.lat]).addTo(SM.map);
+    document.getElementById('smUse').disabled = true;
+    SM.status('<b>' + SM.esc(SM.pick.name || 'Unnamed street') + '</b> (' + SM.esc(SM.pick.highway) + ', OSM way ' + sn.way.id + '), axis ' + Math.round(sn.bearing) + '&deg; from north. Now <b>click the side of the street</b> the parklet is on.');
+  } catch (e) { SM.status(e.offline ? SM.offlineText : SM.esc(e.message)); }
+};
+SM.setSide = function(lat, lon) {
+  var sn = SM.pick.snap, T = SM.enu(sn.lat, sn.lon), v = T.to(lat, lon);
+  if (Math.hypot(v.e, v.n) < 1) { SM.status('Click a little way off the street, on the parklet\'s side.'); return; }
+  var vb = siteNorm(Math.atan2(v.e, v.n) * 180 / Math.PI), sides = siteSides(sn.bearing);
+  var side = siteAngle(sides[0].bearing, vb) <= siteAngle(sides[1].bearing, vb) ? sides[0] : sides[1];
+  SM.pick.side = side;
+  if (SM._mkS) SM._mkS.remove();
+  var el = document.createElement('div'); el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#F2F2F0;border:3px solid #3AA8E4;box-shadow:0 0 0 1px #17191C';
+  SM._mkS = new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(SM.map);
+  document.getElementById('smUse').disabled = false;
+  SM.status('Parklet on the <b>' + side.name + '</b> side of <b>' + SM.esc(SM.pick.name || 'the street') + '</b>, street axis ' + Math.round(sn.bearing) + '&deg;. <b>Use this location</b>, or click again to change the side.');
+};
+// Writes the site: lat / lon of the snapped point, the way's axis there, the side; the address
+// (the search result, else the street name). SM.lastPick keeps the way for the context import.
+SM.use = function() {
+  var p = SM.pick; if (!p || !p.side) return;
+  var sn = p.snap, addr = SM._addr || (p.name ? p.name + ' (near ' + sn.lat.toFixed(5) + ', ' + sn.lon.toFixed(5) + ')' : '');
+  var ad = document.getElementById('streetAddress'); if (ad && addr) ad.value = addr;
+  siteUI.custom = [0, 45, 90, 135].indexOf(Math.round(sn.bearing * 100) / 100) < 0;   // show the bearing field for an oblique street
+  state.__siteMap = { wayId: p.wayId, name: p.name, highway: p.highway, lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name, sideBearing: p.side.bearing, address: addr, fetchedAt: p.fetchedAt };
+  siteSet({ lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name }, 'site-map');
+  if (typeof SM.onUse === 'function') SM.onUse(state.__siteMap);
+  console.log('[site-map] site set from OSM way ' + p.wayId + ' (' + (p.name || 'unnamed') + '): ' + sn.lat.toFixed(6) + ', ' + sn.lon.toFixed(6) + ', street axis ' + sn.bearing.toFixed(2) + ' deg, parklet on the ' + p.side.name + ' side');
+  SM.close();
+};
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('smModal').classList.contains('open')) SM.close(); });
 </script>
 </body></html>
