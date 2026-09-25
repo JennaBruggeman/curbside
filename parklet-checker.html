@@ -21242,12 +21242,13 @@ SM.fetchJSON = async function(service, key, url, init, signal) {
   var gap = service === 'nominatim' ? 1000 : 0, wait = (SM._last[service] || 0) + gap - Date.now();
   if (wait > 0) await new Promise(function(r) { setTimeout(r, wait); });
   SM._last[service] = Date.now();
-  var r, host = String(url).replace(/^https?:\/\/([^/]+).*$/, '$1');
+  var r, host = (init && init.hostLabel) || String(url).replace(/^https?:\/\/([^/]+).*$/, '$1');   // a relayed request names its upstream server
   // a busy server (429 / 502-504, Overpass especially) is retried after 4 s, then 8 s: its fair-use guidance asks clients to back off
   for (var tr = 0; ; tr++) {
     try { r = await fetch(url, Object.assign({ headers: { Accept: 'application/json' } }, init || {}, signal ? { signal: signal } : {})); }
     catch (e) { throw SM.classify(e, host, signal); }
-    if ([429, 502, 503, 504].indexOf(r.status) < 0 || tr >= 2) break;
+    // a relayed request's 502 / 504 is final: the relay already waited out the upstream server
+    if ((init && init.hostLabel && String(url).charAt(0) === '/' ? [429, 503] : [429, 502, 503, 504]).indexOf(r.status) < 0 || tr >= 2) break;
     console.log('[site-map] ' + service + ' answered HTTP ' + r.status + ', retrying in ' + (4 << tr) + ' s');
     await new Promise(function(res) { var tw = setTimeout(res, 4000 << tr); if (signal) signal.addEventListener('abort', function() { clearTimeout(tw); res(); }); }); SM._last[service] = Date.now();
     if (signal && signal.aborted) throw SM.classify(null, host, signal);
@@ -21260,8 +21261,20 @@ SM.fetchJSON = async function(service, key, url, init, signal) {
 SM.overpassUrl = function() { return SM.OVERPASS_LIST[SM._ov % SM.OVERPASS_LIST.length]; };
 SM.overpassHost = function() { return SM.overpassUrl().replace(/^https?:\/\/([^/]+).*$/, '$1'); };
 SM.nextOverpass = function() { SM._ov = (SM._ov + 1) % SM.OVERPASS_LIST.length; };
-SM.overpass = function(key, q, signal) {
-  return SM.fetchJSON('overpass', 'overpass|' + key, SM.overpassUrl(), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'data=' + encodeURIComponent(q) }, signal);
+// Served from localhost: through the local server's /overpass relay (tools/serve.ps1: the three allow-listed
+// servers, a 45 s limit, the upstream status passed through); elsewhere, or when that server has no relay
+// (e.g. Live Server answers 404 / 405), directly. Either way the error names the Overpass server.
+SM.useRelay = function() { return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && SM._relayOff !== true; };
+SM.overpass = async function(key, q, signal) {
+  var host = SM.overpassHost(), init = { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'data=' + encodeURIComponent(q), hostLabel: host };
+  if (SM.useRelay()) {
+    try { return await SM.fetchJSON('overpass', 'overpass|' + key, '/overpass?server=' + encodeURIComponent(host), init, signal); }
+    catch (e) {
+      if (e.status !== 404 && e.status !== 405) throw e;
+      SM._relayOff = true; console.log('[site-map] this server has no /overpass relay (HTTP ' + e.status + '): Overpass is queried directly');
+    }
+  }
+  return SM.fetchJSON('overpass', 'overpass|' + key, SM.overpassUrl(), init, signal);
 };
 SM.offlineText = 'Map data can\'t be reached: the network is offline or the map services are blocked. The Site tab still works: set the street bearing, side and coordinates by hand.';
 
@@ -21351,10 +21364,10 @@ SM.onClick = async function(lat, lon) {
   SM.status('Finding the street...');
   var q = '[out:json][timeout:10];way(around:30,' + lat + ',' + lon + ')[highway~"' + SM.HIGHWAY + '"];out tags geom;';
   try {
-    // up to two Overpass servers, 12 s each: a server that does not answer hands over to the next
-    var j = null;
+    // up to two Overpass servers, 12 s each (through the relay 50 s: it answers within its 45 s): a server that does not answer hands over to the next
+    var j = null, lim = SM.useRelay() && typeof SMP !== 'undefined' ? SMP.OV_TIMEOUT : 12000;
     for (var k = 0; k < 2 && !j; k++) {
-      var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = setTimeout(function() { if (ctl) ctl.abort(); }, 12000);
+      var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = setTimeout(function() { if (ctl) ctl.abort({ limitS: lim / 1000 }); }, lim);
       try { j = await SM.overpass('ways|' + SM.round(lat) + ',' + SM.round(lon), q, ctl && ctl.signal); }
       catch (e2) { if (e2.offline) throw e2; var h0 = SM.overpassHost(); SM.nextOverpass(); if (k === 1) { e2.message = h0 + ': ' + e2.message + '; click again to try ' + SM.overpassHost(); throw e2; } SM.status('Finding the street... (' + h0 + ' did not answer; trying ' + SM.overpassHost() + ')'); }
       finally { clearTimeout(tm); }
@@ -21621,7 +21634,8 @@ SMP.msg = function(html) { var el = document.getElementById('smpMsg'); if (el) e
 // data is fetched first; nothing is applied unless every step succeeded, so a failed step leaves
 // the design as it was, names the step and offers Retry (an Overpass failure moves Retry to the
 // next Overpass server). The line always ends in a result or an error, never in a spinner.
-SMP.TIMEOUT = 20000;
+SMP.TIMEOUT = 20000;      // CoV steps
+SMP.OV_TIMEOUT = 50000;   // the Overpass step: longer than the relay's 45 s, so the relay answers (504) before the page gives up
 SMP.STEPS = [['street', 'OSM street'], ['buildings', 'OSM buildings'], ['hydrants', 'CoV hydrants'], ['trees', 'CoV trees'], ['transit', 'transit']];
 // A step: its work gets an AbortSignal; at the limit the signal is aborted with {limitS} as the reason,
 // and the request fails through SM.classify ('no answer within N s'). Work that ignores the abort is
@@ -21658,7 +21672,7 @@ SMP.importContext = async function() {
   try {
     // fetch (nothing changes yet)
     data.osm = await runStep('street', async function(sig) {
-      var q = '[out:json][timeout:' + SMP.ovQueryTimeout(SMP.TIMEOUT) + '];way(' + sm.wayId + ')->.s;.s out tags geom;rel(bw.s)[route~"^(bus|trolleybus)$"];out tags;' +
+      var q = '[out:json][timeout:' + SMP.ovQueryTimeout(SMP.OV_TIMEOUT) + '];way(' + sm.wayId + ')->.s;.s out tags geom;rel(bw.s)[route~"^(bus|trolleybus)$"];out tags;' +
         'way(around:' + SMP.R + ',' + la + ',' + lo + ')[building];out tags geom;node(around:' + SMP.R + ',' + la + ',' + lo + ')[~"^(amenity|shop|office)$"~"."];out body;' +
         'node(around:' + SMP.R + ',' + la + ',' + lo + ')[highway=bus_stop];out body;' +
         (sm.name ? 'way(around:25,' + la + ',' + lo + ')[highway][oneway][name="' + sm.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"];out tags geom;' : '');
@@ -21666,7 +21680,7 @@ SMP.importContext = async function() {
       var el = (j && j.elements) || [];
       if (!el.some(function(e) { return e.type === 'way' && e.id === sm.wayId; })) throw new Error('the picked street (way ' + sm.wayId + ') was not returned');
       return { el: el, at: at };
-    });
+    }, SMP.OV_TIMEOUT);
     SMP._ovTimedOut = false;
     var el = data.osm.el;
     data.parts = await runStep('buildings', async function() {

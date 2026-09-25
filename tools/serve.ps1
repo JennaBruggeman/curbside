@@ -7,6 +7,8 @@
 #   RENDER_MOCK=1 (or the key "mock"): no outbound calls; a job "succeeds" after ~1.5 s and returns
 #   the submitted colour image. For testing the pipeline, not a render.
 # Endpoints (JSON unless noted):
+#   POST /overpass?server=<host>     relay an Overpass query (body data=...) to one of three allow-listed
+#                                    servers, 45 s limit, upstream status passed through (504 on a timeout, incl. a connection that timed out; 502 on any other failure)
 #   GET  /render-proxy/health        {ok, provider, keyPresent (bool), port, models, mode} -- never the key
 #   GET  /render-proxy/status        {proxy, provider, model, key: present|missing, mode: live|mock}
 #   POST /render-proxy/submit        body {images:{colour, depth, edges} (data URLs), prompt, negative,
@@ -241,6 +243,48 @@ function Poll([string]$id) {
   return @{ status = [string]$p.status }
 }
 
+# -- Overpass relay (POST /overpass?server=<host>) --------------------------------------------------
+# The page's Overpass queries (site import, street click) go through here when it is served from
+# localhost: only the three allow-listed servers, a 45 s limit, the upstream status code and body
+# passed through unchanged. A timeout answers 504, a failure to connect 502, each with {error}.
+# Note: this server handles one request at a time, so a slow Overpass call holds it up to 45 s.
+$OverpassHosts = @{
+  'overpass-api.de'       = 'https://overpass-api.de/api/interpreter'
+  'maps.mail.ru'          = 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+  'overpass.kumi.systems' = 'https://overpass.kumi.systems/api/interpreter'
+}
+$OverpassTimeoutS = 45
+function Proxy-Overpass($ctx) {
+  $srv = [string]$ctx.Request.QueryString['server']; if (-not $srv) { $srv = 'overpass-api.de' }
+  $up = $OverpassHosts[$srv]
+  if (-not $up) { Send-Json $ctx @{ error = ('not an allowed Overpass server: ' + $srv) } 400; return }
+  $ms = New-Object IO.MemoryStream; $ctx.Request.InputStream.CopyTo($ms); $body = $ms.ToArray()
+  $h = New-Object System.Net.Http.HttpClientHandler; $h.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
+  $hc = New-Object System.Net.Http.HttpClient($h); $hc.Timeout = [TimeSpan]::FromSeconds($OverpassTimeoutS)
+  [void]$hc.DefaultRequestHeaders.UserAgent.TryParseAdd('ParkletChecker/0.5 (local relay)')
+  $content = New-Object System.Net.Http.ByteArrayContent(,$body)
+  $content.Headers.ContentType = New-Object System.Net.Http.Headers.MediaTypeHeaderValue('application/x-www-form-urlencoded')
+  $t0 = [DateTime]::UtcNow
+  try {
+    $resp = $hc.PostAsync($up, $content).GetAwaiter().GetResult()
+    $bytes = $resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult()
+    $ctx.Response.StatusCode = [int]$resp.StatusCode
+    if ($resp.Content.Headers.ContentType) { $ctx.Response.ContentType = $resp.Content.Headers.ContentType.ToString() }
+    $ctx.Response.Headers.Add('Cache-Control', 'no-store')
+    $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+    Log ('overpass ' + $srv + ' -> HTTP ' + [int]$resp.StatusCode + ' in ' + [Math]::Round(([DateTime]::UtcNow - $t0).TotalSeconds, 1) + ' s, ' + $bytes.Length + ' bytes')
+  } catch {
+    $ex = $_.Exception; while ($ex.InnerException) { $ex = $ex.InnerException }
+    $secs = ([DateTime]::UtcNow - $t0).TotalSeconds
+    # a timeout, including a connection attempt that timed out, is a gateway timeout (504); anything else 502
+    $connTimeout = ($ex -is [System.Net.Sockets.SocketException]) -and ($ex.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut)
+    $timedOut = ($ex -is [System.OperationCanceledException]) -or $connTimeout -or ($secs -ge ($OverpassTimeoutS - 0.5))
+    $code = 502; $msg = ($srv + ': ' + $ex.Message)
+    if ($timedOut) { $code = 504; $msg = ($srv + $(if ($connTimeout) { ' did not accept a connection (timed out after ' + [Math]::Round($secs) + ' s)' } else { ' did not answer within ' + $OverpassTimeoutS + ' s' })) }
+    Log ('overpass ' + $srv + ' -> ' + $code + ' after ' + [Math]::Round($secs, 1) + ' s (' + $ex.Message + ')')
+    Send-Json $ctx @{ error = $msg } $code
+  } finally { $hc.Dispose() }
+}
 function Send-Json($ctx, $obj, [int]$code = 200) {
   $b = [Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Depth 6 -Compress))
   $ctx.Response.StatusCode = $code; $ctx.Response.ContentType = 'application/json; charset=utf-8'
@@ -258,7 +302,13 @@ while ($l.IsListening) {
   $c = $l.GetContext()
   try {
     $path = [Uri]::UnescapeDataString($c.Request.Url.AbsolutePath)
-    if ($path.StartsWith('/render-proxy/')) {
+    if ($path -eq '/overpass') {
+      # the page's own origin only (a browser sends Origin on a cross-site POST); curl sends none
+      $origin = $c.Request.Headers['Origin']
+      if ($origin -and $origin -ne ('http://localhost:' + $Port)) { Log ('refused /overpass (origin ' + $origin + ')'); Send-Json $c @{ error = 'forbidden' } 403 }
+      elseif ($c.Request.HttpMethod -ne 'POST') { Send-Json $c @{ error = 'POST only' } 405 }
+      else { Proxy-Overpass $c }
+    } elseif ($path.StartsWith('/render-proxy/')) {
       $origin = $c.Request.Headers['Origin']
       $ok = ($c.Request.Headers['X-Render-Proxy'] -eq '1') -and (-not $origin -or $origin -eq ('http://localhost:' + $Port))
       if (-not $ok) { Log ('refused ' + $path + ' (origin ' + $origin + ')'); Send-Json $c @{ error = 'forbidden' } 403 }
