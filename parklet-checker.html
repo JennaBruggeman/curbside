@@ -21222,6 +21222,20 @@ SM.cachePut = async function(key, data) {
 SM.round = function(v) { return (+v).toFixed(4); };   // ~10 m: the cache cell
 
 // ── Network: one request at a time per service, Nominatim spaced 1 s ───────────────────────────
+// The one place a failed request is classified. Its message is the reason every caller shows:
+//   timeout   the request was aborted by its step's time limit: 'no answer within N s' (N from the abort reason)
+//   offline   navigator.onLine is false: 'the network is offline'
+//   noAnswer  the request failed while online (no connection, a hung server, a reply without CORS): '<host> did not answer (...)'
+//   status    an HTTP error: '<host> answered HTTP <status>'
+SM.classify = function(e, host, signal, status) {
+  var err;
+  if (status) { err = new Error(host + ' answered HTTP ' + status + (status === 429 ? ' (too many requests: wait a minute)' : '')); err.status = status; }
+  else if (signal && signal.aborted) { var lim = signal.reason && signal.reason.limitS; err = new Error('no answer within ' + (lim != null ? Math.round(lim) : '?') + ' s'); err.timeout = true; }
+  else if (navigator.onLine === false) { err = new Error('the network is offline'); err.offline = true; }
+  else { err = new Error(host + ' did not answer (the server may be busy, rate-limiting or blocked)'); err.noAnswer = true; }
+  err.host = host || null;
+  return err;
+};
 SM.fetchJSON = async function(service, key, url, init, signal) {
   var hit = await SM.cacheGet(key);
   if (hit) { console.log('[site-map] cache hit: ' + key); SM.lastAt = SM._hitAt || new Date().toISOString(); return hit; }
@@ -21232,20 +21246,14 @@ SM.fetchJSON = async function(service, key, url, init, signal) {
   // a busy server (429 / 502-504, Overpass especially) is retried after 4 s, then 8 s: its fair-use guidance asks clients to back off
   for (var tr = 0; ; tr++) {
     try { r = await fetch(url, Object.assign({ headers: { Accept: 'application/json' } }, init || {}, signal ? { signal: signal } : {})); }
-    catch (e) {
-      var err;
-      if (signal && signal.aborted) { err = new Error('no answer within the time limit'); err.timeout = true; }
-      else if (navigator.onLine === false) { err = new Error('offline'); err.offline = true; }
-      else { err = new Error(host + ' did not answer (the server may be busy, rate-limiting or blocked)'); err.noAnswer = true; }
-      throw err;
-    }
+    catch (e) { throw SM.classify(e, host, signal); }
     if ([429, 502, 503, 504].indexOf(r.status) < 0 || tr >= 2) break;
     console.log('[site-map] ' + service + ' answered HTTP ' + r.status + ', retrying in ' + (4 << tr) + ' s');
-    await new Promise(function(res) { setTimeout(res, 4000 << tr); }); SM._last[service] = Date.now();
-    if (signal && signal.aborted) { var ea = new Error('no answer within the time limit'); ea.timeout = true; throw ea; }
+    await new Promise(function(res) { var tw = setTimeout(res, 4000 << tr); if (signal) signal.addEventListener('abort', function() { clearTimeout(tw); res(); }); }); SM._last[service] = Date.now();
+    if (signal && signal.aborted) throw SM.classify(null, host, signal);
   }
-  if (!r.ok) throw new Error(host + ' answered HTTP ' + r.status + (r.status === 429 ? ' (too many requests: wait a minute)' : ''));
-  var j = await r.json();
+  if (!r.ok) throw SM.classify(null, host, signal, r.status);
+  var j; try { j = await r.json(); } catch (e) { throw SM.classify(e, host, signal); }
   SM.cachePut(key, j); SM.lastAt = new Date().toISOString();
   return j;
 };
@@ -21341,7 +21349,7 @@ SM.search = async function() {
 SM.onClick = async function(lat, lon) {
   if (SM.pick && SM.pick.snap) return SM.setSide(lat, lon);
   SM.status('Finding the street...');
-  var q = '[out:json][timeout:15];way(around:30,' + lat + ',' + lon + ')[highway~"' + SM.HIGHWAY + '"];out tags geom;';
+  var q = '[out:json][timeout:10];way(around:30,' + lat + ',' + lon + ')[highway~"' + SM.HIGHWAY + '"];out tags geom;';
   try {
     // up to two Overpass servers, 12 s each: a server that does not answer hands over to the next
     var j = null;
@@ -21598,7 +21606,9 @@ SMP.normName = function(s) {
 // ── Fetch ────────────────────────────────────────────────────────────────────────────────────
 SMP.cov = async function(ds, field, lat, lon, signal) {
   var w = 'within_distance(' + field + ", geom'POINT(" + lon + ' ' + lat + ")', " + SMP.R + 'm)';
-  var j = await SM.fetchJSON('cov', 'cov|' + ds + '|' + SM.round(lat) + ',' + SM.round(lon), SMP.COV + ds + '/records?limit=100&where=' + encodeURIComponent(w), null, signal);
+  var j;
+  try { j = await SM.fetchJSON('cov', 'cov|' + ds + '|' + SM.round(lat) + ',' + SM.round(lon), SMP.COV + ds + '/records?limit=100&where=' + encodeURIComponent(w), null, signal); }
+  catch (e) { e.dataset = ds; throw e; }
   return { rows: (j && j.results) || [], at: SM.lastAt };
 };
 SMP.pt = function(r) { var g = r.geo_point_2d || (r.geom && r.geom.geometry && { lon: r.geom.geometry.coordinates[0], lat: r.geom.geometry.coordinates[1] }); return g && isFinite(g.lat) ? g : null; };
@@ -21613,11 +21623,18 @@ SMP.msg = function(html) { var el = document.getElementById('smpMsg'); if (el) e
 // next Overpass server). The line always ends in a result or an error, never in a spinner.
 SMP.TIMEOUT = 20000;
 SMP.STEPS = [['street', 'OSM street'], ['buildings', 'OSM buildings'], ['hydrants', 'CoV hydrants'], ['trees', 'CoV trees'], ['transit', 'transit']];
-SMP.step = function(fn) {
-  var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, timer;
-  return Promise.race([fn(ctl && ctl.signal), new Promise(function(res, rej) { timer = setTimeout(function() { if (ctl) ctl.abort(); var e = new Error('no answer within ' + SMP.TIMEOUT / 1000 + ' s'); e.timeout = true; rej(e); }, SMP.TIMEOUT); })])
-    .finally(function() { clearTimeout(timer); });
+// A step: its work gets an AbortSignal; at the limit the signal is aborted with {limitS} as the reason,
+// and the request fails through SM.classify ('no answer within N s'). Work that ignores the abort is
+// cut off 1.5 s later with the same classification.
+SMP.step = function(fn, ms) {
+  ms = ms == null ? SMP.TIMEOUT : ms;
+  var ctl = new AbortController(), timer, late;
+  return Promise.race([fn(ctl.signal), new Promise(function(res, rej) { timer = setTimeout(function() { ctl.abort({ limitS: ms / 1000 }); late = setTimeout(function() { rej(SM.classify(null, null, ctl.signal)); }, 1500); }, ms); })])
+    .finally(function() { clearTimeout(timer); clearTimeout(late); });
 };
+// The Overpass query's own [timeout:NN]: 25 s, and after a timed-out attempt at most the step limit - 2 s
+SMP.ovQueryTimeout = function(limitMs) { return SMP._ovTimedOut ? Math.max(1, Math.floor(limitMs / 1000) - 2) : 25; };
+SMP.COVLABEL = { 'water-hydrants': 'CoV hydrants', 'public-trees': 'CoV trees', 'rapid-transit-stations': 'transit', bikeways: 'CoV bikeways' };
 SMP.progress = function(st, tail) {
   return SMP.STEPS.map(function(s) { var v = st[s[0]] || 'wait'; return "<span class='smp-st " + v + "'>" + s[1] + (v === 'ok' ? '...' : v === 'run' ? '...' : v === 'fail' ? ' - failed' : '') + '</span>'; }).join(' ') + (tail ? ' ' + tail : '');
 };
@@ -21637,20 +21654,20 @@ SMP.importContext = async function() {
   var st = {}, data = {}, cur = null, rep = { street: {}, buildings: { L: 0, R: 0, skipped: 0 }, hydrants: 0, trees: 0, transit: 0, notes: [], errors: [] };
   var show = function(tail) { SMP.msg(SMP.progress(st, tail)); };
   var la = sm.lat, lo = sm.lon;
-  var runStep = async function(key, fn) { cur = key; st[key] = 'run'; show(); var v = await SMP.step(fn); st[key] = 'ok'; show(); return v; };
+  var runStep = async function(key, fn, ms) { cur = key; st[key] = 'run'; show(); var v = await SMP.step(fn, ms); st[key] = 'ok'; show(); return v; };
   try {
     // fetch (nothing changes yet)
     data.osm = await runStep('street', async function(sig) {
-      var q = '[out:json][timeout:18];way(' + sm.wayId + ')->.s;.s out tags geom;rel(bw.s)[route~"^(bus|trolleybus)$"];out tags;' +
+      var q = '[out:json][timeout:' + SMP.ovQueryTimeout(SMP.TIMEOUT) + '];way(' + sm.wayId + ')->.s;.s out tags geom;rel(bw.s)[route~"^(bus|trolleybus)$"];out tags;' +
         'way(around:' + SMP.R + ',' + la + ',' + lo + ')[building];out tags geom;node(around:' + SMP.R + ',' + la + ',' + lo + ')[~"^(amenity|shop|office)$"~"."];out body;' +
         'node(around:' + SMP.R + ',' + la + ',' + lo + ')[highway=bus_stop];out body;' +
         (sm.name ? 'way(around:25,' + la + ',' + lo + ')[highway][oneway][name="' + sm.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"];out tags geom;' : '');
       var j = await SM.overpass('ctx2|' + sm.wayId + '|' + SM.round(la) + ',' + SM.round(lo), q, sig), at = SM.lastAt;
-      var bw = await SMP.cov('bikeways', 'geom', la, lo, sig);
       var el = (j && j.elements) || [];
       if (!el.some(function(e) { return e.type === 'way' && e.id === sm.wayId; })) throw new Error('the picked street (way ' + sm.wayId + ') was not returned');
-      return { el: el, at: at, bikeways: bw };
+      return { el: el, at: at };
     });
+    SMP._ovTimedOut = false;
     var el = data.osm.el;
     data.parts = await runStep('buildings', async function() {
       return { way: el.find(function(e) { return e.type === 'way' && e.id === sm.wayId; }), routes: el.filter(function(e) { return e.type === 'relation'; }),
@@ -21659,8 +21676,8 @@ SMP.importContext = async function() {
         pois: el.filter(function(e) { return e.type === 'node' && e.tags && (e.tags.amenity || e.tags.shop || e.tags.office) && e.tags.highway !== 'bus_stop'; }),
         stops: el.filter(function(e) { return e.type === 'node' && e.tags && e.tags.highway === 'bus_stop'; }) };
     });
-    var cov = { bikeways: data.osm.bikeways };
-    cov['water-hydrants'] = await runStep('hydrants', function(sig) { return SMP.cov('water-hydrants', 'geo_point_2d', la, lo, sig); });
+    var cov = {};
+    await runStep('hydrants', async function(sig) { cov['water-hydrants'] = await SMP.cov('water-hydrants', 'geo_point_2d', la, lo, sig); cov.bikeways = await SMP.cov('bikeways', 'geom', la, lo, sig); });
     cov['public-trees'] = await runStep('trees', function(sig) { return SMP.cov('public-trees', 'geo_point_2d', la, lo, sig); });
     cov['rapid-transit-stations'] = await runStep('transit', function(sig) { return SMP.cov('rapid-transit-stations', 'geo_point_2d', la, lo, sig); });
     // apply (every fetch succeeded)
@@ -21682,13 +21699,15 @@ SMP.importContext = async function() {
     return rep;
   } catch (e) {
     if (cur && st[cur] === 'run') st[cur] = 'fail';
-    var what = cur === 'apply' ? 'applying the data' : (SMP.STEPS.find(function(q) { return q[0] === cur; }) || [0, cur])[1];
-    var why = e.timeout ? 'no answer within ' + SMP.TIMEOUT / 1000 + ' s' : e.offline ? 'the network is offline' : e.noAnswer ? e.message : e.message;
-    var next = '';
-    if (cur === 'street' && !e.offline) { SM.nextOverpass(); next = ' (next try: ' + SM.overpassHost() + ')'; }
-    SMP.msg(SMP.progress(st) + '<br><span class="smp-err"><b>' + SM.esc(what) + ' failed:</b> ' + SM.esc(why) + '. Nothing was changed.</span> ' +
-      "<button type='button' class='ctx-btn smp-retry' id='smpRetry' onclick='SMP.importContext()'>Retry" + SM.esc(next) + '</button>');
-    console.warn('[site-map] import failed at ' + what + ': ' + (e && e.message));
+    // the step (or, for a CoV request, its dataset) and SM.classify's reason: one string for the UI and the console
+    var what = e && e.dataset ? (SMP.COVLABEL[e.dataset] || 'CoV ' + e.dataset) : cur === 'apply' ? 'Applying the data' : (SMP.STEPS.find(function(q) { return q[0] === cur; }) || [0, cur])[1];
+    var line = what + ' failed: ' + (e && e.message ? e.message : String(e)) + '. Nothing was changed.', next = '';
+    if (cur === 'street' && !(e && e.offline) && !(e && e.dataset)) {   // an Overpass failure: Retry goes to the next server
+      if (e && e.timeout) SMP._ovTimedOut = true;
+      SM.nextOverpass(); next = ' (next try: ' + SM.overpassHost() + ')';
+    }
+    SMP.msg(SMP.progress(st) + "<br><span class='smp-err'>" + SM.esc(line) + "</span> <button type='button' class='ctx-btn smp-retry' id='smpRetry' onclick='SMP.importContext()'>Retry" + SM.esc(next) + '</button>');
+    console.warn('[site-map] import failed at ' + line + (next ? ' Retry' + next + '.' : ''));
     return null;
   } finally {
     SMP._busy = false; SMP.syncButton();
