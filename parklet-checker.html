@@ -2358,7 +2358,8 @@ function buildDesignModel() {
       var s = segs.find(function(q) { return q.id === a.id; }) || {};
       return Object.assign(a, { x0: s.x0, x1: s.x1, direction: s.direction });
     }) : [];
-    var bike = segs.find(function(s) { return s.type === 'bike-lane'; });
+    var _fl = segs.findIndex(function(s) { return s.type === 'travel-lane'; });   // the parklet-side bike lane: before the first travel lane
+    var bike = segs.find(function(s, i) { return s.type === 'bike-lane' && (_fl < 0 || i < _fl); });
     DM.street = {
       direction: (typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'twoway') ? 'two-way' : 'one-way',
       route: typeof laneRouteKey === 'function' ? laneRouteKey() : 'standard',
@@ -3430,6 +3431,11 @@ document.addEventListener('mouseup', function() {
       if (name === 'LANES_B')    v = (typeof LANES_B    !== 'undefined') ? LANES_B    : v;
       return (v !== undefined && v !== null) ? v : def;
     }
+    // In place when a section exists (Brief 13 follow-up): the segments the globals describe are
+    // edited where they are, and every other segment (parking, planting, transit / turn lanes,
+    // curbs, a far-side bike lane, anything added by hand) survives a sidebar change or a site
+    // import. Only an empty section is built from scratch.
+    if (_segs.some(function(s) { return s.type === 'parklet'; })) { _seReconcile(_g); return; }
     _segs = [];
     _segs.push({ id:'building', type:'building', width:0 });
     _segs.push({ id:_nid(), type:'sidewalk', width:Math.round((_g('SIDEWALK_W',1.8))*1000)/1000 });
@@ -3456,6 +3462,41 @@ document.addEventListener('mouseup', function() {
     _seNormalizeLanes();   // lane widths from the one normaliser (EDM Table 8-10 envelope)
   }
 
+  // The in-place half of _seFromGlobals. The parklet-side run is building, sidewalk, parklet,
+  // buf-pk, bike-lane, buf-bl, then the travel lanes; a segment of those types after the first
+  // travel lane belongs to the far side and is left alone (a far-side bike lane is not the
+  // parklet-side one). Travel lanes are added after the last lane or removed from the end.
+  function _seReconcile(_g) {
+    var r3 = function(v) { return Math.round(v * 1000) / 1000; };
+    function firstLane() { var i = _segs.findIndex(function(s) { return s.type === 'travel-lane'; }); return i < 0 ? _segs.length : i; }
+    function near(type) { var fl = firstLane(); for (var i = 0; i < fl; i++) if (_segs[i].type === type) return _segs[i]; return null; }
+    function ensure(type, want, width, variant, after) {
+      var s = near(type);
+      if (!want) { if (s) _segs.splice(_segs.indexOf(s), 1); return; }
+      if (s) { s.width = r3(width); if (variant !== undefined) s.variant = variant; return; }
+      var idx = 0, fl = firstLane();
+      for (var i = 0; i < fl; i++) if (after.indexOf(_segs[i].type) >= 0) idx = i + 1;
+      var o = { id: _nid(), type: type, width: r3(width) }; if (variant !== undefined) o.variant = variant;
+      _segs.splice(idx, 0, o);
+    }
+    if (!_segs.length || _segs[0].type !== 'building') _segs.unshift({ id: 'building', type: 'building', width: 0 });
+    ensure('sidewalk', true, _g('SIDEWALK_W', 1.8), undefined, ['building']);
+    ensure('parklet', true, _g('designParkletWidth', 2.65), undefined, ['building', 'sidewalk']);
+    var bpk = _g('bufPKType', 'none'), dbl = _g('designBikeLane', 'none'), bbl = _g('bufBLType', 'none');
+    ensure('buf-pk', bpk && bpk !== 'none', _g('bufPKW', 0.8), bpk, ['building', 'sidewalk', 'parklet']);
+    ensure('bike-lane', dbl && dbl !== 'none', _g('designBikeLaneW', 1.5), dbl, ['building', 'sidewalk', 'parklet', 'buf-pk']);
+    ensure('buf-bl', bbl && bbl !== 'none', _g('bufBLW', 0.4), bbl, ['building', 'sidewalk', 'parklet', 'buf-pk', 'bike-lane']);
+    var nL = (_g('ROAD_DIR', 'oneway') === 'twoway') ? (_g('LANES_A', 1) + _g('LANES_B', 1)) : _g('NUM_LANES', 1);
+    var lanes = _segs.filter(function(s) { return s.type === 'travel-lane'; });
+    if (lanes.length < nL) {
+      var at = lanes.length ? _segs.indexOf(lanes[lanes.length - 1]) + 1 : firstLane();
+      for (var k = lanes.length; k < nL; k++) _segs.splice(at++, 0, { id: _nid(), type: 'travel-lane', width: 0 });
+    } else if (lanes.length > nL) {
+      lanes.slice(nL).forEach(function(s) { _segs.splice(_segs.indexOf(s), 1); });
+    }
+    _seNormalizeLanes();
+  }
+
   // ── Write back to globals ──────────────────────────────────────────
   function _seToGlobals() {
     // Writes back to the ACTUAL lexical `let` bindings (declared with the app's
@@ -3467,7 +3508,9 @@ document.addEventListener('mouseup', function() {
     var pk = _segs.find(function(s){ return s.type==='parklet'; });
     if (pk) designParkletWidth = pk.width;
     // Bike lanes
-    var bls = _segs.filter(function(s){ return s.type==='bike-lane'; });
+    // the parklet-side bike lane: one before the first travel lane (a far-side one is its own segment)
+    var _fl = _segs.findIndex(function(s){ return s.type==='travel-lane'; });
+    var bls = _segs.filter(function(s, i){ return s.type==='bike-lane' && (_fl < 0 || i < _fl); });
     if (bls.length > 0) {
       designBikeLaneW = bls[0].width;
       designBikeLane = bls[0].variant || 'painted';
@@ -18426,7 +18469,8 @@ RPT.compliance = function(d) {
   var tbl = "<table class='tbl comp'><thead><tr><th>No.</th><th>Rule</th><th>Source</th><th>Current value / condition</th><th>Status</th></tr></thead><tbody>" + rows + '</tbody></table>';
   var un = "<table class='tbl unconf'><thead><tr><th>Unconfirmed input</th><th>Check</th><th>Value</th></tr></thead><tbody>" +
     (ne.map(function(i) { return '<tr><td>' + RPT.esc(i.label) + '</td><td class="mono">' + 'C' + criteria.find(function(c) { return c.id === i.crit; }).num + '</td><td class="ne">not entered</td></tr>'; }).join('') || "<tr><td colspan='3'>Every input is entered.</td></tr>") + '</tbody></table>';
-  return RPT.sheet('a4', '07', 'Compliance', "<div class='flow'>" + tbl + un + '</div>', d.n.pass + ' pass · ' + d.n.fail + ' fail · ' + d.n.unclear + ' not confirmed', 'flows');
+  var adv = typeof SMP !== 'undefined' && SMP.treeAdvisory() ? "<p class='advisory'><b>Advisory (no numbered check):</b> " + RPT.esc(SMP.treeAdvisory().text) + '. ' + RPT.esc(SMP.treeAdvisory().detail) + '.</p>' : '';
+  return RPT.sheet('a4', '07', 'Compliance', "<div class='flow'>" + tbl + adv + un + '</div>', d.n.pass + ' pass · ' + d.n.fail + ' fail · ' + d.n.unclear + ' not confirmed', 'flows');
 };
 
 // ── 08 Lane envelope ──────────────────────────────────────────────────────────────────────────
@@ -18696,7 +18740,7 @@ RPT.css = function(d) {
     '.caption { margin-top: 4mm; max-width: 170mm; }',
     '.muted { color: var(--mid); }',
     '.pill { display: inline-block; font: 600 7.5pt/1.3 var(--ui); letter-spacing: .04em; text-transform: uppercase; padding: 0.3mm 1.6mm; border: 0.3mm solid currentColor; border-radius: 0.8mm; white-space: nowrap; }',
-    '.pill.pass { color: var(--pass); } .pill.fail { color: var(--fail); } .pill.unclear { color: var(--nc); } .pill.provisional { color: #8A5A00; border-style: dashed; }',
+    '.pill.pass { color: var(--pass); } .pill.fail { color: var(--fail); } .pill.unclear { color: var(--nc); } .pill.provisional { color: #8A5A00; border-style: dashed; } .advisory { margin: 3mm 0; padding: 2mm 3mm; border-left: 1mm solid #5E8C50; font-size: 8.5pt; }',
     '.flow { display: grid; row-gap: 6mm; align-content: start; }',
     '.tbl { width: 100%; border-collapse: collapse; font-size: 8.5pt; table-layout: auto; }',
     '.tbl th { font-size: 7.5pt; font-weight: 600; text-align: left; color: var(--mid); padding: 1mm 1.5mm; border-bottom: 0.3mm solid var(--ink); vertical-align: bottom; }',
@@ -21336,6 +21380,7 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && doc
 .smp-msg b { color: var(--c-text, #F2F2F0); font-weight: 600; }
 #smpCheck { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--rule, #D8D7D3); border-left: 4px solid #D9A441; border-radius: 4px; background: var(--card, #fff); }
 #smpCheck h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+#smpAdvice { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--rule, #D8D7D3); border-left: 4px solid #5E8C50; border-radius: 4px; background: var(--card, #fff); font-size: 12px; line-height: 1.5; }
 #smpCheck p { margin: 0 0 8px; font-size: 12px; color: var(--muted, #666A6F); }
 #smpCheck ul { margin: 0; padding: 0; list-style: none; }
 #smpCheck li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid var(--rule, #D8D7D3); font-size: 12px; }
@@ -21369,7 +21414,7 @@ SMP.TAG = { osm: 'OSM', cov: 'CoV', estimate: 'est.', user: 'you' };
 // Site-tab fields that carry a tag: key -> the element whose .ff label gets it
 SMP.FIELDS = { address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
   roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'bikeLaneToggle' };
-SMP.CRIT_FIELDS = { c2: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'routeType', 'bikeLane'], c1: ['parkingRestrictions'] };
+SMP.CRIT_FIELDS = { c2: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'routeType', 'bikeLane', 'farParking', 'farBike'], c1: ['parkingRestrictions'] };
 
 // ── Provenance tags in the Site tab; editing a field flips it to 'user'; a click confirms ─────
 SMP.tagHtml = function(p) {
@@ -21446,7 +21491,25 @@ SMP.where = function(o) {
   var L = typeof designParkletLength !== 'undefined' ? designParkletLength : 20, z = +o.xM;
   return 'z ' + z.toFixed(1) + ' m (' + (z < 0 ? (-z).toFixed(1) + ' m before the deck' : z > L ? (z - L).toFixed(1) + ' m past the deck' : 'beside the deck') + ')';
 };
+// Street trees: no numbered check measures them; an advisory when one stands within N m of the deck
+// (along the street, as the hydrant clearance). TODO(Jenna): N and its citation from the Parklet
+// Manual / Park Board street-tree clearance -- 3.0 m is a placeholder until then.
+SMP.TREE_ADVISORY_M = 3.0;
+SMP.treeAdvisory = function() {
+  var L = typeof designParkletLength !== 'undefined' ? designParkletLength : 20, N = SMP.TREE_ADVISORY_M;
+  var near = (state.street_trees || []).map(function(o) { var z = +o.xM; return { o: o, gap: z < 0 ? -z : z > L ? z - L : 0 }; }).filter(function(q) { return q.gap <= N; }).sort(function(a, b) { return a.gap - b.gap; });
+  if (!near.length) return null;
+  return { text: 'Street tree within ' + N + ' m of the deck - confirm clearance with Park Board', detail: near.length + ' tree' + (near.length > 1 ? 's' : '') + ': ' + near.map(function(q) { return (q.o.species ? q.o.species.toLowerCase() + ' ' : '') + 'at z ' + (+q.o.xM).toFixed(1) + ' m (' + (q.gap ? q.gap.toFixed(1) + ' m from the deck' : 'beside the deck') + ')'; }).join('; ') };
+};
+SMP.renderAdvice = function() {
+  var cl = document.getElementById('criteriaList'); if (!cl) return;
+  var el = document.getElementById('smpAdvice'), a = SMP.treeAdvisory();
+  if (!a) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'smpAdvice'; el.setAttribute('role', 'note'); cl.parentNode.insertBefore(el, cl); }
+  el.innerHTML = '<b>Advisory (no numbered check):</b> ' + SM.esc(a.text) + ". <span class='smp-src'>" + SM.esc(a.detail) + '</span>';
+};
 SMP.renderCheck = function() {
+  SMP.renderAdvice();
   var host = document.getElementById('smpCheck');
   if (!host) { var cl = document.getElementById('criteriaList'); if (!cl) return; host = document.createElement('div'); host.id = 'smpCheck'; cl.parentNode.insertBefore(host, cl); }
   var objs = SMP.objects(), P = SMP.prov(), fields = Object.keys(P).filter(function(k) { return P[k].source !== 'user' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); });
@@ -21454,7 +21517,7 @@ SMP.renderCheck = function() {
   host.hidden = false;
   var n = objs.filter(function(o) { return !o.obj.confirmed; }).length + fields.length;
   host.innerHTML = '<h3>Imported site data - verify on site</h3><p>' + (n ? n + ' imported item' + (n > 1 ? 's' : '') + ' still to confirm. Checks that depend on them are provisional until each is confirmed.' : 'Every imported item is confirmed.') + '</p><ul>' +
-    fields.map(function(k) { var p = P[k]; return "<li><span class='smp-badge'>imported - verify on site</span><span>" + SM.esc({ roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', parkingRestrictions: 'Parking restrictions' }[k] || k) + " <span class='smp-src'>" + SM.esc(SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' - ' + p.note : '')) + "</span></span><button type='button' class='smp-confirm' onclick=\"SMP.confirmField('" + k + "')\">Confirm</button></li>"; }).join('') +
+    fields.map(function(k) { var p = P[k]; return "<li><span class='smp-badge'>imported - verify on site</span><span>" + SM.esc({ roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', farParking: 'Far-side parking lane', farBike: 'Far-side bike lane', parkingRestrictions: 'Parking restrictions' }[k] || k) + " <span class='smp-src'>" + SM.esc(SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' - ' + p.note : '')) + "</span></span><button type='button' class='smp-confirm' onclick=\"SMP.confirmField('" + k + "')\">Confirm</button></li>"; }).join('') +
     objs.map(function(o) { var f = o.obj, p = f.prov || {}; return "<li><span class='smp-badge" + (f.confirmed ? ' ok' : '') + "'>" + (f.confirmed ? 'confirmed' : 'imported - verify on site') + '</span><span>' + SM.esc(o.label) + ' at ' + SMP.where(f) + " <span class='smp-src'>" + SM.esc((SMP.SRC[p.source] || '') + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt)) + '</span></span>' +
       (f.confirmed ? '<span></span>' : "<button type='button' class='smp-confirm' onclick=\"SMP.confirm('" + o.list + "','" + f.id + "')\">Confirm</button>") + '</li>'; }).join('') + '</ul>';
 };
@@ -21527,10 +21590,12 @@ SMP.importContext = async function() {
     var la = sm.lat, lo = sm.lon;
     var q = '[out:json][timeout:25];way(' + sm.wayId + ')->.s;.s out tags geom;rel(bw.s)[route~"^(bus|trolleybus)$"];out tags;' +
       'way(around:' + SMP.R + ',' + la + ',' + lo + ')[building];out tags geom;node(around:' + SMP.R + ',' + la + ',' + lo + ')[~"^(amenity|shop|office)$"~"."];out body;' +
-      'node(around:' + SMP.R + ',' + la + ',' + lo + ')[highway=bus_stop];out body;';
-    var osm = await SM.overpass('ctx|' + sm.wayId + '|' + SM.round(la) + ',' + SM.round(lo), q), osmAt = SM.lastAt, el = (osm && osm.elements) || [];
+      'node(around:' + SMP.R + ',' + la + ',' + lo + ')[highway=bus_stop];out body;' +
+      (sm.name ? 'way(around:25,' + la + ',' + lo + ')[highway][oneway][name="' + sm.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"];out tags geom;' : '');
+    var osm = await SM.overpass('ctx2|' + sm.wayId + '|' + SM.round(la) + ',' + SM.round(lo), q), osmAt = SM.lastAt, el = (osm && osm.elements) || [];
     var way = el.find(function(e) { return e.type === 'way' && e.id === sm.wayId; }), routes = el.filter(function(e) { return e.type === 'relation'; });
     var blds = el.filter(function(e) { return e.type === 'way' && e.id !== sm.wayId && e.tags && e.tags.building; });
+    var cands = el.filter(function(e) { return e.type === 'way' && e.id !== sm.wayId && e.tags && e.tags.highway && !e.tags.building; });
     var pois = el.filter(function(e) { return e.type === 'node' && e.tags && (e.tags.amenity || e.tags.shop || e.tags.office) && e.tags.highway !== 'bus_stop'; });
     var stops = el.filter(function(e) { return e.type === 'node' && e.tags && e.tags.highway === 'bus_stop'; });
     var cov = {};
@@ -21538,7 +21603,7 @@ SMP.importContext = async function() {
       try { cov[ds[0]] = await SMP.cov(ds[0], ds[1], la, lo); } catch (e) { rep.errors.push('CoV ' + ds[0] + ': ' + (e.offline ? 'not reachable' : e.message)); cov[ds[0]] = { rows: [], at: null }; }
     }
     // 1. the street
-    if (way) SMP.applyStreet(way, routes, stops, cov.bikeways, osmAt, rep);
+    if (way) SMP.applyStreet(way, routes, stops, cov.bikeways, osmAt, rep, cands);
     else rep.errors.push('the picked way ' + sm.wayId + ' was not returned');
     // 2. buildings (after the street: the landmarks follow the new road width)
     SMP.applyBuildings(blds, pois, osmAt, rep);
@@ -21557,52 +21622,113 @@ SMP.importContext = async function() {
     return null;
   } finally { if (btn) btn.disabled = false; }
 };
-SMP.applyStreet = function(way, routes, stops, bikeways, at, rep) {
-  var t = way.tags || {}, id = 'way ' + way.id, hw = String(t.highway || '').replace('_link', ''), sm = state.__siteMap;
-  var sn = SM.snap([way], sm.lat, sm.lon), dir = sn ? sn.dir : 0, right = siteAngle(siteNorm(dir + 90), sm.sideBearing) < 90;   // parklet on the way's right?
-  var ow = t.oneway === 'yes' || t.oneway === 'true' || t.oneway === '1' || t.oneway === '-1' || t.junction === 'roundabout';
-  var n = SMP.num(t.lanes), fw = SMP.num(t['lanes:forward']), bw = SMP.num(t['lanes:backward']), est = false;
-  var guess = { primary: [2, 3], trunk: [2, 3], secondary: [1, 2], tertiary: [1, 2] }[hw] || [1, 1];
-  var s = rep.street; s.name = t.name || ''; s.highway = t.highway || ''; s.maxspeed = t.maxspeed || null; s.sidewalk = t.sidewalk || null;
-  // direction + lanes
-  var dirV = ow ? 'oneway' : 'twoway';
-  onRoadDirChange(dirV); SMP.set('roadDir', 'osm', id, at, 'oneway=' + (t.oneway || 'no'));
-  var total;
-  if (ow) {
-    if (n == null) { n = guess[1]; est = true; }
-    n = Math.max(1, Math.min(6, Math.round(n))); total = n;
-    var lc = document.getElementById('laneCount'); if (lc) lc.value = n; onLaneCountChange();
-    SMP.set('lanes', est ? 'estimate' : 'osm', id, at, est ? 'no lanes tag; typical for highway=' + (t.highway || '?') : 'lanes=' + t.lanes);
-    s.lanes = n + ' (one-way)';
+// A way's travel direction (0-360; oneway=-1 runs against the geometry) and whether it is one-way
+SMP.isOneway = function(t) { return t.oneway === 'yes' || t.oneway === 'true' || t.oneway === '1' || t.oneway === '-1' || t.junction === 'roundabout'; };
+// The bike lane a cycleway tag describes on one side of a way (the key relative to its geometry)
+SMP.bikeOf = function(t, rightSide) {
+  var k = rightSide ? 'cycleway:right' : 'cycleway:left', cw = t[k] || t['cycleway:both'] || t.cycleway || '', v = null;
+  if (/^(lane|opposite_lane)$/.test(cw)) v = 'painted'; else if (/^(track|opposite_track)$/.test(cw)) v = 'protected'; else if (/^(no|none|shared_lane|share_busway|opposite)$/.test(cw)) v = 'none';
+  return { v: v, raw: cw, note: v ? (t[k] ? k : t['cycleway:both'] ? 'cycleway:both' : 'cycleway') + '=' + cw : '' };
+};
+SMP.parkOf = function(t, rightSide) { var s = rightSide ? 'right' : 'left'; return t['parking:' + s] || t['parking:lane:' + s] || t['parking:both'] || t['parking:lane:both'] || ''; };
+// Dual carriageway: the paired way of a one-way way (same name, opposite travel direction,
+// centreline within 20 m of the picked point), or null
+SMP.pairOf = function(way, cands, sm) {
+  var t = way.tags || {}; if (!SMP.isOneway(t) || !t.name) return null;
+  var sw = SM.snap([way], sm.lat, sm.lon); if (!sw) return null;
+  var d0 = siteNorm(sw.dir + (t.oneway === '-1' ? 180 : 0)), best = null;
+  cands.forEach(function(c) {
+    var ct = c.tags || {}; if (c.id === way.id || ct.name !== t.name || !SMP.isOneway(ct)) return;
+    var sc = SM.snap([c], sm.lat, sm.lon); if (!sc || sc.dist > 20) return;
+    var d1 = siteNorm(sc.dir + (ct.oneway === '-1' ? 180 : 0)); if (siteAngle(d0, d1) < 135) return;   // not the opposite direction
+    if (!best || sc.dist < best.snap.dist) best = { way: c, snap: sc };
+  });
+  return best;
+};
+SMP.lanesOf = function(t, hw, oneway) {
+  var n = SMP.num(t.lanes), g = { primary: [2, 3], trunk: [2, 3], secondary: [1, 2], tertiary: [1, 2] }[hw] || [1, 1];
+  return n == null ? { n: oneway ? g[1] : g[0] * 2, est: true } : { n: Math.round(n), est: false };
+};
+SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
+  var t = way.tags || {}, id = 'way ' + way.id, hw = String(t.highway || '').replace('_link', ''), sm = state.__siteMap, s = rep.street;
+  var sn = SM.snap([way], sm.lat, sm.lon), right = siteAngle(siteNorm((sn ? sn.dir : 0) + 90), sm.sideBearing) < 90;   // parklet on the way's right?
+  s.name = t.name || ''; s.highway = t.highway || ''; s.maxspeed = t.maxspeed || null; s.sidewalk = t.sidewalk || null;
+  var pair = SMP.pairOf(way, cands || [], sm), plan;
+  if (pair) {
+    // merge the two carriageways into one two-way street; the near one is on the parklet's side
+    var pb = siteNorm(Math.atan2(SM.enu(sm.lat, sm.lon).to(pair.snap.lat, pair.snap.lon).e, SM.enu(sm.lat, sm.lon).to(pair.snap.lat, pair.snap.lon).n) * 180 / Math.PI);
+    var pairNear = pair.snap.dist > 0.5 && siteAngle(pb, sm.sideBearing) < 90, nw = pairNear ? pair.way : way, fw = pairNear ? way : pair.way;
+    var nt = nw.tags || {}, ft = fw.tags || {}, ns = SM.snap([nw], sm.lat, sm.lon), fs = SM.snap([fw], sm.lat, sm.lon);
+    var nRight = siteAngle(siteNorm(ns.dir + 90), sm.sideBearing) < 90, fRight = siteAngle(siteNorm(fs.dir + 90), sm.sideBearing) >= 90;   // the far way's far curb
+    var nl = SMP.lanesOf(nt, hw, true), fl = SMP.lanesOf(ft, hw, true);
+    plan = { oneway: false, near: nl.n, far: fl.n, est: nl.est || fl.est, lanesNote: 'dual carriageway: way ' + nw.id + ' (' + (nt.lanes || '?') + ' lanes) + way ' + fw.id + ' (' + (ft.lanes || '?') + ' lanes)',
+      bike: SMP.bikeOf(nt, nRight), farBike: SMP.bikeOf(ft, fRight), farPark: SMP.parkOf(ft, fRight), ids: 'ways ' + nw.id + ' + ' + fw.id };
+    s.pair = fw.id === way.id ? nw.id : fw.id;
+    rep.notes.push('dual carriageway merged: ways ' + way.id + ' and ' + pair.way.id + ' (' + pair.snap.dist.toFixed(1) + ' m apart; the median is not modelled)');
   } else {
-    if (fw == null || bw == null) { if (n != null) { fw = Math.max(1, Math.ceil(n / 2)); bw = Math.max(1, Math.floor(n / 2)); } else { fw = bw = guess[0]; est = true; } }
-    var near = right ? fw : bw, farL = right ? bw : fw;   // traffic keeps right: the lanes beside the parklet run with it on their right
-    near = Math.max(1, Math.min(4, Math.round(near))); farL = Math.max(1, Math.min(4, Math.round(farL))); total = near + farL;
-    var a = document.getElementById('lanesA'), b = document.getElementById('lanesB'); if (a) a.value = near; if (b) b.value = farL; onLanesAChange(); onLanesBChange();
-    ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, est ? 'estimate' : 'osm', id, at, est ? 'no lanes tag; typical for highway=' + (t.highway || '?') : 'lanes=' + (t.lanes || '') + (t['lanes:forward'] ? ', forward ' + t['lanes:forward'] : '') + (t['lanes:backward'] ? ', backward ' + t['lanes:backward'] : '')); });
-    s.lanes = near + ' near + ' + farL + ' far';
+    var ow = SMP.isOneway(t), fwd = SMP.num(t['lanes:forward']), bwd = SMP.num(t['lanes:backward']), L0 = SMP.lanesOf(t, hw, ow), near, far;
+    if (!ow) { if (fwd == null || bwd == null) { fwd = Math.max(1, Math.ceil(L0.n / 2)); bwd = Math.max(1, Math.floor(L0.n / 2)); } near = right ? fwd : bwd; far = right ? bwd : fwd; }   // traffic keeps right
+    plan = { oneway: ow, near: ow ? L0.n : near, far: ow ? 0 : far, est: L0.est, lanesNote: 'lanes=' + (t.lanes || '?') + (t['lanes:forward'] ? ', forward ' + t['lanes:forward'] : '') + (t['lanes:backward'] ? ', backward ' + t['lanes:backward'] : ''),
+      bike: SMP.bikeOf(t, right), farBike: ow ? { v: null } : SMP.bikeOf(t, !right), farPark: SMP.parkOf(t, !right), ids: id };
   }
-  // bike lane on the parklet side: OSM cycleway:<side> / :both / cycleway, else a CoV bikeway on this street
-  var cw = t[right ? 'cycleway:right' : 'cycleway:left'] || t['cycleway:both'] || t.cycleway || '', bike = null, bsrc = 'osm', bnote = '';
-  if (/^(lane|opposite_lane)$/.test(cw)) bike = 'painted'; else if (/^(track|opposite_track)$/.test(cw)) bike = 'protected'; else if (/^(no|none|shared_lane|share_busway|opposite)$/.test(cw)) bike = 'none';
-  if (bike) bnote = 'cycleway' + (t[right ? 'cycleway:right' : 'cycleway:left'] ? ':' + (right ? 'right' : 'left') : t['cycleway:both'] ? ':both' : '') + '=' + cw;
-  var cb = (bikeways.rows || []).find(function(r) { return SMP.normName(r.street_name) === SMP.normName(t.name) && /Painted|Protected/i.test(r.bikeway_type || ''); });
-  if ((!bike || cw === 'separate') && cb) { bike = /Protected/i.test(cb.bikeway_type) ? 'protected' : 'painted'; bsrc = 'cov'; bnote = 'bikeways: ' + cb.bikeway_type + ' (' + (cb.bike_route_name || '') + ')'; }
-  if (bike) { onBikeLaneType(bike); SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : id, bsrc === 'cov' ? bikeways.at : at, bnote); s.bike = bike; }
-  // route type: bus / truck on a primary or secondary street, or where a bus route runs
-  var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), heavy = /^(trunk|primary|secondary)$/.test(hw);
-  var rt = heavy || bus.length ? 'bus_truck' : 'standard';
-  onRouteTypeToggle(rt);
-  SMP.set('routeType', 'osm', id, at, 'suggested: highway=' + (t.highway || '?') + (bus.length ? '; bus route' + (bus.length > 1 ? 's ' : ' ') + bus.map(function(r) { return r.tags.ref || r.tags.name || r.id; }).join(', ') : '; no bus route on the way') + (stops.length ? '; ' + stops.length + ' bus stop' + (stops.length > 1 ? 's' : '') + ' within 80 m' : ''));
-  s.route = rt;
-  // curb to curb: NOT imported (OSM has no reliable width): lanes x 3.2 + parking lanes x 2.4 (+ the bike lane)
-  var pkFar = t['parking:' + (right ? 'left' : 'right')] || t['parking:lane:' + (right ? 'left' : 'right')] || t['parking:both'] || t['parking:lane:both'] || '';
-  var farPark = /^(no|none|no_parking|no_stopping|fire_lane|separate)$/.test(pkFar) ? 0 : 1, bikeW = bike === 'protected' ? 2.0 : bike === 'painted' ? 1.5 : 0;
-  var w = Math.round((total * 3.2 + (1 + farPark) * 2.4 + bikeW) * 100) / 100;
+  // a CoV bikeway on this street name when OSM says nothing (or 'separate')
+  var cb = (bikeways.rows || []).find(function(r) { return SMP.normName(r.street_name) === SMP.normName(t.name) && /Painted|Protected/i.test(r.bikeway_type || ''); }), bsrc = 'osm';
+  if ((!plan.bike.v || plan.bike.raw === 'separate') && cb) { plan.bike = { v: /Protected/i.test(cb.bikeway_type) ? 'protected' : 'painted', note: 'bikeways: ' + cb.bikeway_type + ' (' + (cb.bike_route_name || '') + ')' }; bsrc = 'cov'; }
+  var bikeW = function(v) { return v === 'protected' ? 2.0 : v === 'painted' ? 1.5 : 0; };
+  var nearBike = plan.bike.v && plan.bike.v !== 'none' ? plan.bike.v : null, farBike = nearBike && plan.farBike.v && plan.farBike.v !== 'none' ? plan.farBike.v : null;   // a far bike lane is drawn beside a near one only
+  var farPark = /^(no|none|no_parking|no_stopping|fire_lane|separate)$/.test(plan.farPark) ? 0 : 1;
+  var near = Math.max(1, Math.min(plan.oneway ? 6 : 4, plan.near)), far = plan.oneway ? 0 : Math.max(1, Math.min(4, plan.far)), total = near + far;
+  // curb to curb: NOT imported (OSM has no reliable width): lanes x 3.2 + parking lanes x 2.4 + the bike lanes
+  // segments the user added by hand stay in the Section, so they stay in the width too (the far-side
+  // parking lane / bike lane the formula counts are not counted twice)
+  var cur = typeof window.seGetSegs === 'function' ? window.seGetSegs() : [], lastL = -1, firstL = -1, fp = !!farPark, fb = !!farBike, extra = 0;
+  cur.forEach(function(x, i) { if (x.type === 'travel-lane') { lastL = i; if (firstL < 0) firstL = i; } });
+  cur.forEach(function(x, i) {
+    if (['building', 'sidewalk', 'parklet', 'travel-lane', 'buf-pk', 'buf-bl'].indexOf(x.type) >= 0) return;
+    if (x.type === 'bike-lane' && (firstL < 0 || i < firstL)) return;   // the parklet-side bike lane: set from the tags
+    if (i > lastL && x.type === 'parking' && fp) { fp = false; return; }
+    if (i > lastL && x.type === 'bike-lane' && fb) { fb = false; return; }
+    extra += +x.width || 0;
+  });
+  var w = Math.round((total * 3.2 + (1 + farPark) * 2.4 + bikeW(nearBike) + bikeW(farBike) + extra) * 100) / 100;
+  // 1. the width first (so nothing is clamped against the old one), then direction, lanes, bike lane, route
   var rw = document.getElementById('roadWidth'); if (rw) { rw.value = w; onRoadWidthChange(); }
-  SMP.set('roadWidth', 'estimate', id, at, total + ' lanes x 3.2 m + ' + (1 + farPark) + ' parking lane' + (farPark ? 's' : '') + ' x 2.4 m' + (bikeW ? ' + bike lane ' + bikeW + ' m' : '') + (pkFar ? ' (parking tag: ' + pkFar + ')' : ' (far-side parking assumed)') + ': measure it');
+  SMP.set('roadWidth', 'estimate', plan.ids, at, total + ' lanes x 3.2 m + ' + (1 + farPark) + ' parking lane' + (farPark ? 's' : '') + ' x 2.4 m' + (bikeW(nearBike) + bikeW(farBike) ? ' + bike lane' + (farBike ? 's ' : ' ') + (bikeW(nearBike) + bikeW(farBike)) + ' m' : '') + (plan.farPark ? ' (far parking tag: ' + plan.farPark + ')' : ' (far-side parking assumed)') + (extra ? ' + ' + extra.toFixed(2) + ' m of Section segments you added' : '') + (pair ? '; median not modelled' : '') + ': measure it');
+  onRoadDirChange(plan.oneway ? 'oneway' : 'twoway'); SMP.set('roadDir', 'osm', plan.ids, at, pair ? 'two one-way carriageways merged' : 'oneway=' + (t.oneway || 'no'));
+  var src = plan.est ? 'estimate' : 'osm', lnote = plan.est ? 'no lanes tag; typical for highway=' + (t.highway || '?') : plan.lanesNote;
+  if (plan.oneway) { var lc = document.getElementById('laneCount'); if (lc) lc.value = near; onLaneCountChange(); SMP.set('lanes', src, plan.ids, at, lnote); s.lanes = near + ' (one-way)'; }
+  else {
+    var a = document.getElementById('lanesA'), b = document.getElementById('lanesB'); if (a) a.value = near; if (b) b.value = far; onLanesAChange(); onLanesBChange();
+    ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, src, plan.ids, at, lnote); }); s.lanes = near + ' near + ' + far + ' far';
+  }
+  onBikeLaneType(nearBike || 'none'); if (plan.bike.v) SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : plan.ids, bsrc === 'cov' ? bikeways.at : at, plan.bike.note); s.bike = nearBike || 'none';
+  var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), rt = /^(trunk|primary|secondary)$/.test(hw) || bus.length ? 'bus_truck' : 'standard';
+  onRouteTypeToggle(rt);
+  SMP.set('routeType', 'osm', plan.ids, at, 'suggested: highway=' + (t.highway || '?') + (bus.length ? '; bus route' + (bus.length > 1 ? 's ' : ' ') + bus.map(function(r) { return r.tags.ref || r.tags.name || r.id; }).join(', ') : '; no bus route on the way') + (stops.length ? '; ' + stops.length + ' bus stop' + (stops.length > 1 ? 's' : '') + ' within 80 m' : ''));
+  s.route = rt;
+  // 2. the far side as segments (after the last travel lane): a bike lane, then the parking lane at the curb
+  SMP.applyFar(farBike, farPark ? 2.4 : 0, plan, at, rep);
   s.roadWidth = w;
-  s.summary = (t.name || 'the street') + ' (' + (t.highway || '?') + '): ' + s.lanes + ' lanes, ' + (ow ? 'one-way' : 'two-way') + ', route ' + (rt === 'bus_truck' ? 'bus / truck' : 'standard') + (bike ? ', bike lane ' + bike : '') + (t.maxspeed ? ', ' + t.maxspeed + ' km/h' : '') + ', curb to curb ' + w.toFixed(2) + ' m (estimate)';
+  s.summary = (t.name || 'the street') + ' (' + (t.highway || '?') + (pair ? ', dual carriageway' : '') + '): ' + s.lanes + ' lanes, ' + (plan.oneway ? 'one-way' : 'two-way') + ', route ' + (rt === 'bus_truck' ? 'bus / truck' : 'standard') + ', bike lane ' + (nearBike || 'none') + (farBike ? ' (far side ' + farBike + ')' : '') + (t.maxspeed ? ', ' + t.maxspeed + ' km/h' : '') + ', curb to curb ' + w.toFixed(2) + ' m (estimate' + (farPark ? ', incl. a far-side parking lane' : '') + ')';
+};
+// Far-side segments after the last travel lane, added only when that side has none of the type
+// (so a re-import or a hand-added one is never doubled); tagged in the provenance as imported.
+SMP.applyFar = function(farBike, parkW, plan, at, rep) {
+  if (typeof window.seGetSegs !== 'function') return;
+  var segs = window.seGetSegs(), lastLane = -1;
+  segs.forEach(function(x, i) { if (x.type === 'travel-lane') lastLane = i; });
+  if (lastLane < 0) return;
+  var after = segs.slice(lastLane + 1), stamp = Date.now();
+  if (farBike && !after.some(function(x) { return x.type === 'bike-lane'; })) {
+    segs.splice(lastLane + 1, 0, { id: 'imp-bike-' + stamp, type: 'bike-lane', width: farBike === 'protected' ? 2.0 : 1.5, variant: farBike });
+    SMP.set('farBike', 'osm', plan.ids, at, plan.farBike.note || ''); rep.notes.push('far-side bike lane added (' + farBike + ')');
+  }
+  if (parkW && !after.some(function(x) { return x.type === 'parking'; })) {
+    segs.push({ id: 'imp-parking-' + stamp, type: 'parking', width: parkW });
+    SMP.set('farParking', 'estimate', plan.ids, at, plan.farPark ? 'far parking tag: ' + plan.farPark : 'no parking tag on the far side: a parking lane assumed'); rep.notes.push('far-side parking lane added (' + parkW + ' m, estimate)');
+  }
+  if (typeof window.seNormalizeLanes === 'function') window.seNormalizeLanes();
+  try { syncDesignModel('section-edit'); } catch (e) {}
 };
 SMP.applyBuildings = function(blds, pois, at, rep) {
   var F = SMP.frame(), LM = F.LM, L = F.L, zc = L / 2, zMin = SMP.Z[0], zMax = SMP.Z[1];
@@ -21702,7 +21828,7 @@ SMP.drawPlan = function() {
 
 // ── Report: the imported items with their source and date (sources sheet) ────────────────────
 SMP.sourcesList = function() {
-  var P = SMP.prov(), out = [], lab = { address: 'Street address', lat: 'Latitude', lon: 'Longitude', streetBearing: 'Street bearing', parkletSide: 'Parklet side', roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', parkingRestrictions: 'Parking restrictions' };
+  var P = SMP.prov(), out = [], lab = { address: 'Street address', lat: 'Latitude', lon: 'Longitude', streetBearing: 'Street bearing', parkletSide: 'Parklet side', roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', farParking: 'Far-side parking lane (Section segment)', farBike: 'Far-side bike lane (Section segment)', parkingRestrictions: 'Parking restrictions' };
   Object.keys(P).forEach(function(k) { var p = P[k], s = p.source === 'user' ? (p.from ? 'confirmed or edited by you (imported from ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'entered by you') : SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' (' + p.note + ')' : ''); out.push((lab[k] || k) + ': ' + s); });
   ['L', 'R'].forEach(function(side) { ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).forEach(function(b, i) { if (!b.__prov) return; var ks = Object.keys(b.__prov), src = {}; ks.forEach(function(k) { var s = b.__prov[k].source; (src[s] = src[s] || []).push(k); }); out.push((side === 'L' ? 'Near-side' : 'Far-side') + ' building ' + (i + 1) + (b.name ? ' (' + b.name + ')' : '') + ': ' + Object.keys(src).map(function(s) { return src[s].join(', ') + ' from ' + SMP.SRC[s]; }).join('; ') + ((b.__prov.length || b.__prov.zOffset || {}).id ? ', ' + (b.__prov.length || b.__prov.zOffset).id + ', ' + SMP.day((b.__prov.length || b.__prov.zOffset).fetchedAt) : '')); }); });
   SMP.objects().forEach(function(o) { var p = o.obj.prov || {}; out.push(o.label + ' at ' + SMP.where(o.obj) + ': ' + (SMP.SRC[p.source] || '') + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (o.obj.confirmed ? ', confirmed ' + SMP.day(o.obj.confirmedAt) : ', not yet verified on site')); });
