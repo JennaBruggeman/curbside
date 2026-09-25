@@ -433,7 +433,31 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 </div>
 </div>
 
-<div class='ctx-section' id='ctxSite'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site</span></div><div class="sb-section">        <div class="sb-section-lbl">Site Setup</div>                <div class="ff">          <label>Street address</label>          <input type="text" id="streetAddress" placeholder="e.g. 1000-block Robson St"                 oninput="saveSettings()">        </div>        <div class="ff-row">          <div class="ff ff--site">            <label>Roadway width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">curb-to-curb &mdash; enter from field measurement</span>            </label>            <input type="number" id="roadWidth" value="5.635" min="4.0" max="12" step="0.01"                   oninput="onRoadWidthChange()">          <span id='roadWidthNote' style='display:block;margin-top:4px;font-size:11px;color:#888'></span></div>          <div class="ff ff--site">            <label>Sidewalk width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">building face to curb</span>            </label>            <input type="number" id="sidewalkWidth" value="1.8" min="0.5" max="6" step="0.01"                   oninput="onSidewalkWidthChange()">          </div>        </div>        <div class="ff">          <label>Road direction</label>          <div class="seg-group" id="roadDirToggle">            <button class="seg-btn active" onclick="onRoadDirChange('oneway')">One-way</button>            <button class="seg-btn" onclick="onRoadDirChange('twoway')">Two-way</button>          </div>        </div>        <div class="ff" id="laneOneWayField">          <label>Travel lanes <span class="hint">adjacent to parklet</span></label>          <input type="number" id="laneCount" value="1" min="1" max="6" step="1"                 oninput="onLaneCountChange()">        </div>        <div id="laneTwoWayField" style="display:none">          <div class="ff-row">            <div class="ff">              <label>Near lanes <span class="hint">parklet side &#x2192;</span></label>              <input type="number" id="lanesA" value="1" min="1" max="4" step="1" oninput="onLanesAChange()">            </div>            <div class="ff">              <label>Far lanes <span class="hint">&#x2190; opposite</span></label>              <input type="number" id="lanesB" value="1" min="1" max="4" step="1" oninput="onLanesBChange()">            </div>          </div>        </div>        <div class="ff">          <label>Route type</label>          <div class="seg-group" id="routeToggle">            <button class="seg-btn active" onclick="onRouteTypeToggle('standard')">Standard ≥ 3.0 m</button>            <button class="seg-btn" onclick="onRouteTypeToggle('bus_truck')">Bus / Truck ≥ 3.2 m</button>          </div>        </div>      </div>      <div class='sb-section' id='contextSection'></div><div class='sb-section'>
+<div class='ctx-section' id='ctxSite'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site</span></div><div class="sb-section">        <div class="sb-section-lbl">Site Setup</div>                <div class="ff">          <label>Street address</label>          <input type="text" id="streetAddress" placeholder="e.g. 1000-block Robson St"                 oninput="saveSettings()">        </div>
+        <div class='site-orient-block' id='siteOrient'>
+          <div class='ff'>
+            <label>Street runs <span class='hint'>bearing of the street axis, clockwise from true north</span></label>
+            <div class='seg-group site-seg' id='siteBearingSeg' role='group' aria-label='Street runs'>
+              <button type='button' class='seg-btn' data-b='0' onclick='siteChooseBearing(0)'>N-S</button><button type='button' class='seg-btn' data-b='90' onclick='siteChooseBearing(90)'>E-W</button><button type='button' class='seg-btn' data-b='45' onclick='siteChooseBearing(45)'>NE-SW</button><button type='button' class='seg-btn' data-b='135' onclick='siteChooseBearing(135)'>NW-SE</button><button type='button' class='seg-btn' data-b='c' onclick='siteChooseBearing(-1)'>Custom</button>
+            </div>
+            <div id='siteBearingCustom' class='site-custom' style='display:none'><input type='number' id='siteBearingDeg' min='0' max='179' step='1' aria-label='Street bearing in degrees' onchange='siteSetBearing(this.value)'><span class='unit'>° from north, 0-179</span></div>
+          </div>
+          <div class='ff'>
+            <label for='siteSideSel'>Parklet is on the <select id='siteSideSel' class='site-side' onchange='siteSetSide(this.value)'></select> side of the street</label>
+          </div>
+          <div class='ff-row'>
+            <div class='ff'><label for='siteLat'>Latitude <span class='unit'>°</span></label><input type='number' id='siteLat' step='0.0001' min='-90' max='90' onchange='siteSetLatLon()'></div>
+            <div class='ff'><label for='siteLon'>Longitude <span class='unit'>°</span></label><input type='number' id='siteLon' step='0.0001' min='-180' max='180' onchange='siteSetLatLon()'></div>
+          </div>
+          <div class='ff'>
+            <label for='sitePaste'>Paste coordinates</label>
+            <input type='text' id='sitePaste' placeholder='49.2827, -123.1207' autocomplete='off' oninput='siteParsePaste(this.value)'>
+            <span class='hint'>Paste "lat, lon" in decimal degrees from a map. There is no address lookup: nothing is geocoded.</span>
+            <span class='hint site-msg' id='sitePasteMsg' role='status'></span>
+          </div>
+          <div class='site-rose-wrap'><div id='siteRose'></div><p class='site-orient-txt' id='siteOrientTxt' aria-live='polite'></p></div>
+        </div>
+        <div class="ff-row">          <div class="ff ff--site">            <label>Roadway width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">curb-to-curb &mdash; enter from field measurement</span>            </label>            <input type="number" id="roadWidth" value="5.635" min="4.0" max="12" step="0.01"                   oninput="onRoadWidthChange()">          <span id='roadWidthNote' style='display:block;margin-top:4px;font-size:11px;color:#888'></span></div>          <div class="ff ff--site">            <label>Sidewalk width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">building face to curb</span>            </label>            <input type="number" id="sidewalkWidth" value="1.8" min="0.5" max="6" step="0.01"                   oninput="onSidewalkWidthChange()">          </div>        </div>        <div class="ff">          <label>Road direction</label>          <div class="seg-group" id="roadDirToggle">            <button class="seg-btn active" onclick="onRoadDirChange('oneway')">One-way</button>            <button class="seg-btn" onclick="onRoadDirChange('twoway')">Two-way</button>          </div>        </div>        <div class="ff" id="laneOneWayField">          <label>Travel lanes <span class="hint">adjacent to parklet</span></label>          <input type="number" id="laneCount" value="1" min="1" max="6" step="1"                 oninput="onLaneCountChange()">        </div>        <div id="laneTwoWayField" style="display:none">          <div class="ff-row">            <div class="ff">              <label>Near lanes <span class="hint">parklet side &#x2192;</span></label>              <input type="number" id="lanesA" value="1" min="1" max="4" step="1" oninput="onLanesAChange()">            </div>            <div class="ff">              <label>Far lanes <span class="hint">&#x2190; opposite</span></label>              <input type="number" id="lanesB" value="1" min="1" max="4" step="1" oninput="onLanesBChange()">            </div>          </div>        </div>        <div class="ff">          <label>Route type</label>          <div class="seg-group" id="routeToggle">            <button class="seg-btn active" onclick="onRouteTypeToggle('standard')">Standard ≥ 3.0 m</button>            <button class="seg-btn" onclick="onRouteTypeToggle('bus_truck')">Bus / Truck ≥ 3.2 m</button>          </div>        </div>      </div>      <div class='sb-section' id='contextSection'></div><div class='sb-section'>
   <div class='sb-section-lbl'>Street Objects</div>
   <div class='ctx-pill-row'>
     <button class='ctx-btn' onclick='togglePlaceMH()' title='Place manhole / access chamber'>+ Manhole</button>
@@ -649,13 +673,10 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <div id='swNorth' class='sw-section'>
       <h2 class='sw-sh'>Project North</h2>
       <div class='sw-row' style='align-items:flex-start;'>
-        <label class='sw-label' style='padding-top:4px;'>Rotation</label>
+        <label class='sw-label' style='padding-top:4px;'>North</label>
         <div>
-          <div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
-            <input type='number' id='settNorthDeg' class='sett-input' step='1' value='0' style='width:80px;font-size:13px;padding:5px 8px;' oninput='cadSetProjectNorth(parseFloat(this.value)||0)'>
-            <span style='font-size:11px;color:var(--muted);'>degrees CW from world north (-Z)</span>
-          </div>
-          <button class='ctx-btn' onclick='cadSetProjectNorth(0)'>Reset to 0&deg;</button>
+          <div id='settNorthDeg' class='sett-ro' style='font-size:13px;margin-bottom:8px;'></div>
+          <button class='ctx-btn' onclick='appSetMode("site")'>Set in Site</button>
         </div>
       </div>
     </div>
@@ -1479,10 +1500,107 @@ var DESIGN_MODEL = {
 // 3D:     mesh.position.x = x,  mesh.position.z = z   (Three.js y = height)
 // All plan<->world conversions go through worldToPlan / planToWorld / planDeltaToWorld.
 //
-// Cardinal directions -- the ONLY definition; compasses, move buttons and labels read it.
-// Right-handed with Y up: facing N (-Z), E (+X) is on your right, so a north-up view
-// reads east-right like a real map. Plan: N points right, E points down.
-var CAD_CARDINAL = {N:{x:0,z:-1}, S:{x:0,z:1}, E:{x:1,z:0}, W:{x:-1,z:0}};
+// ── Site orientation (Brief 11a): north belongs to the design ────────────────────────────────
+// The street and the parklet's side of it fix north in the world frame:
+//   world +Z runs along the street; +X runs across it, from the parklet's curb toward the road;
+//   +Y is up. Right-handed, so seen from above -Z lies 90 deg counter-clockwise of +X.
+//   streetBearing = the compass bearing of the street axis, 0-179 deg clockwise from true north.
+//   parkletSide   = the compass side of the street the parklet is on: one of the two sides at
+//                   streetBearing + 90 and + 270.
+// siteDerive: the parklet's side has bearing s; the road lies the other way, so +X = s + 180;
+// -Z = +X - 90 = s + 90; northDeg (the clockwise angle from world -Z to true north) = 360 - (s +
+// 90) = 270 - s (mod 360). A N-S street with the parklet on the west side (s = 270) is northDeg 0,
+// the old N = -Z convention; on the east side (s = 90) northDeg is 180 (true north = world +Z).
+// DESIGN_MODEL.site.northDeg is the one value every view reads; nothing else stores north.
+var SITE_DEFAULT = { lat: 49.2827, lon: -123.1207, streetBearing: 0, parkletSide: 'east' };
+var SITE_ORIENT = Object.assign({}, SITE_DEFAULT);
+var SITE_WINDS = ['north', 'north-north-east', 'north-east', 'east-north-east', 'east', 'east-south-east', 'south-east', 'south-south-east',
+  'south', 'south-south-west', 'south-west', 'west-south-west', 'west', 'west-north-west', 'north-west', 'north-north-west'];
+function siteNorm(b, m) { m = m || 360; var v = ((+b % m) + m) % m; return Math.abs(v - m) < 1e-9 ? 0 : v; }
+function siteWind(b) { return SITE_WINDS[Math.round(siteNorm(b) / 22.5) % 16]; }
+function siteWindBearing(name) { var i = SITE_WINDS.indexOf(String(name || '').toLowerCase()); return i < 0 ? null : i * 22.5; }
+function siteAngle(a, b) { var d = Math.abs(siteNorm(a) - siteNorm(b)); return Math.min(d, 360 - d); }
+// The two sides of a street of bearing sb: {bearing, name}, the side at sb + 90 first.
+function siteSides(sb) { sb = siteNorm(sb, 180); return [sb + 90, sb + 270].map(function(b) { b = siteNorm(b); return { bearing: b, name: siteWind(b) }; }); }
+function siteDerive(o) {
+  o = o || SITE_ORIENT;
+  var sb = siteNorm(Math.round((+o.streetBearing || 0) * 100) / 100, 180), sides = siteSides(sb), want = siteWindBearing(o.parkletSide);
+  var a0 = want == null ? 0 : siteAngle(sides[0].bearing, want), a1 = want == null ? 180 : siteAngle(sides[1].bearing, want), i = a0 <= a1 ? 0 : 1;
+  var s = sides[i].bearing, mz = siteNorm(s + 90);
+  return { streetBearing: sb, sides: sides, side: sides[i], sideBearing: s, roadBearing: siteNorm(s + 180), minusZBearing: mz, plusZBearing: siteNorm(mz + 180),
+    northDeg: siteNorm(360 - mz), ambiguous: want == null || Math.abs(a0 - a1) < 1e-6 };
+}
+// North as the model holds it (before the first buildDesignModel: the same derivation).
+function siteNorthDeg() { var s = typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL && DESIGN_MODEL.site; return s && typeof s.northDeg === 'number' ? s.northDeg : siteDerive(SITE_ORIENT).northDeg; }
+// World unit vector {x, z} of a compass bearing b: it lies (northDeg + b) clockwise of world -Z.
+function siteBearingWorld(b, northDeg) {
+  var r = siteNorm((northDeg == null ? siteNorthDeg() : northDeg) + b) * Math.PI / 180, c = function(v) { return Math.abs(v) < 1e-12 ? 0 : v; };
+  return { x: c(Math.sin(r)), z: c(-Math.cos(r)) };
+}
+// Compass bearing of a world direction (x, z).
+function siteWorldBearing(x, z, northDeg) { return siteNorm(Math.atan2(x, -z) * 180 / Math.PI - (northDeg == null ? siteNorthDeg() : northDeg)); }
+
+// Cardinal directions: world unit vectors {x, z} of true N / E / S / W, from the model's north.
+// Compasses, move buttons and labels read them. Right-handed with Y up: facing N, E is on your
+// right, so every view is a rotation of the map, never a mirror.
+var CAD_CARDINAL = {};
+['N', 'E', 'S', 'W'].forEach(function(k, i) { Object.defineProperty(CAD_CARDINAL, k, { enumerable: true, get: function() { return siteBearingWorld(i * 90); } }); });
+
+// ── Sun (Brief 11a) ──────────────────────────────────────────────────────────────────────────
+// Civil time at the site: British Columbia (lat 48.2-60, lon -139.1..-114) keeps Pacific time
+// with the North American DST rule (2nd Sunday of March 02:00 to 1st Sunday of November 02:00);
+// elsewhere the standard zone of the longitude (round(lon / 15) h), without DST. mo is 0-11.
+function siteCivilToUTC(lat, lon, y, mo, d, min) {
+  var bc = lat >= 48.2 && lat <= 60 && lon >= -139.1 && lon <= -114, std = bc ? -8 : Math.round(lon / 15), dst = false;
+  var wall = Date.UTC(y, mo, d) + min * 6e4;   // the wall-clock time read as if it were UTC
+  if (bc) {
+    var sunday = function(m, n) { var f = new Date(Date.UTC(y, m, 1)).getUTCDay(); return 1 + (7 - f) % 7 + 7 * (n - 1); };
+    dst = wall >= Date.UTC(y, 2, sunday(2, 2), 2) && wall < Date.UTC(y, 10, sunday(10, 1), 2);
+  }
+  var off = std + (dst ? 1 : 0);
+  return { utc: new Date(wall - off * 36e5), offset: off, zone: bc ? (dst ? 'PDT' : 'PST') : 'UTC' + (off < 0 ? '-' : '+') + Math.abs(off) };
+}
+// Solar position for a UTC instant (NOAA solar calculator: Julian century -> geometric mean
+// longitude and anomaly, equation of centre, apparent longitude, obliquity -> declination and
+// equation of time -> true solar time and hour angle -> zenith and azimuth, plus NOAA's
+// atmospheric refraction). {altitude, azimuth (clockwise from true north), declination} in deg.
+function solarPositionUTC(lat, lon, utc) {
+  var r = Math.PI / 180, jd = utc.getTime() / 864e5 + 2440587.5, T = (jd - 2451545) / 36525;
+  var L0 = siteNorm(280.46646 + T * (36000.76983 + T * 0.0003032)), M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
+  var e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
+  var C = Math.sin(M * r) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(2 * M * r) * (0.019993 - 0.000101 * T) + Math.sin(3 * M * r) * 0.000289;
+  var om = 125.04 - 1934.136 * T, lam = L0 + C - 0.00569 - 0.00478 * Math.sin(om * r);
+  var eps = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 + 0.00256 * Math.cos(om * r);
+  var dec = Math.asin(Math.sin(eps * r) * Math.sin(lam * r)), yv = Math.pow(Math.tan(eps * r / 2), 2);
+  var eot = 4 / r * (yv * Math.sin(2 * L0 * r) - 2 * e * Math.sin(M * r) + 4 * e * yv * Math.sin(M * r) * Math.cos(2 * L0 * r) -
+    0.5 * yv * yv * Math.sin(4 * L0 * r) - 1.25 * e * e * Math.sin(2 * M * r));                        // minutes
+  var tst = siteNorm(utc.getUTCHours() * 60 + utc.getUTCMinutes() + utc.getUTCSeconds() / 60 + eot + 4 * lon, 1440);
+  var ha = tst / 4 - 180, phi = lat * r;
+  var zen = Math.acos(Math.max(-1, Math.min(1, Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(ha * r))));
+  var el = 90 - zen / r, te = Math.tan(el * r);
+  var refr = el > 85 ? 0 : el > 5 ? 58.1 / te - 0.07 / Math.pow(te, 3) + 0.000086 / Math.pow(te, 5) : el > -0.575 ? 1735 + el * (-518.2 + el * (103.4 + el * (-12.79 + el * 0.711))) : -20.772 / te;
+  var az = Math.acos(Math.max(-1, Math.min(1, (Math.sin(phi) * Math.cos(zen) - Math.sin(dec)) / (Math.cos(phi) * Math.sin(zen) || 1e-12)))) / r;
+  return { altitude: el + refr / 3600, azimuth: ha > 0 ? siteNorm(az + 180) : siteNorm(540 - az), declination: dec / r, eqTime: eot };
+}
+// solarPosition(lat, lon, date, time): date 'YYYY-MM-DD' | {y, m (1-12), d} | Date (its calendar
+// date); time 'HH:MM' | minutes after midnight, civil time at the site (siteCivilToUTC).
+function solarPosition(lat, lon, date, time) {
+  var y, m, d;
+  if (date instanceof Date) { y = date.getFullYear(); m = date.getMonth() + 1; d = date.getDate(); }
+  else if (typeof date === 'string') { var q = date.split('-'); y = +q[0]; m = +q[1]; d = +q[2]; }
+  else { y = date.y; m = date.m; d = date.d; }
+  var min = typeof time === 'number' ? time : (function(t) { var p = String(t == null ? '12:00' : t).split(':'); return (+p[0]) * 60 + (+p[1] || 0); })(time);
+  var z = siteCivilToUTC(lat, lon, y, m - 1, d, min), p = solarPositionUTC(lat, lon, z.utc);
+  p.zone = z.zone; p.utc = z.utc;
+  return p;
+}
+// The sun as a world unit vector {x, y, z} (toward the sun) for a site (DESIGN_MODEL.site by
+// default): the azimuth turned by northDeg, as siteBearingWorld.
+function sunVectorWorld(site, date, time) {
+  site = site || DESIGN_MODEL.site;
+  var p = solarPosition(site.lat, site.lon, date, time), w = siteBearingWorld(p.azimuth, site.northDeg), r = Math.PI / 180, c = Math.cos(p.altitude * r);
+  return { x: w.x * c, y: Math.sin(p.altitude * r), z: w.z * c, altitude: p.altitude, azimuth: p.azimuth, zone: p.zone };
+}
 
 // Mirror one FL3D instance into DESIGN_MODEL.objects (upsert by id).
 function _dmSyncObject(inst) {
@@ -1916,6 +2034,31 @@ function _checkLandmarkConsistency(verbose) {
     chk('section: cut objects drawn vs getSectionScene', scn.cut.filter(noEnt).length, _seSvg.querySelectorAll('[data-sec="cut"]').length);
     chk('section: beyond objects drawn vs getSectionScene', scn.beyond.filter(noEnt).length, _seSvg.querySelectorAll('[data-sec="beyond"]').length);
   }
+  // North (Brief 11a): every consumer shows DESIGN_MODEL.site.northDeg, each read back through its
+  // own mapping: the Plan arrow's screen vector through planDeltaToWorld, the 3D compass's world
+  // vector, the axon arrow's screen vector back onto the ground through the axon camera.
+  if (DM.site && typeof DM.site.northDeg === 'number' && typeof siteDerive === 'function') {
+    var _nd = DM.site.northDeg, _dd = function(a) { return siteAngle(a, _nd); }, _nb = function(x, z) { return siteNorm(Math.atan2(x, -z) * 180 / Math.PI); };
+    var _n0 = siteDerive(SITE_ORIENT).northDeg;
+    if (_dd(_n0) > 1e-6) bad.push({ value: 'north: DESIGN_MODEL.site vs the site orientation', model: _nd, independent: _n0 });
+    if (window._pvNorthV && typeof planDeltaToWorld === 'function') {
+      var _pw = planDeltaToWorld(window._pvNorthV.x, window._pvNorthV.y), _pb = _nb(_pw.x, _pw.z);
+      if (_dd(_pb) > 0.5) bad.push({ value: 'north: Plan arrow', model: _nd, independent: +_pb.toFixed(2) });
+    }
+    if (window._3dCompassNorth) {
+      var _cb = _nb(window._3dCompassNorth.x, window._3dCompassNorth.z);
+      if (_dd(_cb) > 0.5) bad.push({ value: 'north: 3D compass', model: _nd, independent: +_cb.toFixed(2) });
+    } else info.push('3D compass not drawn yet, its north check skipped');
+    if (typeof AXE !== 'undefined' && AXE.northScreen && typeof THREE !== 'undefined') {
+      var _asp = 16 / 9, _ac = AXE.camera('iso', _asp), _av = AXE.northScreen(_ac, _asp), _fb = AXE.frameBox();
+      var _c0 = new THREE.Vector3((_fb.x0 + _fb.x1) / 2, 0, (_fb.z0 + _fb.z1) / 2).project(_ac), _gp = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      var _rc = new THREE.Raycaster(), _w0 = new THREE.Vector3(), _w1 = new THREE.Vector3();
+      _rc.setFromCamera(new THREE.Vector2(_c0.x, _c0.y), _ac); _rc.ray.intersectPlane(_gp, _w0);
+      _rc.setFromCamera(new THREE.Vector2(_c0.x + _av.x * 0.05 / _asp, _c0.y - _av.y * 0.05), _ac); _rc.ray.intersectPlane(_gp, _w1);
+      var _xb = _nb(_w1.x - _w0.x, _w1.z - _w0.z);
+      if (_dd(_xb) > 0.5) bad.push({ value: 'north: axon arrow', model: _nd, independent: +_xb.toFixed(2) });
+    }
+  }
   // Section strip. (1) The edges the overlay laid out (window.seBoxes) = worldToSection of each
   // segment's x0 / x1 in a frame built fresh from the model (0.5 px) - no DOM. (2) Only when the
   // strip is displayed: each box in the DOM sits on its laid-out edges (0.5 px).
@@ -1983,7 +2126,10 @@ function buildDesignModel() {
   // World travel sense along Z for each travel lane (right-hand traffic, near curb on -X):
   // near-side and one-way lanes run +Z, far-side lanes run -Z. Views draw arrows from this.
   segs.forEach(function(s) { if (s.type === 'travel-lane') s.dirZ = s.direction === 'far' ? -1 : 1; });
-  DESIGN_MODEL.site      = { availableCrossSectionWidth: TOTAL_ROAD };
+  // Site orientation (Brief 11a): north is derived here and only here; every view reads site.northDeg.
+  var _so = siteDerive(SITE_ORIENT);
+  DESIGN_MODEL.site      = { availableCrossSectionWidth: TOTAL_ROAD, lat: +SITE_ORIENT.lat, lon: +SITE_ORIENT.lon, streetBearing: _so.streetBearing,
+    parkletSide: _so.side.name, sideBearing: _so.sideBearing, roadBearing: _so.roadBearing, northDeg: _so.northDeg };
   DESIGN_MODEL.crossSection = segs;
   DESIGN_MODEL.segments  = segs;
   DESIGN_MODEL.parklet   = { width: designParkletWidth, length: designParkletLength };
@@ -5860,9 +6006,9 @@ const manholes = state['manholes'] || [];
       (_full ? `<tspan dx='${f1(6 * U)}' font-size='${f1(10 * U)}' font-weight='400' letter-spacing='${f1(0.6 * U)}' fill='${MID}'>${_dTxt}</tspan>` : '') + `<title>A-A, depth ${_sec.depth.toFixed(1)} m</title></text>`;
   }
 
-  // North: CAD_CARDINAL (world -Z) projected through worldToPlan. The arrow itself is drawn by
-  // _pvAppendAnno beside the scale bar, on the same top-right margin.
-  { const _n0 = worldToPlan(0, 0), _n1 = worldToPlan(CAD_CARDINAL.N.x, CAD_CARDINAL.N.z);
+  // North: true north (DESIGN_MODEL.site.northDeg, as a world vector) projected through worldToPlan.
+  // The arrow itself is drawn by _pvAppendAnno beside the scale bar, on the same top-right margin.
+  { const _nw = siteBearingWorld(0), _n0 = worldToPlan(0, 0), _n1 = worldToPlan(_nw.x, _nw.z);
     const _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
     window._pvNorthV = { x: _nx / _nm, y: _ny / _nm }; }
     s = DS.restylePlan(s, { vb: VB });
@@ -8500,9 +8646,8 @@ function ensure3DReady() {
 }
 window.ensure3DReady = ensure3DReady;
 
-// Compass rose: draws world N (red) and E (amber) from CAD_CARDINAL as live arrows each
-// frame, so the user always knows which screen direction is which while orbiting.
-// N = -Z (toward the parklet start end).  E = +X (toward the road centre).
+// Compass rose: draws true N (red) and E (amber) from CAD_CARDINAL (DESIGN_MODEL.site.northDeg)
+// as live arrows each frame, so the user always knows which screen direction is which while orbiting.
 function _3dUpdateCompass() {
   var cvs = document.getElementById('_3dCompassCvs');
   if (!cvs || !_3d || !_3d.camera || typeof THREE === 'undefined') return;
@@ -8518,7 +8663,8 @@ function _3dUpdateCompass() {
     if (m < 0.001) return { x: 1, y: 0 };
     return { x: v.x / m, y: -v.y / m };  // flip Y: canvas Y grows down, world Y grows up
   }
-  var nDir = _screenDir(CAD_CARDINAL.N.x, 0, CAD_CARDINAL.N.z);
+  var _cn = CAD_CARDINAL.N, nDir = _screenDir(_cn.x, 0, _cn.z);
+  window._3dCompassNorth = { x: _cn.x, z: _cn.z };   // the north it draws (checkLandmarkConsistency)
   var eDir = _screenDir(CAD_CARDINAL.E.x, 0, CAD_CARDINAL.E.z);
   // Background disc
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -8543,8 +8689,8 @@ function _3dUpdateCompass() {
     ctx.fillText(label, cx + dir.x * (r+6), cy + dir.y * (r+6));
   }
   var _tch = typeof DS !== 'undefined' && DS.mode() === 'technical';   // technical: achromatic
-  _drawAxis(nDir, _tch ? '#FFFFFF' : '#c03030', 'N');  // red:   N = -Z
-  _drawAxis(eDir, _tch ? '#9A9A9A' : '#c07010', 'E');  // amber: E = +X
+  _drawAxis(nDir, _tch ? '#FFFFFF' : '#c03030', 'N');  // red:   true north
+  _drawAxis(eDir, _tch ? '#9A9A9A' : '#c07010', 'E');  // amber: east
 }
 window._3dUpdateCompass = _3dUpdateCompass;
 
@@ -11256,18 +11402,170 @@ document.addEventListener('keydown', function(e) {
   });
 })();
 
-// ── Project North ─────────────────────────────────────────────────
-var projectNorthDeg = 0;
-(function() {
-  try { var _pn = parseFloat(localStorage.getItem('pkt_north')); if (!isNaN(_pn)) projectNorthDeg = _pn; } catch(_e) {}
-})();
-
-function cadSetProjectNorth(deg) {
-  projectNorthDeg = ((deg % 360) + 360) % 360;
-  var inp = document.getElementById('settNorthDeg');
-  if (inp) inp.value = Math.round(projectNorthDeg);
-  try { localStorage.setItem('pkt_north', projectNorthDeg); } catch(_e) {}
+// ── Site orientation: setters, the Site tab controls, the Settings readout (Brief 11a) ────────
+// Every change goes through siteSet: the orientation is canonicalised, the model is rebuilt and
+// every view redrawn (syncDesignModel), and the design state saved (saveSettings -> local
+// design state + cloud autosave). North is never stored anywhere else.
+function siteSet(patch, why) {
+  Object.assign(SITE_ORIENT, patch || {});
+  var d = siteDerive(SITE_ORIENT);
+  SITE_ORIENT.streetBearing = d.streetBearing; SITE_ORIENT.parkletSide = d.side.name;
+  try { if (typeof syncDesignModel === 'function') syncDesignModel(why || 'site-orientation'); else if (typeof buildDesignModel === 'function') buildDesignModel(); }
+  catch (e) { console.warn('[site] redraw after an orientation change failed', e); }
+  siteUI();
+  try { if (typeof saveSettings === 'function') saveSettings(); } catch (e) {}
 }
+// A new street bearing keeps the parklet on the side nearest the one it was on.
+function siteSetBearing(v) {
+  var b = Math.round(+v); if (!isFinite(b)) return;
+  b = siteNorm(b, 180);
+  var prev = siteDerive().sideBearing, sides = siteSides(b), s = siteAngle(sides[0].bearing, prev) <= siteAngle(sides[1].bearing, prev) ? sides[0] : sides[1];
+  siteSet({ streetBearing: b, parkletSide: s.name });
+}
+function siteChooseBearing(k) {
+  if (k === 'c' || k < 0) { siteUI.custom = true; siteUI(); var f = document.getElementById('siteBearingDeg'); if (f) f.focus(); return; }
+  siteUI.custom = false; siteSetBearing(k);
+}
+function siteSetSide(name) { siteSet({ parkletSide: name }); }
+function siteSetLatLon() {
+  var la = parseFloat((document.getElementById('siteLat') || {}).value), lo = parseFloat((document.getElementById('siteLon') || {}).value);
+  var msg = document.getElementById('sitePasteMsg');
+  if (!(la >= -90 && la <= 90) || !(lo >= -180 && lo <= 180)) { if (msg) msg.textContent = 'Latitude is -90 to 90 and longitude -180 to 180 (decimal degrees).'; return; }
+  if (msg) msg.textContent = '';
+  siteSet({ lat: la, lon: lo }, 'site-latlon');
+}
+// "lat, lon" pasted from a map (decimal degrees). No geocoding: an address is not looked up.
+function siteParsePaste(v) {
+  var msg = document.getElementById('sitePasteMsg'), m = String(v || '').match(/(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+  if (!String(v || '').trim()) { if (msg) msg.textContent = ''; return; }
+  if (!m) { if (msg) msg.textContent = 'Write it as "lat, lon", e.g. 49.2827, -123.1207.'; return; }
+  var la = +m[1], lo = +m[2];
+  if (!(la >= -90 && la <= 90) || !(lo >= -180 && lo <= 180)) { if (msg) msg.textContent = 'Latitude is -90 to 90 and longitude -180 to 180.'; return; }
+  document.getElementById('siteLat').value = la; document.getElementById('siteLon').value = lo;
+  if (msg) msg.textContent = 'Set to ' + la + ', ' + lo + '.';
+  siteSet({ lat: la, lon: lo }, 'site-latlon');
+}
+// Thin setter over the model (the old Settings rotation and the pkt_north migration): the
+// orientation whose northDeg is deg, i.e. siteDerive inverted: side s = 270 - deg, street
+// bearing = s - 90 (mod 180).
+function cadSetProjectNorth(deg) {
+  var s = siteNorm(270 - (+deg || 0)), sb = siteNorm(s - 90, 180);
+  siteUI.custom = [0, 45, 90, 135].indexOf(Math.round(sb * 100) / 100) < 0;
+  siteSet({ streetBearing: sb, parkletSide: siteWind(s) });
+}
+// A loaded design state: its orientation, when it has one (older states keep the current one).
+function siteApplyState(s) {
+  ['lat', 'lon', 'streetBearing', 'parkletSide'].forEach(function(k) { if (s[k] !== undefined && s[k] !== null) SITE_ORIENT[k] = s[k]; });
+  var d = siteDerive(SITE_ORIENT); SITE_ORIENT.streetBearing = d.streetBearing; SITE_ORIENT.parkletSide = d.side.name;
+  SITE_ORIENT._fromState = true;
+  siteUI.custom = [0, 45, 90, 135].indexOf(d.streetBearing) < 0;
+  setTimeout(siteUI, 0);
+}
+// Which buildings shade the parklet at the equinox (20 Mar), from the geometry: a ray from the
+// deck centre at seat height (0.65 m above the road) toward the sun, every 10 min, against each
+// building's facade plane (faceX, 0..height, z0..z1); morning / afternoon split at solar noon.
+function siteShade(dm) {
+  dm = dm || _dmCurrent();
+  var LM = dm.landmarks, L = dm.parklet.length, P = { x: (LM.deckX0 + LM.deckX1) / 2, y: 0.65, z: L / 2 }, year = new Date().getFullYear(), rows = [], zone = '';
+  for (var m = 240; m <= 1260; m += 10) {
+    var v = sunVectorWorld(dm.site, { y: year, m: 3, d: 20 }, m); zone = v.zone;
+    if (v.altitude <= 0) continue;
+    var by = null;
+    [['near', dm.buildings.L], ['far', dm.buildings.R]].forEach(function(g) {
+      (g[1] || []).forEach(function(b) {
+        var f = b.footprint; if (by || !f.visible || (f.faceX - P.x) * v.x <= 0) return;   // the sun is on this facade's side?
+        var t = (f.faceX - P.x) / v.x, y = P.y + t * v.y, z = P.z + t * v.z;
+        if (y < (b.height || 8) && z >= f.z0 && z <= f.z1) by = g[0];
+      });
+    });
+    rows.push({ min: m, alt: v.altitude, by: by });
+  }
+  var noon = rows.length ? rows.reduce(function(a, r) { return r.alt > a.alt ? r : a; }).min : 720;
+  function part(am) {
+    var rs = rows.filter(function(r) { return am ? r.min < noon : r.min >= noon; }), n = rs.length || 1;
+    return { near: rs.filter(function(r) { return r.by === 'near'; }).length / n, far: rs.filter(function(r) { return r.by === 'far'; }).length / n };
+  }
+  var runs = [], cur = null;
+  rows.forEach(function(r) { if (!r.by) { if (cur) cur[1] = r.min; else cur = [r.min, r.min]; } else if (cur) { runs.push(cur); cur = null; } });
+  if (cur) runs.push(cur);
+  return { am: part(true), pm: part(false), noon: noon, sun: runs, zone: zone };
+}
+function siteOrientSentence(d, sh) {
+  var hm = function(m) { var h = Math.floor(m / 60), n = m % 60; return (h < 10 ? '0' : '') + h + ':' + (n < 10 ? '0' : '') + n; };
+  var half = function(p, w) { return p.near >= 0.5 ? w + ' shade from the near building' : p.far >= 0.5 ? w + ' shade from the far building' : p.near + p.far >= 0.5 ? 'part ' + w + ' shade' : w + ' sun'; };
+  var sun = sh.sun.length ? ' (in sun about ' + sh.sun.map(function(r) { return hm(r[0]) + '-' + hm(r[1] + 10); }).join(', ') + ' ' + sh.zone + ')' : ' (in shade all day)';
+  return 'Building side is ' + d.side.name + ' (the facades face ' + siteWind(d.roadBearing) + '); at the equinox the parklet gets ' + half(sh.am, 'morning') + ' and ' + half(sh.pm, 'afternoon') + sun + '.';
+}
+// The Plan's screen direction (y down) of a compass bearing, through worldToPlan.
+function sitePlanDir(b) {
+  var w = siteBearingWorld(b), a = null, c = null;
+  try { a = worldToPlan(0, 0); c = worldToPlan(w.x, w.z); } catch (e) {}
+  var dx = a && c && isFinite(c.px - a.px) ? c.px - a.px : -w.z, dy = a && c && isFinite(c.py - a.py) ? c.py - a.py : w.x, m = Math.hypot(dx, dy) || 1;
+  return { x: dx / m, y: dy / m };
+}
+// Compass rose beside a thumbnail of the Plan as the Plan draws it (the street across, +Z to the
+// left, the building and sidewalk above, the road below): N where the Plan's north arrow points.
+function siteRoseSVG(d) {
+  var cx = 186, cy = 52, R = 32, n = sitePlanDir(0), f = function(v) { return v.toFixed(1); }, s = '';
+  s += "<rect x='4' y='8' width='124' height='16' class='sr-bld'/><rect x='4' y='24' width='124' height='13' class='sr-walk'/>" +
+       "<rect x='4' y='37' width='124' height='57' class='sr-road'/><rect x='26' y='37' width='80' height='18' class='sr-deck'/>" +
+       "<text x='66' y='19' class='sr-t'>building side</text><text x='66' y='49' class='sr-t sr-t-d'>parklet</text><text x='66' y='80' class='sr-t'>road</text>";
+  s += "<circle cx='" + cx + "' cy='" + cy + "' r='" + R + "' class='sr-rim'/>";
+  [['E', 90], ['S', 180], ['W', 270]].forEach(function(k) {
+    var v = sitePlanDir(k[1]);
+    s += "<line x1='" + f(cx + v.x * (R - 5)) + "' y1='" + f(cy + v.y * (R - 5)) + "' x2='" + f(cx + v.x * R) + "' y2='" + f(cy + v.y * R) + "' class='sr-tick'/>" +
+         "<text x='" + f(cx + v.x * (R + 8)) + "' y='" + f(cy + v.y * (R + 8) + 3.5) + "' class='sr-l'>" + k[0] + '</text>';
+  });
+  var px = -n.y, py = n.x;
+  s += "<polygon points='" + [[cx + n.x * (R - 3), cy + n.y * (R - 3)], [cx - n.x * 9 + px * 7, cy - n.y * 9 + py * 7], [cx - n.x * 3, cy - n.y * 3], [cx - n.x * 9 - px * 7, cy - n.y * 9 - py * 7]].map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "' class='sr-n'/>" +
+       "<text x='" + f(cx + n.x * (R + 8)) + "' y='" + f(cy + n.y * (R + 8) + 3.5) + "' class='sr-l sr-ln'>N</text>";
+  return "<svg viewBox='0 0 236 104' class='site-rose' role='img' aria-label='North relative to the Plan: northDeg " + Math.round(d.northDeg) + " degrees'>" + s + '</svg>';
+}
+function siteUI() {
+  var d = siteDerive(), g = function(id) { return document.getElementById(id); }, preset = [0, 90, 45, 135].indexOf(d.streetBearing) >= 0 && !siteUI.custom;
+  var seg = g('siteBearingSeg');
+  if (seg) {
+    seg.querySelectorAll('.seg-btn').forEach(function(b) { var v = b.getAttribute('data-b'); b.classList.toggle('active', v === 'c' ? !preset : preset && +v === d.streetBearing); });
+    g('siteBearingCustom').style.display = preset ? 'none' : '';
+    if (document.activeElement !== g('siteBearingDeg')) g('siteBearingDeg').value = d.streetBearing;
+  }
+  var sel = g('siteSideSel');
+  if (sel) sel.innerHTML = d.sides.map(function(s) { return "<option value='" + s.name + "'" + (s.name === d.side.name ? ' selected' : '') + '>' + s.name + '</option>'; }).join('');
+  if (g('siteLat') && document.activeElement !== g('siteLat')) g('siteLat').value = SITE_ORIENT.lat;
+  if (g('siteLon') && document.activeElement !== g('siteLon')) g('siteLon').value = SITE_ORIENT.lon;
+  var rose = g('siteRose'), txt = g('siteOrientTxt');
+  if (rose || txt) {
+    var dm = typeof buildDesignModel === 'function' && (!DESIGN_MODEL.site || DESIGN_MODEL.site.northDeg !== d.northDeg) ? buildDesignModel() : _dmCurrent();
+    if (rose) rose.innerHTML = siteRoseSVG(d);
+    if (txt) { try { txt.textContent = siteOrientSentence(d, siteShade(dm)); } catch (e) { txt.textContent = ''; } }
+  }
+  var st = g('settNorthDeg');
+  if (st) st.textContent = 'North ' + Math.round(d.northDeg) + '° clockwise from world −Z: the street runs ' + d.streetBearing + '°, the parklet is on its ' + d.side.name + ' side.';
+}
+// Printed once at load: how north follows from the street and the parklet's side.
+function sitePrintDerivation() {
+  if (sitePrintDerivation.done) return;
+  sitePrintDerivation.done = true;
+  var d = siteDerive(), n = siteBearingWorld(0, d.northDeg);
+  console.log('[site] north: the street axis runs ' + d.streetBearing + ' deg; the parklet is on the ' + d.side.name + ' side (bearing ' + d.sideBearing +
+    '); the road lies opposite, so world +X = ' + d.roadBearing + ' (' + siteWind(d.roadBearing) + '); world -Z = +X - 90 = ' + d.minusZBearing + ' (' + siteWind(d.minusZBearing) +
+    '); northDeg = 360 - ' + d.minusZBearing + ' = ' + d.northDeg + ' deg clockwise from world -Z, so true north is world (x ' + n.x + ', z ' + n.z + ').' + (d.ambiguous ? ' (side name along the street axis: first side taken)' : ''));
+}
+// At load, after the local design state is restored: the old Settings north (pkt_north) moves
+// into the design once -- only if the design brought no orientation of its own -- and the key
+// is deleted. Then the derivation is printed.
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    var raw = null; try { raw = localStorage.getItem('pkt_north'); } catch (e) {}
+    if (raw !== null) {
+      var n = parseFloat(raw);
+      if (!SITE_ORIENT._fromState && isFinite(n)) { cadSetProjectNorth(n); console.log('[site] migrated the Settings north (pkt_north = ' + n + ') into the design: street ' + SITE_ORIENT.streetBearing + ' deg, parklet on the ' + SITE_ORIENT.parkletSide + ' side.'); }
+      try { localStorage.removeItem('pkt_north'); } catch (e) {}
+    }
+    siteUI();
+    sitePrintDerivation();
+  }, 1600);
+});
 
 // ── Settings handlers ─────────────────────────────────────────────
 function cadSetUnits(system) {
@@ -11303,12 +11601,6 @@ function _cadLoadSettings() {
     var org = localStorage.getItem('pkt_sett_org');
     if (org && (el = document.getElementById('settOrg'))) el.value = org;
     cadSetUnits(localStorage.getItem('pkt_units') || 'metric');
-    var pn = parseFloat(localStorage.getItem('pkt_north'));
-    if (!isNaN(pn)) {
-      projectNorthDeg = pn;
-      var ni = document.getElementById('settNorthDeg');
-      if (ni) ni.value = Math.round(pn);
-    }
   } catch(_e) {}
 }
 window.addEventListener('load', function() { setTimeout(_cadLoadSettings, 700); });
@@ -13715,7 +14007,9 @@ function pkSerialize() {
       bufPKType:      typeof bufPKType       !== 'undefined' ? bufPKType       : 'none',
       bufPKW:         typeof bufPKW          !== 'undefined' ? bufPKW          : 0.8,
       bufBLType:      typeof bufBLType       !== 'undefined' ? bufBLType       : 'none',
-      bufBLW:         typeof bufBLW          !== 'undefined' ? bufBLW          : 0.4
+      bufBLW:         typeof bufBLW          !== 'undefined' ? bufBLW          : 0.4,
+      // site orientation (Brief 11a): north is derived from these (DESIGN_MODEL.site.northDeg)
+      lat: +SITE_ORIENT.lat, lon: +SITE_ORIENT.lon, streetBearing: siteDerive(SITE_ORIENT).streetBearing, parkletSide: siteDerive(SITE_ORIENT).side.name
     },
     // Section A-A (Brief 08): cut position, looking direction, depth (world m)
     section: (typeof SECTION !== 'undefined') ? { z: SECTION.z, dir: SECTION.dir, depth: SECTION.depth } : null,
@@ -13835,6 +14129,7 @@ function pkApplyDesignState(raw) {
     if (s.bufPKW    !== undefined && typeof bufPKW    !== 'undefined') bufPKW    = s.bufPKW;
     if (s.bufBLType !== undefined && typeof bufBLType !== 'undefined') bufBLType = s.bufBLType;
     if (s.bufBLW    !== undefined && typeof bufBLW    !== 'undefined') bufBLW    = s.bufBLW;
+    if (s.streetBearing !== undefined || s.parkletSide !== undefined || s.lat !== undefined) siteApplyState(s);   // older states keep the current orientation
 
     // Sync key DOM controls
     var e;
@@ -16111,7 +16406,7 @@ AXE.cutaway = function() {
 };
 // One frame at time t: agents placed, fog off (an axon has none), far context cut away,
 // rendered, everything restored.
-AXE.draw = function(renderer, cam, t) {
+AXE.draw = function(renderer, cam, t, hud) {
   AXE.setTime(t);
   var fog = _3d.scene.fog, cut = AXE._cut || [];
   var _sh = _3d.scene.getObjectByName('sectionHelper'), _shV = _sh ? _sh.visible : false;   // never in the axon
@@ -16122,6 +16417,46 @@ AXE.draw = function(renderer, cam, t) {
   cut.forEach(function(m) { m.visible = true; });
   if (_sh) _sh.visible = _shV;
   _3d.scene.fog = fog;
+  if (hud !== false) AXE.drawNorth(renderer, cam);
+};
+// North on the axon (Brief 11a): the screen direction of true north (DESIGN_MODEL.site.northDeg)
+// through the axon camera -- two ground points projected, so the 30/60 shear counts too -- drawn
+// as a small overlay in the top-right corner after the scene (every preview, PNG and video frame).
+AXE.northScreen = function(cam, aspect) {
+  var n = siteBearingWorld(0), b = AXE.frameBox(), c = new THREE.Vector3((b.x0 + b.x1) / 2, 0, (b.z0 + b.z1) / 2);
+  var p0 = c.clone().project(cam), p1 = c.clone().add(new THREE.Vector3(n.x, 0, n.z)).project(cam);
+  var dx = (p1.x - p0.x) * aspect, dy = -(p1.y - p0.y), m = Math.hypot(dx, dy) || 1;
+  return { x: dx / m, y: dy / m };
+};
+AXE.drawNorth = function(renderer, cam) {
+  var sz = renderer.getSize(new THREE.Vector2()), W = sz.x, H = sz.y, v = AXE.northScreen(cam, W / H), s = Math.round(Math.max(64, Math.min(W, H) * 0.12));
+  var h = AXE._hud;
+  if (!h) {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    var tex = new THREE.CanvasTexture(cv), mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+    h = AXE._hud = { cv: cv, tex: tex, mesh: new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat), scene: new THREE.Scene(), cam: new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1), ang: null };
+    h.scene.add(h.mesh);
+  }
+  var ang = Math.atan2(v.x, -v.y);   // clockwise from screen up
+  if (h.ang !== ang) {
+    var x = h.cv.getContext('2d');
+    x.clearRect(0, 0, 128, 128);
+    // ring r 34 with the arrow inside; the letter N upright just past the tip, on a paper disc
+    x.beginPath(); x.arc(64, 64, 34, 0, Math.PI * 2); x.fillStyle = 'rgba(255,255,255,0.9)'; x.fill();
+    x.lineWidth = 3; x.strokeStyle = '#1A1A1A'; x.stroke();
+    x.save(); x.translate(64, 64); x.rotate(ang);
+    x.beginPath(); x.moveTo(0, -30); x.lineTo(12, 18); x.lineTo(0, 9); x.lineTo(-12, 18); x.closePath(); x.fillStyle = '#1A1A1A'; x.fill();
+    x.restore();
+    var lx = 64 + Math.sin(ang) * 48, ly = 64 - Math.cos(ang) * 48;
+    x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.arc(lx, ly, 14, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#1A1A1A'; x.font = 'bold 24px Helvetica, Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('N', lx, ly + 1);
+    h.tex.needsUpdate = true; h.ang = ang;
+  }
+  h.cam.left = 0; h.cam.right = W; h.cam.top = H; h.cam.bottom = 0; h.cam.updateProjectionMatrix();
+  h.mesh.scale.set(s, s, 1); h.mesh.position.set(W - s * 0.75, H - s * 0.75, 0);
+  var ac = renderer.autoClear; renderer.autoClear = false; renderer.clearDepth(); renderer.render(h.scene, h.cam); renderer.autoClear = ac;
+  AXE._northDrawn = { x: v.x, y: v.y, deg: ang * 180 / Math.PI };
 };
 
 // ── Export tab: options, preview, recording ─────────────────────────────────────────────────
@@ -16802,7 +17137,8 @@ GEN.siteState = function(S, base, W, L, a) {
   var site = { totalRoad: S.road, sidewalkW: S.sidewalk, numLanes: S.dir === 'twoway' ? b.numLanes : S.lanes, roadDir: S.dir, lanesA: S.lanesA, lanesB: S.lanesB,
     bldgL: shB(b.bldgL), bldgR: shB(b.bldgR), parkletWidth: W, parkletLength: GEN.r3(L), bikeLane: S.bike, bikeLaneW: S.bike === 'none' ? 0 : S.bikeW,
     bufferEnabled: b.bufferEnabled, bufferW: b.bufferW,
-    bufPKType: S.bike === 'none' ? 'none' : b.bufPKType, bufPKW: b.bufPKW, bufBLType: S.bike === 'none' ? 'none' : b.bufBLType, bufBLW: b.bufBLW };
+    bufPKType: S.bike === 'none' ? 'none' : b.bufPKType, bufPKW: b.bufPKW, bufBLType: S.bike === 'none' ? 'none' : b.bufBLType, bufBLW: b.bufBLW,
+    lat: b.lat, lon: b.lon, streetBearing: b.streetBearing, parkletSide: b.parkletSide };   // the scheme stands on the same site
   // cross-section: sidewalk, parklet, bike corridor, the base's other road segments, lanes
   var segs = [{ type: 'sidewalk', width: S.sidewalk }, { type: 'parklet', width: W }];
   if (S.bike !== 'none') {
@@ -18057,8 +18393,8 @@ RPT.axonImg = function(wMm, hMm) {
   try {
     if (mode !== 'schematic') { drawingTheme.mode = 'schematic'; apply3DTheme(); }
     var cam = AXE.camera('iso', W / H), r = AXE.renderer(W, H);
-    AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0); AXE._cut = null;
-    return { url: r.domElement.toDataURL('image/png'), w: W, h: H };
+    AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0, false); AXE._cut = null;   // north goes in the title block
+    return { url: r.domElement.toDataURL('image/png'), w: W, h: H, north: AXE.northScreen(cam, W / H) };
   } finally {
     hidden.forEach(function(m) { m.visible = true; });
     if (mode !== 'schematic') { drawingTheme.mode = mode; apply3DTheme(); }
@@ -18150,7 +18486,7 @@ RPT.cutKey = function(d) {
 RPT.axonSheet = function(drw) {
   var a = drw.axon, img = a ? "<img src='" + a.url + "' alt='Axonometric' style='width:" + RPT.AREA.w + "mm;height:" + RPT.fx(RPT.AREA.w * a.h / a.w, 2) + "mm'>" : "<p class='muted'>3D view not available.</p>";
   return RPT.sheet('a3', '05', 'Axonometric', "<div class='drw'><figure class='fig'>" + img + '</figure>' +
-    RPT.titleBlock('05', 'Axonometric', 'NTS', '', '', '<p>Isometric (45° / 35.26°) from the road side, as the Brief 06 export; far-side context cut away; people and vehicles not shown.</p>') + '</div>', 'NTS');
+    RPT.titleBlock('05', 'Axonometric', 'NTS', '', a ? RPT.north(a.north) : '', '<p>Isometric (45° / 35.26°) from the road side, as the Brief 06 export; far-side context cut away; people and vehicles not shown.</p>') + '</div>', 'NTS');
 };
 RPT.drawingSheets = function(d, drw) {
   return [RPT.planSheet('02', 'Site plan', drw.plan, d, false), RPT.planSheet('03', 'Technical plan', drw.tplan, d, true), RPT.sectionSheet(drw.section, d), RPT.axonSheet(drw)];
@@ -18639,52 +18975,37 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
    - Heights follow the Section drawing (sectionFrame swRaise / deckTk) and GEN.axonThumb:
      sidewalks 0.15 m above the road, the deck surface 0.215 m. (The live 3D view keeps its
      0.065 m deck on the road.)
-   - Sun: RVZ.solar (NOAA / SunCalc low-precision formulae) from the date, the Vancouver civil
-     time and Project North (projectNorthDeg: the clockwise angle from world -Z to true north;
-     0 = the CAD_CARDINAL convention, N = -Z).
+   - Sun: solarPositionUTC (NOAA) from the date, the civil time at the site and
+     DESIGN_MODEL.site (Brief 11a: lat / lon, and northDeg = the clockwise angle from world -Z
+     to true north, derived from the street bearing and the parklet's side).
    - Ambient occlusion: three r128's core has no AO pass (SSAOPass is an examples add-on this
      file does not load), so AO is baked: vertex AO toward the surface each piece stands on,
      plus a soft contact shadow under every piece, planter and building. */
 var RVZ = {
   SW_RAISE: 0.15, DECK_TOP: 0.215, EXT: 30,
-  SITE: { lat: 49.2827, lon: -123.1207, place: 'Vancouver' },
   RES: { '720': [1280, 720], '1080': [1920, 1080], '1440': [2560, 1440] },
   PRESETS: [['street', 'Street'], ['sidewalk', 'Sidewalk'], ['corner', 'Corner'], ['aerial', 'Aerial']],
   o: { preset: 'street', appearance: 'rendered', doy: 172, min: 720, year: new Date().getFullYear(), res: '1080', scale: 2, people: true },
   cache: new Map(), CACHE_MAX: 24, _tex: {}, _mats: {}, _envs: [], _live: null, busy: false
 };
 function buildRenderScene(o) { return RVZ.build(o); }
+// the site (DESIGN_MODEL.site: Brief 11a), read on every use
+Object.defineProperty(RVZ, 'SITE', { get: function() { var s = _dmCurrent().site; return { lat: s.lat, lon: s.lon, place: Math.abs(s.lat - SITE_DEFAULT.lat) < 1e-4 && Math.abs(s.lon - SITE_DEFAULT.lon) < 1e-4 ? 'Vancouver' : 'Site' }; } });
 
 // ── Sun ─────────────────────────────────────────────────────────────────────────────────────
-// Civil date and time in Vancouver -> the UTC instant. North American DST (since 2007): from the
-// second Sunday of March 02:00 to the first Sunday of November 02:00 (PDT = UTC-7, PST = UTC-8).
+// Civil date and time at the site -> the UTC instant (siteCivilToUTC: Pacific time with DST in BC).
 RVZ.localDate = function(doy, min, year) {
-  var y = year || RVZ.o.year, dt = new Date(Date.UTC(y, 0, 1) + (doy - 1) * 864e5), m = dt.getUTCMonth(), day = dt.getUTCDate();
-  function sunday(month, n) { var f = new Date(Date.UTC(y, month, 1)).getUTCDay(); return 1 + (7 - f) % 7 + 7 * (n - 1); }
-  var wall = Date.UTC(y, m, day) + min * 6e4;   // the wall-clock time, read as if it were UTC
-  var dst = wall >= Date.UTC(y, 2, sunday(2, 2), 2) && wall < Date.UTC(y, 10, sunday(10, 1), 2);
-  return { utc: new Date(wall + (dst ? 7 : 8) * 36e5), zone: dst ? 'PDT' : 'PST', month: m, day: day };
+  var y = year || RVZ.o.year, dt = new Date(Date.UTC(y, 0, 1) + (doy - 1) * 864e5), S = RVZ.SITE;
+  var z = siteCivilToUTC(S.lat, S.lon, y, dt.getUTCMonth(), dt.getUTCDate(), min);
+  return { utc: z.utc, zone: z.zone, month: dt.getUTCMonth(), day: dt.getUTCDate() };
 };
-// Solar position for a UTC instant: {altitude, azimuth} in degrees, azimuth clockwise from true
-// north. Mean anomaly, equation of centre, ecliptic longitude -> declination and right ascension;
-// local sidereal time -> hour angle -> altitude / azimuth (after Meeus; SunCalc's formulation).
-RVZ.solar = function(date, lat, lon) {
-  var rad = Math.PI / 180, d = date.getTime() / 864e5 - 0.5 + 2440588 - 2451545;   // days since J2000.0
-  var M = rad * (357.5291 + 0.98560028 * d);
-  var C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
-  var Ls = M + C + rad * 102.9372 + Math.PI, e = rad * 23.4397;                     // ecliptic longitude; obliquity
-  var dec = Math.asin(Math.sin(e) * Math.sin(Ls)), ra = Math.atan2(Math.sin(Ls) * Math.cos(e), Math.cos(Ls));
-  var H = rad * (280.16 + 360.9856235 * d) + rad * lon - ra, phi = rad * lat;        // hour angle
-  var alt = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
-  var azS = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi));   // from south, west +
-  return { altitude: alt / rad, azimuth: ((azS / rad + 180) % 360 + 360) % 360 };
-};
-RVZ.northDeg = function() { return typeof projectNorthDeg === 'number' && isFinite(projectNorthDeg) ? projectNorthDeg : 0; };
-// Unit vector toward the sun in world coordinates: a compass bearing az lies (northDeg + az)
-// clockwise (seen from above) from world -Z, so bearing 90 = +X and 180 = +Z at northDeg 0.
+// The one solar position (solarPositionUTC, NOAA) and the one north (DESIGN_MODEL.site.northDeg).
+RVZ.solar = function(date, lat, lon) { return solarPositionUTC(lat, lon, date); };
+RVZ.northDeg = function() { return siteNorthDeg(); };
+// Unit vector toward the sun in world coordinates: the azimuth turned by northDeg (siteBearingWorld).
 RVZ.sunVectorWorld = function(alt, az, northDeg) {
-  var r = Math.PI / 180, th = (az + (northDeg || 0)) * r, c = Math.cos(alt * r);
-  return new THREE.Vector3(Math.sin(th) * c, Math.sin(alt * r), -Math.cos(th) * c);
+  var w = siteBearingWorld(az, northDeg), r = Math.PI / 180, c = Math.cos(alt * r);
+  return new THREE.Vector3(w.x * c, Math.sin(alt * r), w.z * c);
 };
 RVZ.COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 RVZ.compass = function(deg) { return RVZ.COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]; };
@@ -19575,7 +19896,7 @@ RVZ._sync = function() {
   g('rvzSunRead').innerHTML = s.up
     ? 'Altitude <b>' + s.alt.toFixed(1) + '°</b> · azimuth <b>' + s.az.toFixed(0) + '° ' + RVZ.compass(s.az) + '</b><br>A 1 m post casts a <b>' + s.shadow.len.toFixed(2) + ' m</b> shadow toward ' + RVZ.compass(s.shadow.bearing) + '.'
     : 'The sun is below the horizon (altitude ' + s.alt.toFixed(1) + '°).';
-  g('rvzSunRead').innerHTML += '<br><span class=\'rvz-dim\'>Sunrise ' + RVZ.hhmm(dp.rise) + ' · sunset ' + RVZ.hhmm(dp.set) + ' ' + s.zone + ' · ' + RVZ.SITE.place + ' ' + RVZ.SITE.lat.toFixed(2) + '° N ' + Math.abs(RVZ.SITE.lon).toFixed(2) + '° W · Project North ' + Math.round(s.north) + '° (set in Settings)</span>';
+  g('rvzSunRead').innerHTML += '<br><span class=\'rvz-dim\'>Sunrise ' + RVZ.hhmm(dp.rise) + ' · sunset ' + RVZ.hhmm(dp.set) + ' ' + s.zone + ' · ' + RVZ.SITE.place + ' ' + Math.abs(RVZ.SITE.lat).toFixed(2) + '° ' + (RVZ.SITE.lat < 0 ? 'S' : 'N') + ' ' + Math.abs(RVZ.SITE.lon).toFixed(2) + '° ' + (RVZ.SITE.lon < 0 ? 'W' : 'E') + ' · north ' + Math.round(s.north) + '° (set in Site)</span>';
   RVZ._drawPath(s, dp);
   RVZ._syncPresets(); RVZ._ctx();
 };
@@ -19659,4 +19980,31 @@ RVZ.exportAll = async function() {
   return done;
 };
 </script>
+<style>
+/* ── Site orientation (Brief 11a): Site Setup controls, the compass rose, the Settings readout ── */
+.site-orient-block { display: flex; flex-direction: column; gap: 0; padding-top: var(--sp-2); margin-top: var(--sp-1); border-top: 1px solid var(--c-rule); }
+.ctx-section .site-seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 3px; }
+.ctx-section .site-seg .seg-btn { flex: 1 1 auto; padding: 4px 6px; }
+.site-custom { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
+.site-custom input { width: 72px; }
+.site-custom .unit { font-size: var(--fs-11); color: var(--c-text-dim); }
+.ctx-section select.site-side { margin: 0 2px; height: 24px; padding: 0 4px; border: 1px solid var(--c-rule); border-radius: 3px; background: var(--c-bg); color: var(--c-text); font: var(--fs-12) var(--font-ui); }
+.ctx-section select.site-side:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 1px; }
+.site-msg:empty { display: none; }
+.site-rose-wrap { display: flex; flex-direction: column; gap: var(--sp-1); }
+.site-rose { width: 100%; height: auto; display: block; }
+.site-rose .sr-bld { fill: #3A3F46; }
+.site-rose .sr-walk { fill: #585E66; }
+.site-rose .sr-road { fill: #2A2E34; }
+.site-rose .sr-deck { fill: #B8895A; }
+.site-rose .sr-t { fill: var(--c-text-dim); font: 9px var(--font-ui); text-anchor: middle; }
+.site-rose .sr-t-d { fill: #17191C; font-weight: 600; }
+.site-rose .sr-rim { fill: rgba(255,255,255,.03); stroke: var(--c-text-dim); stroke-width: 1; }
+.site-rose .sr-tick { stroke: var(--c-text-dim); stroke-width: 1; }
+.site-rose .sr-l { fill: var(--c-text-dim); font: 600 9px var(--font-ui); text-anchor: middle; }
+.site-rose .sr-ln { fill: var(--c-text); font-size: 11px; }
+.site-rose .sr-n { fill: var(--accent-ui); }
+.ctx-section .site-orient-txt { margin: 0; color: var(--c-text); font-size: var(--fs-12); line-height: 1.5; }
+.sett-ro { color: var(--c-text); line-height: 1.5; max-width: 420px; }
+</style>
 </body></html>
