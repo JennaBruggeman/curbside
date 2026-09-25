@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Vancouver Parklet Siting Checker</title><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet"><style>  :root {    /* sidebar */    --sb-bg: #1A1E24;    --sb-text: #E2E5E8;    --sb-muted: rgba(178,188,200,.65);    --sb-rule: rgba(255,255,255,.08);    --sb-accent: #c03030;    --sb-accent-dim: rgba(192,48,48,.15);    --nav-blue: #0696D7;    --nav-blue-dim: rgba(6,150,215,.14);    /* main */    --bg: #EBEBEA;    --card: #ffffff;    --ink: #2B2B2B;    --muted: #666A6F;    --rule: #D8D7D3;    --shadow: 0 1px 3px rgba(0,0,0,.07);    /* status */    --pass: #2d6a4f;    --pass-light: #eef6f0;    --fail: #c03030;    --fail-light: #fdf0f0;    --warn: #b07800;    --warn-light: #fef7e4;    --unclear: #888888;    --unclear-light: #f5f5f3;    --accent: #0696D7;    --accent-light: #EBF6FD;    --mono: 'Courier New', Courier, monospace;  }  * { box-sizing: border-box; margin: 0; padding: 0; }  html, body { height: 100%; }  body {    font-family:var(--font-ui);    font-size: 13px;    line-height: 1.6;    color: var(--ink);    background: var(--bg);    overflow: hidden;  }  /* ── App shell ── */  .app { display: flex; height: 100vh; overflow: hidden; }  /* ── Sidebar ── */  .sidebar {    width: 290px; min-width: 290px;    background: var(--sb-bg);    color: var(--sb-text);    display: flex; flex-direction: column;    overflow: hidden;  }  .sb-section {    padding: 16px 20px;    border-bottom: 1px solid var(--sb-rule);  }  .sb-section-lbl {    font-size: 11px; font-weight: 600;    letter-spacing: .12em; text-transform: uppercase;    color: var(--sb-muted); margin-bottom: 13px;  }  /* Form controls */  .ff { margin-bottom: 12px; }  .ff:last-child { margin-bottom: 0; }  .ff label {    display: block; font-size: 12px; font-weight: 500;    color: var(--sb-muted); margin-bottom: 4px;  }  .ff label .unit { font-weight: 400; opacity: .7; }  .ff .hint {    display: block; font-size: 11px; color: var(--sb-muted);    opacity: .7; margin-top: 2px;  }  .ff input[type=text], .ff input[type=number] {    display: block; width: 100%;    background: rgba(255,255,255,.07);    border: 1px solid rgba(255,255,255,.11);    border-radius: 4px;    color: var(--sb-text);    font-family: inherit; font-size: 13px;    padding: 7px 10px; outline: none;    transition: border-color .15s;  }  .ff input[type=text]:focus, .ff input[type=number]:focus {    border-color: var(--nav-blue);    background: rgba(255,255,255,.1);  }  .ff-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }  .ff--site input[type=number], .ff--site input[type=text] { background: rgba(255,195,60,.07); border-color: rgba(255,195,60,.22); }  .ff--site input[type=number]:focus, .ff--site input[type=text]:focus { background: rgba(255,195,60,.12); border-color: rgba(255,195,60,.45); }  .site-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,195,60,.65); border: 1px solid rgba(255,195,60,.25); border-radius: 3px; padding: 1px 4px; margin-left: 5px; vertical-align: middle; line-height: 1.4; }  /* Seg toggle */  .seg-group { display: flex; background: rgba(0,0,0,.28); border-radius: 22px; padding: 2px; gap: 1px; }  .seg-btn {    flex: 1; font-family: inherit; font-size: 11px; font-weight: 500;    padding: 5px 8px; background: transparent; border: none; border-radius: 18px;    color: var(--sb-muted); cursor: pointer;    transition: all .18s; line-height: 1.3;  }  .seg-btn:not(:last-child) { border-right: none; }  .seg-btn.active { background: var(--nav-blue); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }  .seg-btn.active-warn { background: rgba(176,120,0,.55); color: #fff; border-radius: 18px; }  /* Sliders */  .sl-field { margin-bottom: 14px; }  .sl-hdr { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }  .sl-hdr label { font-size: 12px; font-weight: 500; color: var(--sb-muted); }  .readout { font-family: var(--mono); font-size: 12px; color: var(--sb-text); }  .sidebar input[type=range] {    width: 100%; appearance: none; -webkit-appearance: none;    height: 3px; border-radius: 2px;    background: rgba(255,255,255,.15); outline: none; cursor: pointer;  }  .sidebar input[type=range]::-webkit-slider-thumb {    -webkit-appearance: none; width: 12px; height: 12px;    border-radius: 50%; background: var(--nav-blue); cursor: pointer; box-shadow: 0 0 0 2px rgba(6,150,215,.3);  }  .lane-badge {    font-family: var(--mono); font-size: 11px; font-weight: 700;    padding: 4px 10px; border-radius: 4px;    display: block; text-align: center; margin-bottom: 10px;  }  .btn-solve {    display: block; width: 100%; font-family: inherit;    font-size: 12px; font-weight: 500; padding: 7px 12px;    background: var(--nav-blue-dim);    border: 1px solid rgba(6,150,215,.3); border-radius: 4px;    color: var(--nav-blue); cursor: pointer; transition: all .15s;    text-align: center;  }  .btn-solve:hover { background: rgba(6,150,215,.24); color: #fff; }  /* Verdict compact */  .vc { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 4px; border: 1px solid; }  .vc-fail { background: rgba(192,48,48,.14); border-color: rgba(192,48,48,.32); }  .vc-partial { background: rgba(176,120,0,.12); border-color: rgba(176,120,0,.25); }  .vc-pass { background: rgba(45,106,79,.10); border-color: rgba(45,106,79,.22); }  .vc-icon { font-size: 15px; flex-shrink: 0; }  .vc-fail .vc-icon { color: #c03030; }  .vc-partial .vc-icon { color: #b07800; }  .vc-pass .vc-icon { color: #2d6a4f; }  .vc-lbl { font-size: 11px; font-weight: 700; letter-spacing: .08em; }  .vc-fail .vc-lbl { color: #c03030; }  .vc-partial .vc-lbl { color: #b07800; }  .vc-pass .vc-lbl { color: #2d6a4f; }  .vc-detail { font-size: 11px; color: var(--sb-muted); margin-top: 1px; }  /* ── Main ── */  .main {    flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--bg);  }  #checkerCanvas{flex:1;overflow-y:auto;padding:22px 24px 48px;background:var(--bg)}  #libraryCanvas{flex:1;overflow-y:auto;padding:18px 20px;background:var(--bg)}  #libraryCanvas::-webkit-scrollbar{width:5px}  #libraryCanvas::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:3px}  /* ── Icon strip ── */  .is{width:54px;min-width:54px;background:#141414;display:flex;flex-direction:column;align-items:center;padding:0;flex-shrink:0;border-right:1px solid rgba(255,255,255,.06)}  .lib-cat-btn{display:flex;align-items:center;width:100%;text-align:left;font-family:inherit;font-size:12px;font-weight:500;padding:7px 14px;background:transparent;border:none;border-left:2px solid transparent;color:var(--sb-muted);cursor:pointer;transition:all .12s}  .lib-cat-btn:hover{background:rgba(255,255,255,.06);color:var(--sb-text)}  .lib-cat-btn.on{background:rgba(6,150,215,.14);border-left-color:var(--nav-blue);color:var(--sb-text)}  /* Drawing panels */  .drw-panel {    background: var(--card); border-radius: 6px;    box-shadow: var(--shadow); margin-bottom: 18px; overflow: hidden;  }  .svg-wrap { padding: 14px 20px 10px; overflow-x: auto; }  .svg-wrap svg { display: block; width: 100%; height: auto; }  /* Criteria section */  .criteria-section {    background: var(--card); border-radius: 6px;    box-shadow: var(--shadow); margin-top: 18px; padding: 20px 22px 4px;  }  .crit-hdr {    display: flex; align-items: center; justify-content: space-between;    margin-bottom: 14px; flex-wrap: wrap; gap: 8px;  }  .crit-hdr h2 {    font-size: 15px; font-weight: 600; letter-spacing: -.01em; border: none; padding: 0;  }  .crit-actions { display: flex; gap: 7px; flex-wrap: wrap; }  .action-btn {    font-family: inherit; font-size: 12px; font-weight: 500;    padding: 5px 11px; background: transparent;    border: 1px solid var(--rule); border-radius: 4px;    color: var(--muted); cursor: pointer; transition: all .15s;  }  .action-btn:hover { background: var(--rule); color: var(--ink); }  .action-btn.danger { color: var(--fail); border-color: #f0b8b8; }  .ptb-btn { font-family:inherit; font-size:12px; font-weight:500; padding:4px 10px; background:transparent; border:1px solid var(--rule); border-radius:4px; color:var(--muted); cursor:pointer; transition:all .15s; }  .ptb-btn:hover { background:var(--rule); color:var(--ink); }  .ptb-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }  .ptb-hint { font-size:11px; color:var(--muted); font-style:italic; }  /* summary */  .summary-section {    margin-top: 18px; background: #1A1E24; color: var(--sb-text);    padding: 22px 24px; border-radius: 6px; box-shadow: var(--shadow);  }  /* ── Verdict Banner ── */  .verdict {    border-radius: 4px; padding: 18px 22px; margin-bottom: 18px;    border-left: 5px solid; display: flex; align-items: flex-start; gap: 14px;  }  .verdict.fail-verdict { background: var(--fail-light); border-color: var(--fail); }  .verdict.pass-verdict { background: var(--pass-light); border-color: var(--pass); }  .verdict.partial-verdict { background: var(--warn-light); border-color: var(--warn); }  .verdict-icon { font-size: 18px; line-height: 1; flex-shrink: 0; margin-top: 2px; }  .verdict-body h2 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }  .verdict-body p { font-size: 13px; line-height: 1.55; color: #444; }  /* ── Criteria cards ── */  .criterion {    border: 1px solid var(--rule); border-radius: 4px;    margin-bottom: 8px; overflow: hidden;  }  .criterion-header {    display: grid; grid-template-columns: 36px 1fr auto;    align-items: center; gap: 12px; padding: 13px 16px;    cursor: pointer; background: var(--card); transition: background .15s;    user-select: none;  }  .criterion-header:hover { background: #fafafa; }  .criterion.pass .criterion-header { border-left: 4px solid var(--pass); }  .criterion.fail .criterion-header { border-left: 4px solid var(--fail); }  .criterion.unclear .criterion-header { border-left: 4px solid #c8c4be; }  .crit-num { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }  .crit-title { font-size: 13px; font-weight: 500; }  .badge {    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;    padding: 3px 8px; border-radius: 3px; white-space: nowrap;  }  .badge-pass { background: var(--pass-light); color: var(--pass); }  .badge-fail { background: var(--fail-light); color: var(--fail); }  .badge-unclear { background: var(--unclear-light); color: var(--unclear); }  .criterion-body {    padding: 13px 16px 13px 62px; background: #fafaf8;    border-top: 1px solid var(--rule); display: none;  }  .criterion.open .criterion-body { display: block; }  .criterion-body.pass-body { background: var(--pass-light); }  .criterion-body.fail-body { background: var(--fail-light); }  .detail-row { display: grid; grid-template-columns: 130px 1fr; gap: 5px 12px; margin-bottom: 8px; align-items: start; }  .detail-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding-top: 1px; }  .detail-value { font-size: 13px; line-height: 1.5; }  .page-ref { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 5px; }  .input-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }  .input-label { font-size: 12px; color: var(--muted); flex-shrink: 0; }  .input-field {    font-family: var(--mono); font-size: 13px;    border: 1.5px solid var(--rule); border-radius: 3px;    padding: 5px 10px; width: 130px; background: #fff; color: var(--ink);    transition: border-color .15s;  }  .input-field:focus { outline: none; border-color: var(--accent); }  .input-row input[type=range] { appearance:none; -webkit-appearance:none; height:3px; border-radius:2px; background:#d4d0c8; outline:none; cursor:pointer; }  .input-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:var(--accent); cursor:pointer; }  .input-unit { font-size: 12px; color: var(--muted); }  .inline-result { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 3px; display: none; }  .resolution-box {    margin-top: 12px; padding: 10px 14px; background: var(--warn-light);    border-left: 3px solid var(--warn); border-radius: 3px; font-size: 13px; line-height: 1.55;  }  /* Summary */  .summary-section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; opacity: .5; margin-bottom: 14px; }  .summary-col { margin-bottom: 14px; }  .summary-col h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }  .summary-col.problems h3 { color: #ff8888; }  .summary-col.unconfirmed h3 { color: #ffd480; }  .summary-col.passing h3 { color: #7ec8a0; }  .summary-col ul { list-style: none; }  .summary-col ul li {    font-size: 13px; opacity: .85; padding: 2px 0 2px 14px;    position: relative; line-height: 1.5;  }  .summary-col ul li::before {    position: absolute; left: 0; top: 6px;    content: ''; width: 5px; height: 5px; border-radius: 50%;    background: currentColor; opacity: .7;  }  .problems li { color: #ffaaaa; }  .unconfirmed li { color: #ffe0a0; }  .passing li { color: #a0dfc0; }  @media (max-width: 860px) {    body { overflow: auto; }    .app { flex-direction: column; height: auto; }    .sidebar { width: 100%; min-width: 0; }    .main { overflow: visible; }    .criterion-body { padding-left: 16px; }    .detail-row { grid-template-columns: 1fr; gap: 2px; }  }  @media print {    body { background: #fff; overflow: auto; }    .app { flex-direction: column; height: auto; }    .sidebar { display: none; }    .main { overflow: visible; padding: 12px; }    .action-btn { display: none !important; }    .criterion { break-inside: avoid; }    .criterion-body { display: block !important; }    .criterion-header { background: #fff !important; cursor: default; }    .summary-section { -webkit-print-color-adjust: exact; print-color-adjust: exact; }    .input-row { display: none !important; }    .inline-result { display: inline-block; }    .resolution-box { display: block !important; }  }  #threeWrap { height: 400px; background: #f5f4f0; border-radius: 0 0 6px 6px; cursor: grab; }  #threeWrap:active { cursor: grabbing; }  .ctx-side-lbl { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--sb-muted); margin-bottom: 6px; }  .bldg-list { margin-bottom: 4px; }  .bldg-row { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }  .bldg-num { font-size: 11px; color: var(--sb-muted); width: 16px; flex-shrink: 0; text-align: right; }  .bldg-field { width: 48px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.11); border-radius: 3px; color: var(--sb-text); font-size: 11px; padding: 4px 5px; font-family: var(--mono); }  .bldg-unit { font-size: 11px; color: var(--sb-muted); }  .bldg-rm { background: transparent; border: 1px solid rgba(192,48,48,.3); border-radius: 3px; color: #c03030; cursor: pointer; font-size: 13px; line-height: 1; padding: 1px 6px; flex-shrink: 0; margin-left: auto; }  .bldg-rm:hover { background: rgba(192,48,48,.12); }  .btn-add-bldg { display: block; width: 100%; font-family: inherit; font-size: 11px; font-weight: 500; padding: 5px; background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.14); border-radius: 3px; color: var(--sb-muted); cursor: pointer; margin-top: 2px; }  .btn-add-bldg:hover { background: rgba(255,255,255,.08); color: var(--sb-text); }  .bldg-sub { display: flex; align-items: center; gap: 4px; margin: 1px 0 6px 20px; }  .bldg-sub-lbl { font-size: 11px; color: var(--sb-muted); }  .bldg-field-wide { width: 56px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.11); border-radius: 3px; color: var(--sb-text); font-size: 11px; padding: 4px 5px; font-family: var(--mono); }  .sketch-toolbar { display:flex; align-items:center; gap:6px; padding:8px 20px; border-bottom:1px solid var(--rule); flex-wrap:wrap; }  .sk-tool-btn { font-family:inherit; font-size:12px; font-weight:500; padding:4px 10px; background:transparent; border:1px solid var(--rule); border-radius:4px; color:var(--muted); cursor:pointer; transition:all .15s; }  .sk-tool-btn:hover { background:var(--rule); color:var(--ink); }  .sk-tool-btn.active { background:var(--ink); border-color:var(--ink); color:#fff; }  .sk-action-btn { font-family:inherit; font-size:12px; font-weight:500; padding:4px 10px; background:transparent; border:1px solid var(--rule); border-radius:4px; color:var(--muted); cursor:pointer; transition:all .15s; }  .sk-action-btn:hover { background:var(--rule); color:var(--ink); }  .sk-apply-btn { background:var(--accent); border-color:var(--accent); color:#fff; }  .sk-apply-btn:hover { background:#a02020; border-color:#a02020; }  .sk-divider { width:1px; height:20px; background:var(--rule); margin:0 2px; flex-shrink:0; }  .sk-hint { font-size:11px; color:var(--muted); font-style:italic; }  .sketch-seg-bar { display:flex; align-items:center; gap:6px; padding:6px 20px; border-top:1px solid var(--rule); background:#fafaf8; flex-wrap:wrap; }  .drw-toolbar{display:flex;flex-direction:row;align-items:stretch;border-top:1px solid var(--rule);background:var(--bg);overflow-x:auto;flex-shrink:0}  .drw-tb-toggles{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-right:1px solid var(--rule);justify-content:center;align-items:center;min-width:48px;flex-shrink:0}  .drw-tb-toggle{font-family:var(--font-ui);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border:1px solid var(--rule);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;transition:all .12s;white-space:nowrap}  .drw-tb-toggle.on{background:var(--ink);border-color:var(--ink);color:#fff}  .drw-tb-section{display:flex;flex-direction:row;align-items:center;gap:10px;padding:7px 13px 7px 11px;border-right:1px solid var(--rule);flex-shrink:0}  .drw-tb-icon{flex-shrink:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--muted)}  .drw-tb-text{display:flex;flex-direction:column;gap:2px;min-width:88px;max-width:145px}  .drw-tb-name{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);font-family:var(--font-ui)}  .drw-tb-desc{font-size:11px;color:var(--muted);line-height:1.3;font-family:var(--font-ui)}  .drw-tb-btns{display:flex;flex-direction:column;gap:3px;flex-shrink:0}  .drw-tb-btns .ptb-btn{font-size:11px;padding:2px 7px;white-space:nowrap}  /* ===== FURNITURE LIBRARY TAB ===== */  #flTopbar{background:var(--card);border-bottom:1px solid var(--rule);padding:8px 18px;display:flex;gap:10px;align-items:center;flex-shrink:0}  #flSrch{flex:1;max-width:320px;padding:6px 10px;border:1px solid var(--rule);border-radius:4px;font-size:12px;font-family:inherit;background:var(--bg);color:var(--ink);outline:none}  #flSrch:focus{border-color:var(--accent)}  #flRc{font-size:11px;color:var(--muted)}  #flCatBar{background:var(--card);border-bottom:1px solid var(--rule);padding:0 18px;display:flex;gap:0;overflow-x:auto;flex-shrink:0}  #flCatBar::-webkit-scrollbar{height:3px}  #flCatBar::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:2px}  #flLeg{background:var(--card);border-bottom:1px solid var(--rule);padding:4px 18px;display:flex;gap:12px;flex-wrap:wrap;flex-shrink:0}  .fl-li{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)}  .fl-tag{font-size:11px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:2px}  .fl-SF{color:#1a5276;background:#eaf4fb}.fl-CALC{color:#1a6b3a;background:#eafaf1}.fl-DI{color:#7d6608;background:#fefde7}  #flContent{display:block}  #flContent::-webkit-scrollbar{width:5px}  #flContent::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:3px}  .fl-sec{margin-bottom:24px}  .fl-sec[hidden]{display:none!important}  .fl-sh{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;padding-bottom:5px;border-bottom:2px solid var(--accent)}  .fl-sh h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}  .fl-sh span{font-size:11px;color:var(--muted)}  .fl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px}  .fl-card{background:var(--card);border:1px solid var(--rule);border-radius:5px;overflow:hidden;box-shadow:var(--shadow)}  .fl-card[hidden]{display:none!important}  .fl-ch{padding:9px 12px 8px;border-bottom:1px solid var(--rule);cursor:pointer;position:relative}  .fl-ch:hover{background:#fafaf8}  .fl-cm{display:flex;gap:4px;align-items:center;margin-bottom:3px;flex-wrap:wrap}  .fl-oid{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-light);padding:1px 5px;border-radius:3px;letter-spacing:.04em}  .fl-bb{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--bg);padding:1px 5px;border-radius:3px;border:1px solid var(--rule)}  .fl-ct{font-size:11px;padding:1px 5px;border-radius:3px;margin-left:auto;color:var(--muted);border:1px solid var(--rule)}  .fl-tit{font-size:13px;font-weight:600;line-height:1.3}  .fl-dsc{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.35}  .fl-exp{position:absolute;right:12px;top:10px;font-size:11px;color:var(--muted)}  .fl-cb{padding:10px 12px;display:grid;gap:7px}  .fl-cb.fl-coll{display:none}  .fl-ds h4{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}  .fl-dr{display:flex;gap:5px;align-items:baseline;font-size:11px;padding:1px 0;flex-wrap:wrap}  .fl-dl{color:var(--muted);min-width:85px;flex-shrink:0;font-size:11px}  .fl-dv{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}  .fl-stag{font-size:11px;font-weight:700;letter-spacing:.05em;padding:1px 4px;border-radius:2px;flex-shrink:0}  .fl-pf{font-size:11px;padding:2px 6px;border-radius:3px;border:1px solid;display:inline-block;margin-right:3px;margin-top:2px}  .fl-pm{color:#1a5276;border-color:#85c1e9;background:#eaf4fb}  .fl-fx{color:var(--muted);border-color:var(--rule);background:var(--bg)}  .fl-md{color:#1a6b3a;border-color:#82e0aa;background:#eafaf1}  .fl-inf{font-size:11px;color:var(--muted);background:var(--bg);padding:4px 7px;border-left:2px solid var(--rule);border-radius:0 3px 3px 0;line-height:1.5}  .fl-inf.fl-di{border-left-color:#b7950b}  .fl-inf.fl-sf{border-left-color:#1a5276}  .fl-pcard{background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:12px 14px;margin-bottom:9px}  .fl-pcard h3{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px}  .fl-pcard p,.fl-pcard li{font-size:11px;color:var(--muted);line-height:1.6}  .fl-pcard ul{padding-left:14px}  .fl-pdims{font-family:var(--mono);font-size:11px;background:var(--bg);padding:6px 9px;border-radius:3px;margin-top:6px;border:1px solid var(--rule);line-height:1.8}  .fl-itbl{width:100%;border-collapse:collapse;font-size:11px}  .fl-itbl th{background:#1A1E24;color:#ccc;padding:6px 9px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}  .fl-itbl td{padding:5px 9px;border-bottom:1px solid var(--rule);vertical-align:top}  .fl-itbl tr:hover td{background:var(--accent-light)}  .fl-iid{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap}#fl3DTray{display:none;flex-direction:column;border-top:1px solid var(--rule);background:var(--card);flex-shrink:0;max-height:160px}#fl3DTrayHdr{display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--rule);background:#F7F7F5;flex-shrink:0;flex-wrap:wrap;min-height:32px}#fl3DItems{display:flex;gap:5px;padding:7px 10px;overflow-x:auto;flex-shrink:0}#fl3DItems::-webkit-scrollbar{height:4px}#fl3DItems::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:2px}.fl3d-item-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 7px;background:#F5F5F3;border:1px solid var(--rule);border-radius:5px;cursor:pointer;transition:all .15s;flex-shrink:0;min-width:52px;font-family:inherit}.fl3d-item-btn:hover{background:var(--accent-light);border-color:var(--accent)}.fl3d-item-btn.fl3d-active{background:var(--accent-light);border-color:var(--accent);outline:2px solid var(--accent)}.fl3d-ico{font-size:15px;line-height:1.2}.fl3d-lbl{font-size:11px;color:var(--muted);white-space:nowrap;max-width:56px;overflow:hidden;text-overflow:ellipsis;text-align:center}#fl3DPlacingLbl{font-size:11px;color:var(--accent);font-weight:600;animation:fl3dpulse 1s ease-in-out infinite alternate;display:none}@keyframes fl3dpulse{from{opacity:.6}to{opacity:1}}#fl3DSelActions{display:none;align-items:center;gap:5px}#fl3DSelLbl{font-size:11px;font-weight:600;color:var(--ink);margin-right:4px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fl3d-tip{margin-left:auto;font-size:11px;color:var(--muted);flex-shrink:0}
 /* ======================================================
    FORMA-STYLE REDESIGN â€” NEW DESIGN SYSTEM
@@ -1433,6 +1433,14 @@ let LANES_A    = 1;          // near lanes (parklet side) — two-way mode only
 let LANES_B    = 1;          // far lanes (opposite side) — two-way mode only
 let BLDG_L = { buildings: [{height: 8.0, depth: 4.0, length: 30.0, zOffset: -5.0, setback: 0.0}] };
 let BLDG_R = { buildings: [{height: 8.0, depth: 4.0, length: 30.0, zOffset: -5.0, setback: 0.0}] };
+// Building programme (each BLDG_L / BLDG_R entry may carry use, frontage, name, storeys; defaults
+// are resolved in DESIGN_MODEL.buildings). Storeys set the height (a 4.2 m ground floor, 3.5 m
+// each above) until a height is typed (heightManual).
+const BLDG_USES = ['restaurant', 'cafe', 'retail', 'office', 'residential', 'mixed', 'institutional', 'vacant'];
+const BLDG_FRONTAGES = ['glazed', 'awning', 'solid', 'arcade'];
+const BLDG_GF = 4.2, BLDG_STOREY = 3.5;
+function bldgHeightFromStoreys(n) { return Math.round((BLDG_GF + BLDG_STOREY * (Math.max(1, n) - 1)) * 10) / 10; }
+function bldgStoreysFromHeight(h) { return Math.min(6, Math.max(1, Math.round((h - BLDG_GF) / BLDG_STOREY) + 1)); }
 let _pvVB = {x:0, y:-50, w:840, h:395, pxM:20};
 let _pvPanDrag = null;
 var _pvUserMod = false; // set true when user has zoomed/panned — prevents viewport reset on redraw
@@ -2083,6 +2091,24 @@ function _checkLandmarkConsistency(verbose) {
       });
     } else info.push('section strip hidden, DOM check skipped');
   }
+  // Building programme: the text painted on each sign by the last render build (RVZ._signs) is
+  // the building's name in the model (RVZ.signText: the name, or the use for an unnamed shop), and
+  // every building that should carry a sign has one. Compared only when that build is of the
+  // current design (RVZ._signsHash); otherwise skipped and noted.
+  if (typeof RVZ !== 'undefined' && RVZ._signs && typeof RVZ.designHash === 'function') {
+    if (RVZ._signsHash === RVZ.designHash()) {
+      RVZ._signs.forEach(function(sg) {
+        var b = (DM.buildings[sg.side] || [])[sg.index], want = b ? RVZ.signText(b) : '(no such building)';
+        if (sg.text !== want) bad.push({ value: 'sign ' + sg.side + (sg.index + 1) + ' text vs model name', model: want, independent: sg.text });
+      });
+      ['L', 'R'].forEach(function(side) {
+        (DM.buildings[side] || []).forEach(function(b, i) {
+          if (!b.footprint.visible || !RVZ.signText(b)) return;
+          if (!RVZ._signs.some(function(sg) { return sg.side === side && sg.index === i; })) bad.push({ value: 'sign ' + side + (i + 1) + ' missing from the render', model: RVZ.signText(b), independent: 'no sign' });
+        });
+      });
+    } else info.push('render scene not of the current design, signage check skipped');
+  }
   window._lastConsistencyInfo = info;
   if (bad.length) {
     console.warn('[checkLandmarkConsistency] ' + bad.length + ' value(s) disagree -- a renderer or shim is out of sync with DESIGN_MODEL: ' +
@@ -2223,6 +2249,29 @@ function buildDesignModel() {
       sceneMinZ:   _lmZ0,
       sceneMaxZ:   _lmZ1
     };
+  })();
+  // Building programme: each building's use, frontage, name and storeys, resolved with defaults,
+  // and the HOST building: on the parklet's side, the one nearest the deck centre (along z). The
+  // entries in BLDG_L / BLDG_R hold what the user set (saved with the design); defaults are
+  // resolved here only: host = cafe / glazed, others = mixed / glazed; storeys from the height.
+  (function() {
+    var DM = DESIGN_MODEL, zc = DM.parklet.length / 2, host = null, hd = 1e9;
+    (DM.buildings.L || []).forEach(function(b, i) {
+      var f = b.footprint; if (!f.visible) return;
+      var d = zc < f.z0 ? f.z0 - zc : zc > f.z1 ? zc - f.z1 : 0;
+      if (d < hd - 1e-9) { hd = d; host = i; }
+    });
+    ['L', 'R'].forEach(function(side) {
+      (DM.buildings[side] || []).forEach(function(b, i) {
+        b.side = side; b.index = i; b.host = side === 'L' && i === host;
+        b.use = BLDG_USES.indexOf(b.use) >= 0 ? b.use : (b.host ? 'cafe' : 'mixed');
+        b.frontage = BLDG_FRONTAGES.indexOf(b.frontage) >= 0 ? b.frontage : 'glazed';
+        b.name = typeof b.name === 'string' ? b.name.trim() : '';
+        b.storeys = b.storeys >= 1 ? Math.min(6, Math.max(1, Math.round(b.storeys))) : bldgStoreysFromHeight(b.height || 8);
+      });
+    });
+    var hb = host == null ? null : DM.buildings.L[host];
+    DM.site.host = hb ? { side: 'L', index: host, use: hb.use, frontage: hb.frontage, name: hb.name, storeys: hb.storeys } : null;
   })();
   // Parklet end pieces: the end planter 3D draws in each 1.1 m wheel-stop zone (Plan's WS bands;
   // a 0.72 m box on the deck) and a wheel stop on the road just past each deck end (a
@@ -2537,6 +2586,7 @@ function renderBldgList(side) {
       inp.title = f.tip || (f.lbl + ' (m)');
       inp.addEventListener('input', function() {
         (side === 'L' ? BLDG_L : BLDG_R).buildings[i][f.k] = parseFloat(this.value) || f.fb;
+        if (f.k === 'height') (side === 'L' ? BLDG_L : BLDG_R).buildings[i].heightManual = true;   // storeys no longer drive it
         saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
       });
       function mark(on) {
@@ -2548,6 +2598,41 @@ function renderBldgList(side) {
       rows.appendChild(row);
     });
     card.appendChild(rows);
+    // programme: use, frontage, name, storeys (storeys set the height until a height is typed);
+    // the values shown are the model's resolved ones (defaults: host = cafe / glazed, else mixed / glazed)
+    const dmB = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.buildings && DESIGN_MODEL.buildings[side]) ? DESIGN_MODEL.buildings[side][i] : null;
+    if (dmB && dmB.host) { const hb = document.createElement('span'); hb.className = 'bl-host'; hb.textContent = 'Host building'; hb.title = 'The parklet sits in front of this building'; hdr.insertBefore(hb, rmBtn); }
+    const prog = document.createElement('div');
+    prog.className = 'bl-rows bl-prog';
+    const cur = function(k, d) { return b[k] !== undefined ? b[k] : (dmB ? dmB[k] : d); };
+    const after = function() { saveSettings(); if (typeof syncDesignModel === 'function') syncDesignModel('building-programme'); renderBldgList(side); };
+    [['use', 'Use', BLDG_USES], ['frontage', 'Frontage', BLDG_FRONTAGES]].forEach(function(r) {
+      const row = document.createElement('label'); row.className = 'bl-row';
+      const id = 'bldg' + side + i + '_' + r[0];
+      row.innerHTML = '<span>' + r[1] + '</span><select id="' + id + '" class="bl-sel"></select>';
+      const s = row.querySelector('select');
+      r[2].forEach(function(v) { const o = document.createElement('option'); o.value = v; o.textContent = v; s.appendChild(o); });
+      s.value = cur(r[0], r[2][0]);
+      s.addEventListener('change', function() { (side === 'L' ? BLDG_L : BLDG_R).buildings[i][r[0]] = this.value; after(); });
+      prog.appendChild(row);
+    });
+    const nm = document.createElement('label'); nm.className = 'bl-row';
+    nm.innerHTML = '<span>Name</span><input type="text" id="bldg' + side + i + '_name" class="bl-text" placeholder="e.g. Elysian Coffee" maxlength="40">';
+    const ni = nm.querySelector('input'); ni.value = b.name || '';
+    ni.title = 'Shown on the sign in renders; named in the photoreal prompt';
+    ni.addEventListener('change', function() { (side === 'L' ? BLDG_L : BLDG_R).buildings[i].name = this.value.trim(); after(); });
+    prog.appendChild(nm);
+    const st = document.createElement('label'); st.className = 'bl-row';
+    st.innerHTML = '<span>Storeys</span><span class="ufield"><input type="number" id="bldg' + side + i + '_storeys" min="1" max="6" step="1"><i></i></span>';
+    const si = st.querySelector('input'); si.value = cur('storeys', 2);
+    si.title = b.heightManual ? 'Storeys (the height was typed, so it stays)' : 'Storeys: sets the height (' + BLDG_GF + ' m ground floor + ' + BLDG_STOREY + ' m each above) until a height is typed';
+    si.addEventListener('change', function() {
+      const bb = (side === 'L' ? BLDG_L : BLDG_R).buildings[i], n = Math.min(6, Math.max(1, Math.round(+this.value || 1)));
+      bb.storeys = n; if (!bb.heightManual) bb.height = bldgHeightFromStoreys(n);
+      after(); renderCrossSection(); renderPlanView(); renderMassView();
+    });
+    prog.appendChild(st);
+    card.appendChild(prog);
     listDiv.appendChild(card);
   });
 }
@@ -16822,9 +16907,35 @@ GEN.siteFromLive = function() {
 GEN.loadPrefs = function() {
   var p = GEN.defaultPrefs();
   try { if (state.__gen) { var s = JSON.parse(state.__gen); Object.assign(p, s); p.prog = Object.assign(GEN.defaultPrefs().prog, s.prog || {}); } } catch (e) {}
+  // weights saved before the host bias existed: set by the user if they differ from the defaults
+  if (p.progUserSet === undefined) p.progUserSet = JSON.stringify(p.prog) !== JSON.stringify(GEN.defaultPrefs().prog);
   return p;
 };
 GEN.savePrefs = function() { state.__gen = JSON.stringify(GEN.prefs); if (typeof saveSettings === 'function') saveSettings(); };
+// Host programme bias: the host building's use (DESIGN_MODEL.site.host) leans the programme
+// weights (0-3) unless the user has set them (prefs.progUserSet: the first weight click adopts
+// the biased values as the user's own; "Use the host defaults" clears it).
+GEN.HOST_BIAS = { restaurant: { dining: 2, seating: 1 }, cafe: { dining: 2, seating: 1 }, retail: { seating: 1, bike: 1 }, residential: { green: 1, open: 1 } };
+GEN.hostBias = function() {
+  var h = _dmCurrent().site.host; if (!h) return null;
+  var b = GEN.HOST_BIAS[h.use] || {};
+  return { use: h.use, name: h.name, bias: b, text: Object.keys(b).map(function(k) { return k + ' +' + b[k]; }).join(', ') };
+};
+GEN.effectivePrefs = function() {
+  var P = GEN.prefs || (GEN.prefs = GEN.loadPrefs()), hb = GEN.hostBias();
+  if (P.progUserSet || !hb || !Object.keys(hb.bias).length) return P;
+  var Q = JSON.parse(JSON.stringify(P));
+  Object.keys(hb.bias).forEach(function(k) { Q.prog[k] = Math.min(3, (Q.prog[k] || 0) + hb.bias[k]); });
+  Q._hostBias = hb;
+  return Q;
+};
+GEN.biasText = function() {
+  var hb = GEN.hostBias(); if (!hb) return 'none (no host building)';
+  var who = (hb.name || 'the host') + ' (' + hb.use + ')';
+  if (GEN.prefs && GEN.prefs.progUserSet) return who + ', not applied: the weights are yours';
+  return who + (Object.keys(hb.bias).length ? ': ' + hb.text : ': none for this use');
+};
+GEN.resetProg = function() { GEN.prefs.prog = GEN.defaultPrefs().prog; GEN.prefs.progUserSet = false; GEN.savePrefs(); GEN.renderDock(); };
 
 // ── Site facts: what the 15 checks need that geometry cannot supply ─────────────────────────
 // Each row: {id, crit, label, value, ok (usable), blocks (site ineligible whatever the design)}.
@@ -16872,7 +16983,7 @@ GEN.onOpen = function() {
 };
 GEN.esc = function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); };
 GEN.renderDock = function() {
-  var S = GEN.site, P = GEN.prefs, h;
+  var S = GEN.site, P = GEN.effectivePrefs(), h;   // the weights shown are the ones Generate uses
   function num(k, v, unit, step, min, max) {
     return "<label class='gen-row'><span>" + k[1] + "</span><span class='ufield'><input type='number' data-site='" + k[0] + "' value='" + v + "' step='" + step + "'" +
       (min !== undefined ? " min='" + min + "'" : '') + (max !== undefined ? " max='" + max + "'" : '') + "><i>" + unit + '</i></span></label>';
@@ -16913,7 +17024,9 @@ GEN.renderDock = function() {
       [0, 1, 2, 3].map(function(i) { return "<button type='button' class='" + (i === v ? 'on' : '') + "' aria-pressed='" + (i === v) + "' " + attr + "='" + key + "' data-v='" + i + "'>" + i + '</button>'; }).join('') + '</span></div>';
   }
   document.getElementById('genProg').innerHTML = GEN.PROG.map(function(p) { return weight(p[0], p[1], P.prog[p[0]], 'data-prog'); }).join('') +
-    weight('access', 'Accessibility priority', P.access, 'data-pref') + weight('planting', 'Planting intensity', P.planting, 'data-pref');
+    weight('access', 'Accessibility priority', P.access, 'data-pref') + weight('planting', 'Planting intensity', P.planting, 'data-pref') +
+    "<div class='gen-hint' id='genBias'>Host bias: " + GEN.esc(GEN.biasText()) + (P._hostBias ? '. Clicking a weight makes these weights yours.' : '') + '</div>' +
+    (GEN.prefs.progUserSet && GEN.hostBias() ? "<button class='txt-btn' onclick='GEN.resetProg()'>Use the host defaults</button>" : '');
   // character, materials, footprint
   document.getElementById('genChar').innerHTML =
     "<label class='gen-row'><span>Character</span>" + select('data-pref', 'character', P.character, GEN.CHARACTER) + '</label>' +
@@ -16948,6 +17061,7 @@ GEN.bindDock = function() {
   root.addEventListener('click', function(e) {
     var b = e.target.closest && e.target.closest('.gen-w button'); if (!b) return;
     var v = +b.getAttribute('data-v'), k = b.getAttribute('data-prog');
+    if (k && !GEN.prefs.progUserSet) { GEN.prefs.prog = Object.assign({}, GEN.effectivePrefs().prog); GEN.prefs.progUserSet = true; }   // adopt the biased weights as the user's
     if (k) GEN.prefs.prog[k] = v; else GEN.prefs[b.getAttribute('data-pref')] = v;
     GEN.savePrefs(); GEN.renderDock();
   });
@@ -17842,11 +17956,11 @@ GEN.dist = function(a, b) { var s = 0; for (var i = 0; i < a.length; i++) s += (
 // into a DESIGN_STATE and run through all 15 checks; passers are scored; N are selected by
 // farthest-point diversity, best score first. Same inputs + seed = identical schemes.
 GEN.generate = function() {
-  var P = GEN.prefs, S = GEN.site, t0 = performance.now();
+  var P = GEN.effectivePrefs(), S = GEN.site, t0 = performance.now();   // the weights as used: host bias applied unless the user set them
   var base = getDesignState(); base.furniture = { placed: [] };
   GEN._base = base;
   var facts = GEN.facts(), missing = facts.filter(function(f) { return !f.ok; }), blocked = facts.filter(function(f) { return f.blocks; });
-  var res = { seed: P.seed, n: P.n, schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0, why: {} }, notes: [] };
+  var res = { seed: P.seed, n: P.n, bias: GEN.biasText(), prog: Object.assign({}, P.prog), schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0, why: {} }, notes: [] };
   if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; return GEN.finish(res, t0); }
   if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; return GEN.finish(res, t0); }
   var env = GEN.envelope(S, base);
@@ -18039,7 +18153,7 @@ GEN.renderCards = function() {
   var R = GEN.result, bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
   var nLock = Object.keys(GEN.locked).length;
   bar.innerHTML = "<span class='gen-title'>Generated schemes</span>" +
-    "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed 15/15 · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.prefs) === 'density' ? 'seat density' : 'utilisation') + '</span>' +
+    "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed 15/15 · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.effectivePrefs()) === 'density' ? 'seat density' : 'utilisation') + (R.bias ? ' · ' + GEN.esc(R.bias) : '') + '</span>' +
     (R.envelope && R.envelope.ok ? "<span class='gen-stat'>envelope " + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) + '</span>' : '') +
     (GEN.undoSnap ? "<button class='gen-link' onclick='GEN.undoOpen()'>Restore the design you had before opening a scheme</button>" : '');
   if (R.error) { grid.innerHTML = "<div class='gen-empty gen-err'>" + GEN.esc(R.error) + '</div>'; return; }
@@ -18050,7 +18164,7 @@ GEN.renderCards = function() {
       "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
       "<div class='gen-metrics'>" +
         "<span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.bike + '</b>bike spaces</span>' +
-        '<span title="All planters and the end planters' + (m.infill ? ', incl. ' + m.infill.toFixed(1) + ' m² of edge-trough infill' : '') + '"><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Seats per linear metre of deck"><b>' + m.density.toFixed(2) + '</b>seats / m</span><span title="Furnished footprint (without infill troughs) / deck area (aim ' + GEN.utilBand(GEN.prefs).map(function(v) { return Math.round(v * 100); }).join('-') + ' %)"><b>' + Math.round(m.util * 100) + '%</b>utilisation</span><span title="Narrowest clear width on the flood-filled route from each entry to an accessible seat (guideline; GEN.ROUTE_W = ' + GEN.ROUTE_W + ' m)"><b>' + m.route.toFixed(2) + '</b>route m</span><span title="Accessible seating positions (bench ends, tables with knee clearance) reached from the entries"><b>' + m.access + '</b>access</span>' +
+        '<span title="All planters and the end planters' + (m.infill ? ', incl. ' + m.infill.toFixed(1) + ' m² of edge-trough infill' : '') + '"><b>' + m.planting.toFixed(1) + '</b>planting m²</span><span title="Seats per linear metre of deck"><b>' + m.density.toFixed(2) + '</b>seats / m</span><span title="Furnished footprint (without infill troughs) / deck area (aim ' + GEN.utilBand(GEN.effectivePrefs()).map(function(v) { return Math.round(v * 100); }).join('-') + ' %)"><b>' + Math.round(m.util * 100) + '%</b>utilisation</span><span title="Narrowest clear width on the flood-filled route from each entry to an accessible seat (guideline; GEN.ROUTE_W = ' + GEN.ROUTE_W + ' m)"><b>' + m.route.toFixed(2) + '</b>route m</span><span title="Accessible seating positions (bench ends, tables with knee clearance) reached from the entries"><b>' + m.access + '</b>access</span>' +
         "<span class='gen-pass'><b>" + c.ev.pass + '/' + criteria.length + '</b>checks</span></div>' +
       "<p class='gen-why' data-why='" + i + "'>" + GEN.esc(c.why || GEN.rationale(c)) + '</p>' +
       "<div class='gen-card-ft'><button class='gen-primary' onclick='GEN.open(" + i + ")'>Open in Design</button>" +
@@ -18212,6 +18326,17 @@ RPT.cover = function(d, drw) {
 };
 
 // ── 01 Summary ────────────────────────────────────────────────────────────────────────────────
+// The host building (DESIGN_MODEL.site.host): "<name>, <use>"; hostRaw says whether the user set
+// any of its programme (use / frontage / name / storeys in BLDG_L) or the defaults are in use.
+RPT.hostRaw = function(DM) {
+  var h = DM.site.host; if (!h) return null;
+  var raw = (BLDG_L.buildings || [])[h.index] || {}, b = DM.buildings.L[h.index];
+  return { b: b, entered: ['use', 'frontage', 'name', 'storeys'].some(function(k) { return raw[k] !== undefined && raw[k] !== ''; }) };
+};
+RPT.hostLine = function(DM) {
+  var h = DM.site.host; if (!h) return 'No building on the parklet side';
+  return (h.name || 'Unnamed') + ', ' + h.use + (RPT.hostRaw(DM).entered ? '' : ' (default)');
+};
 RPT.summary = function(d) {
   var DM = d.DM, LM = DM.landmarks, S = DM.street, ins = DM.inputs, gm = d.gm, so = DM.siteObjects;
   var route = ins.route_type && ins.route_type.entered ? (ins.route_type.text || ins.route_type.value) : 'not entered';
@@ -18224,7 +18349,8 @@ RPT.summary = function(d) {
     S.buffers.map(function(b, i) { return RPT.kv({ 'buf-pk': 'Buffer (parklet side)', 'buf-bl': 'Buffer (traffic side)', planting: 'Planting strip' }[b.type], RPT.fx(b.width) + ' m', 'street.buffers.' + i + '.width', 3); }).join('') +
     RPT.kv('Hydrants placed', String(so.hydrants), 'siteObjects.hydrants', 0) + RPT.kv('Poles placed', String(so.poles), 'siteObjects.poles', 0) +
     RPT.kv('Signal boxes placed', String(so.signalBoxes), 'siteObjects.signalBoxes', 0) + RPT.kv('Manholes placed', String(so.manholes), 'siteObjects.manholes', 0) +
-    RPT.kv('Driveways placed', String(so.driveways), 'siteObjects.driveways', 0);
+    RPT.kv('Driveways placed', String(so.driveways), 'siteObjects.driveways', 0) +
+    RPT.kv('Host frontage', RPT.hostLine(DM));
   var furn = d.placed.filter(function(p) { return !p.archetype || !flIsEntourage(p.archetype); }).length;
   var pk = RPT.kv('Width', RPT.fx(DM.parklet.width) + ' m', 'parklet.width', 3) + RPT.kv('Length', RPT.fx(DM.parklet.length) + ' m', 'parklet.length', 3) +
     RPT.kv('Deck area', RPT.fx(DM.parklet.area, 2) + ' m²', 'parklet.area', 2) + RPT.kv('Footprint', DM.parklet.shape) +
@@ -18328,14 +18454,17 @@ RPT.sources = function(d) {
   Object.keys(brands).forEach(function(b) { std.push(RPT.esc(b) + ' product data for the placed presets: ' + RPT.esc(Array.from(new Set(brands[b])).join('; ')) + '.'); });
   var ins = Object.keys(DM.inputs).map(function(k) { return DM.inputs[k]; });
   var entered = ins.filter(function(i) { return i.entered; }).map(function(i) { return RPT.esc(i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : '') + (i.source === 'placed site objects' ? ' (measured from placed site objects)' : '')); });
+  var hr = RPT.hostRaw(DM);
+  if (hr && hr.entered) entered.push(RPT.esc('Host building (user input): ' + RPT.hostLine(DM) + ', ' + hr.b.frontage + ' frontage, ' + hr.b.storeys + ' storey' + (hr.b.storeys > 1 ? 's' : '')));
   var model = ['Travel lane widths: the Section editor\'s travel-lane segments, assessed against EDM Table 8-10 (' + DM.lanes.map(function(a) { return RPT.fx(a.width) + ' m'; }).join(', ') + ').',
     'Deck area: the ' + DM.parklet.shape + ' footprint (' + RPT.fx(DM.parklet.area, 2) + ' m²).',
     'Compliance status and text: each check\'s own result for the inputs above; a check with an input not entered is not confirmed.',
     'Seats, utilisation, entry turning spaces and the accessible route: the generator\'s metrics of the current layout.'];
   var assume = ['Furniture positions are the model\'s; they are not field-measured.',
     'Building heights and depths are entered estimates for context only.',
+    hr && !hr.entered ? 'Host building programme not entered: the default (' + hr.b.use + ', ' + hr.b.frontage + ' frontage) is used for the renders, the prompts and the Generate bias.' : null,
     'Library dimensions marked DI are interpreted, not source data.',
-    'The Section is a schematic cross-section, not a construction drawing. No structural or construction feasibility is assessed.'];
+    'The Section is a schematic cross-section, not a construction drawing. No structural or construction feasibility is assessed.'].filter(Boolean);
   var body = "<div class='flow'>" + RPT.group('Standards and data', li(std)) + RPT.group('Entered inputs', li(entered.length ? entered : ['None entered.'])) +
     RPT.group('From the design model', li(model)) + RPT.group('Assumptions', li(assume)) + '</div>';
   return RPT.sheet('a4', '09', 'Sources and assumptions', body, '', 'flows');
@@ -18744,6 +18873,12 @@ RPT.print = async function() {
 .bl-row { display: grid; grid-template-columns: 1fr 84px; align-items: center; gap: var(--sp-2); }
 .bl-row > span { font-size: var(--fs-12); color: var(--c-text-dim); white-space: nowrap; }
 .bl-row.on > span { color: var(--c-text); }
+/* building programme: host badge; use / frontage / name / storeys under the dimensions */
+.bl-host { margin-left: auto; margin-right: var(--sp-2); padding: 1px 7px; border-radius: 9px; background: var(--accent-ui); color: var(--c-bg); font: 600 var(--fs-11) var(--font-ui); }
+.bl-prog { grid-column: 2; border-top: 1px dashed var(--c-rule); padding-top: var(--sp-1); }
+.bl-prog .bl-row { grid-template-columns: 1fr 132px; }
+.bl-sel, .bl-text { height: 24px; width: 100%; min-width: 0; box-sizing: border-box; padding: 0 6px; background: var(--c-bg); border: 1px solid var(--c-rule); border-radius: 3px; color: var(--c-text); font: var(--fs-12) var(--font-ui); }
+.bl-sel:focus, .bl-text:focus { outline: none; border-color: var(--accent-ui); }
 .ufield { position: relative; }
 .ufield input { width: 100%; box-sizing: border-box; height: 24px; padding: 0 22px 0 6px; background: var(--c-bg); border: 1px solid var(--c-rule);
   border-radius: 3px; color: var(--c-text); font: var(--fs-12) var(--font-mono); text-align: right; }
@@ -19262,7 +19397,8 @@ RVZ.build = function(o) {
   var app = RVZ._app = o.appearance === 'schematic' ? 'schematic' : 'rendered', R = app === 'rendered';
   var DM = buildDesignModel(), LM = DM.landmarks, L = DM.parklet.length, SR = RVZ.SW_RAISE, DT = RVZ.DECK_TOP;
   var zA = LM.sceneMinZ - RVZ.EXT, zB = LM.sceneMaxZ + RVZ.EXT, sc = new THREE.Scene(), root = new THREE.Group(), far = [];
-  var objL = RVZ._objLabels = {};   // design objects: rvzObj id -> label (the fidelity check reports them)
+  var objL = RVZ._objLabels = {};
+  RVZ._signs = []; RVZ._signsHash = RVZ.designHash();   // signs painted by this build (the consistency check)   // design objects: rvzObj id -> label (the fidelity check reports them)
   var PAL = DS.segPalette.schematic, TOK = DS.tokens.schematic, farX = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight;
   sc.add(root);
   root.rotation.x = -Math.atan((parseFloat(typeof state !== 'undefined' ? state.slope : 0) || 0) / 100);   // as the live view
@@ -19409,6 +19545,84 @@ RVZ.build = function(o) {
     plane(b.x0 + 0.04, zA, b.x1 - 0.04, zB, SR + 0.031, M('grass', TOK.plant), { far: bf[1] });
     for (var z3 = LM.sceneMinZ + 0.6; z3 < LM.sceneMaxZ; z3 += 1.3) shrub((b.x0 + b.x1) / 2, SR + 0.03, z3, Math.min((b.x1 - b.x0) * 0.3, 0.24), bf[1]);
   });
+  // The ground floor by the building's programme (DESIGN_MODEL.buildings[side][i].use / frontage /
+  // name), on the street face `face` (L: its +X face, R: its -X face), between z0 and z1, just
+  // proud of the 0.75 m granite plinth (heights above the walk):
+  //   glazed  a shopfront: glazing 0.35-3.15 m, mullions every 2.4 m, a transom at 2.6 m, a door
+  //           opposite the deck centre (host) or mid-building; the sign on a fascia board 2.7-3.2 m
+  //   awning  the shopfront under a fabric awning 1.3 m deep (3.2 m at the wall -> 2.8 m at the
+  //           front; red for a restaurant, green a cafe, navy a shop, else charcoal); the sign is
+  //           printed on its valance (2.45-2.8 m), which faces the street
+  //   solid   a blank ground-floor wall, a door, the sign on the wall at 2.7-3.2 m
+  //   arcade  the shopfront behind columns every 3 m, 1.2 m out, under a soffit band
+  //   residential use: the facade's punched windows and an entrance door, whatever the frontage;
+  //           a name plate over the door when named
+  // Sign text is RVZ.signText(bd) (the name, or the use for an unnamed restaurant / cafe / shop),
+  // kept low enough for the eye-level presets to see; RVZ._signs records each one painted.
+  function storefront(bd, side, face, z0, z1, isFar) {
+    var s = side === 'L' ? 1 : -1, len = z1 - z0; if (len < 2) return;
+    var fx = face + s * 0.035, y0 = SR, gf = BLDG_GF, use = bd.use, fr = bd.frontage, text = RVZ.signText(bd);
+    var zc = L / 2, zd = Math.min(Math.max(bd.host ? zc : (z0 + z1) / 2, z0 + 1.5), z1 - 1.5);
+    var o = { far: isFar, cast: false }, glass = RVZ.mat('glazing'), frame = RVZ.mat(R ? 'black_steel' : '#3A3A3A');
+    var stone = RVZ.mat(R ? 'concrete' : '#E0DDD6'), board = { restaurant: '#2B2622', cafe: '#27352A', retail: '#383E42' }[use] || '#383E42';
+    function slab(xa, xb, ya, yb, za, zb, mat, opt) { return box(Math.min(xa, xb), ya, za, Math.max(xa, xb), yb, zb, mat, Object.assign({}, o, opt || {})); }
+    function door(zmid) {
+      slab(fx, fx + s * 0.03, y0, y0 + 2.4, zmid - 0.62, zmid + 0.62, frame);
+      slab(fx + s * 0.03, fx + s * 0.045, y0 + 0.05, y0 + 2.3, zmid - 0.52, zmid + 0.52, RVZ.mat(R ? 'glass_frosted' : '#6F7F88'));
+    }
+    // the text on a plane facing the street at x, centred at height yc, h tall, from za to zb
+    function paint(x, yc, h, za, zb, bg, fg) {
+      var w = zb - za, cv = document.createElement('canvas'); cv.width = 2048; cv.height = Math.max(48, Math.min(2048, Math.round(2048 * h / w)));
+      var cx = cv.getContext('2d'), fnt = function(px) { return '700 ' + px + 'px Georgia, "Times New Roman", serif'; };
+      cx.fillStyle = bg; cx.fillRect(0, 0, cv.width, cv.height);
+      var fs = Math.round(cv.height * 0.64); cx.font = fnt(fs);
+      while (cx.measureText(text).width > cv.width * 0.8 && fs > 8) { fs -= 2; cx.font = fnt(fs); }
+      cx.fillStyle = fg || '#F1ECDD'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(text, cv.width / 2, cv.height * 0.54);
+      var tx = new THREE.CanvasTexture(cv); tx.encoding = THREE.sRGBEncoding; tx.anisotropy = 8;
+      var sign = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tx, toneMapped: false }));
+      // a plane faces +Z; turned to face the street: +X for the near side (L), -X for the far side (R)
+      sign.position.set(x, yc, (za + zb) / 2); sign.rotation.y = s * Math.PI / 2;
+      sign.userData.rvzSign = text; root.add(sign); if (isFar) far.push(sign);
+      RVZ._signs.push({ side: side, index: bd.index, text: text, name: bd.name });
+    }
+    var sw = Math.min(6.5, len - 1), sz0 = Math.max(z0 + 0.5, zd - sw / 2), sz1 = Math.min(z1 - 0.5, sz0 + sw);
+    function fascia() {   // the sign board over the door, 2.7-3.2 m
+      slab(fx, fx + s * 0.06, y0 + 2.7, y0 + 3.2, sz0, sz1, RVZ.mat(board));
+      paint(fx + s * 0.065, y0 + 2.95, 0.44, sz0 + 0.05, sz1 - 0.05, board);
+    }
+    if (use === 'residential') {
+      door(zd);
+      if (text) { slab(fx, fx + s * 0.03, y0 + 2.5, y0 + 2.85, zd - 0.9, zd + 0.9, RVZ.mat(board)); paint(fx + s * 0.035, y0 + 2.675, 0.3, zd - 0.85, zd + 0.85, board); }
+      return;
+    }
+    if (fr === 'solid') {
+      slab(fx - s * 0.035, fx + s * 0.02, 0, gf, z0, z1, R ? RVZ.mat('precast_grey') : RVZ.mat('#E8E4DC')); door(zd);
+      if (text) fascia();
+      return;
+    }
+    slab(fx, fx + s * 0.02, y0 + 0.35, y0 + 3.15, z0, z1, glass);                           // glazing
+    slab(fx, fx + s * 0.05, y0, y0 + 0.35, z0, z1, frame);                                   // stall riser
+    slab(fx, fx + s * 0.05, y0 + 2.6, y0 + 2.68, z0, z1, frame);                             // transom
+    for (var zm = z0; zm <= z1 + 0.01; zm += 2.4) slab(fx, fx + s * 0.06, y0, y0 + 3.2, zm - 0.04, zm + 0.04, frame);   // mullions
+    slab(fx, fx + s * 0.05, y0 + 3.15, y0 + 3.3, z0, z1, frame);                             // head
+    door(zd);
+    if (fr === 'arcade') {
+      for (var zk = z0 + 0.3; zk <= z1 - 0.3; zk += 3) slab(face, face + s * 1.2, 0, gf, zk - 0.2, zk + 0.2, stone, { cast: true, ao: [0.4, 0.3], y0: SR });
+      slab(face, face + s * 1.2, gf - 0.35, gf, z0, z1, stone, { cast: true });
+    }
+    if (fr === 'awning') {   // fabric over a thin frame, sloping out and down; the valance carries the sign
+      var awId = { restaurant: 'fabric_red', cafe: 'fabric_green', retail: 'fabric_navy' }[use] || 'fabric_charcoal', aw = RVZ.mat(awId);
+      var za = Math.max(z0 + 0.2, zd - 4), zb = Math.min(z1 - 0.2, zd + 4), dep = 1.3, drop = 0.4, top = y0 + 3.2, vh = 0.35;
+      var m = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(dep, drop), 0.04, zb - za), aw);
+      m.position.set(fx + s * dep / 2, top - drop / 2, (za + zb) / 2); m.rotation.z = -s * Math.atan2(drop, dep);
+      add(m, { far: isFar, cast: true });
+      slab(fx + s * dep, fx + s * (dep + 0.02), top - drop - vh, top - drop, za, zb, aw, { cast: true });   // valance
+      [za + 0.05, zb - 0.05].forEach(function(zq) { slab(fx, fx + s * dep, top - drop - 0.02, top - drop + 0.02, zq - 0.015, zq + 0.015, frame); });   // arms
+      if (text) paint(fx + s * (dep + 0.025), top - drop - vh / 2, vh - 0.04, za + 0.1, zb - 0.1, flMatInfo(awId).color, '#F4EFE2');
+      return;
+    }
+    if (text) fascia();
+  }
   // Buildings: massing with a facade, a plinth, a parapet; full-length ones run the whole street
   ['L', 'R'].forEach(function(side) {
     (DM.buildings[side] || []).forEach(function(bd) {
@@ -19424,6 +19638,7 @@ RVZ.build = function(o) {
       box(x0, h, z0, x1, h + 0.6, z1, roof, { far: isFar, cast: true });
       var face = side === 'L' ? x1 : x0;
       contact(face + (side === 'L' ? 0.35 : -0.35), (z0 + z1) / 2, z1 - z0 + 0.6, 1.4, Math.PI / 2, SR, 0.35);
+      storefront(bd, side, face, Math.max(z0, LM.sceneMinZ - 6), Math.min(z1, LM.sceneMaxZ + 6), isFar);
     });
   });
 
@@ -19713,6 +19928,9 @@ RVZ.cameraFor = function(preset, aspect) {
 // The key is the design (getDesignState(), FNV-1a) plus everything that changes the picture.
 // The report and the Generate cards read RVZ.cached(hash, opts) instead of re-rendering.
 RVZ.fnv = function(s) { var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return ('0000000' + (h >>> 0).toString(16)).slice(-8); };
+// The text a building's sign carries: its name; an unnamed restaurant / cafe / shop gets its use;
+// other uses unnamed get no sign ('').
+RVZ.signText = function(b) { return b.name || { restaurant: 'Restaurant', cafe: 'Cafe', retail: 'Shop' }[b.use] || ''; };
 RVZ.designHash = function() { return RVZ.fnv(JSON.stringify(getDesignState())); };
 RVZ.renderKey = function(o, W, H) { return [o.preset, o.appearance, o.year + '-' + o.doy, o.min, 'N' + RVZ.northDeg(), W + 'x' + H, o.people ? 'people' : 'empty'].join('|'); };
 RVZ.cached = function(hash, o, W, H) {
@@ -20203,6 +20421,36 @@ RVZP.benchCount = function(p) {
   return { placed: placed, visibleInMask: vis, occludedOrOutOfFrame: placed - vis, pixels: n };
 };
 
+// The street context in words, from the building programme: the host building behind the parklet
+// and the building opposite (the nearest to the deck centre on the far side). E.g. "the parklet
+// sits in front of Elysian Coffee, a ground-floor cafe with a glazed frontage and a fabric awning;
+// opposite is a four-storey mixed-use building with a glazed frontage". The clause asks the edit
+// models to keep the storefront, door and sign; sign = RVZ.signText of the host ('' = no sign).
+RVZP.NUMW = ['', 'one', 'two', 'three', 'four', 'five', 'six'];
+RVZP.USEW = { restaurant: 'restaurant', cafe: 'cafe', retail: 'shop', office: 'office building', residential: 'residential building', mixed: 'mixed-use building', institutional: 'institutional building', vacant: 'vacant building' };
+RVZP.frontW = function(b) {
+  if (b.use === 'residential') return 'with punched windows and an entrance door';
+  return { glazed: 'with a glazed frontage', awning: 'with a glazed frontage and a fabric awning', solid: 'with a solid ground-floor wall', arcade: 'with an arcaded frontage' }[b.frontage] || 'with a glazed frontage';
+};
+RVZP.nearest = function(side) {
+  var DM = _dmCurrent(), zc = DM.parklet.length / 2, best = null, bd = 1e9;
+  (DM.buildings[side] || []).forEach(function(b) { var f = b.footprint; if (!f.visible) return; var d = zc < f.z0 ? f.z0 - zc : zc > f.z1 ? zc - f.z1 : 0; if (d < bd - 1e-9) { bd = d; best = b; } });
+  return best;
+};
+RVZP.context = function() {
+  var h = (_dmCurrent().buildings.L || []).find(function(b) { return b.host; }), o = RVZP.nearest('R'), parts = [];
+  if (h) {
+    var shop = ['restaurant', 'cafe', 'retail'].indexOf(h.use) >= 0;
+    parts.push('the parklet sits in front of ' + (h.name ? h.name + ', ' : '') + (shop
+      ? 'a ground-floor ' + RVZP.USEW[h.use] + ' ' + RVZP.frontW(h) + (h.storeys > 1 ? ' in a ' + RVZP.NUMW[h.storeys] + '-storey building' : '')
+      : 'a ' + RVZP.NUMW[h.storeys] + '-storey ' + RVZP.USEW[h.use] + ' ' + RVZP.frontW(h)));
+  }
+  if (o) parts.push('opposite is ' + (o.name ? o.name + ', ' : '') + 'a ' + RVZP.NUMW[o.storeys] + '-storey ' + RVZP.USEW[o.use] + ' ' + RVZP.frontW(o));
+  var sign = h ? RVZ.signText(h) : '';
+  var clause = h ? 'keep the storefront type, door and sign text' + (sign ? ' (the sign reads "' + sign + '")' : '') : '';
+  return { sentence: parts.join('; '), clause: clause, sign: sign, host: h || null };
+};
+RVZP.cap = function(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; };
 // ── Prompt: generated from the model ────────────────────────────────────────────────────────
 RVZP.ROLE = { frame: 'frames', seat: 'seats', back: 'seat backs', top: 'tabletops', body: 'planters', slat: 'slats', post: 'posts', panel: 'panels', canopy: 'canopies', pole: 'poles', base: 'bases', rail: 'rails', grate: 'tree grates', light: 'lights' };
 RVZP.prompt = function() {
@@ -20230,23 +20478,28 @@ RVZP.prompt = function() {
   var when = !s.up ? 'dusk, street lights on' : hr < 10.5 ? 'morning' : hr < 14 ? 'midday' : s.alt < 15 ? 'late afternoon' : 'afternoon';
   var sun = !s.up ? '' : s.alt > 50 ? 'high sun, short crisp shadows' : s.alt > 25 ? 'sun from the ' + siteWind(s.az) + ', clear shadows' : 'low sun from the ' + siteWind(s.az) + ', long shadows';
   var season = [11, 0, 1].indexOf(s.month) >= 0 ? 'winter' : [2, 3, 4].indexOf(s.month) >= 0 ? 'spring' : [5, 6, 7].indexOf(s.month) >= 0 ? 'summer' : 'autumn';
+  var ctx = RVZP.context();
   var text = 'Photograph of a street parklet on a Vancouver commercial street: ' + mats.join(', ') + '; ' + Object.keys(types).slice(0, 6).join(', ') +
-    (people.length ? '; ' + people.join(', ') : '') + '; ' + veg.join(', ') + '; ' + season + ' ' + when + (sun ? ', ' + sun : '') + ' (' + s.day + ' ' + month + ', ' + RVZ.hhmm(RVZ.o.min) + ' ' + s.zone + ')' +
+    (people.length ? '; ' + people.join(', ') : '') + '; ' + veg.join(', ') + (ctx.sentence ? '; ' + ctx.sentence : '') + (ctx.clause ? '; ' + ctx.clause : '') +
+    '; ' + season + ' ' + when + (sun ? ', ' + sun : '') + ' (' + s.day + ' ' + month + ', ' + RVZ.hhmm(RVZ.o.min) + ' ' + s.zone + ')' +
     '; ' + RVZP.WEATHER[RVZP.o.weather] + '; shallow depth of field, background softly blurred, photographic, 35 mm';
-  return { text: text, negative: RVZP.NEGATIVE, parts: { mats: mats, when: when, sun: sun, season: season, stamp: s.day + ' ' + month + ', ' + RVZ.hhmm(RVZ.o.min) + ' ' + s.zone, weather: RVZP.WEATHER[RVZP.o.weather] } };
+  // a painted sign is design content: "text" leaves the negative (captions / watermarks stay out)
+  var negative = ctx.sign ? RVZP.NEGATIVE.replace('text, ', 'added captions, ') : RVZP.NEGATIVE;
+  return { text: text, negative: negative, parts: { mats: mats, when: when, sun: sun, season: season, stamp: s.day + ' ' + month + ', ' + RVZ.hhmm(RVZ.o.min) + ' ' + s.zone, weather: RVZP.WEATHER[RVZP.o.weather], context: ctx } };
 };
 // The instruction for the edit models (Nano Banana): generated from the same facts as the prompt.
 // image_input is [colour render, depth pass]; the second image is named in the instruction so the
 // model uses it for geometry only.
 RVZP.instruction = function() {
-  var p = RVZP.prompt().parts;
+  var p = RVZP.prompt().parts, ctx = p.context;
   var text = 'Turn this 3D render into a photograph taken on a Vancouver street. Keep the exact camera, every object, its position and size, the deck outline, railing, planters and the building line unchanged. ' +
     'Replace the materials with real ones: ' + p.mats.join(', ') + '. Replace the figures with real people in the same poses and positions, casual clothing. ' +
     'Replace box vehicles with real cars of the same size and colour. Natural daylight, ' + p.season + ' ' + p.when + (p.sun ? ', ' + p.sun : '') + ' (' + p.stamp + '), ' + p.weather +
-    ', 35 mm lens look, slight background softness, no text, no watermark. The second image is a depth map of the same view: use it only to keep the geometry, do not copy its look. ' +
+    ', 35 mm lens look, slight background softness, ' + (ctx.sign ? 'no added text apart from the sign, ' : 'no text, ') + 'no watermark. The second image is a depth map of the same view: use it only to keep the geometry, do not copy its look. ' +
     'Keep every piece of furniture, planter and the railing exactly as many, as placed and as sized: ' + RVZP.inventory() + '. ' +
     (RVZP.o.railDetail ? RVZP.railText() + ' ' : '') +
-    "Keep the near building's face where it is; its materials and the far street may change. Do not add furniture.";
+    "Keep the near building's face where it is; its materials and the far street may change. Do not add furniture." +
+    (ctx.sentence ? ' ' + RVZP.cap(ctx.sentence) + '.' : '') + (ctx.clause ? ' ' + RVZP.cap(ctx.clause) + '.' : '');
   return { text: text, negative: '' };
 };
 // What is on the deck, counted from the model: "1 bench, 2 chairs, ... and the railing".
