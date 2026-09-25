@@ -32,6 +32,21 @@ $LogFile = Join-Path $Root 'render-proxy.log'
 $Provider = @{ name = 'replicate'; api = 'https://api.replicate.com/v1'; owner = 'fofr'; model = 'sdxl-multi-controlnet-lora' }
 # Replicate: data URLs are "only recommended if the file is less than 1MB" (docs, input files).
 $DataUrlMax = 1000000
+# The models the page may ask for by id (params.model); never an arbitrary one.
+#   sdxl: img2img + ControlNet depth / canny (colour, depth, edges), created on the model's version
+#   google/nano-banana(-pro): an instruction edit of image_input [colour, depth], created on the
+#   model's own predictions endpoint (official models); inputs per the models' openapi_schema
+#   (2026-09-25): prompt, image_input, aspect_ratio, output_format; Pro also resolution.
+$Models = @{
+  'sdxl'                   = @{ owner = 'fofr';   name = 'sdxl-multi-controlnet-lora'; kind = 'controlnet'; images = @('colour', 'depth', 'edges') }
+  'google/nano-banana'     = @{ owner = 'google'; name = 'nano-banana';                kind = 'edit';       images = @('colour', 'depth') }
+  'google/nano-banana-pro' = @{ owner = 'google'; name = 'nano-banana-pro';            kind = 'edit';       images = @('colour', 'depth'); resolution = '2K' }
+}
+function Build-EditInput($req, $urls, $M) {
+  $in = @{ prompt = [string]$req.prompt; image_input = @($urls.colour, $urls.depth); aspect_ratio = 'match_input_image'; output_format = 'png' }
+  if ($M.resolution) { $in.resolution = $M.resolution }
+  return $in
+}
 function Build-Input($req, $urls) {
   $p = $req.params
   return @{
@@ -149,9 +164,9 @@ function Upload([string]$name, $img) {
 }
 # the control images as data URLs, each under $DataUrlMax: colour JPEG q85, depth / edges PNG
 # (scaled down in 0.8 steps if one is still too large)
-function As-DataUrls($images) {
+function As-DataUrls($images, $keys) {
   $out = @{}
-  foreach ($k in @('colour', 'depth', 'edges')) {
+  foreach ($k in $keys) {
     $src = From-DataUrl $images.$k
     $img = if ($k -eq 'colour') { Reencode $src 'image/jpeg' 85 1 } else { Reencode $src 'image/png' 0 1 }
     $s = 1.0
@@ -169,17 +184,23 @@ function Submit($req) {
     $script:mockJobs[$id] = @{ t = [DateTime]::UtcNow; img = (From-DataUrl $req.images.colour) }
     return @{ id = $id; status = 'starting'; inputs = 'mock' }
   }
-  if (-not $script:version) { $script:version = (Api 'GET' ('/models/' + $Provider.owner + '/' + $Provider.model) $null).latest_version.id; Log ('model version ' + $script:version) }
+  $mid = [string]$req.params.model; if (-not $mid) { $mid = 'sdxl' }
+  $M = $Models[$mid]; if (-not $M) { throw ('unknown model: ' + $mid) }
   $urls = @{}; $path = 'files'
-  if ($env:RENDER_FORCE_DATAURL -eq '1') { $path = 'data-urls'; Log 'RENDER_FORCE_DATAURL=1: skipping the files API'; $urls = As-DataUrls $req.images }
+  if ($env:RENDER_FORCE_DATAURL -eq '1') { $path = 'data-urls'; Log 'RENDER_FORCE_DATAURL=1: skipping the files API'; $urls = As-DataUrls $req.images $M.images }
   else {
-    try { foreach ($k in @('colour', 'depth', 'edges')) { $urls[$k] = Upload $k (From-DataUrl $req.images.$k) } }
-    catch { Log ('upload failed (' + $_.Exception.Message + '); falling back to data URLs'); $path = 'data-urls'; $urls = As-DataUrls $req.images }
+    try { foreach ($k in $M.images) { $urls[$k] = Upload $k (From-DataUrl $req.images.$k) } }
+    catch { Log ('upload failed (' + $_.Exception.Message + '); falling back to data URLs'); $path = 'data-urls'; $urls = As-DataUrls $req.images $M.images }
   }
-  $p = Api 'POST' '/predictions' @{ version = $script:version; input = (Build-Input $req $urls) }
-  $script:jobs[$p.id] = @{ id = $p.id; status = $p.status; path = $path; strength = [double]$req.params.strength; predictTime = $null; created = (Get-Date).ToString('s') }
-  Log ('prediction ' + $p.id + ' created (inputs: ' + $path + ', strength ' + $req.params.strength + ')')
-  return @{ id = $p.id; status = $p.status; inputs = $path }
+  if ($M.kind -eq 'edit') {
+    $p = Api 'POST' ('/models/' + $M.owner + '/' + $M.name + '/predictions') @{ input = (Build-EditInput $req $urls $M) }
+  } else {
+    if (-not $script:version) { $script:version = (Api 'GET' ('/models/' + $M.owner + '/' + $M.name) $null).latest_version.id; Log ('model version ' + $script:version) }
+    $p = Api 'POST' '/predictions' @{ version = $script:version; input = (Build-Input $req $urls) }
+  }
+  $script:jobs[$p.id] = @{ id = $p.id; model = $mid; status = $p.status; path = $path; strength = [double]$req.params.strength; predictTime = $null; created = (Get-Date).ToString('s') }
+  Log ('prediction ' + $p.id + ' created (' + $mid + ', inputs: ' + $path + $(if ($M.kind -eq 'edit') { '' } else { ', strength ' + $req.params.strength }) + ')')
+  return @{ id = $p.id; status = $p.status; inputs = $path; model = $mid }
 }
 # -> @{ image = bytes, type } when done; @{ status } otherwise
 function Poll([string]$id) {
@@ -234,7 +255,7 @@ while ($l.IsListening) {
       $ok = ($c.Request.Headers['X-Render-Proxy'] -eq '1') -and (-not $origin -or $origin -eq ('http://localhost:' + $Port))
       if (-not $ok) { Log ('refused ' + $path + ' (origin ' + $origin + ')'); Send-Json $c @{ error = 'forbidden' } 403 }
       elseif ($path -eq '/render-proxy/status') {
-        Send-Json $c @{ proxy = $true; provider = $Provider.name; model = ($Provider.owner + '/' + $Provider.model); key = $(if (Get-Key) { 'present' } else { 'missing' }); mode = $(if (Is-Mock) { 'mock' } else { 'live' }) }
+        Send-Json $c @{ proxy = $true; provider = $Provider.name; model = ($Provider.owner + '/' + $Provider.model); models = @($Models.Keys | Sort-Object); key = $(if (Get-Key) { 'present' } else { 'missing' }); mode = $(if (Is-Mock) { 'mock' } else { 'live' }) }
       }
       elseif ($path -eq '/render-proxy/jobs') { Send-Json $c @{ jobs = @($script:jobs.Values) } }
       elseif (-not (Get-Key)) { Send-Json $c @{ status = 'failed'; error = 'no provider key: set PROVIDER_KEY or write .render-key next to parklet-checker.html, then restart the server' } 503 }
