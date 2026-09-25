@@ -14,6 +14,60 @@ Right-click `parklet-checker.html` in the VS Code Explorer → **Open with Live 
 URL: `http://127.0.0.1:5500/parklet-checker.html`
 Do NOT open as a `file://` URL — Supabase network requests will fail.
 
+## Current state (v0.4 candidate, branch local-run)
+Branches stack: `photoreal` -> `programme` -> `local-run` (each holds the one before). None is merged into master yet; the merge (photoreal, then programme, then local-run into master, tag `v0.4-photoreal`, delete the three) waits until all four photoreal views hold framing and design fidelity. The history of how each part got here is in the dated sections further down.
+
+### Photoreal providers and defaults
+| Provider (`RVZP.o.provider`) | Kind | Inputs sent | Output | Notes |
+|---|---|---|---|---|
+| `google/nano-banana-pro` (**default**) | instruction edit | `image_input` = [base colour render FIRST, depth pass], `aspect_ratio` = `match_input_image`, `output_format` = png, `resolution` = 2K | 2752 x 1536 | ~25 s per image; the most expensive call in the tool |
+| `google/nano-banana` | instruction edit | same, no resolution | 1344 x 768 | ~10 s |
+| `sdxl` ("strict geometry") | img2img + ControlNet depth / canny | colour, depth, edges; two passes (design s-0.15, context s+0.15; slider s default 0.55), 1536 x 864 | 1536 x 864 | ~8 s per pass; mask composite + distance blur |
+- The server allow-list (`$Models` in `tools/serve.ps1`) is the only set the page can ask for; the key stays in the server (`PROVIDER_KEY` or `.render-key`).
+- **Manual trigger only:** a provider is called only by Render 4 in the Photoreal panel; the report and the Generate cards read the IndexedDB cache (`pkt-photoreal`) and never call it. Cache key: design hash | preset | prompt hash | strength | adapter-mode | provider | pipeline (+ entctx, + take).
+- **Instruction (edit models)** starts: "Keep the exact camera: same viewpoint, same framing, same lens, same crop. Do not zoom, pan, tilt or re-crop." Then the materials, people / cars, daylight from the sun model, the depth-map sentence, the inventory ("1 bench, 1 cafe table, 2 chairs, ... and the railing along the traffic side"), the railing sentence from `RVZ.RAIL` (`RVZP.o.railDetail`, on by default), "Keep the near building's face where it is ... Do not add furniture.", and the building-programme context and sign clause.
+
+### Framing check (`RVZP.framing(output, passes)`)
+- Estimates the similarity (scale about the frame centre + offset) that maps the base render onto the output (both at the frame size, 1536 x 864): NCC of blurred gradient magnitude over the base's design mask, dilated; coarse search at 96 px wide (scale 0.60-1.50 in 3 % steps, offset +-20 %), refined at 384 px (+-3 % in 0.25 % steps, +-6 px).
+- **Pass** = scale 0.97-1.03, offset < 2 % of the width, and a trusted match (ncc >= 0.25; below it no scale / shift explains the output: a new viewpoint). Card: "framing scale 1.004, offset 0.3 % (0, 4 px) PASS".
+- **Retry:** on a framing fail the same call is made once more (the edit models take no seed) and the better attempt is kept (`RVZP._better`: framing pass, then design pass, then share kept, then closeness); both attempts are in `meta.attempts` and the log; the card says "(best of 2)".
+- Calibration (2026-09-25, no AI): base vs itself 0.999 / 0 %; synthetic zoom 1.05 -> 1.049, 0.90 -> 0.901, a 3 % shift -> 3.3 %, 1.5 % zoom + 1 % shift -> pass; the earlier Pro outputs: Street and Corner keep framing, Sidewalk (ncc 0.234) and Aerial (0.075) "no consistent match", as seen by eye. ~1-3 s per check.
+
+### Design-fidelity check (`RVZP.designCheck(output, passes)`)
+- Per design object (`userData.rvzObj`: deck, railing, end planters, wheel stops, each placed piece; people are not objects) drawn in ID colours; per object in view (>= 150 px): edge = tolerant IoU of Canny(output) vs Canny(base) on the object dilated 3 px, ncc = correlation of blurred luminance. Kept if edge >= 0.25 or ncc >= 0.45 (railing: ncc >= 0.45 and edge >= 0.20); moved if an offset within +-48 px scores 0.15 better; else missing. Deck outline: edge match on a band along its boundary, kept >= 0.20.
+- **Pass** = outline kept, >= 90 % of the objects in view kept, none missing. Context (outside the design mask) is one number, reported, never failed. It cannot see ADDED furniture (photographic texture adds edges everywhere).
+- A preset passes overall (`meta.pass`) when framing and design both pass.
+
+### Latest Render 4 on Pro (2026-09-25, camera sentence + framing check, the 7-piece test design)
+| View | Framing | Design | Overall | Prediction |
+|---|---|---|---|---|
+| Street | scale 1.004, offset 0.3 % PASS | 7/8 kept, 1 missing (the galvanised planter) | FAIL | 9cdhw3h76srmr0d0v93r2fqw4r, 25.0 s |
+| Sidewalk | scale 1.004, offset 0.0 % PASS | 6/9 kept, 3 missing (railing: posts thinned; far-end planter; the galvanised planter) | FAIL | j3h02mdfksrmr0d0v93tdt1z24, 25.9 s |
+| Corner | scale 1.007, offset 0.0 % PASS | 11/11 kept | PASS | eem3gestmsrmt0d0v948v3zc7g, 25.3 s |
+| Aerial | scale 1.006, offset 0.0 % PASS | 9/9 kept | PASS | d6vzyc6hq1rmr0d0v94bjv8kcr, 24.6 s |
+The camera sentence fixed the framing on all four (Sidewalk and Aerial had re-framed before), so no retry was needed. Sidewalk also shows a cafe table, chairs and umbrella that are out of frame in the base (an addition the check cannot see).
+
+### Local server
+`tools\start.cmd` / `tools\stop.cmd`, port 8766, `/render-proxy/health`, the three Photoreal notices: see "Running locally" above.
+
+### Building programme fields (per `BLDG_L` / `BLDG_R` entry, saved with the design)
+| Field | Values | Default | Drives |
+|---|---|---|---|
+| `use` | restaurant, cafe, retail, office, residential, mixed, institutional, vacant | host: cafe; others: mixed | sign text when unnamed, awning colour, the prompt sentence, the Generate bias |
+| `frontage` | glazed, awning, solid, arcade | glazed | the ground-floor geometry in the base render |
+| `name` | text (40 chars) | none | the sign / valance text, the prompt ("the sign reads ..."), the report host line |
+| `storeys` | 1-6 | from the height | the height (4.2 m + 3.5 m each) until a height is typed (`heightManual`) |
+The host is the parklet-side building nearest the deck centre (`DESIGN_MODEL.site.host`). Details in "Building programme" below.
+
+### Numbers waiting on Jenna
+1. **Pro per-image price** from replicate.com/account/billing (not on the model page; no browser session could read the dashboard). Predictions to price: the four above.
+2. **Render sign-off** for the merge: Street (planter missing) and Sidewalk (railing posts thinned, two planters missing) fail design fidelity; accept, re-run, or change the thresholds?
+3. **Railing post spacing:** a brief asked for "posts every 1.5 m"; the model draws and describes 1.0 m (`RVZ.RAIL.post`). Which is the design?
+4. **Accessible clear route width:** `GEN.ROUTE_W = 0.92` m (BCBC 3.8) - to be confirmed against the Parklet Manual.
+5. **Trolley-wire clearance on poles:** 2.4 m assumed when "07 Trolley wires" is not set.
+6. **Building programme dimensions** (my estimates): ground floor 4.2 m, upper storeys 3.5 m, awning 1.3 m deep with its valance bottom at 2.45 m above the walk, fascia sign at 2.7-3.2 m. Check against the Vancouver awning / sign by-law clearances.
+7. **Fidelity thresholds** calibrated on a handful of outputs (design: edge 0.25, ncc 0.45, railing ncc 0.45 + edge 0.20, deck 0.20; framing ncc 0.25): confirm or tighten once more renders exist.
+
 ## Supabase project
 - Project ID: `hkfvcbbpbtnxyvwlawva`
 - URL: `https://hkfvcbbpbtnxyvwlawva.supabase.co`
