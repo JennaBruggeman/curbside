@@ -5,7 +5,9 @@
 ~785 KB single-file HTML app. All CSS, JS, and HTML are inline — no build step, no dependencies except the Supabase CDN loaded at runtime.
 
 ## How to run it
-Open with VS Code Live Server (Ritwick Dey extension, already installed and enabled).
+**Local server (needed for Photoreal):** double-click `tools\start.cmd`. It starts `tools\serve.ps1 -Port 8766` in its own window titled "Parklet server" (unless something already answers on 8766, which it leaves alone), waits up to 10 s for the port, opens `http://localhost:8766/parklet-checker.html` in the default browser and prints one line: started or already running, and whether `.render-key` was found (never its contents; it also notes when `PROVIDER_KEY` is set, which takes precedence). `tools\stop.cmd` stops that server and nothing else: the port is held by http.sys (PID 4), so it finds the PowerShell process whose command line runs `serve.ps1 -Port 8766`; servers on other ports (e.g. the 8765 preview in `.claude/launch.json`) are not touched. Both are CRLF (`*.cmd text eol=crlf` in `.gitattributes`). Test hooks: `PARKLET_PORT` and `PARKLET_NOBROWSER=1` for start.cmd.
+
+**Without Photoreal:** open with VS Code Live Server (Ritwick Dey extension, already installed and enabled).
 Right-click `parklet-checker.html` in the VS Code Explorer → **Open with Live Server**.
 URL: `http://127.0.0.1:5500/parklet-checker.html`
 Do NOT open as a `file://` URL — Supabase network requests will fail.
