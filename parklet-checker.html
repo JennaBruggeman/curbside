@@ -19266,6 +19266,7 @@ RVZ.build = function(o) {
   var M = function(rendered, schematic) { return RVZ.mat(R ? rendered : schematic); };
   function add(mesh, opt) {
     opt = opt || {};
+    if (opt.design) mesh.userData.rvzDesign = true;   // the photoreal mask: design vs street context
     mesh.castShadow = opt.cast !== false; mesh.receiveShadow = true;
     root.add(mesh); mesh.updateMatrix();
     RVZ._uv(mesh, mesh.matrix);
@@ -19304,6 +19305,7 @@ RVZ.build = function(o) {
     var box3 = new THREE.Box3().setFromObject(g), sz = box3.getSize(new THREE.Vector3());
     g.traverse(function(c) {
       if (!c.isMesh) return;
+      if (opt.design) c.userData.rvzDesign = true;
       c.material = RVZ.matFrom(c.material);
       c.castShadow = true; c.receiveShadow = !opt.noReceive;
       RVZ._uv(c, c.matrixWorld);
@@ -19417,33 +19419,33 @@ RVZ.build = function(o) {
       else shp.lineTo(vb.y, -vb.x);
     }
     var eg = new THREE.ExtrudeGeometry(shp, { depth: DT, bevelEnabled: false }); eg.rotateX(-Math.PI / 2);
-    add(new THREE.Mesh(eg, deckMat), {});
-  } else box(LM.deckX0, 0, 0, LM.deckX1, DT, L, deckMat);
+    add(new THREE.Mesh(eg, deckMat), { design: true });
+  } else box(LM.deckX0, 0, 0, LM.deckX1, DT, L, deckMat, { design: true });
   var rail = RVZ.mat('galvanized'), rx = LM.deckX1;
-  for (var rz = 0.2; rz < L - 0.1; rz += 1.0) box(rx - 0.03, DT, rz, rx + 0.03, DT + 0.9, rz + 0.05, rail, { ao: [0.2, 0.3], y0: DT });
-  box(rx - 0.025, DT + 0.86, 0, rx + 0.025, DT + 0.92, L, rail);
-  box(rx - 0.012, DT + 0.45, 0, rx + 0.012, DT + 0.48, L, rail);
+  for (var rz = 0.2; rz < L - 0.1; rz += 1.0) box(rx - 0.03, DT, rz, rx + 0.03, DT + 0.9, rz + 0.05, rail, { ao: [0.2, 0.3], y0: DT, design: true });
+  box(rx - 0.025, DT + 0.86, 0, rx + 0.025, DT + 0.92, L, rail, { design: true });
+  box(rx - 0.012, DT + 0.45, 0, rx + 0.012, DT + 0.48, L, rail, { design: true });
   (DM.parklet.ends || []).forEach(function(e) {
     if (e.kind === 'end-planter') {
       var y1 = DT + (e.y1 - e.y0);
-      box(e.x0, DT, e.z0, e.x1, y1, e.z1, M('precast_grey', '#DEDAD4'), { ao: [0.3, 0.35], y0: DT });
-      plane(e.x0 + 0.05, e.z0 + 0.05, e.x1 - 0.05, e.z1 - 0.05, y1 - 0.04, M('soil', '#8A7256'));
+      box(e.x0, DT, e.z0, e.x1, y1, e.z1, M('precast_grey', '#DEDAD4'), { ao: [0.3, 0.35], y0: DT, design: true });
+      plane(e.x0 + 0.05, e.z0 + 0.05, e.x1 - 0.05, e.z1 - 0.05, y1 - 0.04, M('soil', '#8A7256'), { design: true });
       contact((e.x0 + e.x1) / 2, (e.z0 + e.z1) / 2, e.x1 - e.x0 + 0.3, e.z1 - e.z0 + 0.3, 0, DT, 0.45);
       var rnd = AXE.rng(Math.round(e.z0 * 100) + 7);
-      for (var q = 0; q < 7; q++) shrub(e.x0 + 0.2 + rnd() * (e.x1 - e.x0 - 0.4), y1 - 0.05, e.z0 + 0.18 + rnd() * (e.z1 - e.z0 - 0.36), 0.16 + rnd() * 0.1);
+      for (var q = 0; q < 7; q++) shrub(e.x0 + 0.2 + rnd() * (e.x1 - e.x0 - 0.4), y1 - 0.05, e.z0 + 0.18 + rnd() * (e.z1 - e.z0 - 0.36), 0.16 + rnd() * 0.1, false, true);
     } else if (e.kind === 'wheel-stop') {
-      box(e.x0, 0, e.z0, e.x1, e.y1, e.z1, M('concrete', '#C8C3BA'), { ao: [0.08, 0.3] });
-      plane(e.x0 + 0.02, e.z0 + 0.02, e.x1 - 0.02, e.z1 - 0.02, e.y1 + 0.001, M('safety_yellow', '#E4C860'));
+      box(e.x0, 0, e.z0, e.x1, e.y1, e.z1, M('concrete', '#C8C3BA'), { ao: [0.08, 0.3], design: true });
+      plane(e.x0 + 0.02, e.z0 + 0.02, e.x1 - 0.02, e.z1 - 0.02, e.y1 + 0.001, M('safety_yellow', '#E4C860'), { design: true });
     }
   });
   // a low shrub of three foliage clumps
-  function shrub(x, y, z, r, isFar) {
+  function shrub(x, y, z, r, isFar, design) {
     var g = new THREE.Group(), fm = RVZ.mat('foliage'), rnd = AXE.rng(Math.round((x * 31 + z * 17) * 100));
     for (var c = 0; c < 3; c++) {
       var s = new THREE.Mesh(new THREE.IcosahedronGeometry(r * (0.7 + rnd() * 0.4), 1), fm);
       s.position.set((rnd() - 0.5) * r, r * (0.55 + rnd() * 0.3), (rnd() - 0.5) * r); s.scale.y = 0.8; g.add(s);
     }
-    dress(g, x, y, z, 0, { contactOp: 0.3 });
+    dress(g, x, y, z, 0, { contactOp: 0.3, design: !!design });
     if (isFar) g.traverse(function(m) { if (m.isMesh) far.push(m); });
   }
   // Trees and planters (DESIGN_MODEL.vegetation, every view's one list): a tapered trunk to the
@@ -19490,7 +19492,7 @@ RVZ.build = function(o) {
     var sp = flInstSpec(inst), x = inst.x || 0, z = inst.z || 0;
     var y = sp && !flIsEntourage(sp.type) ? DT + flSupportTop(inst) : surfY(x, z);
     g.userData.rvzInst = inst.id;
-    dress(g, x, y, z, FL_BASE_YAW + (inst.userRotation || 0), { noReceive: sp && flIsEntourage(sp.type), contactOp: sp && flIsEntourage(sp.type) ? 0.3 : 0.55 });
+    dress(g, x, y, z, FL_BASE_YAW + (inst.userRotation || 0), { design: true, noReceive: sp && flIsEntourage(sp.type), contactOp: sp && flIsEntourage(sp.type) ? 0.3 : 0.55 });
   });
   if (o.people) RVZ._people(DM, dress);
 
@@ -19516,7 +19518,7 @@ RVZ.build = function(o) {
 RVZ._people = function(DM, dress) {
   if (typeof AXE === 'undefined') return;
   var rnd = AXE.rng(20260924), LM = DM.landmarks, L = DM.parklet.length, DT = RVZ.DECK_TOP;
-  function put(it, x, z, y, head) { dress(fl3DArchetype(it.type, it.params, it.mats), x, y, z, FL_BASE_YAW + head, { noReceive: true, contactOp: 0.3 }); }
+  function put(it, x, z, y, head) { dress(fl3DArchetype(it.type, it.params, it.mats), x, y, z, FL_BASE_YAW + head, { noReceive: true, contactOp: 0.3, design: true }); }
   var seats = AXE.seats(), order = seats.map(function(s, i) { return [rnd(), i]; }).sort(function(a, b) { return a[0] - b[0]; });
   order.slice(0, seats.length ? Math.max(1, Math.round(seats.length * 0.4)) : 0).forEach(function(e) {
     var s = seats[e[1]], it = AXE.item(rnd, 'person_seated'); it.params.seatH = s.seatH;
@@ -19753,6 +19755,7 @@ RVZ.download = function(e) { PX.download(e.blob, RVZ.fileName(e), 'image/png'); 
 // ── The Visualize tab ─────────────────────────────────────────────────────────────────────────
 RVZ.onOpen = function() {
   RVZ._ui();
+  if (typeof RVZP !== 'undefined') RVZP.ui();
   if (typeof THREE === 'undefined') { RVZ._status('3D is not available in this browser (WebGL).'); return; }
   var L = RVZ._live || (RVZ._live = RVZ._makeLive());
   if (!L) return;
@@ -20007,4 +20010,475 @@ RVZ.exportAll = async function() {
 .ctx-section .site-orient-txt { margin: 0; color: var(--c-text); font-size: var(--fs-12); line-height: 1.5; }
 .sett-ro { color: var(--c-text); line-height: 1.5; max-width: 420px; }
 </style>
+<style>
+/* ── Photoreal: rail section, per-preset status, the gallery over the viewport ── */
+#rvzpSec textarea { width: 100%; box-sizing: border-box; min-height: 104px; resize: vertical; padding: 6px var(--sp-2); border: 1px solid var(--c-rule); border-radius: 3px; background: var(--c-bg); color: var(--c-text); font: var(--fs-11)/1.45 var(--font-mono); }
+#rvzpSec textarea:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 1px; }
+#rvzpSec .rvz-chip { align-self: flex-start; }
+#rvzpBody { display: flex; flex-direction: column; gap: 6px; }
+#rvzpBody[hidden] { display: none !important; }
+.rvz-lbl2 { color: var(--c-text-dim); font-size: var(--fs-12); }
+.rvzp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-11); }
+.rvzp-list li { display: flex; justify-content: space-between; gap: var(--sp-2); }
+.rvzp-st { color: var(--c-text-dim); text-align: right; font-variant-numeric: tabular-nums; }
+.rvzp-done, .rvzp-cached { color: var(--st-pass); }
+.rvzp-failed { color: var(--st-fail); }
+.rvzp-gallery { position: absolute; inset: 0; z-index: 5; overflow: auto; padding: var(--sp-4); background: rgba(23,25,28,.94); color: var(--c-text); }
+.rvzp-gallery[hidden] { display: none !important; }
+.rvzp-gh { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); }
+.rvzp-gh h3 { margin: 0; font: 600 var(--fs-15) var(--font-ui); }
+.rvzp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: var(--sp-4); }
+.rvzp-card { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--c-rule); border-radius: 3px; background: var(--c-panel); }
+.rvzp-card h4 { margin: 0; font: 600 var(--fs-13) var(--font-ui); }
+.rvzp-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.rvzp-pair figure { margin: 0; }
+.rvzp-pair img { display: block; width: 100%; height: auto; border-radius: 2px; }
+.rvzp-pair figcaption { margin-top: 2px; color: var(--c-text-dim); font-size: var(--fs-11); }
+.rvzp-card input[type=range] { flex: 1; accent-color: var(--accent-ui); }
+</style>
+<script>
+/* ── PHOTOREAL (AI-assisted pass over the Visualize renders) ──────────────────────────────────
+   Per preset, offscreen at 1536 px on the long side (RVZP.passes): colour (the Rendered
+   appearance), depth (linear view depth normalised over the visible scene, near = white), edges
+   (Sobel on view normals + depth), mask (design = deck, railing, end pieces, furniture, planters,
+   entourage: white; street context and sky: black; RVZ.build tags userData.rvzDesign).
+   The prompt is generated from the model (RVZP.prompt); a provider adapter {submit, poll} talks to
+   the local /render-proxy (tools/serve.ps1), which holds the key: the page never sees it.
+   Two AI passes per preset on the full frame -- the design strength (s - 0.15) and the context
+   strength (s + 0.15) -- blended through the feathered mask, the context blurred with depth, the
+   caption burned in (RVZP.composite). Results are cached in IndexedDB by (design hash, preset,
+   prompt hash, strength, provider mode). */
+var RVZP = {
+  LONG: 1536, CAPTION: 'AI-assisted visualisation - indicative',
+  o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0 },
+  WEATHER: { sunny: 'sunny, clear sky', overcast: 'overcast, soft diffuse light', golden: 'golden hour, warm low light', rain: 'just after rain, wet reflective pavement' },
+  NEGATIVE: 'cartoon, illustration, CGI, 3d render, plastic look, distorted geometry, warped railings, extra furniture, floating objects, text, watermark, logo, deformed people, oversaturated, lowres, noisy, blurry foreground',
+  status: {}, proxy: null, promptEdit: null, busy: false, entries: {}, adapter: 'replicate'
+};
+
+// ── Offscreen passes ──────────────────────────────────────────────────────────────────────────
+RVZP.size = function() { var W = RVZP.LONG, H = Math.round(W * 9 / 16 / 8) * 8; return [W, H]; };
+RVZP._copy = function(src, W, H) { var c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(src, 0, 0, W, H); return c; };
+RVZP.passes = function(preset) {
+  var WH = RVZP.size(), W = WH[0], H = WH[1], r = RVZ._exportRenderer(), aerial = preset === 'aerial';
+  var S = RVZ.build({ appearance: 'rendered', people: RVZ.o.people, shadow: 4096 }), cam = RVZ.cameraFor(preset, W / H);
+  r.setSize(W, H, false);
+  var out = { preset: preset, W: W, H: H };
+  try {
+    RVZ.renderWith(r, S, cam, RVZ.o, aerial);
+    out.colour = RVZP._copy(r.domElement, W, H);
+    // auxiliary passes: no sky, decals, fog, environment or tone mapping; one override material each
+    var hidden = [], orig = [];
+    S.scene.traverse(function(m) { if (m.isMesh && m.visible && (m.userData.rvzSky || (m.material && m.material.transparent && !m.material.depthWrite))) { m.visible = false; hidden.push(m); } });
+    var fog = S.scene.fog, env = S.scene.environment, sunCast = S.sun.castShadow;
+    S.scene.fog = null; S.scene.environment = null; S.sun.castShadow = false;
+    r.toneMapping = THREE.NoToneMapping; r.outputEncoding = THREE.LinearEncoding; r.setClearColor(0x000000, 1);
+    S.scene.traverse(function(m) { if (m.isMesh) orig.push([m, m.material]); });
+    function pass(fn) { orig.forEach(function(p) { p[0].material = fn(p[0]); }); r.render(S.scene, cam); return RVZP._copy(r.domElement, W, H); }
+    var white = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }), black = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+    out.mask = pass(function(m) { return m.userData.rvzDesign ? white : black; });
+    // depth range: the visible scene (every mesh's bounding box corners in view space), <= 150 m
+    var dn = 1e9, df = 0, v = new THREE.Vector3(), bb = new THREE.Box3();
+    cam.updateMatrixWorld(true);
+    orig.forEach(function(p) {
+      var m = p[0]; if (!m.visible || !m.geometry) return;
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      bb.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld);
+      [bb.min.x, bb.max.x].forEach(function(x) { [bb.min.y, bb.max.y].forEach(function(y) { [bb.min.z, bb.max.z].forEach(function(z) {
+        v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse); var d = -v.z; if (d > 0.05) { dn = Math.min(dn, d); df = Math.max(df, d); } }); }); });
+    });
+    df = Math.min(df, 150); dn = Math.max(0.05, Math.min(dn, df - 1));
+    var dm = new THREE.ShaderMaterial({ side: THREE.DoubleSide, uniforms: { dn: { value: dn }, df: { value: df } },
+      vertexShader: 'varying float vz; void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vz = -mv.z; gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform float dn; uniform float df; varying float vz; void main() { float d = clamp((vz - dn) / (df - dn), 0.0, 1.0); gl_FragColor = vec4(vec3(1.0 - d), 1.0); }' });
+    out.depth = pass(function() { return dm; });
+    out.depthRange = [+dn.toFixed(2), +df.toFixed(2)];
+    var nm = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+    out.normals = pass(function() { return nm; });
+    // restore (the scene is disposed below, but its materials are the shared RVZ cache)
+    orig.forEach(function(p) { p[0].material = p[1]; });
+    hidden.forEach(function(m) { m.visible = true; });
+    S.scene.fog = fog; S.scene.environment = env; S.sun.castShadow = sunCast;
+    [white, black, dm, nm].forEach(function(m) { m.dispose(); });
+    out.edges = RVZP.sobel(out.normals, out.depth);
+    // bench ID pass: which placed benches are visible in the design region (see RVZP.benchCount)
+    out.benchIds = RVZP._benchPass(S, r, cam, W, H);
+  } finally { S.dispose(); }
+  return out;
+};
+// Sobel on the normals (3 channels) and depth: edge = gradient magnitude above a threshold.
+RVZP.sobel = function(nCv, dCv) {
+  var W = nCv.width, H = nCv.height, n = nCv.getContext('2d').getImageData(0, 0, W, H).data, d = dCv.getContext('2d').getImageData(0, 0, W, H).data;
+  var out = document.createElement('canvas'); out.width = W; out.height = H;
+  var cx = out.getContext('2d'), im = cx.createImageData(W, H), o = im.data;
+  function g(buf, ch, x, y) { return buf[(y * W + x) * 4 + ch]; }
+  for (var y = 1; y < H - 1; y++) for (var x = 1; x < W - 1; x++) {
+    var m = 0;
+    for (var c = 0; c < 4; c++) {
+      var b = c < 3 ? n : d, ch = c < 3 ? c : 0, k = c < 3 ? 1 : 3;   // depth weighted up: silhouettes
+      var gx = -g(b, ch, x - 1, y - 1) - 2 * g(b, ch, x - 1, y) - g(b, ch, x - 1, y + 1) + g(b, ch, x + 1, y - 1) + 2 * g(b, ch, x + 1, y) + g(b, ch, x + 1, y + 1);
+      var gy = -g(b, ch, x - 1, y - 1) - 2 * g(b, ch, x, y - 1) - g(b, ch, x + 1, y - 1) + g(b, ch, x - 1, y + 1) + 2 * g(b, ch, x, y + 1) + g(b, ch, x + 1, y + 1);
+      m += k * (gx * gx + gy * gy);
+    }
+    var e = Math.sqrt(m) > 110 ? 255 : 0, i = (y * W + x) * 4;
+    o[i] = o[i + 1] = o[i + 2] = e; o[i + 3] = 255;
+  }
+  for (var i2 = 3; i2 < o.length; i2 += 4) o[i2] = 255;
+  cx.putImageData(im, 0, 0);
+  return out;
+};
+// Each placed bench drawn in its own colour (everything else black): a map of visible bench ids.
+RVZP._benchPass = function(S, r, cam, W, H) {
+  var benches = [], mats = [], orig = [];
+  S.root.children.forEach(function(g) { if (g.userData && g.userData.rvzInst != null && /bench/.test(g.userData.archetype || '')) benches.push(g); });
+  if (!benches.length) return { W: W, H: H, ids: [], data: null };
+  var black = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+  S.scene.traverse(function(m) {
+    if (!m.isMesh) return;
+    orig.push([m, m.material, m.visible]);
+    if (m.userData.rvzSky || (m.material && m.material.transparent && !m.material.depthWrite)) m.visible = false;   // sky, decals
+    m.material = black;
+  });
+  benches.forEach(function(g, i) { var mt = new THREE.MeshBasicMaterial({ color: new THREE.Color((i + 1) * 20 / 255, 0, 0), side: THREE.DoubleSide }); mats.push(mt); g.traverse(function(m) { if (m.isMesh) m.material = mt; }); });
+  var fog = S.scene.fog; S.scene.fog = null; S.scene.environment = null;
+  r.toneMapping = THREE.NoToneMapping; r.outputEncoding = THREE.LinearEncoding; r.setClearColor(0x000000, 1);
+  r.render(S.scene, cam);
+  var c = RVZP._copy(r.domElement, W, H), data = c.getContext('2d').getImageData(0, 0, W, H).data;
+  orig.forEach(function(p) { p[0].material = p[1]; p[0].visible = p[2]; });
+  S.scene.fog = fog; black.dispose(); mats.forEach(function(m) { m.dispose(); });
+  return { W: W, H: H, ids: benches.map(function(g) { return g.userData.rvzInst; }), data: data };
+};
+// Benches in the design region: a bench counts when >= 25 of its pixels are visible inside the mask.
+RVZP.benchCount = function(p) {
+  var b = p.benchIds, placed = (FL3D.placed || []).filter(function(i) { var s = flInstSpec(i); return s && /bench/.test(s.type); }).length;
+  if (!b.data) return { placed: placed, visibleInMask: 0, occludedOrOutOfFrame: placed };
+  var m = p.mask.getContext('2d').getImageData(0, 0, p.W, p.H).data, n = {};
+  for (var i = 0; i < b.data.length; i += 4) { var k = Math.round(b.data[i] / 20); if (k > 0 && m[i] > 127) n[k] = (n[k] || 0) + 1; }
+  var vis = Object.keys(n).filter(function(k) { return n[k] >= 25; }).length;
+  return { placed: placed, visibleInMask: vis, occludedOrOutOfFrame: placed - vis, pixels: n };
+};
+
+// ── Prompt: generated from the model ────────────────────────────────────────────────────────
+RVZP.ROLE = { frame: 'frames', seat: 'seats', back: 'seat backs', top: 'tabletops', body: 'planters', slat: 'slats', post: 'posts', panel: 'panels', canopy: 'canopies', pole: 'poles', base: 'bases', rail: 'rails', grate: 'tree grates', light: 'lights' };
+RVZP.prompt = function() {
+  var DM = _dmCurrent(), counts = {}, types = {}, ent = { seated: 0, walk: 0, bike: 0, car: 0 };
+  (FL3D.placed || []).forEach(function(p) {
+    var sp = flInstSpec(p); if (!sp) return;
+    if (flIsEntourage(sp.type)) { var e = FL_ARCHETYPES[sp.type].ent; if (e === 'vehicle') ent.car++; else if (sp.type === 'person_cycling') ent.bike++; else if (sp.type === 'person_seated') ent.seated++; else ent.walk++; return; }
+    types[FL_ARCHETYPES[sp.type].label.toLowerCase()] = 1;
+    Object.keys(sp.mats).forEach(function(role) {
+      var m = flMatInfo(sp.mats[role]); if (!m || m.group === 'fixed') return;
+      var k = m.label.toLowerCase().replace(/^ral \d+ /, '') + ' ' + (RVZP.ROLE[role] || role + 's');
+      counts[k] = (counts[k] || 0) + 1;
+    });
+  });
+  if (RVZ.o.people) { var seats = typeof AXE !== 'undefined' ? AXE.seats().length : 0; ent.seated += seats ? Math.max(1, Math.round(seats * 0.4)) : 0; ent.walk += 2; if ((DM.paths || []).some(function(p) { return p.kind === 'bike'; })) ent.bike++; if ((DM.paths || []).some(function(p) { return p.kind === 'lane'; })) ent.car++; }
+  var mats = [flMatInfo('pine').label.toLowerCase() + ' timber decking'].concat(Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; }).slice(0, 6));
+  var people = [];
+  if (ent.seated) people.push(ent.seated > 1 ? 'people seated at the parklet' : 'a person seated at the parklet');
+  if (ent.walk) people.push('pedestrians on the sidewalk');
+  if (ent.bike) people.push('a cyclist');
+  if (ent.car) people.push('a car in the travel lane');
+  var trees = (DM.vegetation || []).filter(function(v) { return v.type === 'tree'; }).length, veg = ['planters with shrubs at both ends of the deck'];
+  if (trees) veg.push('young street trees');
+  var s = RVZ.sun(), hr = RVZ.o.min / 60, month = RVZ.MONTHS[s.month];
+  var when = !s.up ? 'dusk, street lights on' : hr < 10.5 ? 'morning' : hr < 14 ? 'midday' : s.alt < 15 ? 'late afternoon' : 'afternoon';
+  var sun = !s.up ? '' : s.alt > 50 ? 'high sun, short crisp shadows' : s.alt > 25 ? 'sun from the ' + siteWind(s.az) + ', clear shadows' : 'low sun from the ' + siteWind(s.az) + ', long shadows';
+  var season = [11, 0, 1].indexOf(s.month) >= 0 ? 'winter' : [2, 3, 4].indexOf(s.month) >= 0 ? 'spring' : [5, 6, 7].indexOf(s.month) >= 0 ? 'summer' : 'autumn';
+  var text = 'Photograph of a street parklet on a Vancouver commercial street: ' + mats.join(', ') + '; ' + Object.keys(types).slice(0, 6).join(', ') +
+    (people.length ? '; ' + people.join(', ') : '') + '; ' + veg.join(', ') + '; ' + season + ' ' + when + (sun ? ', ' + sun : '') + ' (' + s.day + ' ' + month + ', ' + RVZ.hhmm(RVZ.o.min) + ' ' + s.zone + ')' +
+    '; ' + RVZP.WEATHER[RVZP.o.weather] + '; shallow depth of field, background softly blurred, photographic, 35 mm';
+  return { text: text, negative: RVZP.NEGATIVE };
+};
+RVZP.currentPrompt = function() { var g = RVZP.prompt(); return { text: RVZP.promptEdit != null ? RVZP.promptEdit : g.text, negative: g.negative, generated: g.text, edited: RVZP.promptEdit != null }; };
+
+// ── Provider adapters: {submit(images, prompt, params) -> job, poll(job) -> Blob | null} ──────
+RVZP._hdr = { 'X-Render-Proxy': '1' };
+RVZP.adapters = {
+  replicate: {
+    submit: async function(images, prompt, params) {
+      var r = await fetch('/render-proxy/submit', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, RVZP._hdr), body: JSON.stringify({ images: images, prompt: prompt.text, negative: prompt.negative, params: params }) });
+      var j = await r.json().catch(function() { return {}; });
+      if (!r.ok || !j.id) throw new Error(j.error || ('proxy ' + r.status));
+      return j;
+    },
+    poll: async function(job) {
+      var r = await fetch('/render-proxy/poll?id=' + encodeURIComponent(job.id), { headers: RVZP._hdr });
+      var t = r.headers.get('content-type') || '';
+      if (r.ok && /^image\//.test(t)) return await r.blob();
+      var j = await r.json().catch(function() { return {}; });
+      if (!r.ok || j.status === 'failed' || j.status === 'canceled') throw new Error(j.error || j.status || ('proxy ' + r.status));
+      return null;
+    }
+  }
+};
+RVZP.checkProxy = async function() {
+  try {
+    var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, t = setTimeout(function() { if (ctl) ctl.abort(); }, 2500);
+    var r = await fetch('/render-proxy/status', { headers: RVZP._hdr, signal: ctl ? ctl.signal : undefined, cache: 'no-store' });
+    clearTimeout(t);
+    var j = r.ok ? await r.json() : null;
+    RVZP.proxy = j && j.proxy ? j : { proxy: false };
+  } catch (e) { RVZP.proxy = { proxy: false }; }
+  RVZP._syncUI();
+  return RVZP.proxy;
+};
+RVZP.ready = function() { return !!(RVZP.proxy && RVZP.proxy.proxy && RVZP.proxy.key === 'present'); };
+
+// ── Compositing ──────────────────────────────────────────────────────────────────────────────
+RVZP._img = function(blob) { return createImageBitmap(blob); };
+RVZP._blob = function(cv, type, q) { return new Promise(function(res) { cv.toBlob(res, type || 'image/png', q); }); };
+// out = mask' * lerp(aiDesign, base colour, fidelity) + (1 - mask') * context, where mask' is the
+// mask feathered 6 px and the context is the high-strength pass blurred by depth: sharp at the
+// deck's depth, up to 6 px where the scene is far behind (or in front of) it. Then the caption.
+RVZP.composite = function(L, fidelity) {
+  var W = L.W, H = L.H, cv = function() { var c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  var get = function(src, blur) { var c = cv(), x = c.getContext('2d'); if (blur) x.filter = 'blur(' + blur + 'px)'; x.drawImage(src, 0, 0, W, H); return x.getImageData(0, 0, W, H).data; };
+  var base = get(L.colour), des = get(L.aiDesign), c0 = get(L.aiContext), c1 = get(L.aiContext, 2.5), c2 = get(L.aiContext, 6), mk = get(L.mask, 6), dp = get(L.depth), mkS = get(L.mask);
+  // focus = the median depth of the design region
+  var hist = new Uint32Array(256), nIn = 0;
+  for (var i = 0; i < mkS.length; i += 4) if (mkS[i] > 127) { hist[dp[i]]++; nIn++; }
+  var acc = 0, focus = 128; for (var h = 0; h < 256; h++) { acc += hist[h]; if (acc >= nIn / 2) { focus = h; break; } }
+  var out = cv(), ox = out.getContext('2d'), im = ox.createImageData(W, H), o = im.data, f = Math.max(0, Math.min(1, fidelity || 0));
+  for (var k = 0; k < o.length; k += 4) {
+    var m = mk[k] / 255, dz = Math.min(1, Math.abs(dp[k] - focus) / 90), a = Math.min(1, dz * 2), b = Math.max(0, dz * 2 - 1);
+    for (var ch = 0; ch < 3; ch++) {
+      var ctx = c0[k + ch] * (1 - a) + (c1[k + ch] * (1 - b) + c2[k + ch] * b) * a;
+      var dsg = des[k + ch] * (1 - f) + base[k + ch] * f;
+      o[k + ch] = dsg * m + ctx * (1 - m);
+    }
+    o[k + 3] = 255;
+  }
+  ox.putImageData(im, 0, 0);
+  RVZP._caption(ox, W, H);
+  return out;
+};
+RVZP._caption = function(x, W, H) {
+  var fs = Math.round(H * 0.022), pad = Math.round(fs * 0.6), t = RVZP.CAPTION;
+  x.font = '600 ' + fs + 'px "DM Sans", Helvetica, Arial, sans-serif';
+  var w = x.measureText(t).width;
+  x.fillStyle = 'rgba(23,25,28,0.72)'; x.fillRect(pad, H - pad - fs - pad, w + 2 * pad, fs + pad);
+  x.fillStyle = '#FFFFFF'; x.textBaseline = 'middle'; x.fillText(t, 2 * pad, H - pad - (fs + pad) / 2);
+};
+
+// ── Edge alignment: Canny on the output vs edges.png, tolerant IoU inside the mask ──────────
+RVZP.canny = function(cvs) {
+  var W = cvs.width, H = cvs.height, c = document.createElement('canvas'); c.width = W; c.height = H;
+  var x = c.getContext('2d'); x.filter = 'blur(1.4px)'; x.drawImage(cvs, 0, 0);
+  var d = x.getImageData(0, 0, W, H).data, g = new Float32Array(W * H), mag = new Float32Array(W * H), dir = new Uint8Array(W * H), out = new Uint8Array(W * H);
+  for (var i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  for (var yy = 1; yy < H - 1; yy++) for (var xx = 1; xx < W - 1; xx++) {
+    var p = yy * W + xx, gx = g[p - W + 1] + 2 * g[p + 1] + g[p + W + 1] - g[p - W - 1] - 2 * g[p - 1] - g[p + W - 1], gy = g[p + W - 1] + 2 * g[p + W] + g[p + W + 1] - g[p - W - 1] - 2 * g[p - W] - g[p - W + 1];
+    mag[p] = Math.hypot(gx, gy); var an = (Math.atan2(gy, gx) * 180 / Math.PI + 180) % 180; dir[p] = an < 22.5 || an >= 157.5 ? 0 : an < 67.5 ? 1 : an < 112.5 ? 2 : 3;
+  }
+  var lo = 40, hi = 100, st = [];
+  for (var y2 = 1; y2 < H - 1; y2++) for (var x2 = 1; x2 < W - 1; x2++) {
+    var q = y2 * W + x2, v = mag[q]; if (v < lo) continue;
+    // neighbours along the gradient (image y runs down): 0 deg left/right, 45 down-right/up-left,
+    // 90 down/up, 135 down-left/up-right
+    var o1 = [1, W + 1, W, W - 1][dir[q]], o2 = -o1;
+    if (v < mag[q + o1] || v < mag[q + o2]) continue;
+    out[q] = v >= hi ? 2 : 1; if (out[q] === 2) st.push(q);
+  }
+  while (st.length) { var s = st.pop(); [-W - 1, -W, -W + 1, -1, 1, W - 1, W, W + 1].forEach(function(o) { if (out[s + o] === 1) { out[s + o] = 2; st.push(s + o); } }); }
+  for (var k = 0; k < out.length; k++) out[k] = out[k] === 2 ? 1 : 0;
+  return out;
+};
+// IoU of two edge maps inside the mask, each dilated by 1 px (a 3 x 3 neighbourhood): edges one
+// pixel apart count as the same edge.
+RVZP.iou = function(A, B, maskCv) {
+  var W = maskCv.width, H = maskCv.height, m = maskCv.getContext('2d').getImageData(0, 0, W, H).data;
+  function dil(S) { var D = new Uint8Array(W * H); for (var y = 1; y < H - 1; y++) for (var x = 1; x < W - 1; x++) { var p = y * W + x; if (S[p] || S[p - 1] || S[p + 1] || S[p - W] || S[p + W] || S[p - W - 1] || S[p - W + 1] || S[p + W - 1] || S[p + W + 1]) D[p] = 1; } return D; }
+  var dA = dil(A), dB = dil(B), inter = 0, uni = 0;
+  for (var p = 0; p < dA.length; p++) { if (m[p * 4] <= 127) continue; if (dA[p] && dB[p]) inter++; if (dA[p] || dB[p]) uni++; }
+  return uni ? inter / uni : 0;
+};
+RVZP.edgeMap = function(edgesCv) { var W = edgesCv.width, H = edgesCv.height, e = edgesCv.getContext('2d').getImageData(0, 0, W, H).data, B = new Uint8Array(W * H); for (var i = 0; i < B.length; i++) B[i] = e[i * 4] > 127 ? 1 : 0; return B; };
+// Edge alignment of an output, three ways (all inside the mask):
+//   edges  -- Canny(output) vs edges.png (geometric edges: normals + depth). Photometric and geometric
+//             edges differ (shadows, board joints and texture vs seams between same-shade faces), so
+//             even the base render does not reach 1: `ceiling` is the base render's own score and
+//             `relative` = edges / ceiling.
+//   base   -- Canny(output) vs Canny(base render): 1.0 for an output that keeps every edge in place.
+RVZP.alignment = function(outCv, baseCv, edgesCv, maskCv) {
+  var cOut = RVZP.canny(outCv), cBase = RVZP.canny(baseCv), E = RVZP.edgeMap(edgesCv);
+  var edges = RVZP.iou(cOut, E, maskCv), ceiling = RVZP.iou(cBase, E, maskCv), base = RVZP.iou(cOut, cBase, maskCv);
+  return { edges: +edges.toFixed(3), ceiling: +ceiling.toFixed(3), relative: +(ceiling ? edges / ceiling : 0).toFixed(3), base: +base.toFixed(3) };
+};
+
+// ── Cache: IndexedDB ─────────────────────────────────────────────────────────────────────────
+RVZP.DB = 'pkt-photoreal';
+RVZP._db = function() {
+  if (RVZP._dbp) return RVZP._dbp;
+  RVZP._dbp = new Promise(function(res, rej) {
+    var q = indexedDB.open(RVZP.DB, 1);
+    q.onupgradeneeded = function() { q.result.createObjectStore('renders', { keyPath: 'key' }); };
+    q.onsuccess = function() { res(q.result); }; q.onerror = function() { rej(q.error); };
+  });
+  return RVZP._dbp;
+};
+RVZP._tx = async function(mode, fn) {
+  var db = await RVZP._db();
+  return new Promise(function(res, rej) { var t = db.transaction('renders', mode), st = t.objectStore('renders'), r = fn(st); t.oncomplete = function() { res(r && r.result); }; t.onerror = function() { rej(t.error); }; });
+};
+RVZP.dbGet = function(key) { return RVZP._tx('readonly', function(s) { return s.get(key); }); };
+RVZP.dbPut = function(v) { return RVZP._tx('readwrite', function(s) { return s.put(v); }); };
+RVZP.dbAll = function() { return RVZP._tx('readonly', function(s) { return s.getAll(); }); };
+RVZP.clear = async function() {
+  await RVZP._tx('readwrite', function(s) { return s.clear(); });
+  RVZP.entries = {}; RVZP.status = {};
+  console.log('[photoreal] cleared the render cache');
+  RVZP._syncUI(); RVZP._gallery();
+};
+RVZP.key = function(hash, preset, prompt, strength) {
+  var mode = RVZP.proxy && RVZP.proxy.mode || 'live';
+  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode].join('|');
+};
+
+// ── Render 4 ─────────────────────────────────────────────────────────────────────────────────
+RVZP._set = function(p, st, note) { RVZP.status[p] = { st: st, note: note || '' }; RVZP._syncUI(); };
+RVZP.runPreset = async function(preset, prompt, strength) {
+  var hash = RVZ.designHash(), key = RVZP.key(hash, preset, prompt, strength), hit = await RVZP.dbGet(key);
+  if (hit) { console.log('[photoreal] cache hit: ' + preset + ' (design ' + hash + ', strength ' + strength.toFixed(2) + ') -- not re-rendered'); RVZP.entries[preset] = hit; RVZP._set(preset, 'cached', 'from the cache'); return hit; }
+  RVZP._set(preset, 'passes', 'rendering passes');
+  await RVZ._yield();
+  var P = RVZP.passes(preset), images = { colour: P.colour.toDataURL('image/jpeg', 0.92), depth: P.depth.toDataURL('image/png'), edges: P.edges.toDataURL('image/png') };
+  var ad = RVZP.adapters[RVZP.adapter], sD = Math.max(0.2, +(strength - 0.15).toFixed(2)), sC = Math.min(0.9, +(strength + 0.15).toFixed(2));
+  RVZP._set(preset, 'submitted', 'design ' + sD + ' / context ' + sC);
+  var jobs = await Promise.all([sD, sC].map(function(s) { return ad.submit(images, prompt, { strength: s, seed: RVZP.o.seed, width: P.W, height: P.H }); }));
+  var got = [null, null], t0 = Date.now();
+  while (!got[0] || !got[1]) {
+    if (Date.now() - t0 > 6 * 60 * 1000) throw new Error('the provider took longer than 6 minutes');
+    await new Promise(function(r) { setTimeout(r, 1500); });
+    for (var i = 0; i < 2; i++) if (!got[i]) got[i] = await ad.poll(jobs[i]);
+    RVZP._set(preset, 'running', (got[0] ? 1 : 0) + (got[1] ? 1 : 0) + ' of 2 passes back');
+  }
+  var L = { W: P.W, H: P.H, colour: P.colour, depth: P.depth, mask: P.mask, aiDesign: await RVZP._img(got[0]), aiContext: await RVZP._img(got[1]) };
+  var fin = RVZP.composite(L, RVZP.o.fidelity), dsgCv = RVZP._copy(L.aiDesign, P.W, P.H);
+  var al = RVZP.alignment(dsgCv, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P);
+  var e = { key: key, preset: preset, design: hash, strength: strength, prompt: prompt.text, negative: prompt.negative, created: Date.now(), W: P.W, H: P.H, useInReport: false,
+    meta: { strengths: [sD, sC], depthRange: P.depthRange, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
+    blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), aiDesign: got[0], aiContext: got[1], final: await RVZP._blob(fin) } };
+  await RVZP.dbPut(e);
+  RVZP.entries[preset] = e;
+  console.log('[photoreal] rendered ' + preset + ' ' + P.W + 'x' + P.H + ' (design ' + hash + ', strengths ' + sD + ' / ' + sC + '), edge IoU in the mask vs edges.png ' + al.edges + ' (base render ' + al.ceiling + ', relative ' + al.relative + '), vs the base render ' + al.base + ', benches in the design region ' + benches.visibleInMask + ' of ' + benches.placed + ' placed; cached');
+  RVZP._set(preset, 'done', 'edges ' + al.edges + ' / ' + al.ceiling + ', vs base ' + al.base);
+  return e;
+};
+RVZP.render4 = async function() {
+  if (RVZP.busy || !RVZP.ready()) return null;
+  RVZP.busy = true; RVZP._syncUI();
+  var prompt = RVZP.currentPrompt(), s = RVZP.o.strength, res = {};
+  try {
+    for (var i = 0; i < RVZ.PRESETS.length; i++) {
+      var p = RVZ.PRESETS[i][0];
+      try { res[p] = await RVZP.runPreset(p, prompt, s); }
+      catch (err) { console.error('[photoreal] ' + p + ' failed', err); RVZP._set(p, 'failed', err.message || String(err)); }
+      RVZP._gallery();
+    }
+  } finally {
+    RVZP.busy = false; RVZP.promptEdit = null;   // an edited prompt is for this run only
+    RVZP._syncUI();
+  }
+  return res;
+};
+// Report hook (the report's cover and design-views sheets): the photoreal image of a preset when
+// one is marked "Use in report" for the current design, else the Visualize render; never a
+// photoreal image in a technical export.
+RVZP.forReport = async function(preset, opts) {
+  opts = opts || {};
+  var hash = RVZ.designHash();
+  if (!opts.technical) {
+    var all = await RVZP.dbAll().catch(function() { return []; });
+    var e = (all || []).filter(function(x) { return x.design === hash && x.preset === preset && x.useInReport; }).sort(function(a, b) { return b.created - a.created; })[0];
+    if (e) return { kind: 'photoreal', blob: e.blobs.final, caption: RVZP.CAPTION, W: e.W, H: e.H };
+  }
+  var r = RVZ.cached(hash, { preset: preset, appearance: 'rendered' });
+  return r ? { kind: 'render', blob: r.blob, caption: 'Rendered view (' + preset + ')', W: r.w, H: r.h } : null;
+};
+
+// ── UI: a Photoreal section on the rail and a gallery over the viewport ──────────────────────
+RVZP.ui = function() {
+  var rail = document.getElementById('rvzRail'); if (!rail || rail._rvzp) return;
+  rail._rvzp = true;
+  var sec = document.createElement('section'); sec.className = 'rvz-sec'; sec.setAttribute('aria-labelledby', 'rvzpH'); sec.id = 'rvzpSec';
+  sec.innerHTML = "<h3 class='rvz-lbl' id='rvzpH'>Photoreal</h3>" +
+    "<label class='rvz-check'><input type='checkbox' id='rvzpOn'> Photoreal (AI-assisted)</label>" +
+    "<p class='rvz-note' id='rvzpProxy'></p>" +
+    "<div id='rvzpBody'>" +
+      "<div class='rvz-row'><label for='rvzpStr'>Strength</label><span class='rvz-val' id='rvzpStrV'></span></div>" +
+      "<input type='range' id='rvzpStr' min='0.35' max='0.75' step='0.01'>" +
+      "<p class='rvz-note'>Lower keeps closer to the model; higher is prettier. The design region runs 0.15 lower, the street 0.15 higher.</p>" +
+      "<div class='rvz-row'><label for='rvzpWx'>Weather</label><select id='rvzpWx'>" + Object.keys(RVZP.WEATHER).map(function(k) { return "<option value='" + k + "'>" + { sunny: 'Sunny', overcast: 'Overcast', golden: 'Golden hour', rain: 'After rain' }[k] + '</option>'; }).join('') + '</select></div>' +
+      "<label class='rvz-lbl2' for='rvzpPrompt'>Prompt <span class='rvz-dim' id='rvzpPromptNote'></span></label>" +
+      "<textarea id='rvzpPrompt' rows='6' spellcheck='false'></textarea>" +
+      "<button type='button' class='rvz-chip' id='rvzpReset'>Use the generated prompt</button>" +
+      "<button type='button' class='rvz-btn rvz-primary' id='rvzpGo'>Render 4</button>" +
+      "<ul class='rvzp-list' id='rvzpList'></ul>" +
+      "<div class='rvz-row'><button type='button' class='rvz-btn' id='rvzpGal'>Gallery</button><button type='button' class='rvz-btn' id='rvzpClear'>Clear renders</button></div>" +
+    '</div>';
+  rail.appendChild(sec);
+  var view = document.getElementById('rvzView'), gal = document.createElement('div');
+  gal.id = 'rvzpGallery'; gal.className = 'rvzp-gallery'; gal.hidden = true; gal.setAttribute('role', 'dialog'); gal.setAttribute('aria-label', 'Photoreal renders');
+  view.appendChild(gal);
+  var g = function(id) { return document.getElementById(id); };
+  g('rvzpOn').addEventListener('change', function(e) { RVZP.o.on = e.target.checked; RVZP._syncUI(); if (RVZP.o.on) RVZP._loadEntries(); });
+  g('rvzpStr').addEventListener('input', function(e) { RVZP.o.strength = +e.target.value; RVZP._syncUI(); });
+  g('rvzpWx').addEventListener('change', function(e) { RVZP.o.weather = e.target.value; RVZP.promptEdit = null; RVZP._syncUI(); });
+  g('rvzpPrompt').addEventListener('input', function(e) { RVZP.promptEdit = e.target.value; g('rvzpPromptNote').textContent = '(edited: for this run only)'; });
+  g('rvzpReset').addEventListener('click', function() { RVZP.promptEdit = null; RVZP._syncUI(); });
+  g('rvzpGo').addEventListener('click', function() { RVZP.render4().then(function() { RVZP.showGallery(true); }); });
+  g('rvzpGal').addEventListener('click', function() { RVZP.showGallery(g('rvzpGallery').hidden); });
+  g('rvzpClear').addEventListener('click', function() { RVZP.clear(); });
+  RVZP.checkProxy();
+};
+RVZP._syncUI = function() {
+  var g = function(id) { return document.getElementById(id); }; if (!g('rvzpOn')) return;
+  var P = RVZP.proxy, ok = RVZP.ready(), note = g('rvzpProxy');
+  g('rvzpOn').disabled = !ok; if (!ok) { RVZP.o.on = false; g('rvzpOn').checked = false; }
+  note.textContent = !P ? 'Checking for the local render proxy…'
+    : !P.proxy ? 'Photoreal needs the local render proxy (tools/serve.ps1). It is not answering here, so only the renders above are available.'
+    : P.key !== 'present' ? 'The render proxy is running but has no provider key. Set PROVIDER_KEY or write .render-key next to parklet-checker.html, then restart the server. The renders above still work.'
+    : 'Provider: ' + P.provider + ' (' + P.model + ')' + (P.mode === 'mock' ? ', MOCK mode: no AI, the output is the colour pass (for testing).' : '. Each run uploads the colour, depth and edge passes to it.');
+  g('rvzpBody').hidden = !RVZP.o.on;
+  g('rvzpStr').value = RVZP.o.strength; g('rvzpStrV').textContent = RVZP.o.strength.toFixed(2); g('rvzpWx').value = RVZP.o.weather;
+  var pr = RVZP.currentPrompt();
+  if (document.activeElement !== g('rvzpPrompt')) g('rvzpPrompt').value = pr.text;
+  g('rvzpPromptNote').textContent = pr.edited ? '(edited: for this run only)' : '(generated from the model)';
+  g('rvzpGo').disabled = RVZP.busy || !ok;
+  g('rvzpList').innerHTML = RVZ.PRESETS.map(function(p) { var s = RVZP.status[p[0]]; return "<li><span>" + p[1] + "</span><span class='rvzp-st rvzp-" + (s ? s.st : 'idle') + "'>" + (s ? s.st + (s.note ? ': ' + s.note : '') : (RVZP.entries[p[0]] ? 'ready' : 'not rendered')) + '</span></li>'; }).join('');
+};
+RVZP._loadEntries = async function() {
+  var hash = RVZ.designHash(), all = await RVZP.dbAll().catch(function() { return []; });
+  (all || []).filter(function(e) { return e.design === hash; }).sort(function(a, b) { return a.created - b.created; }).forEach(function(e) { RVZP.entries[e.preset] = e; });
+  RVZP._syncUI(); RVZP._gallery();
+};
+RVZP.showGallery = function(on) { var gl = document.getElementById('rvzpGallery'); if (!gl) return; gl.hidden = !on; if (on) RVZP._gallery(); };
+RVZP._urls = [];
+RVZP._gallery = async function() {
+  var gl = document.getElementById('rvzpGallery'); if (!gl || gl.hidden) return;
+  RVZP._urls.forEach(function(u) { URL.revokeObjectURL(u); }); RVZP._urls = [];
+  var url = function(b) { var u = URL.createObjectURL(b); RVZP._urls.push(u); return u; };
+  var cards = RVZ.PRESETS.map(function(p) {
+    var e = RVZP.entries[p[0]];
+    if (!e) return "<article class='rvzp-card'><h4>" + p[1] + "</h4><p class='rvz-note'>Not rendered yet.</p></article>";
+    return "<article class='rvzp-card' data-preset='" + p[0] + "'><h4>" + p[1] + " <span class='rvz-dim'>edge IoU " + e.meta.iou + (e.meta.alignment ? ' of ' + e.meta.alignment.ceiling + ' · vs base ' + e.meta.alignment.base : '') + ' · benches ' + e.meta.benches.visibleInMask + '/' + e.meta.benches.placed + '</span></h4>' +
+      "<div class='rvzp-pair'><figure><img alt='" + p[1] + " base render' src='" + url(e.blobs.colour) + "'><figcaption>Base render</figcaption></figure>" +
+      "<figure><img alt='" + p[1] + " photoreal' class='rvzp-final' src='" + url(e.blobs.final) + "'><figcaption>" + RVZP.CAPTION + '</figcaption></figure></div>' +
+      "<div class='rvz-row'><label for='rvzpF_" + p[0] + "'>Fidelity</label><input type='range' class='rvzp-fid' id='rvzpF_" + p[0] + "' data-preset='" + p[0] + "' min='0' max='1' step='0.05' value='0'></div>" +
+      "<label class='rvz-check'><input type='checkbox' class='rvzp-use' data-preset='" + p[0] + "'" + (e.useInReport ? ' checked' : '') + '> Use in report</label></article>';
+  });
+  gl.innerHTML = "<div class='rvzp-gh'><h3>Photoreal renders</h3><button type='button' class='rvz-btn' id='rvzpGalClose'>Close</button></div><div class='rvzp-grid'>" + cards.join('') + '</div>';
+  document.getElementById('rvzpGalClose').onclick = function() { RVZP.showGallery(false); };
+  gl.querySelectorAll('.rvzp-use').forEach(function(c) { c.onchange = async function() { var e = RVZP.entries[c.dataset.preset]; e.useInReport = c.checked; await RVZP.dbPut(e); }; });
+  gl.querySelectorAll('.rvzp-fid').forEach(function(sl) {
+    sl.oninput = async function() {   // replay the composite from the stored layers: nothing is re-rendered
+      var e = RVZP.entries[sl.dataset.preset], im = function(b) { return RVZP._img(b); };
+      var L = { W: e.W, H: e.H, colour: await im(e.blobs.colour), depth: await im(e.blobs.depth), mask: await im(e.blobs.mask), aiDesign: await im(e.blobs.aiDesign), aiContext: await im(e.blobs.aiContext) };
+      var c = RVZP.composite(L, +sl.value), img = sl.closest('.rvzp-card').querySelector('.rvzp-final');
+      c.toBlob(function(b) { img.src = url(b); });
+    };
+  });
+};
+</script>
 </body></html>
