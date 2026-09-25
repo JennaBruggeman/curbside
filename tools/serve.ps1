@@ -7,6 +7,7 @@
 #   RENDER_MOCK=1 (or the key "mock"): no outbound calls; a job "succeeds" after ~1.5 s and returns
 #   the submitted colour image. For testing the pipeline, not a render.
 # Endpoints (JSON unless noted):
+#   GET  /render-proxy/health        {ok, provider, keyPresent (bool), port, models, mode} -- never the key
 #   GET  /render-proxy/status        {proxy, provider, model, key: present|missing, mode: live|mock}
 #   POST /render-proxy/submit        body {images:{colour, depth, edges} (data URLs), prompt, negative,
 #                                    params:{strength, seed, steps, guidance, depthScale, edgeScale}}
@@ -254,6 +255,10 @@ while ($l.IsListening) {
       $origin = $c.Request.Headers['Origin']
       $ok = ($c.Request.Headers['X-Render-Proxy'] -eq '1') -and (-not $origin -or $origin -eq ('http://localhost:' + $Port))
       if (-not $ok) { Log ('refused ' + $path + ' (origin ' + $origin + ')'); Send-Json $c @{ error = 'forbidden' } 403 }
+      elseif ($path -eq '/render-proxy/health') {
+        # what the page needs to explain itself; never the key (keyPresent is a boolean)
+        Send-Json $c @{ ok = $true; provider = $Provider.name; keyPresent = [bool](Get-Key); port = $Port; models = @($Models.Keys | Sort-Object); mode = $(if (Is-Mock) { 'mock' } else { 'live' }) }
+      }
       elseif ($path -eq '/render-proxy/status') {
         Send-Json $c @{ proxy = $true; provider = $Provider.name; model = ($Provider.owner + '/' + $Provider.model); models = @($Models.Keys | Sort-Object); key = $(if (Get-Key) { 'present' } else { 'missing' }); mode = $(if (Is-Mock) { 'mock' } else { 'live' }) }
       }

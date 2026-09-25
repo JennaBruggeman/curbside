@@ -20542,16 +20542,27 @@ RVZP.adapters = {
     }
   }
 };
+// The proxy check diagnoses itself (RVZP.proxy.why): 'file' = opened as a file (no fetch is tried),
+// 'down' = served but /render-proxy/health does not answer (no local server, e.g. Live Server),
+// 'nokey' = the server answers without a key. A server older than /health falls back to /status.
 RVZP.checkProxy = async function() {
-  try {
+  if (location.protocol === 'file:') { RVZP.proxy = { proxy: false, why: 'file' }; RVZP._syncUI(); return RVZP.proxy; }
+  async function get(u) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, t = setTimeout(function() { if (ctl) ctl.abort(); }, 2500);
-    var r = await fetch('/render-proxy/status', { headers: RVZP._hdr, signal: ctl ? ctl.signal : undefined, cache: 'no-store' });
-    clearTimeout(t);
-    var j = r.ok ? await r.json() : null;
-    RVZP.proxy = j && j.proxy ? j : { proxy: false };
-  } catch (e) { RVZP.proxy = { proxy: false }; }
+    try { var r = await fetch(u, { headers: RVZP._hdr, signal: ctl ? ctl.signal : undefined, cache: 'no-store' }); return r.ok ? await r.json() : null; }
+    catch (e) { return null; } finally { clearTimeout(t); }
+  }
+  var h = await get('/render-proxy/health');
+  if (h && h.ok) RVZP.proxy = { proxy: true, provider: h.provider, key: h.keyPresent ? 'present' : 'missing', mode: h.mode || 'live', models: h.models, port: h.port };
+  else { var s = await get('/render-proxy/status'); RVZP.proxy = s && s.proxy ? s : { proxy: false, why: 'down' }; }
+  if (RVZP.proxy.proxy && RVZP.proxy.key !== 'present') RVZP.proxy.why = 'nokey';
   RVZP._syncUI();
   return RVZP.proxy;
+};
+RVZP.WHY = {
+  file: 'You opened the file directly. Photoreal needs the app served from the local server. Run tools/start.cmd, or open http://localhost:8766/parklet-checker.html.',
+  down: 'The local server isn\'t running. Run tools/start.cmd.',
+  nokey: 'Server is running but .render-key is missing in the repo root.'
 };
 RVZP.ready = function() { return !!(RVZP.proxy && RVZP.proxy.proxy && RVZP.proxy.key === 'present'); };
 
@@ -20921,8 +20932,8 @@ RVZP._syncUI = function() {
   var P = RVZP.proxy, ok = RVZP.ready(), note = g('rvzpProxy');
   g('rvzpOn').disabled = !ok; if (!ok) { RVZP.o.on = false; g('rvzpOn').checked = false; }
   note.textContent = !P ? 'Checking for the local render proxy…'
-    : !P.proxy ? 'Photoreal needs the local render proxy (tools/serve.ps1). It is not answering here, so only the renders above are available.'
-    : P.key !== 'present' ? 'The render proxy is running but has no provider key. Set PROVIDER_KEY or write .render-key next to parklet-checker.html, then restart the server. The renders above still work.'
+    : !P.proxy ? RVZP.WHY[P.why || 'down']
+    : P.key !== 'present' ? RVZP.WHY.nokey
     : 'Via ' + P.provider + ': ' + RVZP.o.provider + (P.mode === 'mock' ? ', MOCK mode: no AI, the output is the colour pass (for testing).' : RVZP.kind() === 'edit' ? '. Each image uploads the colour render and the depth pass (one job per preset).' : '. Each preset uploads the colour, depth and edge passes (two jobs).');
   g('rvzpBody').hidden = !RVZP.o.on;
   g('rvzpStr').value = RVZP.o.strength; g('rvzpStrV').textContent = RVZP.o.strength.toFixed(2); g('rvzpWx').value = RVZP.o.weather;
