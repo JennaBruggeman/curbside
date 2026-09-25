@@ -20492,7 +20492,8 @@ RVZP.prompt = function() {
 // model uses it for geometry only.
 RVZP.instruction = function() {
   var p = RVZP.prompt().parts, ctx = p.context;
-  var text = 'Turn this 3D render into a photograph taken on a Vancouver street. Keep the exact camera, every object, its position and size, the deck outline, railing, planters and the building line unchanged. ' +
+  var text = 'Keep the exact camera: same viewpoint, same framing, same lens, same crop. Do not zoom, pan, tilt or re-crop. ' +
+    'Turn this 3D render into a photograph taken on a Vancouver street. Keep every object, its position and size, the deck outline, railing, planters and the building line unchanged. ' +
     'Replace the materials with real ones: ' + p.mats.join(', ') + '. Replace the figures with real people in the same poses and positions, casual clothing. ' +
     'Replace box vehicles with real cars of the same size and colour. Natural daylight, ' + p.season + ' ' + p.when + (p.sun ? ', ' + p.sun : '') + ' (' + p.stamp + '), ' + p.weather +
     ', 35 mm lens look, slight background softness, ' + (ctx.sign ? 'no added text apart from the sign, ' : 'no text, ') + 'no watermark. The second image is a depth map of the same view: use it only to keep the geometry, do not copy its look. ' +
@@ -20758,6 +20759,82 @@ RVZP.designCheck = function(outCanvas, P) {
   return res;
 };
 
+// ── Framing check: did the output keep the camera? ──────────────────────────────────────────────
+// Estimates the similarity (scale about the frame centre + offset) that maps the base render onto
+// the output, both at the frame's size (the output is scaled to it, as the design check sees it):
+// output(q) = c + s (p - c) + d for base pixel p. The match is NCC of blurred gradient magnitude
+// (edges survive a change of materials) over the base's design mask, dilated -- the parklet is what
+// must hold; the street around it may be restyled. Coarse search at 96 px wide (scale 0.60-1.50 in
+// 3 % steps, offset +-20 % of the frame), refined at 384 px (+-3 % in 0.25 % steps, +-6 px).
+// Pass = scale within 0.97-1.03, offset under 2 % of the width, and a match worth trusting
+// (ncc >= FR.minNcc; below it no similarity explains the output: a new viewpoint, not a shift).
+RVZP.FR = { scaleMin: 0.97, scaleMax: 1.03, offMax: 0.02, minNcc: 0.25, minCover: 0.6 };
+RVZP._gradAt = function(cv, w, h) {
+  var c = document.createElement('canvas'); c.width = w; c.height = h;
+  var x = c.getContext('2d'); x.filter = 'blur(1px)'; x.drawImage(cv, 0, 0, w, h);
+  var d = x.getImageData(0, 0, w, h).data, L = new Float32Array(w * h), G = new Float32Array(w * h);
+  for (var i = 0, j = 0; j < L.length; i += 4, j++) L[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  for (var y = 1; y < h - 1; y++) for (var xx = 1; xx < w - 1; xx++) {
+    var k = y * w + xx;
+    var gx = L[k - w + 1] + 2 * L[k + 1] + L[k + w + 1] - L[k - w - 1] - 2 * L[k - 1] - L[k + w - 1];
+    var gy = L[k + w - 1] + 2 * L[k + w] + L[k + w + 1] - L[k - w - 1] - 2 * L[k - w] - L[k - w + 1];
+    G[k] = Math.sqrt(gx * gx + gy * gy);
+  }
+  return G;
+};
+RVZP._maskPts = function(maskCv, w, h, r) {
+  var c = document.createElement('canvas'); c.width = w; c.height = h;
+  var x = c.getContext('2d'); x.drawImage(maskCv, 0, 0, w, h);
+  var d = x.getImageData(0, 0, w, h).data, on = new Uint8Array(w * h);
+  for (var i = 0; i < on.length; i++) on[i] = d[i * 4] > 20 ? 1 : 0;
+  var D = RVZP._dil(on, w, h, r), pts = [];
+  for (var p = 0; p < D.length; p++) { var px = p % w, py = p / w | 0; if (D[p] && px > 0 && py > 0 && px < w - 1 && py < h - 1) pts.push(p); }
+  if (pts.length < 0.02 * w * h) { pts = []; for (var q = 0; q < w * h; q++) { var qx = q % w, qy = q / w | 0; if (qx > 0 && qy > 0 && qx < w - 1 && qy < h - 1) pts.push(q); } }
+  return pts;
+};
+// NCC of base gradient Gb on pts vs output gradient Go sampled (bilinear) at c + s (p - c) + d
+RVZP._frScore = function(Gb, Go, pts, w, h, s, dx, dy, cover) {
+  var cx = (w - 1) / 2, cy = (h - 1) / 2, n = 0, sa = 0, sb = 0, sab = 0, saa = 0, sbb = 0;
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i], x = p % w, y = p / w | 0, qx = cx + s * (x - cx) + dx, qy = cy + s * (y - cy) + dy;
+    if (qx < 0 || qy < 0 || qx > w - 1.001 || qy > h - 1.001) continue;
+    var x0 = qx | 0, y0 = qy | 0, fx = qx - x0, fy = qy - y0, k = y0 * w + x0;
+    var b = (Go[k] * (1 - fx) + Go[k + 1] * fx) * (1 - fy) + (Go[k + w] * (1 - fx) + Go[k + w + 1] * fx) * fy, a = Gb[p];
+    n++; sa += a; sb += b; sab += a * b; saa += a * a; sbb += b * b;
+  }
+  if (n < cover * pts.length || n < 30) return -1;
+  var va = saa - sa * sa / n, vb = sbb - sb * sb / n;
+  return va > 1e-6 && vb > 1e-6 ? (sab - sa * sb / n) / Math.sqrt(va * vb) : 0;
+};
+RVZP.framing = function(outCanvas, P) {
+  var FR = RVZP.FR, W = P.W, H = P.H;
+  var wc = 96, hc = Math.round(wc * H / W), wf = 384, hf = Math.round(wf * H / W);
+  var Gbc = RVZP._gradAt(P.colour, wc, hc), Goc = RVZP._gradAt(outCanvas, wc, hc), ptc = RVZP._maskPts(P.mask, wc, hc, 2);
+  var best = { c: -2, s: 1, dx: 0, dy: 0 }, mx = Math.round(0.2 * wc), my = Math.round(0.2 * hc);
+  for (var s = 0.6; s <= 1.5001; s *= 1.03) for (var dy = -my; dy <= my; dy++) for (var dx = -mx; dx <= mx; dx++) {
+    var c = RVZP._frScore(Gbc, Goc, ptc, wc, hc, s, dx, dy, FR.minCover); if (c > best.c) best = { c: c, s: s, dx: dx, dy: dy };
+  }
+  var Gbf = RVZP._gradAt(P.colour, wf, hf), Gof = RVZP._gradAt(outCanvas, wf, hf), ptf = RVZP._maskPts(P.mask, wf, hf, 6), k = wf / wc;
+  if (ptf.length > 9000) { var st = Math.ceil(ptf.length / 9000); ptf = ptf.filter(function(q, i) { return i % st === 0; }); }
+  var f = { c: -2, s: best.s, dx: best.dx * k, dy: best.dy * k }, s0 = best.s, x0 = best.dx * k, y0 = best.dy * k;
+  for (var sf = s0 * 0.97; sf <= s0 * 1.0301; sf += s0 * 0.0025) for (var ddy = -6; ddy <= 6; ddy++) for (var ddx = -6; ddx <= 6; ddx++) {
+    var cf = RVZP._frScore(Gbf, Gof, ptf, wf, hf, sf, x0 + ddx, y0 + ddy, FR.minCover); if (cf > f.c) f = { c: cf, s: sf, dx: x0 + ddx, dy: y0 + ddy };
+  }
+  var ident = RVZP._frScore(Gbf, Gof, ptf, wf, hf, 1, 0, 0, 0);
+  var dxF = f.dx * W / wf, dyF = f.dy * W / wf, off = Math.hypot(dxF, dyF) / W;   // offsets in frame pixels
+  var trusted = f.c >= FR.minNcc, pass = trusted && f.s >= FR.scaleMin && f.s <= FR.scaleMax && off < FR.offMax;
+  var r = { scale: +f.s.toFixed(3), dx: Math.round(dxF), dy: Math.round(dyF), offset: +(off * 100).toFixed(2), ncc: +f.c.toFixed(3), nccAtIdentity: +ident.toFixed(3), trusted: trusted, pass: pass };
+  r.card = 'framing ' + (trusted ? 'scale ' + r.scale.toFixed(3) + ', offset ' + r.offset.toFixed(1) + ' % (' + r.dx + ', ' + r.dy + ' px)' : 'no consistent match (ncc ' + r.ncc + ')') + (pass ? ' PASS' : ' FAIL');
+  return r;
+};
+// Rank two attempts: framing held first, then the design check, then how close the framing was
+RVZP._better = function(a, b) {
+  function k(t) { var f = t.fr, d = t.dc; return [f.pass ? 1 : 0, d && d.pass ? 1 : 0, d && d.inView ? d.kept / d.inView : 0, f.trusted ? -(Math.abs(f.scale - 1) + f.offset / 100) : -9]; }
+  var ka = k(a), kb = k(b);
+  for (var i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] > kb[i] ? a : b;
+  return a;
+};
+
 // ── Cache: IndexedDB ─────────────────────────────────────────────────────────────────────────
 RVZP.DB = 'pkt-photoreal';
 RVZP._db = function() {
@@ -20821,29 +20898,40 @@ RVZP.runPreset = async function(preset, prompt, strength) {
   RVZP._set(preset, 'done', 'edges ' + al.edges + ' / ' + al.ceiling + ', vs base ' + al.base);
   return e;
 };
-// Edit models (Nano Banana): image_input [colour, depth], the instruction, one output image (its own
-// size). No mask composite or blur: the model does the whole frame. The caption is burned in; the
-// fidelity measures run on the output scaled to the frame, inside the design mask.
+// Edit models (Nano Banana): image_input [colour (the base render, first), depth], the instruction,
+// one output image (its own size). No mask composite or blur: the model does the whole frame. The
+// caption is burned in; the fidelity measures run on the output scaled to the frame. A changed
+// camera is a fidelity failure: when the framing check fails, the same call is made once more (no
+// seed on these models) and the better of the two attempts is kept (RVZP._better); both are logged.
 RVZP._runEdit = async function(preset, prompt, P, hash, key) {
   var images = { colour: P.colour.toDataURL('image/jpeg', 0.92), depth: P.depth.toDataURL('image/png') }, ad = RVZP.adapters[RVZP.adapter], model = RVZP.o.provider;
-  RVZP._set(preset, 'submitted', model);
-  var job = await ad.submit(images, prompt, { model: model }), got = null, t0 = Date.now();
-  while (!got) {
-    if (Date.now() - t0 > 6 * 60 * 1000) throw new Error('the provider took longer than 6 minutes');
-    await new Promise(function(r) { setTimeout(r, 2000); });
-    got = await ad.poll(job);
-    RVZP._set(preset, 'running', model);
+  async function attempt(n) {
+    RVZP._set(preset, 'submitted', model + (n > 1 ? ', retry (framing)' : ''));
+    var job = await ad.submit(images, prompt, { model: model }), got = null, t0 = Date.now();
+    while (!got) {
+      if (Date.now() - t0 > 6 * 60 * 1000) throw new Error('the provider took longer than 6 minutes');
+      await new Promise(function(r) { setTimeout(r, 2000); });
+      got = await ad.poll(job);
+      RVZP._set(preset, 'running', model + (n > 1 ? ', retry' : ''));
+    }
+    var bmp = await RVZP._img(got), frame = RVZP._copy(bmp, P.W, P.H);
+    var t = { n: n, job: job, got: got, bmp: bmp, frame: frame, fr: RVZP.framing(frame, P), dc: RVZP.designCheck(frame, P) };
+    console.log('[photoreal] ' + preset + ' attempt ' + n + ' (' + job.id + '): ' + t.fr.card + '; ' + (t.dc ? t.dc.card + (t.dc.pass ? ' PASS' : ' FAIL') : ''));
+    return t;
   }
-  var bmp = await RVZP._img(got), nat = document.createElement('canvas'); nat.width = bmp.width; nat.height = bmp.height;
+  var a = await attempt(1), tries = [a];
+  if (!a.fr.pass) { var b = await attempt(2); tries.push(b); a = RVZP._better(a, b); }
+  var bmp = a.bmp, frame = a.frame, dc = a.dc, fr = a.fr, nat = document.createElement('canvas'); nat.width = bmp.width; nat.height = bmp.height;
   var nx = nat.getContext('2d'); nx.drawImage(bmp, 0, 0); RVZP._caption(nx, nat.width, nat.height);
-  var frame = RVZP._copy(bmp, P.W, P.H), al = RVZP.alignment(frame, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(frame, P), dc = RVZP.designCheck(frame, P);
+  var al = RVZP.alignment(frame, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(frame, P);
+  var attempts = tries.map(function(t) { return { jobId: t.job.id, framing: t.fr, design: t.dc ? t.dc.card + (t.dc.pass ? ' PASS' : ' FAIL') : null, kept: t === a }; });
   var e = { key: key, preset: preset, design: hash, strength: null, prompt: prompt.text, negative: '', created: Date.now(), W: bmp.width, H: bmp.height, useInReport: false,
-    meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, jobId: job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
-    blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), output: got, final: await RVZP._blob(nat) } };
+    meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, framing: fr, pass: !!(fr.pass && dc && dc.pass), attempts: attempts, jobId: a.job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
+    blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), output: a.got, final: await RVZP._blob(nat) } };
   await RVZP.dbPut(e);
   RVZP.entries[preset] = e;
-  console.log('[photoreal] rendered ' + preset + ' with ' + model + ' (' + e.meta.outputSize + ', design ' + hash + '): ' + (dc ? dc.card + (dc.pass ? ' PASS' : ' FAIL') + '; ' : '') + 'relative edge score ' + al.relative + ', vs the base render ' + al.base + ', bench kept ' + bk + ', benches ' + benches.visibleInMask + ' of ' + benches.placed + '; cached');
-  RVZP._set(preset, 'done', 'relative ' + al.relative + ', vs base ' + al.base);
+  console.log('[photoreal] rendered ' + preset + ' with ' + model + ' (' + e.meta.outputSize + ', design ' + hash + ', ' + tries.length + ' attempt' + (tries.length > 1 ? 's, kept ' + a.n : '') + '): ' + fr.card + '; ' + (dc ? dc.card + (dc.pass ? ' PASS' : ' FAIL') + '; ' : '') + 'relative edge score ' + al.relative + ', bench kept ' + bk + '; cached');
+  RVZP._set(preset, 'done', fr.card + (dc ? '; ' + dc.card : ''));
   return e;
 };
 // How much of the bench survives: tolerant edge IoU of the output vs the base render on the bench's
@@ -20958,7 +21046,7 @@ RVZP._gallery = async function() {
   var cards = RVZ.PRESETS.map(function(p) {
     var e = RVZP.entries[p[0]];
     if (!e) return "<article class='rvzp-card'><h4>" + p[1] + "</h4><p class='rvz-note'>Not rendered yet.</p></article>";
-    return "<article class='rvzp-card' data-preset='" + p[0] + "'><h4>" + p[1] + " <span class='rvz-dim'>" + (e.meta.design ? e.meta.design.card + (e.meta.design.pass ? ' · PASS' : ' · FAIL') + ' · ' : '') + 'edge IoU ' + e.meta.iou + (e.meta.alignment ? ' of ' + e.meta.alignment.ceiling + ' · vs base ' + e.meta.alignment.base : '') + ' · benches ' + e.meta.benches.visibleInMask + '/' + e.meta.benches.placed + '</span></h4>' +
+    return "<article class='rvzp-card' data-preset='" + p[0] + "'><h4>" + p[1] + " <span class='rvz-dim'>" + (e.meta.framing ? e.meta.framing.card + (e.meta.attempts && e.meta.attempts.length > 1 ? ' (best of 2)' : '') + ' · ' : '') + (e.meta.design ? e.meta.design.card + (e.meta.design.pass ? ' · PASS' : ' · FAIL') + ' · ' : '') + 'edge IoU ' + e.meta.iou + (e.meta.alignment ? ' of ' + e.meta.alignment.ceiling + ' · vs base ' + e.meta.alignment.base : '') + ' · benches ' + e.meta.benches.visibleInMask + '/' + e.meta.benches.placed + '</span></h4>' +
       "<div class='rvzp-pair'><figure><img alt='" + p[1] + " base render' src='" + url(e.blobs.colour) + "'><figcaption>Base render</figcaption></figure>" +
       "<figure><img alt='" + p[1] + " photoreal' class='rvzp-final' src='" + url(e.blobs.final) + "'><figcaption>" + RVZP.CAPTION + '</figcaption></figure></div>' +
       (e.meta.kind === 'edit' ? "<p class='rvz-note'>" + e.meta.model + ', ' + e.meta.outputSize + ' (a single edit: no fidelity replay)</p>'
