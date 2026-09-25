@@ -20318,7 +20318,7 @@ RVZ.exportAll = async function() {
 var RVZP = {
   PIPELINE: 'p3',   // p3: normal-lens presets, blur by distance from the deck (p2: 1536 x 864 output; p1 kept a ControlNet preview)
   LONG: 1536, CAPTION: 'AI-assisted visualisation - indicative',
-  o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0, entInContext: false, provider: 'google/nano-banana-pro', take: 0, railDetail: true },   // railDetail: the railing described (2026-09-25: it held 3/3 with, thinned 1/2 without)
+  o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0, entInContext: false, provider: 'google/nano-banana-pro', take: 0, railDetail: true, ctxOn: false, ctxRef: null },   // ctxRef: the Mapillary context photo (Brief 13 phase 3)   // railDetail: the railing described (2026-09-25: it held 3/3 with, thinned 1/2 without)
   // the models the proxy allows (tools/serve.ps1 $Models): sdxl = two img2img passes with ControlNet
   // depth / canny, blended through the mask; edit = one instruction edit of [colour, depth]
   PROVIDERS: [['google/nano-banana-pro', 'Nano Banana Pro (2K)', 'edit'], ['google/nano-banana', 'Nano Banana', 'edit'], ['sdxl', 'SDXL + ControlNet (strict geometry)', 'controlnet']],
@@ -20516,7 +20516,8 @@ RVZP.instruction = function() {
     'Keep every piece of furniture, planter and the railing exactly as many, as placed and as sized: ' + RVZP.inventory() + '. ' +
     (RVZP.o.railDetail ? RVZP.railText() + ' ' : '') +
     "Keep the near building's face where it is; its materials and the far street may change. Do not add furniture." +
-    (ctx.sentence ? ' ' + RVZP.cap(ctx.sentence) + '.' : '') + (ctx.clause ? ' ' + RVZP.cap(ctx.clause) + '.' : '');
+    (ctx.sentence ? ' ' + RVZP.cap(ctx.sentence) + '.' : '') + (ctx.clause ? ' ' + RVZP.cap(ctx.clause) + '.' : '') +
+    (RVZP.ref() ? ' The third image is a street photo of this place: use this photo only for the appearance of the street and buildings; the design and camera come from the render.' : '');
   return { text: text, negative: '' };
 };
 // What is on the deck, counted from the model: "1 bench, 2 chairs, ... and the railing".
@@ -20611,8 +20612,8 @@ RVZP.composite = function(L, fidelity) {
   RVZP._caption(ox, W, H);
   return out;
 };
-RVZP._caption = function(x, W, H) {
-  var fs = Math.round(H * 0.022), pad = Math.round(fs * 0.6), t = RVZP.CAPTION;
+RVZP._caption = function(x, W, H, extra) {
+  var fs = Math.round(H * 0.022), pad = Math.round(fs * 0.6), t = RVZP.CAPTION + (extra ? '  |  ' + extra : '');
   x.font = '600 ' + fs + 'px "DM Sans", Helvetica, Arial, sans-serif';
   var w = x.measureText(t).width;
   x.fillStyle = 'rgba(23,25,28,0.72)'; x.fillRect(pad, H - pad - fs - pad, w + 2 * pad, fs + pad);
@@ -20878,7 +20879,7 @@ RVZP.clear = async function() {
 RVZP.key = function(hash, preset, prompt, strength) {
   var mode = RVZP.proxy && RVZP.proxy.mode || 'live';
   // RVZP.PIPELINE: bumped whenever what a key produces changes, so older results never return from the cache
-  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode, RVZP.o.provider, RVZP.PIPELINE + (RVZP.o.entInContext ? '-entctx' : '') + (RVZP.o.take ? '-take' + RVZP.o.take : '')].join('|');
+  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode, RVZP.o.provider, RVZP.PIPELINE + (RVZP.o.entInContext ? '-entctx' : '') + (RVZP.o.take ? '-take' + RVZP.o.take : '') + (RVZP.ref() ? '-ref' + RVZP.ref().id : '')].join('|');
 };
 
 // ── Render 4 ─────────────────────────────────────────────────────────────────────────────────
@@ -20923,7 +20924,7 @@ RVZP._runEdit = async function(preset, prompt, P, hash, key) {
   var images = { colour: P.colour.toDataURL('image/jpeg', 0.92), depth: P.depth.toDataURL('image/png') }, ad = RVZP.adapters[RVZP.adapter], model = RVZP.o.provider;
   async function attempt(n) {
     RVZP._set(preset, 'submitted', model + (n > 1 ? ', retry (framing)' : ''));
-    var job = await ad.submit(images, prompt, { model: model }), got = null, t0 = Date.now();
+    var ref = RVZP.ref(), job = await ad.submit(images, prompt, ref ? { model: model, reference: ref.url } : { model: model }), got = null, t0 = Date.now();
     while (!got) {
       if (Date.now() - t0 > 6 * 60 * 1000) throw new Error('the provider took longer than 6 minutes');
       await new Promise(function(r) { setTimeout(r, 2000); });
@@ -20938,11 +20939,11 @@ RVZP._runEdit = async function(preset, prompt, P, hash, key) {
   var a = await attempt(1), tries = [a];
   if (!a.fr.pass) { var b = await attempt(2); tries.push(b); a = RVZP._better(a, b); }
   var bmp = a.bmp, frame = a.frame, dc = a.dc, fr = a.fr, nat = document.createElement('canvas'); nat.width = bmp.width; nat.height = bmp.height;
-  var nx = nat.getContext('2d'); nx.drawImage(bmp, 0, 0); RVZP._caption(nx, nat.width, nat.height);
+  var ref = RVZP.ref(), nx = nat.getContext('2d'); nx.drawImage(bmp, 0, 0); RVZP._caption(nx, nat.width, nat.height, ref ? ref.attribution : '');
   var al = RVZP.alignment(frame, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(frame, P);
   var attempts = tries.map(function(t) { return { jobId: t.job.id, framing: t.fr, design: t.dc ? t.dc.card + (t.dc.pass ? ' PASS' : ' FAIL') : null, kept: t === a }; });
   var e = { key: key, preset: preset, design: hash, strength: null, prompt: prompt.text, negative: '', created: Date.now(), W: bmp.width, H: bmp.height, useInReport: false,
-    meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, framing: fr, pass: !!(fr.pass && dc && dc.pass), attempts: attempts, jobId: a.job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
+    meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, framing: fr, pass: !!(fr.pass && dc && dc.pass), attempts: attempts, contextPhoto: ref ? { id: ref.id, creator: ref.creator, captured: ref.captured, license: ref.license, attribution: ref.attribution } : null, jobId: a.job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
     blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), output: a.got, final: await RVZP._blob(nat) } };
   await RVZP.dbPut(e);
   RVZP.entries[preset] = e;
@@ -20988,7 +20989,7 @@ RVZP.forReport = async function(preset, opts) {
   if (!opts.technical) {
     var all = await RVZP.dbAll().catch(function() { return []; });
     var e = (all || []).filter(function(x) { return x.design === hash && x.preset === preset && x.useInReport; }).sort(function(a, b) { return b.created - a.created; })[0];
-    if (e) return { kind: 'photoreal', blob: e.blobs.final, caption: RVZP.CAPTION, W: e.W, H: e.H };
+    if (e) return { kind: 'photoreal', blob: e.blobs.final, caption: RVZP.CAPTION + (e.meta.contextPhoto ? ' | Context photo: ' + e.meta.contextPhoto.attribution : ''), W: e.W, H: e.H };
   }
   var r = RVZ.cached(hash, { preset: preset, appearance: 'rendered' });
   return r ? { kind: 'render', blob: r.blob, caption: 'Rendered view (' + preset + ')', W: r.w, H: r.h } : null;
@@ -21008,6 +21009,7 @@ RVZP.ui = function() {
       "<input type='range' id='rvzpStr' min='0.35' max='0.75' step='0.01'>" +
       "<p class='rvz-note'>Lower keeps closer to the model; higher is prettier. The design region runs 0.15 lower, the street 0.15 higher.</p></div>" +
       "<div class='rvz-row'><label for='rvzpWx'>Weather</label><select id='rvzpWx'>" + Object.keys(RVZP.WEATHER).map(function(k) { return "<option value='" + k + "'>" + { sunny: 'Sunny', overcast: 'Overcast', golden: 'Golden hour', rain: 'After rain' }[k] + '</option>'; }).join('') + '</select></div>' +
+      "<div id='rvzpCtxBox'><label class='rvz-check'><input type='checkbox' id='rvzpCtxOn'> Real street context (Mapillary photo)</label><div id='rvzpCtxBody' hidden></div></div>" +
       "<label class='rvz-lbl2' for='rvzpPrompt'>Prompt <span class='rvz-dim' id='rvzpPromptNote'></span></label>" +
       "<textarea id='rvzpPrompt' rows='6' spellcheck='false'></textarea>" +
       "<button type='button' class='rvz-chip' id='rvzpReset'>Use the generated prompt</button>" +
@@ -21029,6 +21031,7 @@ RVZP.ui = function() {
   g('rvzpGo').addEventListener('click', function() { RVZP.render4().then(function() { RVZP.showGallery(true); }); });
   g('rvzpGal').addEventListener('click', function() { RVZP.showGallery(g('rvzpGallery').hidden); });
   g('rvzpClear').addEventListener('click', function() { RVZP.clear(); });
+  g('rvzpCtxOn').addEventListener('change', function(e) { RVZP.o.ctxOn = e.target.checked; RVZP.promptEdit = null; if (typeof MLY !== 'undefined') MLY.renderBox(); RVZP._syncUI(); });
   RVZP.checkProxy();
 };
 RVZP._syncUI = function() {
@@ -21041,7 +21044,7 @@ RVZP._syncUI = function() {
     : 'Via ' + P.provider + ': ' + RVZP.o.provider + (P.mode === 'mock' ? ', MOCK mode: no AI, the output is the colour pass (for testing).' : RVZP.kind() === 'edit' ? '. Each image uploads the colour render and the depth pass (one job per preset).' : '. Each preset uploads the colour, depth and edge passes (two jobs).');
   g('rvzpBody').hidden = !RVZP.o.on;
   g('rvzpStr').value = RVZP.o.strength; g('rvzpStrV').textContent = RVZP.o.strength.toFixed(2); g('rvzpWx').value = RVZP.o.weather;
-  g('rvzpProv').value = RVZP.o.provider; g('rvzpStrBox').hidden = RVZP.kind() === 'edit';
+  g('rvzpProv').value = RVZP.o.provider; g('rvzpStrBox').hidden = RVZP.kind() === 'edit'; g('rvzpCtxBox').hidden = RVZP.kind() !== 'edit'; g('rvzpCtxOn').checked = !!RVZP.o.ctxOn;
   var pr = RVZP.currentPrompt();
   if (document.activeElement !== g('rvzpPrompt')) g('rvzpPrompt').value = pr.text;
   g('rvzpPromptNote').textContent = pr.edited ? '(edited: for this run only)' : '(generated from the model)';
@@ -21064,7 +21067,7 @@ RVZP._gallery = async function() {
     if (!e) return "<article class='rvzp-card'><h4>" + p[1] + "</h4><p class='rvz-note'>Not rendered yet.</p></article>";
     return "<article class='rvzp-card' data-preset='" + p[0] + "'><h4>" + p[1] + " <span class='rvz-dim'>" + (e.meta.framing ? e.meta.framing.card + (e.meta.attempts && e.meta.attempts.length > 1 ? ' (best of 2)' : '') + ' · ' : '') + (e.meta.design ? e.meta.design.card + (e.meta.design.pass ? ' · PASS' : ' · FAIL') + ' · ' : '') + 'edge IoU ' + e.meta.iou + (e.meta.alignment ? ' of ' + e.meta.alignment.ceiling + ' · vs base ' + e.meta.alignment.base : '') + ' · benches ' + e.meta.benches.visibleInMask + '/' + e.meta.benches.placed + '</span></h4>' +
       "<div class='rvzp-pair'><figure><img alt='" + p[1] + " base render' src='" + url(e.blobs.colour) + "'><figcaption>Base render</figcaption></figure>" +
-      "<figure><img alt='" + p[1] + " photoreal' class='rvzp-final' src='" + url(e.blobs.final) + "'><figcaption>" + RVZP.CAPTION + '</figcaption></figure></div>' +
+      "<figure><img alt='" + p[1] + " photoreal' class='rvzp-final' src='" + url(e.blobs.final) + "'><figcaption>" + RVZP.CAPTION + (e.meta.contextPhoto ? '<br>Context photo: ' + SM.esc(e.meta.contextPhoto.attribution) : '') + '</figcaption></figure></div>' +
       (e.meta.kind === 'edit' ? "<p class='rvz-note'>" + e.meta.model + ', ' + e.meta.outputSize + ' (a single edit: no fidelity replay)</p>'
         : "<div class='rvz-row'><label for='rvzpF_" + p[0] + "'>Fidelity</label><input type='range' class='rvzp-fid' id='rvzpF_" + p[0] + "' data-preset='" + p[0] + "' min='0' max='1' step='0.05' value='0'></div>") +
       (e.meta.design ? "<ul class='rvzp-objs'>" + e.meta.design.objects.map(function(o) { return "<li class='rvzp-o-" + o.status.replace(/ /g, '-') + "'>" + o.label + ': ' + o.status + (o.shift ? ' (' + o.shift.join(', ') + ' px)' : '') + '</li>'; }).join('') +
@@ -21731,6 +21734,96 @@ SMP.sourcesList = function() {
     SMP.msg('Site set on <b>' + SM.esc(p.name || 'the street') + '</b>. Import the street context to fill the lanes, buildings and site objects.');
   };
   setTimeout(function() { try { SMP.tags(); SMP.decorateBldg('L'); SMP.decorateBldg('R'); SMP.decorateChecks(); SMP.drawPlan(); } catch (e) {} }, 1600);
+})();
+</script>
+<style>
+/* -- Site from map (Brief 13) phase 3: the Mapillary context photo -------------------------- */
+#rvzpCtxBody { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+#rvzpCtxBody input[type=password] { height: 24px; padding: 0 6px; background: var(--c-bg, #17191C); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; color: var(--c-text, #F2F2F0); font: var(--fs-12, 12px) var(--font-mono, monospace); }
+.mly-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.mly-thumbs button { padding: 0; border: 2px solid transparent; border-radius: 3px; background: none; cursor: pointer; aspect-ratio: 4 / 3; overflow: hidden; }
+.mly-thumbs button.on { border-color: var(--accent-ui, #3AA8E4); }
+.mly-thumbs button:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
+.mly-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+</style>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// SITE FROM MAP (Brief 13) - Phase 3: a real street photo as context for the edit models (MLY)
+// Behind the Photoreal panel's "Real street context" toggle (edit providers only). Mapillary
+// Graph API v4, from the page: images within 40 m of the site, not panoramas, facing the
+// parklet side (camera heading within 70 deg of the side's bearing), best 3 by distance +
+// heading. The user picks one; its thumb_1024 URL goes to the proxy as params.reference and
+// becomes the third image_input (the proxy accepts only Mapillary image hosts). The token is the
+// user's Mapillary client token, kept in this browser only (localStorage 'pkt_mapillary_token'),
+// sent as an Authorization header, never saved with the design or logged. Attribution (the
+// creator, CC BY-SA 4.0, the capture date) is burned into the render's caption, stored with the
+// cached render, shown under it in the gallery and listed on the report's Sources sheet.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var MLY = { API: 'https://graph.mapillary.com/images', R: 40, FACE: 70, photos: null };
+MLY.token = function() { try { return (localStorage.getItem('pkt_mapillary_token') || '').trim(); } catch (e) { return ''; } };
+MLY.site = function() { var sm = state.__siteMap; return sm ? { lat: sm.lat, lon: sm.lon, side: sm.sideBearing } : { lat: +SITE_ORIENT.lat, lon: +SITE_ORIENT.lon, side: siteDerive(SITE_ORIENT).sideBearing }; };
+RVZP.ref = function() { return RVZP.o.ctxOn && RVZP.kind() === 'edit' && RVZP.o.ctxRef ? RVZP.o.ctxRef : null; };
+// Rank candidate images (the API's rows) for the site: within 40 m, no panoramas, facing the side
+MLY.rank = function(rows, s) {
+  var T = SM.enu(s.lat, s.lon);
+  return (rows || []).map(function(r) {
+    var c = r.geometry && r.geometry.coordinates; if (!c || r.is_pano) return null;
+    var v = T.to(c[1], c[0]), d = Math.hypot(v.e, v.n), h = r.computed_compass_angle != null ? r.computed_compass_angle : r.compass_angle;
+    if (d > MLY.R || h == null) return null;
+    var a = siteAngle(h, s.side); if (a > MLY.FACE) return null;
+    return { id: String(r.id), thumb: r.thumb_256_url, url: r.thumb_1024_url, dist: d, angle: a, heading: h, creator: (r.creator && r.creator.username) || 'unknown', captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : '', score: d / MLY.R + a / MLY.FACE };
+  }).filter(Boolean).sort(function(a, b) { return a.score - b.score; }).slice(0, 3).map(function(p) {
+    p.license = 'CC BY-SA 4.0'; p.attribution = p.creator + ' / Mapillary, ' + p.license + (p.captured ? ', ' + p.captured : '') + ' (image ' + p.id + ')'; return p;
+  });
+};
+MLY.find = async function() {
+  var tk = MLY.token(), s = MLY.site(), msg = document.getElementById('mlyMsg');
+  if (!tk) { if (msg) msg.textContent = 'Paste your Mapillary client token first (mapillary.com > Developers > your app).'; return null; }
+  var T = SM.enu(s.lat, s.lon), a = T.from(-MLY.R, -MLY.R), b = T.from(MLY.R, MLY.R);
+  var url = MLY.API + '?fields=id,thumb_256_url,thumb_1024_url,compass_angle,computed_compass_angle,geometry,captured_at,creator,is_pano&limit=100&bbox=' + [a.lon, a.lat, b.lon, b.lat].map(function(v) { return v.toFixed(6); }).join(',');
+  if (msg) msg.textContent = 'Looking for street photos within 40 m...';
+  try {
+    // cached by the rounded site only (never by the token); image URLs expire, so a day at most
+    var key = 'mly|' + SM.round(s.lat) + ',' + SM.round(s.lon), hit = await SM.cacheGet(key), j;
+    if (hit && Date.now() - (hit.t || 0) < 24 * 3600 * 1000) j = hit.data;
+    else {
+      var r; try { r = await fetch(url, { headers: { Authorization: 'OAuth ' + tk, Accept: 'application/json' } }); } catch (e) { var er = new Error('offline'); er.offline = true; throw er; }
+      if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'Mapillary refused the token (HTTP ' + r.status + ')' : 'Mapillary answered HTTP ' + r.status);
+      j = await r.json(); SM.cachePut(key, { t: Date.now(), data: j });
+    }
+    MLY.photos = MLY.rank(j.data, s);
+    if (msg) msg.textContent = MLY.photos.length ? 'Pick the photo to use as context (the design and camera still come from the render).' : 'No street photo within 40 m faces the parklet side.';
+  } catch (e) { MLY.photos = null; if (msg) msg.textContent = e.offline ? 'Mapillary can\'t be reached (offline or blocked). Photoreal works without a context photo.' : e.message + '.'; }
+  MLY.renderBox(true);
+  return MLY.photos;
+};
+MLY.pick = function(id) {
+  var p = (MLY.photos || []).find(function(q) { return q.id === id; }); if (!p) return;
+  RVZP.o.ctxRef = RVZP.o.ctxRef && RVZP.o.ctxRef.id === id ? null : { id: p.id, url: p.url, creator: p.creator, captured: p.captured, license: p.license, attribution: p.attribution };
+  RVZP.promptEdit = null; MLY.renderBox(true); RVZP._syncUI();
+};
+MLY.renderBox = function(keepMsg) {
+  var body = document.getElementById('rvzpCtxBody'); if (!body) return;
+  body.hidden = !RVZP.o.ctxOn; if (!RVZP.o.ctxOn) return;
+  var msg = document.getElementById('mlyMsg'), m = keepMsg && msg ? msg.textContent : '', ref = RVZP.o.ctxRef;
+  body.innerHTML = "<label class='rvz-lbl2' for='mlyTok'>Mapillary client token <span class='rvz-dim'>(kept in this browser only)</span></label><input type='password' id='mlyTok' autocomplete='off' spellcheck='false' placeholder='MLY|...'>" +
+    "<button type='button' class='rvz-btn' id='mlyFind'>Find street photos (40 m)</button><p class='rvz-note' id='mlyMsg' role='status'></p>" +
+    (MLY.photos && MLY.photos.length ? "<div class='mly-thumbs'>" + MLY.photos.map(function(p) { return "<button type='button' data-id='" + SM.esc(p.id) + "' class='" + (ref && ref.id === p.id ? 'on' : '') + "' aria-pressed='" + !!(ref && ref.id === p.id) + "' title='" + SM.esc(p.attribution + ', ' + Math.round(p.dist) + ' m away, facing ' + Math.round(p.heading) + ' deg') + "'><img alt='Street photo by " + SM.esc(p.creator) + "' src='" + SM.esc(p.thumb) + "'></button>"; }).join('') + '</div>' : '') +
+    "<p class='rvz-note'>" + (ref ? 'Using: ' + SM.esc(ref.attribution) + '. It is sent as the third image with: use it only for the street and buildings.' : 'No context photo picked.') + '</p>';
+  var tok = document.getElementById('mlyTok'); tok.value = MLY.token() ? '********' : '';
+  tok.addEventListener('change', function() { if (tok.value === '********') return; try { if (tok.value.trim()) localStorage.setItem('pkt_mapillary_token', tok.value.trim()); else localStorage.removeItem('pkt_mapillary_token'); } catch (e) {} tok.value = MLY.token() ? '********' : ''; });
+  document.getElementById('mlyFind').addEventListener('click', function() { MLY.find(); });
+  Array.from(body.querySelectorAll('.mly-thumbs button')).forEach(function(b) { b.addEventListener('click', function() { MLY.pick(b.getAttribute('data-id')); }); });
+  if (m) document.getElementById('mlyMsg').textContent = m;
+};
+// the report's Sources sheet: every cached photoreal render made with a context photo, with its attribution
+(function() {
+  var f = window.SMP && SMP.sourcesList; if (!f) return;
+  SMP.sourcesList = function() {
+    var out = f.apply(this, arguments);
+    Object.keys(RVZP.entries || {}).forEach(function(k) { var e = RVZP.entries[k], c = e && e.meta && e.meta.contextPhoto; if (c) out.push('Photoreal ' + k + ' context photo: ' + c.attribution + ' (appearance of the street only)'); });
+    return out;
+  };
 })();
 </script>
 </body></html>

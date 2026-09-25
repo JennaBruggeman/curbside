@@ -45,6 +45,13 @@ $Models = @{
 }
 function Build-EditInput($req, $urls, $M) {
   $in = @{ prompt = [string]$req.prompt; image_input = @($urls.colour, $urls.depth); aspect_ratio = 'match_input_image'; output_format = 'png' }
+  # optional third image: a street-level context photo (Mapillary), passed by URL for the provider to
+  # fetch; only https URLs on Mapillary's image hosts are accepted
+  $ref = [string]$req.params.reference
+  if ($ref) {
+    if ($ref -match '^https://[A-Za-z0-9.-]+\.(fbcdn\.net|mapillary\.com)/') { $in.image_input = @($urls.colour, $urls.depth, $ref); Log ('context photo attached (' + ([Uri]$ref).Host + ')') }
+    else { Log 'context photo refused: not a Mapillary image URL' }
+  }
   if ($M.resolution) { $in.resolution = $M.resolution }
   return $in
 }
