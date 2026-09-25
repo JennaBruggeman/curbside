@@ -14117,7 +14117,12 @@ function pkSerialize() {
       manholes:     (typeof state !== 'undefined' && state['manholes'])      ? JSON.parse(JSON.stringify(state['manholes']))      : [],
       curb_features:(typeof state !== 'undefined' && state['curb_features']) ? JSON.parse(JSON.stringify(state['curb_features'])) : [],
       driveways:    (typeof state !== 'undefined' && state['driveways'])     ? JSON.parse(JSON.stringify(state['driveways']))     : [],
-      pkShape:      (typeof state !== 'undefined' && state['pkShape'])       ? JSON.parse(JSON.stringify(state['pkShape']))       : null
+      pkShape:      (typeof state !== 'undefined' && state['pkShape'])       ? JSON.parse(JSON.stringify(state['pkShape']))       : null,
+      // Site from map (Brief 13): imported street trees / transit stops, per-field provenance, the picked OSM way
+      street_trees: (typeof state !== 'undefined' && state['street_trees'])  ? JSON.parse(JSON.stringify(state['street_trees']))  : [],
+      transit_stops:(typeof state !== 'undefined' && state['transit_stops']) ? JSON.parse(JSON.stringify(state['transit_stops'])) : [],
+      prov:         (typeof state !== 'undefined' && state['__prov'])        ? JSON.parse(JSON.stringify(state['__prov']))        : {},
+      siteMap:      (typeof state !== 'undefined' && state['__siteMap'])     ? JSON.parse(JSON.stringify(state['__siteMap']))     : null
     },
     furniture: {
       placed: (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? FL3D.placed.map(function(inst) {
@@ -14269,6 +14274,10 @@ function pkApplyDesignState(raw) {
       state['curb_features'] = data.siteObjects.curb_features || [];
       state['driveways']     = data.siteObjects.driveways     || [];
       state['pkShape']       = data.siteObjects.pkShape       || null;
+      state['street_trees']  = data.siteObjects.street_trees  || [];
+      state['transit_stops'] = data.siteObjects.transit_stops || [];
+      state['__prov']        = data.siteObjects.prov          || {};
+      state['__siteMap']     = data.siteObjects.siteMap       || null;
     }
   }
 
@@ -18273,14 +18282,18 @@ var RPT = {};
 RPT.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
 RPT.fx = function(v, d) { return (+v).toFixed(d == null ? 3 : d); };
 RPT.DISCLAIMER = 'Preliminary assessment - not a substitute for City of Vancouver review';
-RPT.PILL = { pass: 'Pass', fail: 'Fail', unclear: 'Not confirmed' };
+RPT.PILL = { pass: 'Pass', fail: 'Fail', unclear: 'Not confirmed', provisional: 'Provisional' };
 
 // ── Data: one snapshot of the model for every sheet ───────────────────────────────────────────
 RPT.data = function() {
   var DM = buildDesignModel(), rows = complianceRows(), now = new Date();
   var n = { pass: 0, fail: 0, unclear: 0 }; rows.forEach(function(r) { n[r.status] = (n[r.status] || 0) + 1; });
+  // Site from map (Brief 13): a check that depends on unconfirmed imported site data is provisional,
+  // and so is the overall status until every imported item is confirmed
+  var sp = typeof SMP !== 'undefined'; rows.forEach(function(r) { r.provisional = sp && SMP.isProvisional(r.id); });
+  var prov = sp && SMP.anyPending();
   var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.slice() : [];
-  return { DM: DM, rows: rows, n: n, overall: n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', placed: placed, gm: RPT.genMetrics(DM, placed),
+  return { DM: DM, rows: rows, n: n, overall: prov ? 'provisional' : n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
     opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null,
     date: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
 };
@@ -18407,7 +18420,7 @@ RPT.compliance = function(d) {
     var val = r.status === 'unclear' && r.missing.length
       ? '<span class="ne">Not entered: ' + RPT.esc(r.missing.map(function(m) { return m.label; }).join('; ')) + '</span><span class="cond">' + RPT.esc(r.condition) + '</span>'
       : RPT.esc(r.msg) + (r.missing.length ? '<span class="ne">Not entered: ' + RPT.esc(r.missing.map(function(m) { return m.label; }).join('; ')) + (r.id === 'c2' ? ' (standard lane envelope applied)' : '') + '</span>' : '');
-    return '<tr data-crit="' + r.id + '"><td class="mono">C' + r.num + '</td><td>' + RPT.esc(r.title) + '</td><td>Parklet Manual p.&nbsp;' + r.page + (r.id === 'c2' ? '; EDM Table 8-10' : '') + '</td><td class="val">' + val + '</td><td>' + RPT.pill(r.status) + '</td></tr>';
+    return '<tr data-crit="' + r.id + '"><td class="mono">C' + r.num + '</td><td>' + RPT.esc(r.title) + '</td><td>Parklet Manual p.&nbsp;' + r.page + (r.id === 'c2' ? '; EDM Table 8-10' : '') + '</td><td class="val">' + val + '</td><td>' + RPT.pill(r.status) + (r.provisional ? ' ' + RPT.pill('provisional') : '') + '</td></tr>';
   }).join('');
   var ne = Object.keys(d.DM.inputs).map(function(k) { return d.DM.inputs[k]; }).filter(function(i) { return !i.entered; });
   var tbl = "<table class='tbl comp'><thead><tr><th>No.</th><th>Rule</th><th>Source</th><th>Current value / condition</th><th>Status</th></tr></thead><tbody>" + rows + '</tbody></table>';
@@ -18456,7 +18469,8 @@ RPT.sources = function(d) {
   var ins = Object.keys(DM.inputs).map(function(k) { return DM.inputs[k]; });
   var entered = ins.filter(function(i) { return i.entered; }).map(function(i) { return RPT.esc(i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : '') + (i.source === 'placed site objects' ? ' (measured from placed site objects)' : '')); });
   var hr = RPT.hostRaw(DM);
-  if (hr && hr.entered) entered.push(RPT.esc('Host building (user input): ' + RPT.hostLine(DM) + ', ' + hr.b.frontage + ' frontage, ' + hr.b.storeys + ' storey' + (hr.b.storeys > 1 ? 's' : '')));
+  var hImp = hr && hr.b.__prov && ['use', 'name'].some(function(k) { return hr.b.__prov[k] && hr.b.__prov[k].source !== 'user'; });   // imported from OSM, not yet confirmed
+  if (hr && hr.entered) entered.push(RPT.esc('Host building (' + (hImp ? 'imported from OpenStreetMap, verify on site' : 'user input') + '): ' + RPT.hostLine(DM) + ', ' + hr.b.frontage + ' frontage, ' + hr.b.storeys + ' storey' + (hr.b.storeys > 1 ? 's' : '')));
   var model = ['Travel lane widths: the Section editor\'s travel-lane segments, assessed against EDM Table 8-10 (' + DM.lanes.map(function(a) { return RPT.fx(a.width) + ' m'; }).join(', ') + ').',
     'Deck area: the ' + DM.parklet.shape + ' footprint (' + RPT.fx(DM.parklet.area, 2) + ' m²).',
     'Compliance status and text: each check\'s own result for the inputs above; a check with an input not entered is not confirmed.',
@@ -18467,6 +18481,7 @@ RPT.sources = function(d) {
     'Library dimensions marked DI are interpreted, not source data.',
     'The Section is a schematic cross-section, not a construction drawing. No structural or construction feasibility is assessed.'].filter(Boolean);
   var body = "<div class='flow'>" + RPT.group('Standards and data', li(std)) + RPT.group('Entered inputs', li(entered.length ? entered : ['None entered.'])) +
+    (typeof SMP !== 'undefined' && SMP.sourcesList().length ? RPT.group('Imported site data (verify on site)', li(SMP.sourcesList().map(RPT.esc))) : '') +
     RPT.group('From the design model', li(model)) + RPT.group('Assumptions', li(assume)) + '</div>';
   return RPT.sheet('a4', '09', 'Sources and assumptions', body, '', 'flows');
 };
@@ -18681,7 +18696,7 @@ RPT.css = function(d) {
     '.caption { margin-top: 4mm; max-width: 170mm; }',
     '.muted { color: var(--mid); }',
     '.pill { display: inline-block; font: 600 7.5pt/1.3 var(--ui); letter-spacing: .04em; text-transform: uppercase; padding: 0.3mm 1.6mm; border: 0.3mm solid currentColor; border-radius: 0.8mm; white-space: nowrap; }',
-    '.pill.pass { color: var(--pass); } .pill.fail { color: var(--fail); } .pill.unclear { color: var(--nc); }',
+    '.pill.pass { color: var(--pass); } .pill.fail { color: var(--fail); } .pill.unclear { color: var(--nc); } .pill.provisional { color: #8A5A00; border-style: dashed; }',
     '.flow { display: grid; row-gap: 6mm; align-content: start; }',
     '.tbl { width: 100%; border-collapse: collapse; font-size: 8.5pt; table-layout: auto; }',
     '.tbl th { font-size: 7.5pt; font-weight: 600; text-align: left; color: var(--mid); padding: 1mm 1.5mm; border-bottom: 0.3mm solid var(--ink); vertical-align: bottom; }',
@@ -21148,7 +21163,8 @@ SM._db = function() {
 SM.cacheGet = async function(key) {
   try {
     var db = await SM._db(), v = await new Promise(function(res, rej) { var r = db.transaction('cache').objectStore('cache').get(key); r.onsuccess = function() { res(r.result); }; r.onerror = function() { rej(r.error); }; });
-    return v && Date.now() - v.t < SM.TTL ? v.data : null;
+    if (v && Date.now() - v.t < SM.TTL) { SM._hitAt = new Date(v.t).toISOString(); return v.data; }
+    return null;
   } catch (e) { return null; }
 };
 SM.cachePut = async function(key, data) {
@@ -21159,16 +21175,22 @@ SM.round = function(v) { return (+v).toFixed(4); };   // ~10 m: the cache cell
 // ── Network: one request at a time per service, Nominatim spaced 1 s ───────────────────────────
 SM.fetchJSON = async function(service, key, url, init) {
   var hit = await SM.cacheGet(key);
-  if (hit) { console.log('[site-map] cache hit: ' + key); return hit; }
+  if (hit) { console.log('[site-map] cache hit: ' + key); SM.lastAt = SM._hitAt || new Date().toISOString(); return hit; }
   var gap = service === 'nominatim' ? 1000 : 0, wait = (SM._last[service] || 0) + gap - Date.now();
   if (wait > 0) await new Promise(function(r) { setTimeout(r, wait); });
   SM._last[service] = Date.now();
   var r;
-  try { r = await fetch(url, Object.assign({ headers: { Accept: 'application/json' } }, init || {})); }
-  catch (e) { var err = new Error('offline'); err.offline = true; throw err; }
+  // a busy server (429 / 502-504, Overpass especially) is retried after 4 s, then 8 s: its fair-use guidance asks clients to back off
+  for (var tr = 0; ; tr++) {
+    try { r = await fetch(url, Object.assign({ headers: { Accept: 'application/json' } }, init || {})); }
+    catch (e) { var err = new Error('offline'); err.offline = true; throw err; }
+    if ([429, 502, 503, 504].indexOf(r.status) < 0 || tr >= 2) break;
+    console.log('[site-map] ' + service + ' answered HTTP ' + r.status + ', retrying in ' + (4 << tr) + ' s');
+    await new Promise(function(res) { setTimeout(res, 4000 << tr); }); SM._last[service] = Date.now();
+  }
   if (!r.ok) throw new Error(service + ' answered HTTP ' + r.status + (r.status === 429 ? ' (too many requests: wait a minute)' : ''));
   var j = await r.json();
-  SM.cachePut(key, j);
+  SM.cachePut(key, j); SM.lastAt = new Date().toISOString();
   return j;
 };
 SM.overpass = function(key, q) {
@@ -21189,7 +21211,7 @@ SM.snap = function(ways, lat, lon) {
     for (var i = 1; i < g.length; i++) {
       var a = g[i - 1], b = g[i], dx = b.e - a.e, dy = b.n - a.n, l2 = dx * dx + dy * dy; if (l2 < 1e-6) continue;
       var t = Math.max(0, Math.min(1, -(a.e * dx + a.n * dy) / l2)), pe = a.e + t * dx, pn = a.n + t * dy, d = Math.hypot(pe, pn);
-      if (!best || d < best.dist) best = { way: w, seg: i, e: pe, n: pn, dist: d, bearing: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI, 180), len: Math.sqrt(l2) };
+      if (!best || d < best.dist) best = { way: w, seg: i, e: pe, n: pn, dist: d, bearing: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI, 180), dir: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI), len: Math.sqrt(l2) };
     }
   });
   if (best) { var ll = T.from(best.e, best.n); best.lat = ll.lat; best.lon = ll.lon; }
@@ -21299,5 +21321,416 @@ SM.use = function() {
   SM.close();
 };
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('smModal').classList.contains('open')) SM.close(); });
+</script>
+<style>
+/* -- Site from map (Brief 13) phase 2: provenance tags, imported objects -------------------- */
+.prov-tag { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 7px; font: 600 10px/15px var(--font-ui, sans-serif); letter-spacing: .04em; text-transform: uppercase; vertical-align: 1px; cursor: pointer; border: 1px solid currentColor; background: transparent; }
+.prov-tag.osm, .prov-tag.cov { color: var(--accent-ui, #3AA8E4); }
+.prov-tag.estimate { color: #D9A441; border-style: dashed; }
+.prov-tag.user { color: var(--c-text-dim, #9AA0A6); cursor: default; }
+.prov-tag:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
+.smp-msg { display: block; margin: 2px 0 var(--sp-2, 8px); font-size: 11px; line-height: 1.45; color: var(--c-text-dim, #9AA0A6); }
+.smp-msg b { color: var(--c-text, #F2F2F0); font-weight: 600; }
+#smpCheck { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--rule, #D8D7D3); border-left: 4px solid #D9A441; border-radius: 4px; background: var(--card, #fff); }
+#smpCheck h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+#smpCheck p { margin: 0 0 8px; font-size: 12px; color: var(--muted, #666A6F); }
+#smpCheck ul { margin: 0; padding: 0; list-style: none; }
+#smpCheck li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid var(--rule, #D8D7D3); font-size: 12px; }
+.smp-badge { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; background: #FEF7E4; color: #8A5A00; white-space: nowrap; }
+.smp-badge.ok { background: var(--pass-light, #eef6f0); color: var(--pass, #2d6a4f); }
+.smp-src { color: var(--muted, #666A6F); }
+.smp-confirm { font: 600 11px var(--font-ui, sans-serif); padding: 3px 9px; border: 1px solid var(--rule, #D8D7D3); border-radius: 3px; background: transparent; color: var(--ink, #2B2B2B); cursor: pointer; }
+.smp-confirm:hover { border-color: var(--accent, #0696D7); }
+.smp-confirm:focus-visible { outline: 2px solid var(--accent, #0696D7); outline-offset: 1px; }
+.badge.badge-prov { outline: 1px dashed currentColor; outline-offset: 1px; }
+</style>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// SITE FROM MAP (Brief 13) - Phase 2: import the street context (SMP)
+// One Overpass query (80 m around the picked point): the picked way, bus routes on it, buildings
+// and the POIs in them, bus stops. City of Vancouver Open Data (opendatasoft API v2.1, 80 m):
+// water-hydrants, public-trees, bikeways, rapid-transit-stations. Each imported value carries
+// provenance {source: osm | cov | estimate | user, id, fetchedAt}: site fields in state.__prov,
+// building fields in the building entry's __prov, site objects in their own .prov. Nothing
+// imported is authoritative: imported site objects wait for a one-click confirmation in the
+// Check tab, and every check that depends on an unconfirmed import is "provisional".
+// World frame: the picked point (on the way's centreline) is the deck centre on the road centre
+// line (x = roadCenterX, z = L / 2); east / north map to world through the model's north.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var SMP = { R: 80, COV: 'https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/', Z: [-20, 80] };
+SMP.prov = function() { if (!state.__prov || typeof state.__prov !== 'object') state.__prov = {}; return state.__prov; };
+SMP.set = function(key, source, id, at, note) { SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; };
+SMP.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
+SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', estimate: 'estimate', user: 'you' };
+SMP.TAG = { osm: 'OSM', cov: 'CoV', estimate: 'est.', user: 'you' };
+// Site-tab fields that carry a tag: key -> the element whose .ff label gets it
+SMP.FIELDS = { address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
+  roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'bikeLaneToggle' };
+SMP.CRIT_FIELDS = { c2: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'routeType', 'bikeLane'], c1: ['parkingRestrictions'] };
+
+// ── Provenance tags in the Site tab; editing a field flips it to 'user'; a click confirms ─────
+SMP.tagHtml = function(p) {
+  var t = p.source === 'user' ? (p.from ? 'Confirmed by you (was ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'Entered by you') : SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', fetched ' + SMP.day(p.fetchedAt) + (p.note ? ' - ' + p.note : '') + '. Click to confirm it.';
+  return { text: SMP.TAG[p.source] || p.source, title: t };
+};
+SMP.tagEl = function(host, p, onConfirm) {
+  var tag = host.querySelector(':scope > .prov-tag');
+  if (!p) { if (tag) tag.remove(); return; }
+  if (!tag) { tag = document.createElement('button'); tag.type = 'button'; tag.className = 'prov-tag'; host.appendChild(tag); }
+  var h = SMP.tagHtml(p); tag.textContent = h.text; tag.title = h.title; tag.setAttribute('aria-label', h.title); tag.className = 'prov-tag ' + p.source;
+  tag.onclick = function(e) { e.preventDefault(); e.stopPropagation(); if (p.source !== 'user') onConfirm(); };
+};
+SMP.userOf = function(p) { return p && p.source !== 'user' ? { source: 'user', from: p.source, id: p.id, fetchedAt: p.fetchedAt, confirmedAt: new Date().toISOString() } : p; };
+SMP.confirmField = function(key) { var P = SMP.prov(); if (P[key]) P[key] = SMP.userOf(P[key]); SMP.refresh(); };
+SMP.tags = function() {
+  var P = SMP.prov();
+  Object.keys(SMP.FIELDS).forEach(function(k) {
+    var el = document.getElementById(SMP.FIELDS[k]); if (!el) return;
+    var ff = el.closest('.ff'), lab = ff && ff.querySelector('label'); if (!lab) return;
+    SMP.tagEl(lab, P[k], function() { SMP.confirmField(k); });
+    if (!el._smpBound) {   // a user edit flips the field to 'user'
+      el._smpBound = true;
+      ['input', 'change', 'click'].forEach(function(ev) { el.addEventListener(ev, function(e) { if (ev === 'click' && !e.target.closest('button')) return; var q = SMP.prov()[k]; if (q && q.source !== 'user') { SMP.prov()[k] = { source: 'user', from: q.source, fetchedAt: q.fetchedAt, editedAt: new Date().toISOString() }; setTimeout(SMP.refresh, 0); } }); });
+    }
+  });
+};
+SMP.BFIELDS = ['height', 'depth', 'length', 'zOffset', 'setback', 'use', 'frontage', 'name', 'storeys'];
+SMP.decorateBldg = function(side) {
+  var list = (side === 'L' ? BLDG_L : BLDG_R).buildings || [];
+  list.forEach(function(b, i) {
+    SMP.BFIELDS.forEach(function(k) {
+      var el = document.getElementById('bldg' + side + i + '_' + k); if (!el) return;
+      var row = el.closest('.bl-row'), lab = row && row.querySelector('span'); if (!lab) return;
+      var p = b.__prov && b.__prov[k];
+      SMP.tagEl(lab, p || null, function() { b.__prov[k] = SMP.userOf(b.__prov[k]); saveSettings(); SMP.decorateBldg(side); SMP.renderCheck(); });
+      if (!el._smpBound) {
+        el._smpBound = true;
+        el.addEventListener(k === 'use' || k === 'frontage' || k === 'name' || k === 'storeys' ? 'change' : 'input', function() {
+          var bb = ((side === 'L' ? BLDG_L : BLDG_R).buildings || [])[i]; if (!bb || !bb.__prov || !bb.__prov[k] || bb.__prov[k].source === 'user') return;
+          bb.__prov[k] = { source: 'user', from: bb.__prov[k].source, fetchedAt: bb.__prov[k].fetchedAt, editedAt: new Date().toISOString() };
+          if (k === 'storeys' && bb.__prov.height && !bb.heightManual) bb.__prov.height = { source: 'user', from: bb.__prov.height.source, fetchedAt: bb.__prov.height.fetchedAt, editedAt: new Date().toISOString() };
+          saveSettings(); setTimeout(function() { SMP.decorateBldg(side); }, 0);
+        });
+      }
+    });
+  });
+};
+
+// ── Imported site objects: hydrants (curb_features H), street trees, transit stops ────────────
+SMP.objects = function() {
+  var o = [];
+  (state.curb_features || []).forEach(function(f) { if (f.prov) o.push({ kind: 'hydrant', label: 'Fire hydrant', obj: f, list: 'curb_features' }); });
+  (state.transit_stops || []).forEach(function(f) { o.push({ kind: 'transit', label: f.kind === 'rapid' ? 'Rapid transit station' : 'Bus stop' + (f.name ? ' (' + f.name + ')' : ''), obj: f, list: 'transit_stops' }); });
+  (state.street_trees || []).forEach(function(f) { o.push({ kind: 'tree', label: 'Street tree' + (f.species ? ' (' + f.species.toLowerCase() + ')' : ''), obj: f, list: 'street_trees' }); });
+  return o;
+};
+SMP.unconfirmed = function() { return SMP.objects().filter(function(o) { return !o.obj.confirmed; }); };
+SMP.fieldPending = function(keys) { var P = SMP.prov(); return keys.filter(function(k) { return P[k] && P[k].source !== 'user'; }); };
+// A check is provisional while an import it depends on is unconfirmed
+SMP.isProvisional = function(critId) {
+  var un = SMP.unconfirmed();
+  if (critId === 'c5' && un.some(function(o) { return o.kind === 'hydrant'; })) return true;
+  if (critId === 'c1' && un.some(function(o) { return o.kind === 'transit'; })) return true;
+  var fk = SMP.CRIT_FIELDS[critId]; return !!(fk && SMP.fieldPending(fk).length);
+};
+SMP.anyPending = function() { return SMP.unconfirmed().length > 0 || criteria.some(function(c) { return SMP.isProvisional(c.id); }); };
+SMP.confirm = function(list, id) {
+  var o = (state[list] || []).find(function(f) { return String(f.id) === String(id); }); if (!o) return;
+  o.confirmed = true; o.confirmedAt = new Date().toISOString();
+  SMP.refresh();
+};
+SMP.where = function(o) {
+  var L = typeof designParkletLength !== 'undefined' ? designParkletLength : 20, z = +o.xM;
+  return 'z ' + z.toFixed(1) + ' m (' + (z < 0 ? (-z).toFixed(1) + ' m before the deck' : z > L ? (z - L).toFixed(1) + ' m past the deck' : 'beside the deck') + ')';
+};
+SMP.renderCheck = function() {
+  var host = document.getElementById('smpCheck');
+  if (!host) { var cl = document.getElementById('criteriaList'); if (!cl) return; host = document.createElement('div'); host.id = 'smpCheck'; cl.parentNode.insertBefore(host, cl); }
+  var objs = SMP.objects(), P = SMP.prov(), fields = Object.keys(P).filter(function(k) { return P[k].source !== 'user' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); });
+  if (!objs.length && !fields.length) { host.hidden = true; host.innerHTML = ''; return; }
+  host.hidden = false;
+  var n = objs.filter(function(o) { return !o.obj.confirmed; }).length + fields.length;
+  host.innerHTML = '<h3>Imported site data - verify on site</h3><p>' + (n ? n + ' imported item' + (n > 1 ? 's' : '') + ' still to confirm. Checks that depend on them are provisional until each is confirmed.' : 'Every imported item is confirmed.') + '</p><ul>' +
+    fields.map(function(k) { var p = P[k]; return "<li><span class='smp-badge'>imported - verify on site</span><span>" + SM.esc({ roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', parkingRestrictions: 'Parking restrictions' }[k] || k) + " <span class='smp-src'>" + SM.esc(SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' - ' + p.note : '')) + "</span></span><button type='button' class='smp-confirm' onclick=\"SMP.confirmField('" + k + "')\">Confirm</button></li>"; }).join('') +
+    objs.map(function(o) { var f = o.obj, p = f.prov || {}; return "<li><span class='smp-badge" + (f.confirmed ? ' ok' : '') + "'>" + (f.confirmed ? 'confirmed' : 'imported - verify on site') + '</span><span>' + SM.esc(o.label) + ' at ' + SMP.where(f) + " <span class='smp-src'>" + SM.esc((SMP.SRC[p.source] || '') + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt)) + '</span></span>' +
+      (f.confirmed ? '<span></span>' : "<button type='button' class='smp-confirm' onclick=\"SMP.confirm('" + o.list + "','" + f.id + "')\">Confirm</button>") + '</li>'; }).join('') + '</ul>';
+};
+// Badges: "Pass / Fail / Awaiting input" + " (provisional)" while an import it depends on is unconfirmed
+SMP.decorateChecks = function() {
+  if (typeof criteria === 'undefined') return;
+  criteria.forEach(function(c) {
+    var b = document.getElementById('badge_' + c.id); if (!b) return;
+    var st = getCriterionStatus(c), base = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Awaiting input', pv = SMP.isProvisional(c.id);
+    b.textContent = base + (pv ? ' (provisional)' : ''); b.classList.toggle('badge-prov', pv);
+    b.title = pv ? 'Provisional: depends on imported site data not yet verified on site (see the list above the checks)' : '';
+  });
+  SMP.renderCheck();
+};
+SMP.refresh = function() {
+  try { SMP.tags(); SMP.decorateBldg('L'); SMP.decorateBldg('R'); } catch (e) {}
+  try { if (typeof updateCurbFeatureDists === 'function') updateCurbFeatureDists(); } catch (e) {}
+  SMP.decorateChecks();
+  try { if (typeof renderVerdict === 'function') renderVerdict(); } catch (e) {}
+  try { renderPlanView(); } catch (e) {}
+  try { saveSettings(); } catch (e) {}
+};
+
+// ── Geometry: lat / lon -> world (x across, z along) ──────────────────────────────────────────
+SMP.frame = function() {
+  var sm = state.__siteMap, DM = buildDesignModel(), LM = DM.landmarks, T = SM.enu(sm.lat, sm.lon), E = siteBearingWorld(90), N = siteBearingWorld(0), zc = DM.parklet.length / 2;
+  return { LM: LM, L: DM.parklet.length, w: function(lat, lon) { var v = T.to(lat, lon); return { x: LM.roadCenterX + v.e * E.x + v.n * N.x, z: zc + v.e * E.z + v.n * N.z }; } };
+};
+SMP.inPoly = function(p, poly) { var c = false; for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) { var a = poly[i], b = poly[j]; if ((a.z > p.z) !== (b.z > p.z) && p.x < (b.x - a.x) * (p.z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
+SMP.num = function(v) { var n = parseFloat(String(v || '').replace(',', '.')); return isFinite(n) ? n : null; };
+// OSM tags (a building or a POI in it) -> the programme's use
+SMP.useOf = function(t) {
+  if (!t) return null;
+  var a = t.amenity, s = t.shop, b = t.building;
+  if (a === 'cafe') return 'cafe';
+  if (['restaurant', 'fast_food', 'bar', 'pub', 'food_court', 'ice_cream', 'biergarten'].indexOf(a) >= 0) return 'restaurant';
+  if (['school', 'college', 'university', 'library', 'townhall', 'courthouse', 'hospital', 'clinic', 'place_of_worship', 'community_centre', 'police', 'fire_station', 'arts_centre', 'theatre'].indexOf(a) >= 0) return 'institutional';
+  if (s === 'vacant' || t.disused === 'yes' || t['disused:shop']) return 'vacant';
+  if (s || ['bank', 'pharmacy', 'bureau_de_change'].indexOf(a) >= 0) return 'retail';
+  if (t.office) return 'office';
+  if (['apartments', 'residential', 'house', 'detached', 'semidetached_house', 'terrace', 'dormitory'].indexOf(b) >= 0) return 'residential';
+  if (['retail', 'commercial', 'supermarket', 'kiosk'].indexOf(b) >= 0) return b === 'commercial' ? 'mixed' : 'retail';
+  if (b === 'office') return 'office';
+  if (['civic', 'public', 'school', 'university', 'hospital', 'church', 'government'].indexOf(b) >= 0) return 'institutional';
+  return null;
+};
+SMP.normName = function(s) {
+  return String(s || '').toLowerCase().replace(/[.,]/g, '').replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd')
+    .replace(/\bboulevard\b/g, 'blvd').replace(/\bwest\b/g, 'w').replace(/\beast\b/g, 'e').replace(/\s+/g, ' ').trim();
+};
+
+// ── Fetch ────────────────────────────────────────────────────────────────────────────────────
+SMP.cov = async function(ds, field, lat, lon) {
+  var w = 'within_distance(' + field + ", geom'POINT(" + lon + ' ' + lat + ")', " + SMP.R + 'm)';
+  var j = await SM.fetchJSON('cov', 'cov|' + ds + '|' + SM.round(lat) + ',' + SM.round(lon), SMP.COV + ds + '/records?limit=100&where=' + encodeURIComponent(w));
+  return { rows: (j && j.results) || [], at: SM.lastAt };
+};
+SMP.pt = function(r) { var g = r.geo_point_2d || (r.geom && r.geom.geometry && { lon: r.geom.geometry.coordinates[0], lat: r.geom.geometry.coordinates[1] }); return g && isFinite(g.lat) ? g : null; };
+SMP.rowId = function(r) { var k = ['id', 'hydrant_id', 'asset_id', 'object_id', 'objectid', 'facilityid', 'station']; for (var i = 0; i < k.length; i++) if (r[k[i]] != null) return String(r[k[i]]); return null; };
+
+// ── The import ───────────────────────────────────────────────────────────────────────────────
+SMP.msg = function(html) { var el = document.getElementById('smpMsg'); if (el) el.innerHTML = html; };
+SMP.importContext = async function() {
+  var sm = state.__siteMap;
+  if (!sm) { SMP.msg('Locate the parklet on the map first (the import needs the street it is on).'); return null; }
+  var btn = document.getElementById('smpImportBtn'); if (btn) btn.disabled = true;
+  SMP.msg('Importing the street context (OpenStreetMap, then City of Vancouver open data)...');
+  var rep = { street: {}, buildings: { L: 0, R: 0, skipped: 0 }, hydrants: 0, trees: 0, transit: 0, notes: [], errors: [] };
+  try {
+    var la = sm.lat, lo = sm.lon;
+    var q = '[out:json][timeout:25];way(' + sm.wayId + ')->.s;.s out tags geom;rel(bw.s)[route~"^(bus|trolleybus)$"];out tags;' +
+      'way(around:' + SMP.R + ',' + la + ',' + lo + ')[building];out tags geom;node(around:' + SMP.R + ',' + la + ',' + lo + ')[~"^(amenity|shop|office)$"~"."];out body;' +
+      'node(around:' + SMP.R + ',' + la + ',' + lo + ')[highway=bus_stop];out body;';
+    var osm = await SM.overpass('ctx|' + sm.wayId + '|' + SM.round(la) + ',' + SM.round(lo), q), osmAt = SM.lastAt, el = (osm && osm.elements) || [];
+    var way = el.find(function(e) { return e.type === 'way' && e.id === sm.wayId; }), routes = el.filter(function(e) { return e.type === 'relation'; });
+    var blds = el.filter(function(e) { return e.type === 'way' && e.id !== sm.wayId && e.tags && e.tags.building; });
+    var pois = el.filter(function(e) { return e.type === 'node' && e.tags && (e.tags.amenity || e.tags.shop || e.tags.office) && e.tags.highway !== 'bus_stop'; });
+    var stops = el.filter(function(e) { return e.type === 'node' && e.tags && e.tags.highway === 'bus_stop'; });
+    var cov = {};
+    for (var ds of [['water-hydrants', 'geo_point_2d'], ['public-trees', 'geo_point_2d'], ['bikeways', 'geom'], ['rapid-transit-stations', 'geo_point_2d']]) {
+      try { cov[ds[0]] = await SMP.cov(ds[0], ds[1], la, lo); } catch (e) { rep.errors.push('CoV ' + ds[0] + ': ' + (e.offline ? 'not reachable' : e.message)); cov[ds[0]] = { rows: [], at: null }; }
+    }
+    // 1. the street
+    if (way) SMP.applyStreet(way, routes, stops, cov.bikeways, osmAt, rep);
+    else rep.errors.push('the picked way ' + sm.wayId + ' was not returned');
+    // 2. buildings (after the street: the landmarks follow the new road width)
+    SMP.applyBuildings(blds, pois, osmAt, rep);
+    // 3. site objects
+    SMP.applyObjects(cov, stops, osmAt, rep);
+    SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString();
+    SMP.refresh();
+    try { syncDesignModel('site-import'); } catch (e) {}
+    var s = rep.street;
+    SMP.msg('<b>Imported</b>: ' + SM.esc(s.summary || 'street not changed') + '; buildings ' + rep.buildings.L + ' near side, ' + rep.buildings.R + ' far side; ' + rep.hydrants + ' hydrant' + (rep.hydrants === 1 ? '' : 's') + ', ' + rep.trees + ' street tree' + (rep.trees === 1 ? '' : 's') + ', ' + rep.transit + ' transit stop' + (rep.transit === 1 ? '' : 's') + ' on the parklet side. ' +
+      'Tags show where each value came from; confirm the imported objects in the Check tab.' + (rep.errors.length ? ' Not imported: ' + SM.esc(rep.errors.join('; ')) + '.' : ''));
+    console.log('[site-map] import: ' + JSON.stringify(rep));
+    return rep;
+  } catch (e) {
+    SMP.msg(e.offline ? SM.offlineText + ' Nothing was imported.' : 'The import failed: ' + SM.esc(e.message) + '. Nothing was changed.');
+    return null;
+  } finally { if (btn) btn.disabled = false; }
+};
+SMP.applyStreet = function(way, routes, stops, bikeways, at, rep) {
+  var t = way.tags || {}, id = 'way ' + way.id, hw = String(t.highway || '').replace('_link', ''), sm = state.__siteMap;
+  var sn = SM.snap([way], sm.lat, sm.lon), dir = sn ? sn.dir : 0, right = siteAngle(siteNorm(dir + 90), sm.sideBearing) < 90;   // parklet on the way's right?
+  var ow = t.oneway === 'yes' || t.oneway === 'true' || t.oneway === '1' || t.oneway === '-1' || t.junction === 'roundabout';
+  var n = SMP.num(t.lanes), fw = SMP.num(t['lanes:forward']), bw = SMP.num(t['lanes:backward']), est = false;
+  var guess = { primary: [2, 3], trunk: [2, 3], secondary: [1, 2], tertiary: [1, 2] }[hw] || [1, 1];
+  var s = rep.street; s.name = t.name || ''; s.highway = t.highway || ''; s.maxspeed = t.maxspeed || null; s.sidewalk = t.sidewalk || null;
+  // direction + lanes
+  var dirV = ow ? 'oneway' : 'twoway';
+  onRoadDirChange(dirV); SMP.set('roadDir', 'osm', id, at, 'oneway=' + (t.oneway || 'no'));
+  var total;
+  if (ow) {
+    if (n == null) { n = guess[1]; est = true; }
+    n = Math.max(1, Math.min(6, Math.round(n))); total = n;
+    var lc = document.getElementById('laneCount'); if (lc) lc.value = n; onLaneCountChange();
+    SMP.set('lanes', est ? 'estimate' : 'osm', id, at, est ? 'no lanes tag; typical for highway=' + (t.highway || '?') : 'lanes=' + t.lanes);
+    s.lanes = n + ' (one-way)';
+  } else {
+    if (fw == null || bw == null) { if (n != null) { fw = Math.max(1, Math.ceil(n / 2)); bw = Math.max(1, Math.floor(n / 2)); } else { fw = bw = guess[0]; est = true; } }
+    var near = right ? fw : bw, farL = right ? bw : fw;   // traffic keeps right: the lanes beside the parklet run with it on their right
+    near = Math.max(1, Math.min(4, Math.round(near))); farL = Math.max(1, Math.min(4, Math.round(farL))); total = near + farL;
+    var a = document.getElementById('lanesA'), b = document.getElementById('lanesB'); if (a) a.value = near; if (b) b.value = farL; onLanesAChange(); onLanesBChange();
+    ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, est ? 'estimate' : 'osm', id, at, est ? 'no lanes tag; typical for highway=' + (t.highway || '?') : 'lanes=' + (t.lanes || '') + (t['lanes:forward'] ? ', forward ' + t['lanes:forward'] : '') + (t['lanes:backward'] ? ', backward ' + t['lanes:backward'] : '')); });
+    s.lanes = near + ' near + ' + farL + ' far';
+  }
+  // bike lane on the parklet side: OSM cycleway:<side> / :both / cycleway, else a CoV bikeway on this street
+  var cw = t[right ? 'cycleway:right' : 'cycleway:left'] || t['cycleway:both'] || t.cycleway || '', bike = null, bsrc = 'osm', bnote = '';
+  if (/^(lane|opposite_lane)$/.test(cw)) bike = 'painted'; else if (/^(track|opposite_track)$/.test(cw)) bike = 'protected'; else if (/^(no|none|shared_lane|share_busway|opposite)$/.test(cw)) bike = 'none';
+  if (bike) bnote = 'cycleway' + (t[right ? 'cycleway:right' : 'cycleway:left'] ? ':' + (right ? 'right' : 'left') : t['cycleway:both'] ? ':both' : '') + '=' + cw;
+  var cb = (bikeways.rows || []).find(function(r) { return SMP.normName(r.street_name) === SMP.normName(t.name) && /Painted|Protected/i.test(r.bikeway_type || ''); });
+  if ((!bike || cw === 'separate') && cb) { bike = /Protected/i.test(cb.bikeway_type) ? 'protected' : 'painted'; bsrc = 'cov'; bnote = 'bikeways: ' + cb.bikeway_type + ' (' + (cb.bike_route_name || '') + ')'; }
+  if (bike) { onBikeLaneType(bike); SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : id, bsrc === 'cov' ? bikeways.at : at, bnote); s.bike = bike; }
+  // route type: bus / truck on a primary or secondary street, or where a bus route runs
+  var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), heavy = /^(trunk|primary|secondary)$/.test(hw);
+  var rt = heavy || bus.length ? 'bus_truck' : 'standard';
+  onRouteTypeToggle(rt);
+  SMP.set('routeType', 'osm', id, at, 'suggested: highway=' + (t.highway || '?') + (bus.length ? '; bus route' + (bus.length > 1 ? 's ' : ' ') + bus.map(function(r) { return r.tags.ref || r.tags.name || r.id; }).join(', ') : '; no bus route on the way') + (stops.length ? '; ' + stops.length + ' bus stop' + (stops.length > 1 ? 's' : '') + ' within 80 m' : ''));
+  s.route = rt;
+  // curb to curb: NOT imported (OSM has no reliable width): lanes x 3.2 + parking lanes x 2.4 (+ the bike lane)
+  var pkFar = t['parking:' + (right ? 'left' : 'right')] || t['parking:lane:' + (right ? 'left' : 'right')] || t['parking:both'] || t['parking:lane:both'] || '';
+  var farPark = /^(no|none|no_parking|no_stopping|fire_lane|separate)$/.test(pkFar) ? 0 : 1, bikeW = bike === 'protected' ? 2.0 : bike === 'painted' ? 1.5 : 0;
+  var w = Math.round((total * 3.2 + (1 + farPark) * 2.4 + bikeW) * 100) / 100;
+  var rw = document.getElementById('roadWidth'); if (rw) { rw.value = w; onRoadWidthChange(); }
+  SMP.set('roadWidth', 'estimate', id, at, total + ' lanes x 3.2 m + ' + (1 + farPark) + ' parking lane' + (farPark ? 's' : '') + ' x 2.4 m' + (bikeW ? ' + bike lane ' + bikeW + ' m' : '') + (pkFar ? ' (parking tag: ' + pkFar + ')' : ' (far-side parking assumed)') + ': measure it');
+  s.roadWidth = w;
+  s.summary = (t.name || 'the street') + ' (' + (t.highway || '?') + '): ' + s.lanes + ' lanes, ' + (ow ? 'one-way' : 'two-way') + ', route ' + (rt === 'bus_truck' ? 'bus / truck' : 'standard') + (bike ? ', bike lane ' + bike : '') + (t.maxspeed ? ', ' + t.maxspeed + ' km/h' : '') + ', curb to curb ' + w.toFixed(2) + ' m (estimate)';
+};
+SMP.applyBuildings = function(blds, pois, at, rep) {
+  var F = SMP.frame(), LM = F.LM, L = F.L, zc = L / 2, zMin = SMP.Z[0], zMax = SMP.Z[1];
+  var pw = pois.map(function(p) { var w = F.w(p.lat, p.lon); return { x: w.x, z: w.z, tags: p.tags, id: p.id }; });
+  var cand = { L: [], R: [] };
+  blds.forEach(function(b) {
+    var g = (b.geometry || []).filter(Boolean); if (g.length < 3) return;
+    var poly = g.map(function(p) { return F.w(p.lat, p.lon); }), xs = poly.map(function(p) { return p.x; }), zs = poly.map(function(p) { return p.z; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), z0 = Math.min.apply(null, zs), z1 = Math.max.apply(null, zs);
+    if (x0 < LM.roadCenterX && x1 > LM.roadCenterX) { rep.buildings.skipped++; return; }   // spans the street: not a frontage
+    var side = (x0 + x1) / 2 < LM.roadCenterX ? 'L' : 'R', face = side === 'L' ? x1 : x0;
+    var curbDist = side === 'L' ? LM.roadLeft - face : face - LM.roadRight;
+    if (curbDist > 30 || curbDist < -1) { rep.buildings.skipped++; return; }
+    var za = Math.max(zMin, z0), zb = Math.min(zMax, z1); if (zb - za < 1) { rep.buildings.skipped++; return; }
+    var inside = pw.filter(function(p) { return SMP.inPoly(p, poly); }).sort(function(a, c) { return Math.abs(a.z - zc) - Math.abs(c.z - zc); });
+    cand[side].push({ b: b, face: face, curbDist: curbDist, z0: za, z1: zb, depth: x1 - x0, poi: inside[0] || null });
+  });
+  ['L', 'R'].forEach(function(side) {
+    // nearest faces first; a building mostly behind nearer ones (>= 80 % of its span covered) is left out
+    var list = cand[side].sort(function(a, b) { return a.curbDist - b.curbDist; }), kept = [];
+    list.forEach(function(c) {
+      var cov = 0; kept.forEach(function(k) { cov += Math.max(0, Math.min(c.z1, k.z1) - Math.max(c.z0, k.z0)); });
+      if (cov >= 0.8 * (c.z1 - c.z0)) { rep.buildings.skipped++; return; } kept.push(c);
+    });
+    kept.sort(function(a, b) { return a.z0 - b.z0; });
+    var frontage = side === 'L' ? LM.bufferL.x0 : LM.bufferR.x1, src = { source: 'osm', fetchedAt: at };
+    var out = kept.slice(0, 12).map(function(c) {
+      var t = c.b.tags || {}, id = 'way ' + c.b.id, P = function(extra) { return Object.assign({}, src, { id: id }, extra || {}); };
+      var setback = Math.max(0, Math.min(8, side === 'L' ? frontage - c.face : c.face - frontage));
+      var lv = SMP.num(t['building:levels']), ht = SMP.num(t.height), storeys = lv ? Math.max(1, Math.min(6, Math.round(lv))) : null;
+      var height = ht || (storeys ? bldgHeightFromStoreys(storeys) : 8);
+      var poiUse = c.poi ? SMP.useOf(c.poi.tags) : null, bUse = SMP.useOf(t), use = poiUse || bUse;
+      if (poiUse && bUse === 'residential' && poiUse !== 'residential') use = poiUse;   // a shop in a residential building: the frontage is the shop
+      var name = (c.poi && c.poi.tags.name) || t.name || '';
+      var e = { height: Math.round(Math.max(2, Math.min(60, height)) * 10) / 10, depth: Math.round(Math.max(2, Math.min(30, c.depth)) * 10) / 10, length: Math.round((c.z1 - c.z0) * 10) / 10,
+        zOffset: Math.round(c.z0 * 10) / 10, setback: Math.round(setback * 10) / 10, frontage: 'glazed' };
+      e.__prov = { height: ht ? P({ note: 'height=' + t.height }) : storeys ? P({ note: 'building:levels=' + t['building:levels'] }) : { source: 'estimate', id: id, fetchedAt: at, note: 'no height or levels tag' },
+        depth: P({ note: 'footprint' }), length: P({ note: 'footprint along the street' }), zOffset: P({ note: 'footprint' }), setback: P({ note: 'face ' + c.curbDist.toFixed(1) + ' m from the curb' }),
+        frontage: { source: 'estimate', id: id, fetchedAt: at, note: 'OSM has no frontage type' } };
+      if (storeys) { e.storeys = storeys; e.__prov.storeys = P({ note: 'building:levels=' + t['building:levels'] }); }
+      if (use) { e.use = use; e.__prov.use = c.poi && poiUse ? Object.assign({}, src, { id: 'node ' + c.poi.id, note: Object.keys(c.poi.tags).filter(function(k) { return /^(amenity|shop|office)$/.test(k); }).map(function(k) { return k + '=' + c.poi.tags[k]; }).join(', ') }) : P({ note: 'building=' + t.building }); }
+      if (name) { e.name = name.slice(0, 40); e.__prov.name = c.poi && c.poi.tags.name ? Object.assign({}, src, { id: 'node ' + c.poi.id }) : P(); }
+      if (ht || storeys) e.heightManual = !!ht;
+      return e;
+    });
+    if (!out.length) return;
+    (side === 'L' ? BLDG_L : BLDG_R).buildings = out; rep.buildings[side] = out.length;
+  });
+  try { renderBldgControls(); } catch (e) {}
+  try { syncDesignModel('site-import'); } catch (e) {}
+  var h = _dmCurrent().site.host; rep.host = h ? (h.name || '(unnamed)') + ', ' + h.use : null;
+};
+SMP.applyObjects = function(cov, stops, osmAt, rep) {
+  var F = SMP.frame(), LM = F.LM, L = F.L, near = function(w) { return w.x < LM.roadCenterX; }, yM = function(w) { return Math.max(-(LM.sidewalkW || 2) - 0.5, Math.min(0, w.x - LM.roadLeft)); };
+  var keep = function(list) { return (state[list] || []).filter(function(f) { return !f.prov || f.prov.source === 'user'; }); };   // a re-import replaces earlier imports
+  // hydrants -> curb features H (C05 measures them)
+  var cf = keep('curb_features'), hy = cov['water-hydrants'];
+  (hy.rows || []).forEach(function(r) {
+    var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return;
+    cf.push({ id: 'cov-' + (SMP.rowId(r) || (g.lat + ',' + g.lon)), type: 'H', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'cov', dataset: 'water-hydrants', id: SMP.rowId(r), fetchedAt: hy.at }, confirmed: false });
+    rep.hydrants++;
+  });
+  state.curb_features = cf;
+  // street trees (reference: no C01-C15 check measures trees)
+  var tr = []; (cov['public-trees'].rows || []).forEach(function(r) {
+    var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return;
+    tr.push({ id: 'cov-' + (SMP.rowId(r) || (g.lat + ',' + g.lon)), xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, species: r.common_name || '', height: r.height_m || null, prov: { source: 'cov', dataset: 'public-trees', id: SMP.rowId(r), fetchedAt: cov['public-trees'].at }, confirmed: false });
+  });
+  state.street_trees = tr; rep.trees = tr.length;
+  // transit stops: OSM bus stops, CoV rapid transit stations (C01: a bus zone)
+  var ts = [];
+  stops.forEach(function(s) { var w = F.w(s.lat, s.lon); if (!near(w)) return; ts.push({ id: 'osm-' + s.id, kind: 'bus', name: (s.tags && (s.tags.name || s.tags.ref)) || '', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'osm', id: 'node ' + s.id, fetchedAt: osmAt }, confirmed: false }); });
+  (cov['rapid-transit-stations'].rows || []).forEach(function(r) { var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return; ts.push({ id: 'cov-' + (SMP.rowId(r) || r.station || ''), kind: 'rapid', name: r.station || '', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'cov', dataset: 'rapid-transit-stations', id: SMP.rowId(r), fetchedAt: cov['rapid-transit-stations'].at }, confirmed: false }); });
+  state.transit_stops = ts; rep.transit = ts.length;
+  // C01: a parklet-side bus stop within 15 m of the deck suggests a bus zone
+  var inZone = ts.filter(function(s) { return s.kind === 'bus' && s.xM > -15 && s.xM < L + 15; });
+  if (inZone.length) {
+    var sel = document.getElementById('parking_restrictions'); if (sel) sel.value = 'bus_zone';
+    handleInput('c1', 'parking_restrictions', 'bus_zone');
+    SMP.set('parkingRestrictions', 'osm', inZone[0].prov.id, osmAt, 'bus stop' + (inZone[0].name ? ' ' + inZone[0].name : '') + ' at z ' + inZone[0].xM.toFixed(1) + ' m: a bus zone');
+    rep.notes.push('C01 set to a bus zone from a bus stop beside the deck');
+  }
+};
+
+// ── Plan: imported trees and transit stops (hydrants are drawn as curb features) ─────────────
+SMP.drawPlan = function() {
+  var svg = document.getElementById('planView'); if (!svg) return;
+  var old = svg.querySelector('#smpPlan'); if (old) old.remove();
+  var tr = state.street_trees || [], ts = state.transit_stops || []; if (!tr.length && !ts.length) return;
+  var LM = _dmCurrent().landmarks, p = function(o) { return worldToPlan(LM.roadLeft + (+o.yM || 0), +o.xM); }, a = worldToPlan(0, 0), b = worldToPlan(1, 0), k = Math.hypot(b.px - a.px, b.py - a.py) || 20;
+  var ns = 'http://www.w3.org/2000/svg', g = document.createElementNS(ns, 'g'); g.id = 'smpPlan'; g.setAttribute('pointer-events', 'none');
+  tr.forEach(function(o) { var q = p(o), c = document.createElementNS(ns, 'circle'); c.setAttribute('cx', q.px); c.setAttribute('cy', q.py); c.setAttribute('r', 1.5 * k); c.setAttribute('fill', 'rgba(94,140,80,.18)'); c.setAttribute('stroke', '#5E8C50'); c.setAttribute('stroke-width', 1); if (!o.confirmed) c.setAttribute('stroke-dasharray', '3 2'); g.appendChild(c); });
+  ts.forEach(function(o) { var q = p(o), r = document.createElementNS(ns, 'rect'), s = 0.9 * k; r.setAttribute('x', q.px - s / 2); r.setAttribute('y', q.py - s / 2); r.setAttribute('width', s); r.setAttribute('height', s); r.setAttribute('fill', '#3AA8E4'); r.setAttribute('stroke', '#17191C'); if (!o.confirmed) r.setAttribute('stroke-dasharray', '2 1'); g.appendChild(r);
+    var t = document.createElementNS(ns, 'text'); t.setAttribute('x', q.px + s * 0.7); t.setAttribute('y', q.py + 3); t.setAttribute('font-size', 9); t.setAttribute('fill', '#3AA8E4'); t.textContent = o.kind === 'rapid' ? 'Rapid transit' : 'Bus stop'; g.appendChild(t); });
+  svg.appendChild(g);
+};
+
+// ── Report: the imported items with their source and date (sources sheet) ────────────────────
+SMP.sourcesList = function() {
+  var P = SMP.prov(), out = [], lab = { address: 'Street address', lat: 'Latitude', lon: 'Longitude', streetBearing: 'Street bearing', parkletSide: 'Parklet side', roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', parkingRestrictions: 'Parking restrictions' };
+  Object.keys(P).forEach(function(k) { var p = P[k], s = p.source === 'user' ? (p.from ? 'confirmed or edited by you (imported from ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'entered by you') : SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' (' + p.note + ')' : ''); out.push((lab[k] || k) + ': ' + s); });
+  ['L', 'R'].forEach(function(side) { ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).forEach(function(b, i) { if (!b.__prov) return; var ks = Object.keys(b.__prov), src = {}; ks.forEach(function(k) { var s = b.__prov[k].source; (src[s] = src[s] || []).push(k); }); out.push((side === 'L' ? 'Near-side' : 'Far-side') + ' building ' + (i + 1) + (b.name ? ' (' + b.name + ')' : '') + ': ' + Object.keys(src).map(function(s) { return src[s].join(', ') + ' from ' + SMP.SRC[s]; }).join('; ') + ((b.__prov.length || b.__prov.zOffset || {}).id ? ', ' + (b.__prov.length || b.__prov.zOffset).id + ', ' + SMP.day((b.__prov.length || b.__prov.zOffset).fetchedAt) : '')); }); });
+  SMP.objects().forEach(function(o) { var p = o.obj.prov || {}; out.push(o.label + ' at ' + SMP.where(o.obj) + ': ' + (SMP.SRC[p.source] || '') + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (o.obj.confirmed ? ', confirmed ' + SMP.day(o.obj.confirmedAt) : ', not yet verified on site')); });
+  return out;
+};
+
+// ── Hooks into the existing app (wrap by name; the originals run first) ───────────────────────
+(function() {
+  function wrap(name, after) { var f = window[name]; if (typeof f !== 'function' || f._smp) return; var w = function() { var r = f.apply(this, arguments); try { after.apply(this, arguments); } catch (e) { console.warn('[site-map] ' + name + ' hook', e); } return r; }; w._smp = true; window[name] = w; }
+  wrap('render', function() { SMP.decorateChecks(); });
+  wrap('handleInput', function() { SMP.decorateChecks(); });
+  wrap('updateC02Status', function() { SMP.decorateChecks(); });
+  wrap('renderPlanView', function() { SMP.drawPlan(); });
+  wrap('renderBldgList', function(side) { SMP.decorateBldg(side); });   // (siteUI is not wrapped: it keeps a flag on itself, siteUI.custom)
+  wrap('renderVerdict', function() {
+    var b = document.getElementById('verdictBanner'), n = SMP.unconfirmed().length, pv = criteria.filter(function(c) { return SMP.isProvisional(c.id); }).length; if (!b || !(n || pv)) return;
+    var p = b.querySelector('.verdict-body'); if (p) p.insertAdjacentHTML('beforeend', '<p><b>Provisional:</b> ' + pv + ' check' + (pv === 1 ? '' : 's') + ' depend on imported site data not yet verified on site (' + n + ' object' + (n === 1 ? '' : 's') + ' to confirm).</p>');
+  });
+  // the Site tab: the import button + its message, under the map row
+  var row = document.getElementById('siteMapHint');
+  if (row && !document.getElementById('smpImportBtn')) {
+    row.parentNode.insertAdjacentHTML('afterend', "<div class='site-map-row'><button type='button' class='ctx-btn' id='smpImportBtn' onclick='SMP.importContext()'>Import street context</button><span class='hint'>Lanes, bike lane, route type, buildings (OSM); hydrants, trees, transit (City of Vancouver). Within 80 m; nothing imported is authoritative.</span></div><span class='smp-msg' id='smpMsg' role='status' aria-live='polite'></span>");
+  }
+  // the map pick records its provenance (lat, lon, bearing, side, address)
+  SM.onUse = function(p) {
+    ['lat', 'lon', 'streetBearing', 'parkletSide'].forEach(function(k) { SMP.set(k, 'osm', 'way ' + p.wayId, p.fetchedAt, k === 'streetBearing' ? 'the way\'s segment at the point' : k === 'parkletSide' ? 'your second click' : 'snapped to the way'); });
+    if (p.address) SMP.set('address', 'osm', SM._addr ? 'Nominatim search' : 'way ' + p.wayId, p.fetchedAt);
+    SMP.tags();
+    SMP.msg('Site set on <b>' + SM.esc(p.name || 'the street') + '</b>. Import the street context to fill the lanes, buildings and site objects.');
+  };
+  setTimeout(function() { try { SMP.tags(); SMP.decorateBldg('L'); SMP.decorateBldg('R'); SMP.decorateChecks(); SMP.drawPlan(); } catch (e) {} }, 1600);
+})();
 </script>
 </body></html>
