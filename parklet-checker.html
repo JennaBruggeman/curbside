@@ -18989,6 +18989,8 @@ var RVZ = {
   cache: new Map(), CACHE_MAX: 24, _tex: {}, _mats: {}, _envs: [], _live: null, busy: false
 };
 function buildRenderScene(o) { return RVZ.build(o); }
+// The parklet's road-side railing as RVZ.build draws it (heights above the deck, metres).
+RVZ.RAIL = { mat: 'galvanized', h: 0.9, rails: [0.45, 0.9], post: 1.0, firstPost: 0.2 };
 // the site (DESIGN_MODEL.site: Brief 11a), read on every use
 Object.defineProperty(RVZ, 'SITE', { get: function() { var s = _dmCurrent().site; return { lat: s.lat, lon: s.lon, place: Math.abs(s.lat - SITE_DEFAULT.lat) < 1e-4 && Math.abs(s.lon - SITE_DEFAULT.lon) < 1e-4 ? 'Vancouver' : 'Site' }; } });
 
@@ -19260,6 +19262,7 @@ RVZ.build = function(o) {
   var app = RVZ._app = o.appearance === 'schematic' ? 'schematic' : 'rendered', R = app === 'rendered';
   var DM = buildDesignModel(), LM = DM.landmarks, L = DM.parklet.length, SR = RVZ.SW_RAISE, DT = RVZ.DECK_TOP;
   var zA = LM.sceneMinZ - RVZ.EXT, zB = LM.sceneMaxZ + RVZ.EXT, sc = new THREE.Scene(), root = new THREE.Group(), far = [];
+  var objL = RVZ._objLabels = {};   // design objects: rvzObj id -> label (the fidelity check reports them)
   var PAL = DS.segPalette.schematic, TOK = DS.tokens.schematic, farX = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight;
   sc.add(root);
   root.rotation.x = -Math.atan((parseFloat(typeof state !== 'undefined' ? state.slope : 0) || 0) / 100);   // as the live view
@@ -19267,6 +19270,7 @@ RVZ.build = function(o) {
   function add(mesh, opt) {
     opt = opt || {};
     if (opt.design) mesh.userData.rvzDesign = true;   // the photoreal mask: design vs street context
+    if (opt.obj) mesh.userData.rvzObj = opt.obj;      // the object it belongs to (design-fidelity check)
     mesh.castShadow = opt.cast !== false; mesh.receiveShadow = true;
     root.add(mesh); mesh.updateMatrix();
     RVZ._uv(mesh, mesh.matrix);
@@ -19307,6 +19311,7 @@ RVZ.build = function(o) {
       if (!c.isMesh) return;
       if (opt.design) c.userData.rvzDesign = true;
       if (opt.ent) c.userData.rvzEnt = true;   // entourage: the photoreal mask may hand it to the context pass
+      if (opt.obj) c.userData.rvzObj = opt.obj;
       c.material = RVZ.matFrom(c.material);
       c.castShadow = true; c.receiveShadow = !opt.noReceive;
       RVZ._uv(c, c.matrixWorld);
@@ -19433,33 +19438,38 @@ RVZ.build = function(o) {
       else shp.lineTo(vb.y, -vb.x);
     }
     var eg = new THREE.ExtrudeGeometry(shp, { depth: DT, bevelEnabled: false }); eg.rotateX(-Math.PI / 2);
-    add(new THREE.Mesh(eg, deckMat), { design: true });
-  } else box(LM.deckX0, 0, 0, LM.deckX1, DT, L, deckMat, { design: true });
-  var rail = RVZ.mat('galvanized'), rx = LM.deckX1;
-  for (var rz = 0.2; rz < L - 0.1; rz += 1.0) box(rx - 0.03, DT, rz, rx + 0.03, DT + 0.9, rz + 0.05, rail, { ao: [0.2, 0.3], y0: DT, design: true });
-  box(rx - 0.025, DT + 0.86, 0, rx + 0.025, DT + 0.92, L, rail, { design: true });
-  box(rx - 0.012, DT + 0.45, 0, rx + 0.012, DT + 0.48, L, rail, { design: true });
+    add(new THREE.Mesh(eg, deckMat), { design: true, obj: 'deck' });
+  } else box(LM.deckX0, 0, 0, LM.deckX1, DT, L, deckMat, { design: true, obj: 'deck' });
+  objL.deck = 'deck';
+  // the road-side railing (RVZ.RAIL: the one description, also used in the photoreal instruction)
+  var RL = RVZ.RAIL, rail = RVZ.mat(RL.mat), rx = LM.deckX1;
+  for (var rz = RL.firstPost; rz < L - 0.1; rz += RL.post) box(rx - 0.03, DT, rz, rx + 0.03, DT + RL.h, rz + 0.05, rail, { ao: [0.2, 0.3], y0: DT, design: true, obj: 'railing' });
+  box(rx - 0.025, DT + RL.h - 0.04, 0, rx + 0.025, DT + RL.h + 0.02, L, rail, { design: true, obj: 'railing' });
+  box(rx - 0.012, DT + RL.rails[0], 0, rx + 0.012, DT + RL.rails[0] + 0.03, L, rail, { design: true, obj: 'railing' });
+  objL.railing = 'railing';
   (DM.parklet.ends || []).forEach(function(e) {
     if (e.kind === 'end-planter') {
       var y1 = DT + (e.y1 - e.y0);
-      box(e.x0, DT, e.z0, e.x1, y1, e.z1, M('precast_grey', '#DEDAD4'), { ao: [0.3, 0.35], y0: DT, design: true });
-      plane(e.x0 + 0.05, e.z0 + 0.05, e.x1 - 0.05, e.z1 - 0.05, y1 - 0.04, M('soil', '#8A7256'), { design: true });
+      var eid = 'end-planter-' + e.end; objL[eid] = 'end planter (' + (e.end ? 'far' : 'start') + ' end)';
+      box(e.x0, DT, e.z0, e.x1, y1, e.z1, M('precast_grey', '#DEDAD4'), { ao: [0.3, 0.35], y0: DT, design: true, obj: eid });
+      plane(e.x0 + 0.05, e.z0 + 0.05, e.x1 - 0.05, e.z1 - 0.05, y1 - 0.04, M('soil', '#8A7256'), { design: true, obj: eid });
       contact((e.x0 + e.x1) / 2, (e.z0 + e.z1) / 2, e.x1 - e.x0 + 0.3, e.z1 - e.z0 + 0.3, 0, DT, 0.45);
       var rnd = AXE.rng(Math.round(e.z0 * 100) + 7);
-      for (var q = 0; q < 7; q++) shrub(e.x0 + 0.2 + rnd() * (e.x1 - e.x0 - 0.4), y1 - 0.05, e.z0 + 0.18 + rnd() * (e.z1 - e.z0 - 0.36), 0.16 + rnd() * 0.1, false, true);
+      for (var q = 0; q < 7; q++) shrub(e.x0 + 0.2 + rnd() * (e.x1 - e.x0 - 0.4), y1 - 0.05, e.z0 + 0.18 + rnd() * (e.z1 - e.z0 - 0.36), 0.16 + rnd() * 0.1, false, true, eid);
     } else if (e.kind === 'wheel-stop') {
-      box(e.x0, 0, e.z0, e.x1, e.y1, e.z1, M('concrete', '#C8C3BA'), { ao: [0.08, 0.3], design: true });
-      plane(e.x0 + 0.02, e.z0 + 0.02, e.x1 - 0.02, e.z1 - 0.02, e.y1 + 0.001, M('safety_yellow', '#E4C860'), { design: true });
+      var wid = 'wheel-stop-' + e.end; objL[wid] = 'wheel stop (' + (e.end ? 'far' : 'start') + ' end)';
+      box(e.x0, 0, e.z0, e.x1, e.y1, e.z1, M('concrete', '#C8C3BA'), { ao: [0.08, 0.3], design: true, obj: wid });
+      plane(e.x0 + 0.02, e.z0 + 0.02, e.x1 - 0.02, e.z1 - 0.02, e.y1 + 0.001, M('safety_yellow', '#E4C860'), { design: true, obj: wid });
     }
   });
   // a low shrub of three foliage clumps
-  function shrub(x, y, z, r, isFar, design) {
+  function shrub(x, y, z, r, isFar, design, obj) {
     var g = new THREE.Group(), fm = RVZ.mat('foliage'), rnd = AXE.rng(Math.round((x * 31 + z * 17) * 100));
     for (var c = 0; c < 3; c++) {
       var s = new THREE.Mesh(new THREE.IcosahedronGeometry(r * (0.7 + rnd() * 0.4), 1), fm);
       s.position.set((rnd() - 0.5) * r, r * (0.55 + rnd() * 0.3), (rnd() - 0.5) * r); s.scale.y = 0.8; g.add(s);
     }
-    dress(g, x, y, z, 0, { contactOp: 0.3, design: !!design });
+    dress(g, x, y, z, 0, { contactOp: 0.3, design: !!design, obj: obj });
     if (isFar) g.traverse(function(m) { if (m.isMesh) far.push(m); });
   }
   // Trees and planters (DESIGN_MODEL.vegetation, every view's one list): a tapered trunk to the
@@ -19506,7 +19516,9 @@ RVZ.build = function(o) {
     var sp = flInstSpec(inst), x = inst.x || 0, z = inst.z || 0;
     var y = sp && !flIsEntourage(sp.type) ? DT + flSupportTop(inst) : surfY(x, z);
     g.userData.rvzInst = inst.id;
-    dress(g, x, y, z, FL_BASE_YAW + (inst.userRotation || 0), { design: true, ent: !!(sp && flIsEntourage(sp.type)), noReceive: sp && flIsEntourage(sp.type), contactOp: sp && flIsEntourage(sp.type) ? 0.3 : 0.55 });
+    var oid = sp && !flIsEntourage(sp.type) ? 'inst-' + inst.id : null;   // furniture is a design object; people are not
+    if (oid) objL[oid] = FL_ARCHETYPES[sp.type].label.toLowerCase();
+    dress(g, x, y, z, FL_BASE_YAW + (inst.userRotation || 0), { design: true, obj: oid, ent: !!(sp && flIsEntourage(sp.type)), noReceive: sp && flIsEntourage(sp.type), contactOp: sp && flIsEntourage(sp.type) ? 0.3 : 0.55 });
   });
   if (o.people) RVZ._people(DM, dress);
 
@@ -20072,10 +20084,10 @@ RVZ.exportAll = async function() {
 var RVZP = {
   PIPELINE: 'p3',   // p3: normal-lens presets, blur by distance from the deck (p2: 1536 x 864 output; p1 kept a ControlNet preview)
   LONG: 1536, CAPTION: 'AI-assisted visualisation - indicative',
-  o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0, entInContext: false, provider: 'sdxl' },
+  o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0, entInContext: false, provider: 'google/nano-banana-pro', take: 0, railDetail: true },   // railDetail: the railing described (2026-09-25: it held 3/3 with, thinned 1/2 without)
   // the models the proxy allows (tools/serve.ps1 $Models): sdxl = two img2img passes with ControlNet
   // depth / canny, blended through the mask; edit = one instruction edit of [colour, depth]
-  PROVIDERS: [['sdxl', 'SDXL + ControlNet', 'controlnet'], ['google/nano-banana', 'Nano Banana', 'edit'], ['google/nano-banana-pro', 'Nano Banana Pro (2K)', 'edit']],
+  PROVIDERS: [['google/nano-banana-pro', 'Nano Banana Pro (2K)', 'edit'], ['google/nano-banana', 'Nano Banana', 'edit'], ['sdxl', 'SDXL + ControlNet (strict geometry)', 'controlnet']],
   WEATHER: { sunny: 'sunny, clear sky', overcast: 'overcast, soft diffuse light', golden: 'golden hour, warm low light', rain: 'just after rain, wet reflective pavement' },
   NEGATIVE: 'cartoon, illustration, CGI, 3d render, plastic look, distorted geometry, warped railings, extra furniture, floating objects, text, watermark, logo, deformed people, oversaturated, lowres, noisy, blurry foreground',
   status: {}, proxy: null, promptEdit: null, busy: false, entries: {}, adapter: 'replicate'
@@ -20135,6 +20147,7 @@ RVZP.passes = function(preset, po) {
     out.edges = RVZP.sobel(out.normals, out.depth);
     // bench ID pass: which placed benches are visible in the design region (see RVZP.benchCount)
     out.benchIds = RVZP._benchPass(S, r, cam, W, H);
+    out.objIds = RVZP._objPass(S, r, cam, W, H);   // per design object (RVZP.designCheck)
   } finally { S.dispose(); }
   return out;
 };
@@ -20230,8 +20243,25 @@ RVZP.instruction = function() {
   var text = 'Turn this 3D render into a photograph taken on a Vancouver street. Keep the exact camera, every object, its position and size, the deck outline, railing, planters and the building line unchanged. ' +
     'Replace the materials with real ones: ' + p.mats.join(', ') + '. Replace the figures with real people in the same poses and positions, casual clothing. ' +
     'Replace box vehicles with real cars of the same size and colour. Natural daylight, ' + p.season + ' ' + p.when + (p.sun ? ', ' + p.sun : '') + ' (' + p.stamp + '), ' + p.weather +
-    ', 35 mm lens look, slight background softness, no text, no watermark. The second image is a depth map of the same view: use it only to keep the geometry, do not copy its look.';
+    ', 35 mm lens look, slight background softness, no text, no watermark. The second image is a depth map of the same view: use it only to keep the geometry, do not copy its look. ' +
+    'Keep every piece of furniture, planter and the railing exactly as many, as placed and as sized: ' + RVZP.inventory() + '. ' +
+    (RVZP.o.railDetail ? RVZP.railText() + ' ' : '') +
+    "Keep the near building's face where it is; its materials and the far street may change. Do not add furniture.";
   return { text: text, negative: '' };
+};
+// What is on the deck, counted from the model: "1 bench, 2 chairs, ... and the railing".
+RVZP.inventory = function() {
+  var n = {};
+  (FL3D.placed || []).forEach(function(p) { var sp = flInstSpec(p); if (!sp || flIsEntourage(sp.type)) return; var l = FL_ARCHETYPES[sp.type].label.toLowerCase(); n[l] = (n[l] || 0) + 1; });
+  var ends = (_dmCurrent().parklet.ends || []).filter(function(e) { return e.kind === 'end-planter'; }).length;
+  var parts = Object.keys(n).map(function(l) { return n[l] + ' ' + l + (n[l] > 1 ? (/(s|x|ch|sh)$/.test(l) ? 'es' : 's') : ''); });
+  if (ends) parts.push(ends + ' end planter' + (ends > 1 ? 's' : ''));
+  return parts.join(', ') + ', and the railing along the traffic side';
+};
+// The railing described from RVZ.RAIL (the one the render draws).
+RVZP.railText = function() {
+  var R = RVZ.RAIL, m = flMatInfo(R.mat).label.toLowerCase().replace('galvanized', 'galvanised');
+  return 'The railing is ' + m + ' steel, ' + R.h.toFixed(2) + ' m high, with ' + R.rails.length + ' horizontal rails (' + R.rails.map(function(v) { return v.toFixed(2) + ' m'; }).join(' and ') + ' above the deck) and posts every ' + R.post.toFixed(1) + ' m; keep all of it, at that size.';
 };
 RVZP.kind = function(id) { var p = RVZP.PROVIDERS.find(function(q) { return q[0] === (id || RVZP.o.provider); }); return p ? p[2] : 'controlnet'; };
 RVZP.currentPrompt = function() {
@@ -20352,6 +20382,117 @@ RVZP.alignment = function(outCv, baseCv, edgesCv, maskCv) {
   var edges = RVZP.iou(cOut, E, maskCv), ceiling = RVZP.iou(cBase, E, maskCv), base = RVZP.iou(cOut, cBase, maskCv);
   return { edges: +edges.toFixed(3), ceiling: +ceiling.toFixed(3), relative: +(ceiling ? edges / ceiling : 0).toFixed(3), base: +base.toFixed(3) };
 };
+// ── Design fidelity: per object, from the base render's own masks ────────────────────────────
+// Each design object (the deck, the railing, the end planters and wheel stops, every placed piece
+// of furniture: userData.rvzObj, tagged in RVZ.build) is drawn in its own ID colour (RVZP._objPass).
+// For an output, inside each object's pixels:
+//   edge  = tolerant IoU (1 px) of Canny(output) vs Canny(base) on the object dilated 3 px
+//   ncc   = correlation of the blurred luminance (output vs base) on the object's pixels: region
+//           presence that survives a change of material
+//   kept    edge >= DC.edge or ncc >= DC.ncc
+//   moved   not kept in place, but kept at a nearby offset (search +-DC.shiftMax px) that scores
+//           DC.movedGain better
+//   missing otherwise; an object with fewer than DC.minPx visible pixels is "not in view"
+// The deck outline: edge match on a band along the deck's boundary. Pass = the outline kept, >= 90 %
+// of the objects in view kept and none missing. Context (everything outside the design mask) is one
+// edge-match number, reported, never failed. `additions` = the share of the output's edges on the
+// parklet (the design mask) with no base edge within 2 px -- information only: photographic texture
+// adds edges everywhere, so it does not single out added furniture. Thresholds calibrated 2026-09-25
+// on the base copied onto itself (everything 1.0) and four Nano Banana outputs: the deck outline is
+// visibly kept at 0.24-0.35, hence DC.deck = 0.20.
+RVZP.DC = { edge: 0.25, ncc: 0.45, railEdge: 0.20, minPx: 150, deck: 0.20, shiftMax: 48, shiftStep: 8, movedGain: 0.15, keptShare: 0.9 };
+RVZP._objPass = function(S, r, cam, W, H) {
+  var ids = [], idx = {}, orig = [], mats = {};
+  S.scene.traverse(function(m) { if (m.isMesh && m.userData.rvzObj && idx[m.userData.rvzObj] == null) { idx[m.userData.rvzObj] = ids.length + 1; ids.push(m.userData.rvzObj); } });
+  if (!ids.length) return null;
+  var black = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+  S.scene.traverse(function(m) {
+    if (!m.isMesh) return;
+    orig.push([m, m.material, m.visible]);
+    if (m.userData.rvzSky || (m.material && m.material.transparent && !m.material.depthWrite)) m.visible = false;
+    var k = m.userData.rvzObj ? idx[m.userData.rvzObj] : 0;
+    if (k && !mats[k]) mats[k] = new THREE.MeshBasicMaterial({ color: new THREE.Color(k / 255, 0, 0), side: THREE.DoubleSide });
+    m.material = k ? mats[k] : black;
+  });
+  var fog = S.scene.fog; S.scene.fog = null; S.scene.environment = null;
+  r.toneMapping = THREE.NoToneMapping; r.outputEncoding = THREE.LinearEncoding; r.setClearColor(0x000000, 1);
+  r.render(S.scene, cam);
+  var data = RVZP._copy(r.domElement, W, H).getContext('2d').getImageData(0, 0, W, H).data, map = new Uint8Array(W * H);
+  for (var i = 0; i < map.length; i++) map[i] = data[i * 4];
+  orig.forEach(function(p) { p[0].material = p[1]; p[0].visible = p[2]; });
+  S.scene.fog = fog; black.dispose(); Object.keys(mats).forEach(function(k) { mats[k].dispose(); });
+  var labels = RVZ._objLabels || {};
+  return { W: W, H: H, map: map, list: ids.map(function(id, i) { return { id: id, idx: i + 1, label: labels[id] || id }; }) };
+};
+RVZP._lum = function(cv, blur) {
+  var W = cv.width, H = cv.height, c = document.createElement('canvas'); c.width = W; c.height = H;
+  var x = c.getContext('2d'); if (blur) x.filter = 'blur(' + blur + 'px)'; x.drawImage(cv, 0, 0, W, H);
+  var d = x.getImageData(0, 0, W, H).data, L = new Float32Array(W * H);
+  for (var i = 0, j = 0; j < L.length; i += 4, j++) L[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return L;
+};
+RVZP._dil = function(S, W, H, r) {
+  var D = new Uint8Array(W * H);
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+    if (!S[y * W + x]) continue;
+    for (var dy = -r; dy <= r; dy++) { var yy = y + dy; if (yy < 0 || yy >= H) continue; for (var dx = -r; dx <= r; dx++) { var xx = x + dx; if (xx >= 0 && xx < W) D[yy * W + xx] = 1; } }
+  }
+  return D;
+};
+RVZP.designCheck = function(outCanvas, P) {
+  var O = P.objIds; if (!O) return null;
+  var W = P.W, H = P.H, DC = RVZP.DC, out = outCanvas.width === W && outCanvas.height === H ? outCanvas : RVZP._copy(outCanvas, W, H);
+  var cO = RVZP.canny(out), cB = RVZP.canny(P.colour), dO = RVZP._dil(cO, W, H, 1), dB = RVZP._dil(cB, W, H, 1), dB2 = RVZP._dil(cB, W, H, 2);
+  var lO = RVZP._lum(out, 2), lB = RVZP._lum(P.colour, 2), map = O.map;
+  function edgeIn(region) { var i = 0, u = 0; for (var p = 0; p < region.length; p++) if (region[p]) { if (dO[p] && dB[p]) i++; if (dO[p] || dB[p]) u++; } return u ? i / u : 1; }
+  function ncc(px, sx, sy) {   // px: pixel indices of the object; (sx, sy) shifts the output sample
+    var n = 0, ma = 0, mb = 0, a, b, i, xs, ys, q, A = [], B = [];
+    for (i = 0; i < px.length; i++) { xs = px[i] % W + sx; ys = (px[i] / W | 0) + sy; if (xs < 0 || ys < 0 || xs >= W || ys >= H) continue; q = ys * W + xs; A.push(lO[q]); B.push(lB[px[i]]); }
+    n = A.length; if (n < 20) return 0;
+    for (i = 0; i < n; i++) { ma += A[i]; mb += B[i]; } ma /= n; mb /= n;
+    var sab = 0, saa = 0, sbb = 0; for (i = 0; i < n; i++) { a = A[i] - ma; b = B[i] - mb; sab += a * b; saa += a * a; sbb += b * b; }
+    return saa > 1e-6 && sbb > 1e-6 ? sab / Math.sqrt(saa * sbb) : 0;
+  }
+  var objects = [], deck = null;
+  O.list.forEach(function(o) {
+    var px = []; for (var p = 0; p < map.length; p++) if (map[p] === o.idx) px.push(p);
+    if (o.id === 'deck') {
+      if (px.length < DC.minPx) { deck = { status: 'not in view', px: px.length }; return; }
+      var own = new Uint8Array(W * H); px.forEach(function(q) { own[q] = 1; });
+      var band = new Uint8Array(W * H);   // deck pixels with a non-deck pixel within 2 px, widened 2 px
+      px.forEach(function(q) { var x = q % W, y = q / W | 0; for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) { var xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H && !own[yy * W + xx]) { band[q] = 1; return; } } });
+      var e = edgeIn(RVZP._dil(band, W, H, 2));
+      deck = { status: e >= DC.deck ? 'kept' : 'missing', edge: +e.toFixed(3), px: px.length };
+      return;
+    }
+    if (px.length < DC.minPx) { objects.push({ id: o.id, label: o.label, status: 'not in view', px: px.length }); return; }
+    var reg = new Uint8Array(W * H); px.forEach(function(q) { reg[q] = 1; });
+    var e2 = edgeIn(RVZP._dil(reg, W, H, 3)), c = ncc(px, 0, 0), shift = null;
+    // the railing is thin: any line along the deck edge passes the edge test, so it must also be
+    // present (a thinned railing, 2026-09-25 calibration: ncc 0.33; full railings 0.63-0.82)
+    var st = (o.id === 'railing' ? c >= DC.ncc && e2 >= DC.railEdge : e2 >= DC.edge || c >= DC.ncc) ? 'kept' : null;
+    if (!st && o.id !== 'railing') {   // search nearby for a moved object (the railing runs the frame: not searched)
+      var sub = px.length > 4000 ? px.filter(function(q, i) { return i % Math.ceil(px.length / 4000) === 0; }) : px, best = { c: c, dx: 0, dy: 0 };
+      for (var sy = -DC.shiftMax; sy <= DC.shiftMax; sy += DC.shiftStep) for (var sx = -DC.shiftMax; sx <= DC.shiftMax; sx += DC.shiftStep) {
+        if (!sx && !sy) continue; var cc = ncc(sub, sx, sy); if (cc > best.c) best = { c: cc, dx: sx, dy: sy };
+      }
+      if (best.c >= DC.ncc && best.c - c >= DC.movedGain) { st = 'moved'; shift = [best.dx, best.dy]; }
+    }
+    objects.push({ id: o.id, label: o.label, status: st || 'missing', edge: +e2.toFixed(3), ncc: +c.toFixed(3), shift: shift, px: px.length });
+  });
+  var inView = objects.filter(function(o) { return o.status !== 'not in view'; }), kept = inView.filter(function(o) { return o.status === 'kept'; }).length, missing = inView.filter(function(o) { return o.status === 'missing'; }).length, moved = inView.filter(function(o) { return o.status === 'moved'; }).length;
+  var mk = P.mask.getContext('2d').getImageData(0, 0, W, H).data, ci = 0, cu = 0, aN = 0, aX = 0;
+  for (var p2 = 0; p2 < W * H; p2++) {
+    if (mk[p2 * 4] > 127) { if (cO[p2]) { aN++; if (!dB2[p2]) aX++; } }
+    else { if (dO[p2] && dB[p2]) ci++; if (dO[p2] || dB[p2]) cu++; }
+  }
+  var deckOk = !deck || deck.status !== 'missing';
+  var res = { deck: deck, objects: objects, inView: inView.length, kept: kept, moved: moved, missing: missing,
+    pass: deckOk && (!inView.length || kept / inView.length >= DC.keptShare) && missing === 0,
+    context: +(cu ? ci / cu : 0).toFixed(3), additions: +(aN ? aX / aN : 0).toFixed(3) };
+  res.card = 'design ' + kept + '/' + inView.length + ' kept' + (moved ? ', ' + moved + ' moved' : '') + (missing ? ', ' + missing + ' missing' : '') + (deck ? ', outline ' + deck.status : '') + ', context ' + res.context;
+  return res;
+};
 
 // ── Cache: IndexedDB ─────────────────────────────────────────────────────────────────────────
 RVZP.DB = 'pkt-photoreal';
@@ -20380,7 +20521,7 @@ RVZP.clear = async function() {
 RVZP.key = function(hash, preset, prompt, strength) {
   var mode = RVZP.proxy && RVZP.proxy.mode || 'live';
   // RVZP.PIPELINE: bumped whenever what a key produces changes, so older results never return from the cache
-  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode, RVZP.o.provider, RVZP.PIPELINE + (RVZP.o.entInContext ? '-entctx' : '')].join('|');
+  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode, RVZP.o.provider, RVZP.PIPELINE + (RVZP.o.entInContext ? '-entctx' : '') + (RVZP.o.take ? '-take' + RVZP.o.take : '')].join('|');
 };
 
 // ── Render 4 ─────────────────────────────────────────────────────────────────────────────────
@@ -20406,9 +20547,9 @@ RVZP.runPreset = async function(preset, prompt, strength) {
   }
   var L = { W: P.W, H: P.H, colour: P.colour, depth: P.depth, zdist: P.zdist, mask: P.mask, aiDesign: await RVZP._img(got[0]), aiContext: await RVZP._img(got[1]) };
   var fin = RVZP.composite(L, RVZP.o.fidelity), dsgCv = RVZP._copy(L.aiDesign, P.W, P.H);
-  var al = RVZP.alignment(dsgCv, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(fin, P);
+  var al = RVZP.alignment(dsgCv, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(fin, P), dc = RVZP.designCheck(fin, P);
   var e = { key: key, preset: preset, design: hash, strength: strength, prompt: prompt.text, negative: prompt.negative, created: Date.now(), W: P.W, H: P.H, useInReport: false,
-    meta: { strengths: [sD, sC], depthRange: P.depthRange, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, model: RVZP.o.provider, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
+    meta: { strengths: [sD, sC], depthRange: P.depthRange, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, model: RVZP.o.provider, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
     blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), zdist: await RVZP._blob(P.zdist), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), aiDesign: got[0], aiContext: got[1], final: await RVZP._blob(fin) } };
   await RVZP.dbPut(e);
   RVZP.entries[preset] = e;
@@ -20431,13 +20572,13 @@ RVZP._runEdit = async function(preset, prompt, P, hash, key) {
   }
   var bmp = await RVZP._img(got), nat = document.createElement('canvas'); nat.width = bmp.width; nat.height = bmp.height;
   var nx = nat.getContext('2d'); nx.drawImage(bmp, 0, 0); RVZP._caption(nx, nat.width, nat.height);
-  var frame = RVZP._copy(bmp, P.W, P.H), al = RVZP.alignment(frame, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(frame, P);
+  var frame = RVZP._copy(bmp, P.W, P.H), al = RVZP.alignment(frame, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(frame, P), dc = RVZP.designCheck(frame, P);
   var e = { key: key, preset: preset, design: hash, strength: null, prompt: prompt.text, negative: '', created: Date.now(), W: bmp.width, H: bmp.height, useInReport: false,
-    meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, jobId: job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
+    meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, jobId: job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
     blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), output: got, final: await RVZP._blob(nat) } };
   await RVZP.dbPut(e);
   RVZP.entries[preset] = e;
-  console.log('[photoreal] rendered ' + preset + ' with ' + model + ' (' + e.meta.outputSize + ', design ' + hash + '): relative edge score ' + al.relative + ', vs the base render ' + al.base + ', bench kept ' + bk + ', benches ' + benches.visibleInMask + ' of ' + benches.placed + '; cached');
+  console.log('[photoreal] rendered ' + preset + ' with ' + model + ' (' + e.meta.outputSize + ', design ' + hash + '): ' + (dc ? dc.card + (dc.pass ? ' PASS' : ' FAIL') + '; ' : '') + 'relative edge score ' + al.relative + ', vs the base render ' + al.base + ', bench kept ' + bk + ', benches ' + benches.visibleInMask + ' of ' + benches.placed + '; cached');
   RVZP._set(preset, 'done', 'relative ' + al.relative + ', vs base ' + al.base);
   return e;
 };
@@ -20553,11 +20694,13 @@ RVZP._gallery = async function() {
   var cards = RVZ.PRESETS.map(function(p) {
     var e = RVZP.entries[p[0]];
     if (!e) return "<article class='rvzp-card'><h4>" + p[1] + "</h4><p class='rvz-note'>Not rendered yet.</p></article>";
-    return "<article class='rvzp-card' data-preset='" + p[0] + "'><h4>" + p[1] + " <span class='rvz-dim'>edge IoU " + e.meta.iou + (e.meta.alignment ? ' of ' + e.meta.alignment.ceiling + ' · vs base ' + e.meta.alignment.base : '') + ' · benches ' + e.meta.benches.visibleInMask + '/' + e.meta.benches.placed + '</span></h4>' +
+    return "<article class='rvzp-card' data-preset='" + p[0] + "'><h4>" + p[1] + " <span class='rvz-dim'>" + (e.meta.design ? e.meta.design.card + (e.meta.design.pass ? ' · PASS' : ' · FAIL') + ' · ' : '') + 'edge IoU ' + e.meta.iou + (e.meta.alignment ? ' of ' + e.meta.alignment.ceiling + ' · vs base ' + e.meta.alignment.base : '') + ' · benches ' + e.meta.benches.visibleInMask + '/' + e.meta.benches.placed + '</span></h4>' +
       "<div class='rvzp-pair'><figure><img alt='" + p[1] + " base render' src='" + url(e.blobs.colour) + "'><figcaption>Base render</figcaption></figure>" +
       "<figure><img alt='" + p[1] + " photoreal' class='rvzp-final' src='" + url(e.blobs.final) + "'><figcaption>" + RVZP.CAPTION + '</figcaption></figure></div>' +
       (e.meta.kind === 'edit' ? "<p class='rvz-note'>" + e.meta.model + ', ' + e.meta.outputSize + ' (a single edit: no fidelity replay)</p>'
         : "<div class='rvz-row'><label for='rvzpF_" + p[0] + "'>Fidelity</label><input type='range' class='rvzp-fid' id='rvzpF_" + p[0] + "' data-preset='" + p[0] + "' min='0' max='1' step='0.05' value='0'></div>") +
+      (e.meta.design ? "<ul class='rvzp-objs'>" + e.meta.design.objects.map(function(o) { return "<li class='rvzp-o-" + o.status.replace(/ /g, '-') + "'>" + o.label + ': ' + o.status + (o.shift ? ' (' + o.shift.join(', ') + ' px)' : '') + '</li>'; }).join('') +
+        (e.meta.design.deck ? "<li class='rvzp-o-" + e.meta.design.deck.status.replace(/ /g, '-') + "'>deck outline: " + e.meta.design.deck.status + '</li>' : '') + '</ul>' : '') +
       "<label class='rvz-check'><input type='checkbox' class='rvzp-use' data-preset='" + p[0] + "'" + (e.useInReport ? ' checked' : '') + '> Use in report</label></article>';
   });
   gl.innerHTML = "<div class='rvzp-gh'><h3>Photoreal renders</h3><button type='button' class='rvz-btn' id='rvzpGalClose'>Close</button></div><div class='rvzp-grid'>" + cards.join('') + '</div>';
