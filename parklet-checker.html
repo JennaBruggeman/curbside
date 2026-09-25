@@ -19306,6 +19306,7 @@ RVZ.build = function(o) {
     g.traverse(function(c) {
       if (!c.isMesh) return;
       if (opt.design) c.userData.rvzDesign = true;
+      if (opt.ent) c.userData.rvzEnt = true;   // entourage: the photoreal mask may hand it to the context pass
       c.material = RVZ.matFrom(c.material);
       c.castShadow = true; c.receiveShadow = !opt.noReceive;
       RVZ._uv(c, c.matrixWorld);
@@ -19492,7 +19493,7 @@ RVZ.build = function(o) {
     var sp = flInstSpec(inst), x = inst.x || 0, z = inst.z || 0;
     var y = sp && !flIsEntourage(sp.type) ? DT + flSupportTop(inst) : surfY(x, z);
     g.userData.rvzInst = inst.id;
-    dress(g, x, y, z, FL_BASE_YAW + (inst.userRotation || 0), { design: true, noReceive: sp && flIsEntourage(sp.type), contactOp: sp && flIsEntourage(sp.type) ? 0.3 : 0.55 });
+    dress(g, x, y, z, FL_BASE_YAW + (inst.userRotation || 0), { design: true, ent: !!(sp && flIsEntourage(sp.type)), noReceive: sp && flIsEntourage(sp.type), contactOp: sp && flIsEntourage(sp.type) ? 0.3 : 0.55 });
   });
   if (o.people) RVZ._people(DM, dress);
 
@@ -19518,7 +19519,7 @@ RVZ.build = function(o) {
 RVZ._people = function(DM, dress) {
   if (typeof AXE === 'undefined') return;
   var rnd = AXE.rng(20260924), LM = DM.landmarks, L = DM.parklet.length, DT = RVZ.DECK_TOP;
-  function put(it, x, z, y, head) { dress(fl3DArchetype(it.type, it.params, it.mats), x, y, z, FL_BASE_YAW + head, { noReceive: true, contactOp: 0.3, design: true }); }
+  function put(it, x, z, y, head) { dress(fl3DArchetype(it.type, it.params, it.mats), x, y, z, FL_BASE_YAW + head, { noReceive: true, contactOp: 0.3, design: true, ent: true }); }
   var seats = AXE.seats(), order = seats.map(function(s, i) { return [rnd(), i]; }).sort(function(a, b) { return a[0] - b[0]; });
   order.slice(0, seats.length ? Math.max(1, Math.round(seats.length * 0.4)) : 0).forEach(function(e) {
     var s = seats[e[1]], it = AXE.item(rnd, 'person_seated'); it.params.seatH = s.seatH;
@@ -20051,7 +20052,7 @@ RVZ.exportAll = async function() {
 var RVZP = {
   PIPELINE: 'p2',   // p2: the generated image at 1536 x 864 (p1 kept a ControlNet preview)
   LONG: 1536, CAPTION: 'AI-assisted visualisation - indicative',
-  o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0 },
+  o: { on: false, strength: 0.55, weather: 'sunny', seed: 20260925, fidelity: 0, entInContext: false },
   WEATHER: { sunny: 'sunny, clear sky', overcast: 'overcast, soft diffuse light', golden: 'golden hour, warm low light', rain: 'just after rain, wet reflective pavement' },
   NEGATIVE: 'cartoon, illustration, CGI, 3d render, plastic look, distorted geometry, warped railings, extra furniture, floating objects, text, watermark, logo, deformed people, oversaturated, lowres, noisy, blurry foreground',
   status: {}, proxy: null, promptEdit: null, busy: false, entries: {}, adapter: 'replicate'
@@ -20060,7 +20061,8 @@ var RVZP = {
 // ── Offscreen passes ──────────────────────────────────────────────────────────────────────────
 RVZP.size = function() { var W = RVZP.LONG, H = Math.round(W * 9 / 16 / 8) * 8; return [W, H]; };
 RVZP._copy = function(src, W, H) { var c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(src, 0, 0, W, H); return c; };
-RVZP.passes = function(preset) {
+RVZP.passes = function(preset, po) {
+  po = po || { entInContext: RVZP.o.entInContext };
   var WH = RVZP.size(), W = WH[0], H = WH[1], r = RVZ._exportRenderer(), aerial = preset === 'aerial';
   var S = RVZ.build({ appearance: 'rendered', people: RVZ.o.people, shadow: 4096 }), cam = RVZ.cameraFor(preset, W / H);
   r.setSize(W, H, false);
@@ -20077,7 +20079,8 @@ RVZP.passes = function(preset) {
     S.scene.traverse(function(m) { if (m.isMesh) orig.push([m, m.material]); });
     function pass(fn) { orig.forEach(function(p) { p[0].material = fn(p[0]); }); r.render(S.scene, cam); return RVZP._copy(r.domElement, W, H); }
     var white = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }), black = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
-    out.mask = pass(function(m) { return m.userData.rvzDesign ? white : black; });
+    out.mask = pass(function(m) { return m.userData.rvzDesign && !(po.entInContext && m.userData.rvzEnt) ? white : black; });
+    out.entInContext = !!po.entInContext;
     // depth range: the visible scene (every mesh's bounding box corners in view space), <= 150 m
     var dn = 1e9, df = 0, v = new THREE.Vector3(), bb = new THREE.Box3();
     cam.updateMatrixWorld(true);
@@ -20334,7 +20337,7 @@ RVZP.clear = async function() {
 RVZP.key = function(hash, preset, prompt, strength) {
   var mode = RVZP.proxy && RVZP.proxy.mode || 'live';
   // RVZP.PIPELINE: bumped whenever what a key produces changes, so older results never return from the cache
-  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode, RVZP.PIPELINE].join('|');
+  return [hash, preset, RVZ.fnv(prompt.text + '\n' + prompt.negative), strength.toFixed(2), RVZP.adapter + '-' + mode, RVZP.PIPELINE + (RVZP.o.entInContext ? '-entctx' : '')].join('|');
 };
 
 // ── Render 4 ─────────────────────────────────────────────────────────────────────────────────

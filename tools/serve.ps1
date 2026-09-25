@@ -43,7 +43,8 @@ function Build-Input($req, $urls) {
     seed = [int]$p.seed; num_outputs = 1; refine = 'no_refiner'; apply_watermark = $false
     controlnet_1 = 'depth_midas'; controlnet_1_image = $urls.depth; controlnet_1_start = 0; controlnet_1_end = 1
     controlnet_1_conditioning_scale = [double]$(if ($p.depthScale) { $p.depthScale } else { 0.8 })
-    controlnet_2 = 'edge_canny'; controlnet_2_image = $urls.edges; controlnet_2_start = 0; controlnet_2_end = 1
+    controlnet_2 = $(if ($p.edgeOff) { 'none' } else { 'edge_canny' }); controlnet_2_image = $urls.edges; controlnet_2_start = 0
+    controlnet_2_end = [double]$(if ($p.edgeEnd) { $p.edgeEnd } else { 1 })
     controlnet_2_conditioning_scale = [double]$(if ($p.edgeScale) { $p.edgeScale } else { 0.6 })
   }
 }
