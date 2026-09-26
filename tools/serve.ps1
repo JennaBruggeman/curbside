@@ -1,4 +1,4 @@
-# Local dev server for parklet-checker.html (ASCII only: PowerShell 5.1 reads BOM-less scripts as ANSI).
+# Curbside local dev server for parklet-checker.html (ASCII only: PowerShell 5.1 reads BOM-less scripts as ANSI).
 #   Static files from -Root (default: the folder above tools\), GET only, never outside -Root.
 #   /render-proxy/*  the photoreal provider proxy. The provider key is read HERE, from the
 #   PROVIDER_KEY environment variable or a git-ignored .render-key file in -Root, and is never sent
@@ -261,7 +261,7 @@ function Proxy-Overpass($ctx) {
   $ms = New-Object IO.MemoryStream; $ctx.Request.InputStream.CopyTo($ms); $body = $ms.ToArray()
   $h = New-Object System.Net.Http.HttpClientHandler; $h.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
   $hc = New-Object System.Net.Http.HttpClient($h); $hc.Timeout = [TimeSpan]::FromSeconds($OverpassTimeoutS)
-  [void]$hc.DefaultRequestHeaders.UserAgent.TryParseAdd('ParkletChecker/0.5 (local relay)')
+  [void]$hc.DefaultRequestHeaders.UserAgent.TryParseAdd('Curbside/0.5 (local relay)')
   $content = New-Object System.Net.Http.ByteArrayContent(,$body)
   $content.Headers.ContentType = New-Object System.Net.Http.Headers.MediaTypeHeaderValue('application/x-www-form-urlencoded')
   $t0 = [DateTime]::UtcNow
@@ -297,7 +297,7 @@ $l = New-Object System.Net.HttpListener
 $l.Prefixes.Add("http://localhost:$Port/")
 $l.Start()
 $km = if (Get-Key) { if (Is-Mock) { 'mock (no provider calls)' } else { 'present' } } else { 'missing' }
-Log ('serving ' + $Root + ' on http://localhost:' + $Port + '/  (render proxy: ' + $Provider.name + ' ' + $Provider.owner + '/' + $Provider.model + ', key ' + $km + ')')
+Log ('Curbside: serving ' + $Root + ' on http://localhost:' + $Port + '/  (render proxy: ' + $Provider.name + ' ' + $Provider.owner + '/' + $Provider.model + ', key ' + $km + ')')
 while ($l.IsListening) {
   $c = $l.GetContext()
   try {

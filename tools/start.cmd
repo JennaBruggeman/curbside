@@ -1,5 +1,5 @@
 @echo off
-rem Parklet Checker: start the local server on port 8766 in its own window (unless something is
+rem Curbside: start the local server on port 8766 in its own window (unless something is
 rem already listening there, which is left alone), then open the app in the default browser.
 rem For testing only: PARKLET_PORT overrides the port, PARKLET_NOBROWSER=1 skips the browser.
 setlocal
@@ -12,16 +12,16 @@ if defined PROVIDER_KEY set "KEYMSG=%KEYMSG% (PROVIDER_KEY is set and takes prec
 
 call :answers 0
 if not errorlevel 1 (
-  set "MSG=Parklet server already running on port %PORT%, left alone"
+  set "MSG=Curbside server already running on port %PORT%, left alone"
   goto open
 )
-start "Parklet server" powershell -NoProfile -ExecutionPolicy Bypass -File tools\serve.ps1 -Port %PORT%
+start "Curbside server" powershell -NoProfile -ExecutionPolicy Bypass -File tools\serve.ps1 -Port %PORT%
 call :answers 10
 if errorlevel 1 (
-  echo Started the Parklet server window, but port %PORT% did not answer within 10 s - check that window. %KEYMSG%.
+  echo Started the Curbside server window, but port %PORT% did not answer within 10 s - check that window. %KEYMSG%.
   goto done
 )
-set "MSG=Started the Parklet server on port %PORT%"
+set "MSG=Started the Curbside server on port %PORT%"
 
 :open
 if not "%PARKLET_NOBROWSER%"=="1" start "" "%URL%"
