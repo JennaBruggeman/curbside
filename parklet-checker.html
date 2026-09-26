@@ -14492,7 +14492,7 @@ async function pkSignOut() {
   pkCurrentDesignMeta = null;
   pkAllDesigns     = [];
   pkUpdateAccountUI();
-  pkShowAuthModal();
+  window.location.assign('index.html');   // signed out: back to the landing page
 }
 
 async function pkForgotPassword(email) {
@@ -14701,6 +14701,16 @@ async function pkNewDesign(name, address) {
 async function pkInitApp() {
   pkInjectUI();
 
+  // ?auth=signin | ?auth=signup (the landing page, index.html): open the sign-in dialog on that tab when
+  // there is no session; the param leaves the address at once either way (a signed-in visitor just lands here)
+  var _authTab = (function() {
+    try {
+      var p = new URLSearchParams(window.location.search), a = p.get('auth'); if (!a) return null;
+      p.delete('auth'); history.replaceState(null, '', window.location.pathname + (p.toString() ? '?' + p.toString() : '') + window.location.hash);
+      return a === 'signin' || a === 'signup' ? a : null;
+    } catch (e) { return null; }
+  })();
+
   // ?noauth or ?offline in URL → skip session entirely (useful for local testing)
   var _skipAuth = (window.location.search.indexOf('noauth') >= 0 ||
                    window.location.search.indexOf('offline') >= 0);
@@ -14761,6 +14771,7 @@ async function pkInitApp() {
       pkHideLoading();
       pkUpdateAccountUI();
       pkShowAuthModal();
+      if (_authTab) pkAuthTab(_authTab);
     }
   } catch(e_) {
     console.error('[pk] init error:', e_);
