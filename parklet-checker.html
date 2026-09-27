@@ -14492,8 +14492,11 @@ async function pkSignOut() {
   pkCurrentDesignMeta = null;
   pkAllDesigns     = [];
   pkUpdateAccountUI();
-  window.location.assign('index.html');   // signed out: back to the landing page
+  window.location.assign(pkLandingURL());   // signed out: back to the landing page
 }
+
+// the landing page: the server's / (index.html); a file:// copy has no server root, so the file next to this one
+function pkLandingURL() { return window.location.protocol === 'file:' ? 'index.html' : '/'; }
 
 async function pkForgotPassword(email) {
   if (!pkSB) return;
@@ -14703,6 +14706,7 @@ async function pkInitApp() {
 
   // ?auth=signin | ?auth=signup (the landing page, index.html): open the sign-in dialog on that tab when
   // there is no session; the param leaves the address at once either way (a signed-in visitor just lands here)
+  var _authAsked = /[?&]auth=/.test(window.location.search);   // came from the landing page's Sign in / Create account
   var _authTab = (function() {
     try {
       var p = new URLSearchParams(window.location.search), a = p.get('auth'); if (!a) return null;
@@ -14767,6 +14771,9 @@ async function pkInitApp() {
         if (event === 'TOKEN_REFRESHED' && sess) { pkCurrentUser = sess.user; }
       });
 
+    } else if (!_authAsked) {
+      // signed out and not asking to sign in: the landing page is the signed-out state
+      window.location.replace(pkLandingURL());
     } else {
       pkHideLoading();
       pkUpdateAccountUI();

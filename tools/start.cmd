@@ -1,12 +1,12 @@
 @echo off
 rem Curbside: start the local server on port 8766 in its own window (unless something is
-rem already listening there, which is left alone), then open the app in the default browser.
+rem already listening there, which is left alone), then open the landing page in the default browser.
 rem For testing only: PARKLET_PORT overrides the port, PARKLET_NOBROWSER=1 skips the browser.
 setlocal
 cd /d "%~dp0.."
 set "PORT=8766"
 if defined PARKLET_PORT set "PORT=%PARKLET_PORT%"
-set "URL=http://localhost:%PORT%/parklet-checker.html"
+set "URL=http://localhost:%PORT%/"
 if exist ".render-key" (set "KEYMSG=.render-key found") else (set "KEYMSG=.render-key not found")
 if defined PROVIDER_KEY set "KEYMSG=%KEYMSG% (PROVIDER_KEY is set and takes precedence)"
 
