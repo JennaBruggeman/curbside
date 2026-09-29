@@ -6139,7 +6139,7 @@ const C03_REQ = 6;
         if (_fSpec) {
           // Archetype piece: its parts projected top-down in metres (the same parts 3D and Section use).
           s += `<g transform='${worldFrameToPlanMatrix(_iw, _iz, _iury, 1, 1)}' class='pv-furn' data-inst='${inst.id}' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
-          s += flPlanArchetype(_fSpec.type, _fSpec.params, {mats:_fSpec.mats, sel:_iSel, tech:DS.mode() === 'technical'});
+          s += flPlanArchetype(_fSpec.type, _fSpec.params, {mats:_fSpec.mats, sel:_iSel, tech:DS.mode() === 'technical', dk: DK});
         } else {
           // Street object: its detail-drawing footprint as a box.
           var _fFill = _iSel ? 'rgba(6,150,215,.45)' : DK.T.fill.furniture, _fSt = _iSel ? KU(1.5, 'sel') : K('object');
@@ -10231,25 +10231,52 @@ function flInstPanelHtml(inst) {
 }
 
 // -- Plan ----------------------------------------------------------------------------------------------
-// Top-down projection in LOCAL METRES: u = x (length), v = -z (the depth axis of
-// worldFrameToPlanMatrix). Place it with worldFrameToPlanMatrix(x, z, rot, 1, 1).
-// ctx: {mats, sel, tech}. Fills are the materials' derived tints; technical mode draws greys.
+// The top-down silhouette of an archetype (Brief 17), ONE source for the Plan and the report: its parts'
+// footprints in LOCAL METRES, u = x (the length axis), v = -z (the depth axis of worldFrameToPlanMatrix), lowest
+// first so what stands higher covers what is under it. Each {k: 'ellipse' (cx, cy, rx, ry) | 'rect' (x, y, w, h) |
+// 'poly' (pts), veg, overhead (above 1.8 m: a canopy, drawn dashed), role}.
+var FL_OVERHEAD_Y = 1.8;
+function flPlanShapes(type, params) {
+  return flParts(type, params).slice().sort(function(a, b) { return a.y1 - b.y1; }).map(function(q) {
+    var sh = { veg: !!q.veg, overhead: !q.veg && q.y0 >= FL_OVERHEAD_Y, role: q.role };
+    if (q.k === 'cyl' || q.k === 'sph' || q.k === 'cone') { sh.k = 'ellipse'; sh.cx = (q.x0 + q.x1) / 2; sh.cy = -(q.z0 + q.z1) / 2; sh.rx = (q.x1 - q.x0) / 2; sh.ry = (q.z1 - q.z0) / 2; }
+    else if (q.yaw) { sh.k = 'poly'; sh.pts = _flCorners(q).map(function(v) { return [v[0], -v[1]]; }); }
+    else { sh.k = 'rect'; sh.x = q.x0; sh.y = -q.z1; sh.w = q.x1 - q.x0; sh.h = q.z1 - q.z0; }
+    return sh;
+  });
+}
+// a shape as a polygon (ellipses as 24 points), in local metres: the report maps it through a rotation
+function flShapePts(sh) {
+  if (sh.k === 'poly') return sh.pts;
+  if (sh.k === 'rect') return [[sh.x, sh.y], [sh.x + sh.w, sh.y], [sh.x + sh.w, sh.y + sh.h], [sh.x, sh.y + sh.h]];
+  var out = []; for (var i = 0; i < 24; i++) { var a = i / 24 * Math.PI * 2; out.push([sh.cx + sh.rx * Math.cos(a), sh.cy + sh.ry * Math.sin(a)]); }
+  return out;
+}
+// The silhouette drawn: (1) every body part stroked at twice DRAW_STYLE's object weight, (2) filled over, so only the
+// outer outline remains at the object weight; (3) the parts again in the general weight, lowest first, so the edges
+// inside read and what stands higher covers what is under it; planting on top (outline, schematic fill); overhead
+// parts dashed, unfilled. ctx: {mats, sel, tech, dk (the Plan's DRAW_STYLE context)}. Strokes are non-scaling px.
 function flPlanArchetype(type, params, ctx) {
   ctx = ctx || {};
-  var T = DS.tokens.technical, sw = ctx.sel ? 1.4 : (ctx.tech ? 0.6 : 0.5), s = '';   // px: non-scaling strokes (commit 3 draws silhouettes)
-  flParts(type, params).slice().sort(function(a, b) { return a.y1 - b.y1; }).forEach(function(q) {
-    var m = flMatInfo(flPartMat(type, q.role, ctx.mats));
-    var fill = ctx.tech ? (q.veg ? 'none' : T.xlt) : m.tint, stroke = ctx.sel ? '#0696D7' : (ctx.tech ? T.ink : m.edge);
-    var op = (!ctx.tech && m.opacity !== undefined) ? " fill-opacity='" + Math.max(0.4, m.opacity) + "'" : (!ctx.tech && q.veg ? " fill-opacity='0.85'" : '');
-    var st = " class='" + (q.veg ? 'fl-veg' : 'fl-part') + "' fill='" + fill + "'" + DRAW_STYLE.stroke(stroke, sw, { nss: true }) + op;
-    if (q.k === 'cyl' || q.k === 'sph' || q.k === 'cone') {
-      s += "<ellipse cx='" + ((q.x0 + q.x1) / 2).toFixed(4) + "' cy='" + (-(q.z0 + q.z1) / 2).toFixed(4) + "' rx='" + ((q.x1 - q.x0) / 2).toFixed(4) + "' ry='" + ((q.z1 - q.z0) / 2).toFixed(4) + "'" + st + '/>';
-    } else if (q.yaw) {
-      s += "<polygon points='" + _flCorners(q).map(function(v) { return v[0].toFixed(4) + ',' + (-v[1]).toFixed(4); }).join(' ') + "'" + st + '/>';
-    } else {
-      s += "<rect x='" + q.x0.toFixed(4) + "' y='" + (-q.z1).toFixed(4) + "' width='" + (q.x1 - q.x0).toFixed(4) + "' height='" + (q.z1 - q.z0).toFixed(4) + "'" + st + '/>';
-    }
-  });
+  var dk = ctx.dk || DRAW_STYLE.screenCtx(ctx.tech ? 'technical' : 'schematic', 1, 12), T = dk.T, s = '';
+  var ink = ctx.sel ? DRAW_STYLE.UI.sel : T.ink, pxO = DRAW_STYLE.px(dk, 'object'), pxG = DRAW_STYLE.px(dk, 'general');
+  var f4 = function(v) { return (+v).toFixed(4); };
+  var shp = function(sh, a) {
+    if (sh.k === 'ellipse') return "<ellipse cx='" + f4(sh.cx) + "' cy='" + f4(sh.cy) + "' rx='" + f4(sh.rx) + "' ry='" + f4(sh.ry) + "'" + a + '/>';
+    if (sh.k === 'rect') return "<rect x='" + f4(sh.x) + "' y='" + f4(sh.y) + "' width='" + f4(sh.w) + "' height='" + f4(sh.h) + "'" + a + '/>';
+    return "<polygon points='" + sh.pts.map(function(v) { return f4(v[0]) + ',' + f4(v[1]); }).join(' ') + "'" + a + '/>';
+  };
+  var fillOf = function(sh) {
+    if (ctx.tech) return " fill='" + T.fill.furniture + "'";
+    var m = flMatInfo(flPartMat(type, sh.role, ctx.mats));
+    return " fill='" + m.tint + "'" + (m.opacity !== undefined ? " fill-opacity='" + Math.max(0.4, m.opacity) + "'" : '');
+  };
+  var shapes = flPlanShapes(type, params), body = shapes.filter(function(q) { return !q.veg && !q.overhead; });
+  body.forEach(function(q) { s += shp(q, " fill='" + ink + "'" + DRAW_STYLE.stroke(ink, 2 * pxO, { nss: true, join: 'round' })); });
+  body.forEach(function(q) { s += shp(q, " fill='" + T.fill.furniture + "' stroke='none'"); });
+  body.forEach(function(q) { s += shp(q, " class='fl-part'" + fillOf(q) + DRAW_STYLE.stroke(ink, pxG, { nss: true })); });
+  shapes.filter(function(q) { return q.veg; }).forEach(function(q) { s += shp(q, " class='fl-veg' fill='" + (ctx.tech ? 'none' : T.fill.planting) + "'" + DRAW_STYLE.stroke(ink, pxG, { nss: true })); });
+  shapes.filter(function(q) { return q.overhead; }).forEach(function(q) { s += shp(q, " class='fl-part' fill='none'" + DRAW_STYLE.stroke(ink, pxG, { nss: true, dash: '4 2' })); });
   return s;
 }
 
@@ -19273,28 +19300,57 @@ RPT.planBase = function(P, G, F, mode, o) {
   P.poly(dp, { w: RPT.LW.cut });
   return { dp: dp, dbox: dbox };
 };
+// Furniture on the plans: each piece's FL_ARCHETYPES silhouette (flPlanShapes, the Plan's own source) through its
+// placement and rotation, drawn as flPlanArchetype draws it (outline at the object weight, the parts' edges in the
+// general weight, planting on top, overhead parts dashed) at the sheet's DRAW_STYLE. The tag sits in the piece
+// when it fits there with room; otherwise outside it, on a leader, at the first free place around it (right,
+// left, above, below). A street object keeps its footprint box.
 RPT.planFurn = function(P, G, F, d, o) {
-  o = o || {}; var FI = RPT.fills(d.mode), boxes = [];
-  // overhead pieces (umbrellas) last, over what stands under them; their pole dot only where nothing is drawn
-  d.placed.slice().sort(function(a, b) { return (RPT.OVERHEAD.test(a.archetype) ? 1 : 0) - (RPT.OVERHEAD.test(b.archetype) ? 1 : 0); }).forEach(function(p) {
-    if (!p.archetype || flIsEntourage(p.archetype) || (p.z || 0) < F.zA - 0.2 || (p.z || 0) > F.zB + 0.2) return;
-    var tag = d.tags[p.id], cx0 = F.sx(p.z || 0), cy0 = F.sy(p.x || 0);
-    if (RPT.OVERHEAD.test(p.archetype)) {   // an umbrella / canopy: overhead, so its outline dashed and its pole a dot; the tag at the rim
-      var dm = flInstDims(p), r = Math.max(dm.l, dm.d) / 2 * F.k;
-      P.circle(cx0, cy0, r, { w: RPT.LW.gen, dash: 'hidden', fill: 'none' });
-      if (!boxes.some(function(q) { return cx0 >= q[0] && cx0 <= q[2] && cy0 >= q[1] && cy0 <= q[3]; })) P.circle(cx0, cy0, 0.6, { fill: RPT.INK, w: 0 });
-      if (tag && o.tags !== false) P.text(cx0 - r * 0.72, cy0 - r * 0.72, tag, RPT.TX.tag, { anchor: 'end', bold: true, data: " data-tag='" + tag + "'" });
+  o = o || {};
+  var tech = d.mode === 'technical', T = DRAW_STYLE.t(d.mode), taken = [], TS = RPT.TX.tag, pieces = [];
+  var inZ = function(p) { return p.archetype && !flIsEntourage(p.archetype) && (p.z || 0) >= F.zA - 0.2 && (p.z || 0) <= F.zB + 0.2; };
+  d.placed.filter(inZ).forEach(function(p) {
+    var sp = flInstSpec(p), r = typeof p.userRotation === 'number' ? p.userRotation : (p.rotationY || 0), sn = Math.sin(r), cs = Math.cos(r);
+    var W = function(u, v) { var wx = (p.x || 0) + u * sn + v * cs, wz = (p.z || 0) + u * cs - v * sn; return [F.sx(wz), F.sy(wx)]; };
+    var shapes = sp ? flPlanShapes(sp.type, sp.params).map(function(sh) { return { sh: sh, pts: flShapePts(sh).map(function(q) { return W(q[0], q[1]); }) }; })
+      : [{ sh: { k: 'rect' }, pts: RPT.furnCorners(p).map(function(q) { return [F.sx(q[1]), F.sy(q[0])]; }) }];
+    var body = shapes.filter(function(q) { return !q.sh.veg && !q.sh.overhead; }), all = body.length ? body : shapes;
+    var xs = [], ys = []; all.forEach(function(q) { q.pts.forEach(function(v) { xs.push(v[0]); ys.push(v[1]); }); });
+    pieces.push({ p: p, sp: sp, shapes: shapes, body: body, box: [Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)] });
+  });
+  var fillOf = function(pc, sh) { if (tech || !pc.sp) return { fill: T.fill.furniture }; var m = flMatInfo(flPartMat(pc.sp.type, sh.role, pc.sp.mats)); return { fill: m.tint, fop: m.opacity !== undefined ? Math.max(0.4, m.opacity) : null }; };
+  pieces.forEach(function(pc) {
+    pc.body.forEach(function(q) { P.poly(q.pts, { fill: 'ink', w: 2 * DRAW_STYLE.W.object, join: 'round' }); });
+    pc.body.forEach(function(q) { P.poly(q.pts, { fill: T.fill.furniture, cls: 'none' }); });
+    pc.body.forEach(function(q) { var fo = fillOf(pc, q.sh); P.poly(q.pts, { fill: fo.fill, fop: fo.fop, cls: 'general' }); });
+    pc.shapes.filter(function(q) { return q.sh.veg; }).forEach(function(q) { P.poly(q.pts, { fill: tech ? 'none' : T.fill.planting, cls: 'general' }); });
+  });
+  pieces.forEach(function(pc) { pc.shapes.filter(function(q) { return q.sh.overhead; }).forEach(function(q) { P.poly(q.pts, { fill: 'none', cls: 'general', dash: 'hidden' }); }); });
+  if (o.tags === false) return;
+  // tags: every piece's box is taken first, so no tag lands on another piece; a tag inside its own piece must clear
+  // every other piece and tag too (an umbrella's pole stands in the table it shades)
+  pieces.forEach(function(pc) { taken.push({ b: pc.box, pc: pc }); });
+  var free = function(b, self) { return !taken.some(function(t) { var q = t.b; return (!self || t.pc !== self) && b[0] < q[2] && q[0] < b[2] && b[1] < q[3] && q[1] < b[3]; }); };
+  pieces.forEach(function(pc) {
+    var tag = d.tags[pc.p.id]; if (!tag) return;
+    var b = pc.box, w = RPT.tw(tag, TS, true), h = TS, cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, ib = [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2];
+    if (w + 1.6 <= b[2] - b[0] && h + 1.2 <= b[3] - b[1] && free(ib, pc)) { taken.push({ b: ib }); P.text(cx, cy + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "'" }); return; }
+    // rings 3 / 6 / 10 / 15 / 22 mm out, each right, left, above, below, then the corners
+    var tries = [];
+    [3, 6, 10, 15, 22].forEach(function(g) { tries.push([b[2] + g + w / 2, cy], [b[0] - g - w / 2, cy], [cx, b[1] - g - h / 2], [cx, b[3] + g + h / 2], [b[2] + g + w / 2, b[1] - g], [b[0] - g - w / 2, b[3] + g], [b[2] + g + w / 2, b[3] + g], [b[0] - g - w / 2, b[1] - g]); });
+    for (var i = 0; i < tries.length; i++) {
+      var t = tries[i], tb = [t[0] - w / 2 - 0.4, t[1] - h / 2 - 0.4, t[0] + w / 2 + 0.4, t[1] + h / 2 + 0.4];
+      if (!free(tb)) continue;
+      taken.push({ b: tb });
+      var ax = Math.max(b[0], Math.min(b[2], t[0])), ay = Math.max(b[1], Math.min(b[3], t[1]));   // the leader's end: the box point nearest the tag
+      var ex = t[0] < b[0] ? tb[2] : t[0] > b[2] ? tb[0] : t[0], ey = t[1] < b[1] ? tb[3] : t[1] > b[3] ? tb[1] : t[1];
+      DRAW_SYMBOLS.leader(P, [[ax, ay], [ex, ey]], { dot: true });
+      P.text(t[0], t[1] + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "' data-leader='1'" });
       return;
     }
-    var pts = RPT.furnCorners(p).map(function(q) { return [F.sx(q[1]), F.sy(q[0])]; });
-    P.poly(pts, { fill: FI.furn, w: RPT.LW.obj });
-    boxes.push([Math.min.apply(null, pts.map(function(q) { return q[0]; })), Math.min.apply(null, pts.map(function(q) { return q[1]; })), Math.max.apply(null, pts.map(function(q) { return q[0]; })), Math.max.apply(null, pts.map(function(q) { return q[1]; }))]);
-    if (!tag || o.tags === false) return;
-    var cx = pts.reduce(function(a, q) { return a + q[0]; }, 0) / 4, cy = pts.reduce(function(a, q) { return a + q[1]; }, 0) / 4;
-    P.text(cx, cy + 0.65, tag, RPT.TX.tag, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "'" });
+    P.text(cx, cy + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "'" });   // nowhere free: in the piece
   });
 };
-RPT.OVERHEAD = /umbrella|parasol|canopy|shade/;
 RPT.planObjects = function(P, G, F, o) {
   o = o || {}; var inZ = function(z) { return z >= F.zA - 0.01 && z <= F.zB + 0.01; }, tagged = [];
   G.cf.forEach(function(c) { if (!inZ(c.z)) return; (c.type === 'H' ? RPT.sym.hydrant : c.type === 'P' ? RPT.sym.pole : c.type === 'S' ? RPT.sym.signal : RPT.sym.pole)(P, F.sx(c.z), F.sy(c.x)); });
