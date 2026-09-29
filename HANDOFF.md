@@ -404,6 +404,34 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   - With A-102's crop excluding the far sidewalk and its near edge through a street tree, the tree's canopy is drawn and cut at the edge.
   - Samples: 11 pages, 0 overlaps, 0 outside. Plan consistency check OK, weights monotonic at 3 zooms.
 
+## Drawing clean-up (Brief 18, branch drawing-style, one commit per section; not merged)
+- **A. Plan overlaps (commit 1).** `_renderPlanView` has a single annotation layer, placed in one pass by `annFlush()` just before `innerHTML`.
+  - **What it holds:** `annText(kind, str, x, y, o)` and `annLozenge(code, st, x, y, at)` register every dimension value, rule lozenge, object label (Parklet, deck length, Hydrant, Signal, Pole, bus stop), segment label (bands, lanes, curb, buildings) and tree tag (genus).
+  - **Delete chips:** `annChip(onclick, x, y)` registers each × chip as an object item. It moves along the curb and never gets a leader.
+  - **Obstacles:** `annObst` holds the fixed boxes: the dimension-chain texts, section tags and label, handles, symbols, the D box, and the scale bar with the north arrow. `annObj` holds the objects: the parklet, canopies and furniture. Segment labels keep off every object; tree tags keep off the deck and furniture only.
+  - **Placement order:** by priority dim > lozenge > object > segment > tree, then source order. Each item first tries its own place, then steps along its axis: labels along their band, lozenges and tree tags up and down a row, values along their line. After that it tries the rows beside it.
+  - **Fallbacks:** first inside its bounds and on screen, then past its bounds (a label longer than its building), then anywhere.
+  - **Leaders:** an item that moved more than 2 mm on screen gets a leader from its object.
+  - **Off screen:** an item whose own place is off screen is not pulled into view.
+  - **Check:** `window._pvAnnCheck` reports items, moved, leaders (by kind) and blocked.
+  - **Rules applied:**
+    - Segment labels start at the left edge of the visible area (`VIS`).
+    - Every clearance value (C03, C05/C07/C08, C06, C09, C13) is set at the dimension text size (screen 12 px), bold, never smaller.
+    - `pvZS` now uses this frame's `U`. It used the previous frame's `VB.U`, which is why chips and values blew up when zoomed in.
+  - **The pitched polygon over the deck:** it is the rule lozenge (DRAW_SYMBOLS.lozenge, a pointed hexagon) of the C13/C03 dimension. At fit zoom it was drawn at the centre of a zone narrower than itself, on top of the deck. It carries the rule ID, so it stays; the annotation layer now places it clear of everything, with a leader when moved.
+  - **Culling removed (these made labels disappear by zoom):**
+    1. Segment-band and "Unallocated" labels drawn only when the band was taller than 1.4 x the tag size on screen.
+    2. `dimArrow` returned nothing when its zone was under 6 screen px (the lozenge and value vanished). `dimArrow(..., ann)` now always draws; without `ann` (other callers) it draws inline as before, at the body size.
+    3. `_pvClrLbl` dropped clearance values when none of its five slots was free. It now hands them to the layer.
+    4. Driveway (C06) and curb-feature (C05/C07/C08) dimension values drawn only when the span was over 10 plan units.
+    5. Building labels drawn only when over 70 plan units of the building were visible.
+    6. Genus tree tags drawn only on paper at 1:100. They now show on screen too (lowest priority).
+  - **Culling kept:** the plan's origin marker `_oVis` is UI. The Plan applies no sheet crops (crops clip only in the report).
+  - **Verified (Robson & Burrard, 150 m import: 40 trees, 4 hydrants, 3 stops; the 7-piece design):**
+    - 0 DOM text overlaps at zoom 1 (U 6.05), 4 (U 1.51) and 12 (U 0.50), technical, and at zoom 4 schematic.
+    - 87 items placed, 0 blocked. Leaders: 52 / 25 / 12 at the three zooms.
+    - The technical sample report: 11 pages, 0 overlaps.
+
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
