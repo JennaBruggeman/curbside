@@ -645,6 +645,41 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   - **Known:**
     - An A-102 crop moved away from the parklet (the tests' densest-trees crops) pushes the parklet's own annotations (section mark, deck chain, hex keys) off the page: 10 texts at Commercial, 21 at W 41st. Real crops contain the parklet.
     - `checkLandmarkConsistency` can warn during an import (mid-render); at rest W 41st checks clean: 31/31 vegetation, 3/3 stops.
+
+## Drawing fixes (Brief 19b, branch drawing-style, one commit; not merged)
+- **Sheets by purpose (`RPT.SHEET_LAYERS`):**
+  - A-101 draws the context, trees with canopies, hydrants, poles and stops, the parklet and the section line.
+  - A-102 draws what the checks measure (hydrants, poles, signals, chambers), with segments, furniture tags, clearance zones and dimensions. No trees.
+  - A-103 draws the deck, furniture, grid and dimensions only: `planBase` `deckOnly`, with no street, curb or labels.
+- **A-201 scale (`RPT.sectionScale`):** 1:50 when the section and its notes fit the drawing area, else 1:100, never smaller. Content taller than the area is clipped at its top (the road level is held so the ground stays in view). Trees outside [xL, xR] are skipped. Beyond-buildings are clamped to the section's extent. A tree's x equals the Plan's.
+- **Scales in one place (`RPT.SCALE_OF`):** each sheet reads its own scale from here, and so does the drawing list, so they cannot disagree.
+- **Key symbols:** the text baseline is at cy + 0.35 × font size in section tags, grid bubbles, hex keys, lozenges, the hydrant H and the A-301 cell circles.
+- **Section line on the plans:** runs from the frontage to the far curb, plus 2 m past each end. Where that is longer than the sheet's crop, it stops at the crop edge (`RPT.secMarker` `lim`), so its tags stay on the sheet.
+- **Dimension text inside the frame:** `RPT.chain` / `RPT.dimText` take `o.frame` and flip or slide a value that would leave it.
+- **C05 on A-102:** only the governing hydrant (the one nearest the deck run) is dimensioned. Inside the run it shows as a 0 m extension line and value, red when the check fails.
+- **Other fixes:**
+  - The X-001 site table's address is `RPT.addr`, the same as the cover.
+  - Bus route numbers in the route note are de-duplicated.
+- **Pen:** a text wholly outside the rect clip it is drawn in is no longer drawn or counted. A crop's far segment labels had counted as "outside the page" after the drawing was centred.
+- **A-101 building labels:** a label that would cover a section tag steps beside it within its footprint, or is left off when it cannot fit (one at Commercial).
+- **Verified (technical, all three sites; A-102 crop -7.5..10.5 m across, 30.5 m along):**
+
+  | | Robson & Burrard | Commercial & 1st | W 41st & Dunbar |
+  |---|---|---|---|
+  | Trees A-101 / A-102 / A-103 | 14 / 0 / 0 | 4 / 0 / 0 | 11 / 0 / 0 |
+  | A-201 scale | 1:100 | 1:100 | 1:100 |
+  | Nearest tree x: model / Plan / Section | -4.60 / -4.60 / -4.595 (Carpinus) | -1.44 / -1.44 / -1.434 (Acer) | -3.40 / -3.40 / -3.404 (Acer) |
+  | Key symbols: worst text-centre offset dx / dy (mm, 67–73 symbols) | 0.132 / 0.131 | 0.132 / 0.086 | 0.132 / 0.086 |
+  | Section line, crop wide enough (A-102 at 1:250) | 19.30 m = 15.30 + 4 | 21.80 m = 17.80 + 4 | 24.50 m = 20.50 + 4 |
+  | Section line, test crop (18 m across) | stops at the crop edge | stops at the crop edge | stops at the crop edge |
+  | Clearance texts outside the frame | 0 of 5 | 0 of 5 | 0 of 5 |
+  | List vs title-block scale mismatches | 0 | 0 | 0 |
+  | C05 on A-102 | 0.00 (≥5.00 C05) in red #C0392B | 29.08, ink | 46.96, ink |
+  | Site table address = cover | 1001 Robson St | 1622 Commercial Drive | 3535 W 41st Av |
+  | Route list (repeats) | 5 (0) | 20, N20 (0) | 41, 2, R4, N22 (0) |
+  | Overlaps A-102 / A-201 | 0 / 0 | 0 / 0 | 0 / 0 |
+  | Full report, both modes: pages, overlaps, outside | 15, 0, 0 | 16, 0, 0 | 14, 0, 0 |
+- **Key-symbol offset:** measured with getBBox on the rendered SVG, which is within the brief's 0.2 mm on both axes.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
