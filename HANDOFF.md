@@ -431,6 +431,28 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - 0 DOM text overlaps at zoom 1 (U 6.05), 4 (U 1.51) and 12 (U 0.50), technical, and at zoom 4 schematic.
     - 87 items placed, 0 blocked. Leaders: 52 / 25 / 12 at the three zooms.
     - The technical sample report: 11 pages, 0 overlaps.
+- **B. Trees and small objects (commit 2).** Each symbol below has one definition in `DRAW_SYMBOLS`, used by both the Plan and the report (`RPT.planObjects`, `RPT.planBase`).
+  - **`tree`:** exactly one path and one dot.
+    - Technical: the canopy circle at `context`, plus one 3 mm radial tick across the rim at the NE (up-right on the sheet) in the same path, and the trunk dot. A conifer is dashed `short` (new DASH, 0.8/0.8 mm); a bare tree in winter is dashed `hidden`.
+    - Schematic: 35 % planting fill, no outline, a darker centre dot (`fill.plantingDark`, new token).
+    - The Plan's extra schematic fill ellipse is gone. Provenance appears only in the tooltip and the Sources sheet.
+    - The report pen's `path` grows the extent by `o.bb`.
+  - **`hydrant`:** one circle, 0.3 m across at model size (`o.r`) and at least 2.4 mm across, with an H. The nozzle bar and inner dot are gone.
+    - The Plan's always-on 1.7 m W4.1 ellipse is gone.
+    - The C05 5 m radius (`data-c05`) shows only while C05 is open in the Check list (`toggleCrit('c5')` redraws the Plan) or when that hydrant fails.
+  - **`busStop`:** a bold B, no box, grey until confirmed.
+  - **`post` (new):** a 0.1 m dot at `general`, used for the protected bike lane's flexible posts. `bikePostZs(L, ws)` gives the same positions to the Plan and the report: one at each end and every 2 m between the wheel stops.
+  - **`bike`:** takes `o.cls` and tags its polyline `data-bike`, drawn at `context`. Schematic draws one every 12 m. Technical draws one per sheet: on screen at 30 % of the visible width, in the report at 30 % of the sheet's width. The report plans now carry the bike marking and the posts.
+  - **Section:** a tree crown (A2 ellipse, cut and beyond) is its form outline at `context`, with no fill in technical and 35 % planting in schematic (`_crown()` in the section renderer). The winter rule is unchanged (fine, dashed). The report's A-201 crowns now use 35 % too.
+  - `checkLandmarkConsistency` reads a tree's Plan position from its trunk dot (the sibling after the canopy path) and a bus stop's from the B.
+  - **Verified (Robson, 150 m):**
+    - Plan: 40/40 trees are one path plus one dot and no ellipse, in both modes. 4 hydrants are one circle each. 3 bus stops are a B with no rect.
+    - C05 rings: 2 (the failing hydrants), 4 with C05 open, 2 again when closed.
+    - Protected bike lane: 1 bike symbol in technical; 26 in schematic (26 expected for 12 m); 10 posts with r = 0.05 m.
+    - A-102: 10 posts, 1 bike (technical) / 2 bikes (schematic, per 12 m in its crop).
+    - Screen pen and report pen give the same elements, fills and dashes for tree, conifer, hydrant, bus stop, post and bike in both modes.
+    - Section crowns: `none`, and `#9DB58E` at 0.35.
+    - Samples: both modes 11 pages, 0 overlaps. Plan: 0 text overlaps.
 
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:

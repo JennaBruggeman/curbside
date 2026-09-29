@@ -1408,6 +1408,7 @@ renderVerdict();
 function toggleCrit(id) {
   const el = document.getElementById('crit_' + id);
   el.classList.toggle('open');
+  if (id === 'c5' && typeof renderPlanView === 'function') renderPlanView();   // the Plan shows the C05 5 m radius while C05 is open
 
 }
 let allOpen = false;
@@ -2036,8 +2037,10 @@ function _checkLandmarkConsistency(verbose) {
   [].slice.call(vegPlan).forEach(function(el) {
     var v = veg[+el.getAttribute('data-veg')]; if (!v) return;
     var want = worldToPlan(v.x, v.z);
-    var cx = el.tagName.toLowerCase() === 'rect' ? +el.getAttribute('x') + +el.getAttribute('width') / 2 : +el.getAttribute('cx');
-    var cy = el.tagName.toLowerCase() === 'rect' ? +el.getAttribute('y') + +el.getAttribute('height') / 2 : +el.getAttribute('cy');
+    // a planter: its rect's centre; a tree (DRAW_SYMBOLS.tree, Brief 18): its canopy path, then the trunk dot at its centre
+    var tg = el.tagName.toLowerCase(), dot = tg === 'path' ? el.nextElementSibling : el;
+    var cx = tg === 'rect' ? +el.getAttribute('x') + +el.getAttribute('width') / 2 : +(dot && dot.getAttribute('cx'));
+    var cy = tg === 'rect' ? +el.getAttribute('y') + +el.getAttribute('height') / 2 : +(dot && dot.getAttribute('cy'));
     if (Math.hypot(cx - want.px, cy - want.py) > 0.5) bad.push({ value: 'vegetation ' + el.getAttribute('data-veg') + ' Plan position', model: want.px.toFixed(2) + ',' + want.py.toFixed(2), independent: cx.toFixed(2) + ',' + cy.toFixed(2) });
   });
   Object.keys(veg3d).forEach(function(k) {
@@ -2059,7 +2062,8 @@ function _checkLandmarkConsistency(verbose) {
     bad.push({ value: '3D transit count', model: trn.length, independent: nTrn3d });
   [].slice.call(trnPlan).forEach(function(el) {
     var t = trn[+el.getAttribute('data-transit')]; if (!t) return;
-    var want = worldToPlan(t.x, t.z), cx = +el.getAttribute('x') + +el.getAttribute('width') / 2, cy = +el.getAttribute('y') + +el.getAttribute('height') / 2;
+    // DRAW_SYMBOLS.busStop (Brief 18): a B centred on the stop (baseline 0.36 of its size below)
+    var want = worldToPlan(t.x, t.z), cx = +el.getAttribute('x'), cy = +el.getAttribute('y') - 0.36 * +el.getAttribute('font-size');
     if (Math.hypot(cx - want.px, cy - want.py) > 0.5) bad.push({ value: 'transit ' + el.getAttribute('data-transit') + ' Plan position', model: want.px.toFixed(2) + ',' + want.py.toFixed(2), independent: cx.toFixed(2) + ',' + cy.toFixed(2) });
   });
   Object.keys(trn3d).forEach(function(k) {
@@ -4912,6 +4916,11 @@ function _drawSection(svgEl, o) {
     var BINK = isTech ? T.ink : T.anno;
     function bst(tint) { return " fill='" + (isTech ? 'none' : DRAW_STYLE.c(DK, tint)) + "'" + (isTech ? '' : " fill-opacity='0.10'") + K1('general', { c: BINK }); }
     var bv = '';
+    // a tree crown in section (Brief 18): the form outline at 'context'; no fill (technical), 35 % planting (schematic)
+    function _crown(c, q) {
+      q = q || "'";
+      return ' fill=' + q + (isTech ? 'none' : T.fill.planting) + q + (isTech ? '' : ' fill-opacity=' + q + '0.35' + q) + (c ? K1('context', { c: c, q: q }) : K('context', { q: q }));
+    }
     scene.beyond.forEach(function(it) {
       var d = it.data, g = open('beyond', it), cx = (it.x0 + it.x1) / 2, base = surf(cx);
       if (it.kind === 'furniture' || it.kind === 'entourage') {
@@ -4924,13 +4933,14 @@ function _drawSection(svgEl, o) {
         } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('fill.furniture'));
       } else if (it.kind === 'tree' && d.v.form) {   // imported street tree: trunk to clearH, the crown an ellipse from clearH to its height, 2 canopyR wide
         var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, top = Math.max(v.heightM, v.clearH + 1), tw = Math.max(2, 2 * v.trunkR * SC);
+        // the crown (Brief 18): its form outline at 'context', no fill (technical) or 35 % planting (schematic); bare in winter: fine, dashed
         g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(gy - Y((v.clearH + top) / 2)) + "' rx='" + f1(v.canopyR * SC) + "' ry='" + f1(Y(top - v.clearH) / 2) + "'" +
-          (treeBare(v, treeSeasonNow()) ? " fill='none'" + K1('fine', { c: BINK, dash: 'hidden' }) : bst('fill.planting')) + " data-canopy='1'/>";   // bare in winter: outline only
+          (treeBare(v, treeSeasonNow()) ? " fill='none'" + K1('fine', { c: BINK, dash: 'hidden' }) : _crown(BINK)) + " data-canopy='1'/>";
         g += rectXY(tx - tw / 2, tx + tw / 2, gy, gy - Y(v.clearH), bst('fill.ground'));
       } else if (it.kind === 'tree') {
         var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, r = Math.max(0.15, v.canopyR) * SC, tw = Math.max(2, 0.12 * SC);
         var tTop = gy - Y(2.0), cy = tTop - r * 0.3;
-        g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(cy) + "' rx='" + f1(r) + "' ry='" + f1(r * 0.82) + "'" + bst('fill.planting') + '/>';
+        g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(cy) + "' rx='" + f1(r) + "' ry='" + f1(r * 0.82) + "'" + _crown(BINK) + ' data-canopy=\'1\'/>';
         g += rectXY(tx - tw / 2, tx + tw / 2, gy, tTop, bst('fill.ground'));
       } else if (it.kind === 'planter') {
         g += rectXY(X(it.x0), X(it.x1), surf(d.v.x), surf(d.v.x) - Y(0.5), bst('fill.planting'));
@@ -4978,12 +4988,12 @@ function _drawSection(svgEl, o) {
         } else if (v.form) {   // imported street tree at the cut: trunk to clearH, crown ellipse 2 canopyR wide
           var top = Math.max(v.heightM, v.clearH + 1), tw2 = Math.max(2, 2 * v.trunkR * SC), bare = treeBare(v, treeSeasonNow());
           g += '<ellipse cx="' + tx + '" cy="' + f1(gy - Y((v.clearH + top) / 2)) + '" rx="' + f1(v.canopyR * SC) + '" ry="' + f1(Y(top - v.clearH) / 2) + '"' +
-            (isTech || bare ? ' fill="none"' + K(bare ? 'fine' : 'general', { dash: bare ? 'hidden' : null }) : ' fill="' + T.fill.planting + '" fill-opacity="0.55"' + K('general')) + ' data-canopy="1"/>';
+            (bare ? ' fill="none"' + K('fine', { dash: 'hidden' }) : _crown(null, '"')) + ' data-canopy="1"/>';
           g += rectXY(tx - tw2 / 2, tx + tw2 / 2, gy, gy - Y(v.clearH), solid('fill.cut'));
         } else {
           var tDiam = Math.max(2, Math.round(0.12 * SC)), tH = Math.round(2.0 * SC), cR = Math.round(Math.max(0.15, v.canopyR || 0.4) * SC);
           var tTop = gy - tH, cCY = tTop - Math.round(cR * 0.3), cRY = Math.round(cR * 0.82);
-          g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + cR + '" ry="' + cRY + '"' + (isTech ? ' fill="none"' + K('general', { dash: 'hidden' }) : ' fill="' + T.fill.planting + '" fill-opacity="0.55"' + K('general')) + '/>';
+          g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + cR + '" ry="' + cRY + '"' + _crown(null, '"') + ' data-canopy="1"/>';
           g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="' + T.fill.cut + '"' + K('object') + '/>';
         }
       } else if (it.kind === 'bollard') {
@@ -5063,6 +5073,14 @@ function _drawSection(svgEl, o) {
 // DRAW_STYLE context.
 // With ann (the Plan's annotation layer, Brief 18) the lozenge and the value are registered there and placed by its one
 // pass (the value at the dimension text size); nothing is dropped however short the zone is on screen.
+// the flexible posts beside a protected bike lane along a parklet of length L (m) with wheel stops ws (m) per end: one at
+// each end (Manual p.48) and every 2 m between the wheel stops. The Plan and the report place them from this.
+function bikePostZs(L, ws) {
+  var z = [ws / 2];
+  for (var q = ws; q <= L - ws + 1e-6; q += 2) z.push(q);
+  z.push(L - ws / 2);
+  return z;
+}
 function dimArrow(x1, x2, midY, code, req, st, ctx, ann) {
   const P = DRAW_STYLE.pen(ctx), z = DRAW_STYLE.zone(ctx, st), cx = (x1 + x2) / 2, k = ctx.k;
   P.line(x1, midY, x2, midY, { cls: 'context', c: z.c, op: z.op });
@@ -5447,7 +5465,7 @@ WM.rebuildAll = function() { syncDesignModel('rebuildAll'); };
 // ═════════════════════════════════════════════════════════════════
 var DRAW_STYLE = {
   W: { cut: 0.70, object: 0.50, edge: 0.35, general: 0.25, context: 0.18, fine: 0.13 },
-  DASH: { hidden: [2, 1], centre: [8, 1, 1, 1], property: [12, 2, 2, 2], zone: [1.5, 1.5] },
+  DASH: { hidden: [2, 1], centre: [8, 1, 1, 1], property: [12, 2, 2, 2], zone: [1.5, 1.5], short: [0.8, 0.8] },
   TYPE: { sheet: { body: 2.5, tag: 1.8, head: 3.5 }, screen: { body: 12, tag: 9, head: 16 } },
   FONT: 'DM Sans, Helvetica Neue, Arial, sans-serif',
   // screen: a class's px = its sheet mm x base x sqrt(px per metre / ref), held to [min, max]; text and
@@ -5457,7 +5475,7 @@ var DRAW_STYLE = {
   technical: {
     ink: '#1A1A1A', anno: '#5A5A5A', mid: '#8C8C8C', light: '#D4D4D4', paper: '#FFFFFF',
     fail: '#C0392B', pass: '#1A1A1A', passOp: 0.5,
-    fill: { sidewalk: '#FFFFFF', deck: '#FFFFFF', planting: '#FFFFFF', bike: '#FFFFFF', road: '#FFFFFF', parking: '#FFFFFF', water: '#FFFFFF',
+    fill: { sidewalk: '#FFFFFF', deck: '#FFFFFF', planting: '#FFFFFF', plantingDark: '#1A1A1A', bike: '#FFFFFF', road: '#FFFFFF', parking: '#FFFFFF', water: '#FFFFFF',
             building: '#FFFFFF', ground: '#FFFFFF', furniture: '#FFFFFF', concrete: '#FFFFFF', gravel: '#FFFFFF', steel: '#1A1A1A', cut: '#1A1A1A', failTint: '#FFFFFF' },
     // concrete: random dots per mm2; timber: lines along the boards; planting: a cross-hatch at +-ang; gravel: stipple; cut: solid
     hatch: { concrete: { dots: 0.8, r: 0.1 }, asphalt: null, timber: { lines: 3 }, planting: { cross: 4, ang: 25 }, gravel: { dots: 2.4, r: 0.07 }, cut: { solid: true } }
@@ -5465,7 +5483,7 @@ var DRAW_STYLE = {
   schematic: {
     ink: '#2B2B2B', anno: '#5A5A5A', mid: '#8A857D', light: '#CFC9BE', paper: '#FFFFFF',
     fail: '#C0392B', pass: '#C0392B', passOp: 0.6,
-    fill: { sidewalk: '#E9E2D3', deck: '#C8A97A', planting: '#9DB58E', bike: '#B7CDA0', road: '#D9D5CF', parking: '#E4DFD6', water: '#CFE0E6',
+    fill: { sidewalk: '#E9E2D3', deck: '#C8A97A', planting: '#9DB58E', plantingDark: '#56704B', bike: '#B7CDA0', road: '#D9D5CF', parking: '#E4DFD6', water: '#CFE0E6',
             building: '#F1EDE5', ground: '#E9E2D3', furniture: '#F7F4EE', concrete: '#E9E2D3', gravel: '#D8CFBD', steel: '#2B2B2B', cut: '#2B2B2B', failTint: '#EBCFC9' },
     // the same names as flat fills: no hatch but the solid cut
     hatch: { concrete: null, asphalt: null, timber: null, planting: null, gravel: null, cut: { solid: true } }
@@ -5595,7 +5613,7 @@ DRAW_STYLE.pen = function(ctx) {
     rect: function(x, y, w, h, o) { out.push("<rect x='" + f(Math.min(x, x + w)) + "' y='" + f(Math.min(y, y + h)) + "' width='" + f(Math.abs(w)) + "' height='" + f(Math.abs(h)) + "'" + st(o) + end('rect', o)); return P; },
     poly: function(pts, o) { out.push("<polygon points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "'" + st(o) + end('polygon', o)); return P; },
     polyline: function(pts, o) { out.push("<polyline points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "'" + st(o) + end('polyline', o)); return P; },
-    path: function(d, o) { out.push("<path d='" + d + "'" + st(o) + end('path', o)); return P; },
+    path: function(d, o) { out.push("<path d='" + d + "'" + st(o) + end('path', o)); return P; },   // o.bb: its extent (the report pen's)
     circle: function(cx, cy, r, o) { out.push("<circle cx='" + f(cx) + "' cy='" + f(cy) + "' r='" + f(r) + "'" + st(o) + end('circle', o)); return P; },
     ellipse: function(cx, cy, rx, ry, o) { out.push("<ellipse cx='" + f(cx) + "' cy='" + f(cy) + "' rx='" + f(rx) + "' ry='" + f(ry) + "'" + st(o) + end('ellipse', o)); return P; },
     text: function(x, y, s, size, o) {
@@ -5658,24 +5676,40 @@ var DRAW_SYMBOLS = {
     P.line(x - 4 * k, y, x + 4 * k, y, { cls: 'general' });
     P.text(x + s * 5 * k, y - 0.6 * k, value + (name ? '  ' + name : ''), P.fs('tag'), { anchor: s > 0 ? 'start' : 'end', c: 'ink' });
   },
-  // tree in plan: the canopy outline only (conifer dashed 'hidden', bare in winter 'fine' dashed), a trunk dot
+  // tree in plan (Brief 18): exactly one path and one dot. Technical: the canopy circle at 'context' and, in the same
+  // path, one 3 mm radial tick across the rim at the NE (up-right on the sheet); a conifer is a short dash, a bare tree
+  // in winter 'hidden'; the trunk dot in ink. Schematic: the canopy at 35 % planting fill, no outline, a darker centre
+  // dot (bare in winter: the outline as technical, no fill). The provenance (City / estimate) is in the tooltip and
+  // the report's Sources sheet, never a ring.
   tree: function(P, x, y, rx, ry, o) {
-    o = o || {}; var k = P.ctx.k;
-    P.ellipse(x, y, rx, ry, { cls: o.bare ? 'fine' : 'general', dash: o.conifer || o.bare ? 'hidden' : null, data: o.data });
-    P.circle(x, y, Math.max(0.5 * k, o.trunk || 0), { fill: 'ink', cls: 'none' });
+    o = o || {}; var k = P.ctx.k, f = function(v) { return (+v).toFixed(2); }, r = rx, q = ry == null ? rx : ry;
+    var d = 'M' + f(x - r) + ' ' + f(y) + 'A' + f(r) + ' ' + f(q) + ' 0 1 0 ' + f(x + r) + ' ' + f(y) + 'A' + f(r) + ' ' + f(q) + ' 0 1 0 ' + f(x - r) + ' ' + f(y) + 'Z';
+    var dot = Math.max(0.5 * k, o.trunk || 0), bb = [x - r, y - q, x + r, y + q];
+    if (P.ctx.mode === 'schematic' && !o.bare) {
+      P.path(d, { fill: 'fill.planting', fop: 0.35, cls: 'none', data: o.data, title: o.title, bb: bb });
+      P.circle(x, y, dot, { fill: 'fill.plantingDark', cls: 'none' });
+      return;
+    }
+    var c = Math.SQRT1_2, a = 1.5 * k;
+    d += 'M' + f(x + c * (r - a)) + ' ' + f(y - c * (q - a)) + 'L' + f(x + c * (r + a)) + ' ' + f(y - c * (q + a));
+    P.path(d, { cls: 'context', dash: o.bare ? 'hidden' : o.conifer ? 'short' : null, data: o.data, title: o.title, bb: bb });
+    P.circle(x, y, dot, { fill: 'ink', cls: 'none' });
   },
-  // bus stop: a 3 mm square with a B
+  // bus stop (Brief 18): the letter B, bold, no box; grey until confirmed on site
   busStop: function(P, x, y, o) {
-    o = o || {}; var k = P.ctx.k, a = 1.5 * k;
-    P.rect(x - a, y - a, 2 * a, 2 * a, { cls: 'edge', fill: 'paper', dash: o.unconfirmed ? 'hidden' : null, data: o.data });
-    P.text(x, y + 0.65 * k, 'B', P.fs('tag'), { anchor: 'middle', bold: true, c: 'ink' });
+    o = o || {}; var s = P.fs('body');
+    P.text(x, y + 0.36 * s, 'B', s, { anchor: 'middle', bold: true, c: o.unconfirmed ? 'mid' : 'ink', data: o.data });
   },
-  // hydrant: a 2.4 mm circle with its two nozzles along the curb
+  // hydrant (Brief 18): one circle, 0.3 m across at model size (o.r, user units) and never under 2.4 mm, with an H
   hydrant: function(P, x, y, o) {
-    o = o || {}; var k = P.ctx.k, r = 1.2 * k;
-    P.line(x - r - 0.8 * k, y, x + r + 0.8 * k, y, { cls: 'edge', c: o.c });
+    o = o || {}; var k = P.ctx.k, r = Math.max(1.2 * k, o.r || 0);
     P.circle(x, y, r, { cls: 'edge', fill: 'paper', c: o.c, data: o.data });
-    P.circle(x, y, 0.35 * k, { fill: o.c || 'ink', cls: 'none' });
+    P.text(x, y + 0.45 * r, 'H', 1.25 * r, { anchor: 'middle', bold: true, c: o.c || 'ink' });
+  },
+  // a bollard or flexible post (Brief 18): a 0.1 m dot at 'general'; r in user units
+  post: function(P, x, y, r, o) {
+    o = o || {};
+    P.circle(x, y, r, { fill: 'ink', cls: 'general', data: o.data });
   },
   // pole: a 1.8 mm circle with a centre dot
   pole: function(P, x, y, o) {
@@ -5698,9 +5732,10 @@ var DRAW_SYMBOLS = {
   // bicycle (the lane marking), s: wheel radius in user units
   bike: function(P, x, y, s, o) {
     o = o || {}; var c = o.c, L = x - 1.65 * s, R = x + 1.65 * s, sy = y - 1.5 * s, hx = x + 0.85 * s, hy = y - 1.35 * s, dx = x - 0.35 * s, dy = y - 2.5 * s;
-    P.circle(L, y, s, { cls: 'general', c: c }); P.circle(R, y, s, { cls: 'general', c: c });
-    P.polyline([[L, y], [x, sy], [R, y], [hx, hy], [x, sy]], { cls: 'general', c: c, join: 'round' });
-    P.line(hx - 0.4 * s, hy - 0.25 * s, hx + 0.35 * s, hy - 0.25 * s, { cls: 'general', c: c });
+    var w = o.cls || 'general';
+    P.circle(L, y, s, { cls: w, c: c }); P.circle(R, y, s, { cls: w, c: c });
+    P.polyline([[L, y], [x, sy], [R, y], [hx, hy], [x, sy]], { cls: w, c: c, join: 'round', data: " data-bike='1'" });
+    P.line(hx - 0.4 * s, hy - 0.25 * s, hx + 0.35 * s, hy - 0.25 * s, { cls: w, c: c });
     P.circle(dx, dy, 0.45 * s, { fill: c || 'ink', cls: 'none' });
   },
   // wheel stop: its body at model size, two dowels
@@ -6103,14 +6138,13 @@ function _renderPlanView(o) {
       // DRAW_SYMBOLS.tree: the canopy outline (conifer dashed; bare in winter fine, dashed) and the trunk; schematic lays the
       // planting fill under a leafed canopy. An imported street tree's tooltip is the City's name.
       const bare = v.segId === null && treeBare(v, treeSeasonNow());
-      if (!_iTch && !bare) s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='${DK.T.fill.planting}' fill-opacity='0.45' stroke='none'/>`;
       s += _sym(function(P) { DRAW_SYMBOLS.tree(P, c.px, c.py, rx, ry, { conifer: v.leaf === 'conifer', bare: bare, trunk: Math.max(v.trunkR || 0, 0.1) * HS, data: ` data-veg='${i}'`, title: v.segId === null && v.form ? treeTip(v) : '' }); });
     } else {   // planter: the footprint of the 3D planter box (2r x 2r), the planting fill and (technical) its band
       const _pR = function(a) { return `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}'${a}/>`; };
       s += _pR(` fill='${DK.T.fill.planting}'${K('edge')} data-veg='${i}'`) + _band('planting', _pR);
     }
   });
-  // Transit stops from DESIGN_MODEL.transit (the Site import): a 0.9 m square and its label, dashed
+  // Transit stops from DESIGN_MODEL.transit (the Site import): DRAW_SYMBOLS.busStop (a B) and its label, grey
   // until confirmed on site. Tagged data-transit='<index>' for the check.
   (_pvDM.transit || []).forEach(function(t, i) {
     const c = worldToPlan(t.x, t.z);
@@ -6121,17 +6155,17 @@ function _renderPlanView(o) {
     const pvLaneY = _bikeSeg.y0, pvLaneH = _bikeSeg.y1 - _bikeSeg.y0;
     const _corrEdgeY = Math.max.apply(null, _bikeCorr.map(function(sg){ return sg.y1; }));  // traffic side of the corridor
     s += `<line x1='0' y1='${_corrEdgeY.toFixed(2)}' x2='${VW}' y2='${_corrEdgeY.toFixed(2)}'${K('general', { c: pvBLStroke })}/>`;
-    // the bicycle marking (DRAW_SYMBOLS.bike) every sixth of the drawing
-    const bkInt = Math.max(110, Math.round(VW / 6)), bkR = Math.min(pvLaneH * 0.18, 0.3 * HS), bkWY = pvLaneY + pvLaneH - bkR - pvLaneH * 0.12;
-    for (let bkX = bkInt * 0.5; bkX < VW - 20; bkX += bkInt) s += _sym(function(P) { DRAW_SYMBOLS.bike(P, bkX, bkWY, bkR, { c: pvBLStroke }); });
+    // the bicycle marking (DRAW_SYMBOLS.bike, 'context'): schematic one every 12 m; technical once, in the visible part
+    const bkR = Math.min(pvLaneH * 0.18, 0.3 * HS), bkWY = pvLaneY + pvLaneH - bkR - pvLaneH * 0.12;
+    if (_iTch) { const bkX = Math.max(0, VIS.x0) + 0.3 * (Math.min(VW, VIS.x1) - Math.max(0, VIS.x0)); s += _sym(function(P) { DRAW_SYMBOLS.bike(P, bkX, bkWY, bkR, { c: pvBLStroke, cls: 'context' }); }); }
+    else for (let bkX = 6 * HS; bkX < VW; bkX += 12 * HS) s += _sym(function(P) { DRAW_SYMBOLS.bike(P, bkX, bkWY, bkR, { c: pvBLStroke, cls: 'context' }); });
     annSeg('Bike lane', pvLaneY + pvLaneH - 3 * U, { c: pvBLStroke });
     // Protected bike lane: flexible bollard row in plan at parklet/bike-lane boundary
     // Manual p.21, p.48: City installs flexible bollards at each end and as needed
     if (designBikeLane === 'protected') {
-      const bollardSpPx = Math.round(2.0 * HS), bollardY = _corrEdgeY, bR = Math.max(0.12 * pvSC, 0.6 * DK.k);
-      for (let bpx = PK_X + WS_PX; bpx <= PK_X + PK_W - WS_PX; bpx += bollardSpPx) s += `<circle cx='${bpx.toFixed(1)}' cy='${bollardY}' r='${bR.toFixed(2)}' fill='${DK.T.paper}'${K('edge')}/>`;
-      // Mandatory end bollards (Manual p.48: at each end of the parklet), solid
-      [PK_X + WS_PX * 0.5, PK_X + PK_W - WS_PX * 0.5].forEach(ex => { s += `<circle cx='${ex.toFixed(1)}' cy='${bollardY}' r='${(bR * 1.2).toFixed(2)}' fill='${DK.T.ink}' stroke='none'/>`; });
+      // every 2 m along the deck and one at each end (Manual p.48); DRAW_SYMBOLS.post: a 0.1 m dot at 'general'
+      const bollardY = _corrEdgeY, bR = 0.05 * pvSC;
+      bikePostZs(PARKLET_M, WS_M).forEach(function(z) { s += _sym(function(P) { DRAW_SYMBOLS.post(P, PK_X + z * HS, bollardY, bR, { data: " data-post='1'" }); }); });
     }
   }
   // Vegetated buffer strip between the sidewalk and the building frontage (landmarks.bufferL,
@@ -6460,11 +6494,10 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     // Dashed leader: element centre to curb face
     s += `<line x1='${cfX.toFixed(1)}' y1='${cfY.toFixed(1)}' x2='${cfX.toFixed(1)}' y2='${CURB_Y.toFixed(1)}'${K('fine', { c: col, op: 0.5, dash: 'hidden' })}/>`;
     if (cf.type === 'H') {
-      // W4.1: 1.7m unobstructed clearance zone (no above-grade structures within this radius)
-      const hClrRx = (1.7 * HS).toFixed(1), hClrRy = (1.7 * pvSC).toFixed(1);
-      const hR = Math.max(6, Math.round(0.10 * pvSC));
-      s += `<ellipse cx='${cfX.toFixed(1)}' cy='${cfY.toFixed(1)}' rx='${hClrRx}' ry='${hClrRy}' fill='none'${K('fine', { c: col, op: colOp, dash: 'zone' })}/>`;
-      s += _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col }); });
+      // the C05 5 m radius (Brief 18): only while C05 is open in the Check list, or when it fails
+      const hR = Math.max(6, Math.round(0.10 * pvSC)), _c5Open = !!document.querySelector('#crit_c5.open');
+      if (_c5Open || !pOk) s += `<circle cx='${cfX.toFixed(1)}' cy='${cfY.toFixed(1)}' r='${(def.req * pvSC).toFixed(1)}' fill='none'${K('fine', { c: col, op: colOp, dash: 'zone' })} data-c05='1'/>`;
+      s += _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC }); });
       annText('object', 'Hydrant', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY] }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + hR + 5 * pvZS, cfY - hR - 3 * pvZS);
@@ -19250,7 +19283,7 @@ RPT.pen = function(ctx) {
     line: function(x1, y1, x2, y2, o) { grow(Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2)); out.push("<line x1='" + f(x1) + "' y1='" + f(y1) + "' x2='" + f(x2) + "' y2='" + f(y2) + "'" + st(o) + '/>'); return P; },
     rect: function(x, y, w, h, o) { var x0 = Math.min(x, x + w), y0 = Math.min(y, y + h); grow(x0, y0, x0 + Math.abs(w), y0 + Math.abs(h)); out.push("<rect x='" + f(x0) + "' y='" + f(y0) + "' width='" + f(Math.abs(w)) + "' height='" + f(Math.abs(h)) + "'" + st(o) + '/>'); return P; },
     poly: function(pts, o) { growPts(pts); out.push("<polygon points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "'" + st(o) + '/>'); return P; },
-    path: function(d, o) { out.push("<path d='" + d + "'" + st(o) + '/>'); return P; },
+    path: function(d, o) { if (o && o.bb) grow(o.bb[0], o.bb[1], o.bb[2], o.bb[3]); out.push("<path d='" + d + "'" + st(o) + '/>'); return P; },
     circle: function(cx, cy, r, o) { grow(cx - r, cy - r, cx + r, cy + r); out.push("<circle cx='" + f(cx) + "' cy='" + f(cy) + "' r='" + f(r) + "'" + st(o) + '/>'); return P; },
     ellipse: function(cx, cy, rx, ry, o) { grow(cx - rx, cy - ry, cx + rx, cy + ry); out.push("<ellipse cx='" + f(cx) + "' cy='" + f(cy) + "' rx='" + f(rx) + "' ry='" + f(ry) + "'" + st(o) + '/>'); return P; },
     text: function(x, y, s, size, o) {
@@ -19404,7 +19437,7 @@ RPT.northSym = function(P, cx, cy, r) {
 RPT.secMarker = function(P, x, y0, y1, lookLeft) { DRAW_SYMBOLS.sectionLine(P, x, y0, y1, 'A', lookLeft ? -1 : 1); };
 // the report's names for DRAW_SYMBOLS
 RPT.sym = {
-  hydrant: function(P, x, y) { DRAW_SYMBOLS.hydrant(P, x, y); },
+  hydrant: function(P, x, y, r) { DRAW_SYMBOLS.hydrant(P, x, y, { r: r }); },
   pole: function(P, x, y) { DRAW_SYMBOLS.pole(P, x, y); },
   signal: function(P, x, y, w, h) { DRAW_SYMBOLS.signal(P, x, y, w || 0, h || 0); },
   manhole: function(P, x, y, r) { DRAW_SYMBOLS.manhole(P, x, y, r, r * 609.6 / 939.8); },
@@ -19538,7 +19571,17 @@ RPT.planBase = function(P, G, F, mode, o) {
     if (sg.type === 'sidewalk' || sg.type === 'parklet') return;
     var y0 = sy(sg.x0), h = (sg.x1 - sg.x0) * F.k;
     P.rect(xa, y0, xb - xa, h, { fill: sg.type === 'bike-lane' ? FI.bike : sg.type === 'planting' || /buf/.test(sg.type) ? (sg.variant === 'trees' || sg.variant === 'planters' || sg.type === 'planting' ? FI.plant : FI.road) : FI.road, w: 0 });
-    if (sg.type === 'bike-lane') { P.line(xa, y0, xb, y0, { w: RPT.LW.gen, dash: 'hidden' }); P.line(xa, y0 + h, xb, y0 + h, { w: RPT.LW.gen, dash: 'hidden' }); }
+    if (sg.type === 'bike-lane') {
+      P.line(xa, y0, xb, y0, { w: RPT.LW.gen, dash: 'hidden' }); P.line(xa, y0 + h, xb, y0 + h, { w: RPT.LW.gen, dash: 'hidden' });
+      // the bicycle marking as on screen (Brief 18): technical once per sheet, schematic one every 12 m; 'context'
+      var bkR = Math.min(h * 0.18, 0.3 * F.k), bkY = y0 + h - bkR - h * 0.12;
+      if (mode === 'technical') DRAW_SYMBOLS.bike(P, xa + 0.3 * (xb - xa), bkY, bkR, { cls: 'context' });
+      else for (var bz = Math.ceil(F.zA / 12) * 12 + 6; bz < F.zB; bz += 12) DRAW_SYMBOLS.bike(P, F.sx(bz), bkY, bkR, { cls: 'context' });
+      // protected: the flexible posts on its traffic side, every 2 m along the deck and one at each end, as on screen
+      if (typeof designBikeLane !== 'undefined' && designBikeLane === 'protected') {
+        bikePostZs(G.DM.parklet.length, 1.1).forEach(function(z) { if (z >= F.zA && z <= F.zB) DRAW_SYMBOLS.post(P, F.sx(z), y0 + h, 0.05 * F.k); });
+      }
+    }
     if (o.labels !== false && h > 3.2) P.text(xa + 3, y0 + h / 2 + 0.9, RPT.SEG[sg.type] || sg.type.toUpperCase(), RPT.TX.tag, { c: RPT.MID, ls: 0.15 });
   });
   // lane lines: dashed between travel lanes of one direction, a double centre line between directions
@@ -19613,13 +19656,14 @@ RPT.planFurn = function(P, G, F, d, o) {
 };
 RPT.planObjects = function(P, G, F, o) {
   o = o || {}; var inZ = function(z) { return z >= F.zA - 0.01 && z <= F.zB + 0.01; }, tagged = [];
-  G.cf.forEach(function(c) { if (!inZ(c.z)) return; (c.type === 'H' ? RPT.sym.hydrant : c.type === 'P' ? RPT.sym.pole : c.type === 'S' ? RPT.sym.signal : RPT.sym.pole)(P, F.sx(c.z), F.sy(c.x)); });
+  G.cf.forEach(function(c) { if (!inZ(c.z)) return; if (c.type === 'H') RPT.sym.hydrant(P, F.sx(c.z), F.sy(c.x), 0.15 * F.k); else (c.type === 'S' ? RPT.sym.signal : RPT.sym.pole)(P, F.sx(c.z), F.sy(c.x)); });
   G.mh.forEach(function(m) { if (inZ(m.z)) RPT.sym.manhole(P, F.sx(m.z), F.sy(m.x), (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47) * F.k); });
   G.transit.forEach(function(t) { if (inZ(t.z)) RPT.sym.bus(P, F.sx(t.z), F.sy(t.x)); });
   G.trees.forEach(function(v) {
     if (!inZ(v.z)) return;
+    // DRAW_SYMBOLS.tree, as the Plan draws it (Brief 18: screen and report symbols are the same)
     var cx = F.sx(v.z), cy = F.sy(v.x), r = Math.max(0.8, v.canopyR * F.k);
-    P.circle(cx, cy, r, { w: RPT.LW.ctx, dash: v.leaf === 'conifer' ? 'hidden' : null, fill: 'none' }); P.circle(cx, cy, 0.35, { fill: RPT.INK, w: 0 });
+    DRAW_SYMBOLS.tree(P, cx, cy, r, r, { conifer: v.leaf === 'conifer', bare: v.segId === null && typeof treeBare === 'function' && treeBare(v, treeSeasonNow()), trunk: Math.max(v.trunkR || 0, 0.1) * F.k });
     if (!o.genus || !v.genus) return;
     var tx = cx + r * 0.72 + 0.4, ty = cy - r * 0.72, g2 = v.genus.slice(0, 2).toUpperCase();
     if (tagged.some(function(q) { return Math.abs(q[0] - tx) < 5 && Math.abs(q[1] - ty) < 3; })) return;   // one tag for a cluster
@@ -19873,7 +19917,7 @@ RPT.sheetSection = function(d) {
     if (it.kind === 'furniture') { var on = it.x0 >= LM.deckX0 - 0.01 && it.x1 <= LM.deckX1 + 0.01, base = on ? lv.deckTop : it.x1 <= 0 ? lv.curbTop : 0; var fq = rectXY(it.x0, it.x1, base, base + (it.y1 - it.y0), { fill: FI.furn, cls: scn.cut.indexOf(it) >= 0 ? 'object' : 'general' }); if (!furnAt) furnAt = [fq[0] + fq[2] / 2, fq[1] - 4]; }
     else if (it.kind === 'tree' && it.data && it.data.v) { var v = it.data.v, top = v.form ? Math.max(v.heightM, v.clearH + 1) : 2 + 1.12 * v.canopyR, ch = v.form ? v.clearH : 2.0, base = v.x < 0 ? lv.curbTop : 0;
       rectXY(v.x - (v.trunkR || 0.08), v.x + (v.trunkR || 0.08), base, base + ch, { cls: 'general' });
-      P.ellipse(X(v.x), Y(base + (ch + top) / 2), v.canopyR * k, (top - ch) / 2 * k, { cls: 'context', fill: d.mode === 'technical' ? 'none' : DRAW_STYLE.schematic.fill.planting, fop: 0.45 }); }
+      P.ellipse(X(v.x), Y(base + (ch + top) / 2), v.canopyR * k, (top - ch) / 2 * k, { cls: 'context', fill: d.mode === 'technical' ? 'none' : DRAW_STYLE.schematic.fill.planting, fop: d.mode === 'technical' ? null : 0.35 }); }
   });
   // the railing on the traffic side: a post (elevation) and the two rails (cut: steel, solid)
   var rpx0 = LM.deckX1 - R.postW, post = rectXY(rpx0, LM.deckX1, lv.deckTop, lv.deckTop + R.h, { fill: RPT.MARK.post, w: 0, data: " data-rail-h='" + R.h + "'" });
