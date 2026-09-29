@@ -2003,7 +2003,31 @@ function _checkLandmarkConsistency(verbose) {
     var p = _3d.group.worldToLocal(veg3d[k].getWorldPosition(new THREE.Vector3()));
     if (Math.abs(p.x - v.x) > 0.01 || Math.abs(p.z - v.z) > 0.01) bad.push({ value: 'vegetation ' + k + ' 3D position', model: v.x + ',' + v.z, independent: p.x.toFixed(3) + ',' + p.z.toFixed(3) });
   });
-  window._lastVegetationCheck = { model: veg.length, plan: vegPlan.length, view3d: n3d };
+  var vegCnt = DM.vegetationCounts || { segment: veg.length, imported: 0 };
+  window._lastVegetationCheck = { model: veg.length, segment: vegCnt.segment, imported: vegCnt.imported, plan: vegPlan.length, view3d: n3d };
+  // Transit stops: Plan and 3D must each draw exactly DESIGN_MODEL.transit.length stops, each at
+  // worldToPlan(x, z) in Plan (0.5 px) and at (x, z) in 3D (0.01 m).
+  var trn = DM.transit || [], trnPlan = planSvg ? planSvg.querySelectorAll('[data-transit]') : [], trn3d = {};
+  if (v3d)
+    _3d.group.traverse(function(o){ if (o.userData && o.userData.transit !== undefined) trn3d[o.userData.transit] = o; });
+  var nTrn3d = Object.keys(trn3d).length;
+  if (planSvg && planSvg.childElementCount && trnPlan.length !== trn.length)
+    bad.push({ value: 'Plan transit count', model: trn.length, independent: trnPlan.length });
+  if (have3dScene && nTrn3d !== trn.length)
+    bad.push({ value: '3D transit count', model: trn.length, independent: nTrn3d });
+  [].slice.call(trnPlan).forEach(function(el) {
+    var t = trn[+el.getAttribute('data-transit')]; if (!t) return;
+    var want = worldToPlan(t.x, t.z), cx = +el.getAttribute('x') + +el.getAttribute('width') / 2, cy = +el.getAttribute('y') + +el.getAttribute('height') / 2;
+    if (Math.hypot(cx - want.px, cy - want.py) > 0.5) bad.push({ value: 'transit ' + el.getAttribute('data-transit') + ' Plan position', model: want.px.toFixed(2) + ',' + want.py.toFixed(2), independent: cx.toFixed(2) + ',' + cy.toFixed(2) });
+  });
+  Object.keys(trn3d).forEach(function(k) {
+    var t = trn[+k]; if (!t) return;
+    var p = _3d.group.worldToLocal(trn3d[k].getWorldPosition(new THREE.Vector3()));
+    if (Math.abs(p.x - t.x) > 0.01 || Math.abs(p.z - t.z) > 0.01) bad.push({ value: 'transit ' + k + ' 3D position', model: t.x + ',' + t.z, independent: p.x.toFixed(3) + ',' + p.z.toFixed(3) });
+  });
+  window._lastTransitCheck = { model: trn.length, plan: trnPlan.length, view3d: nTrn3d };
+  window._lastVegetationLine = 'vegetation: ' + vegCnt.segment + ' segment + ' + vegCnt.imported + ' imported; transit: ' + trn.length;
+  if (verbose !== false) console.log('[checkLandmarkConsistency] ' + window._lastVegetationLine);
   // Furniture: every archetype piece's 3D size (its non-veg meshes, measured in the piece's own
   // frame so rotation does not inflate the box) and its Plan glyph (local metres) must equal the
   // size its params give (flInstDims), within 5 mm.
@@ -2313,7 +2337,23 @@ function buildDesignModel() {
       for (var z = LM.sceneMinZ + sp / 2; z < LM.sceneMaxZ; z += sp)
         veg.push({ segId: seg.id, type: tree ? 'tree' : 'planter', x: x, z: z, canopyR: r, trunkR: tree ? Math.min(0.1, r * 0.4) : 0 });
     });
+    // Imported street trees (Site import, CoV public-trees: state.street_trees) join the same list in the
+    // same frame -- x = the near curb (roadLeft) + yM (yM <= 0, toward the frontage), z = xM -- within the
+    // scene extent only. segId null marks an imported tree; its prov and species ride along.
+    var nSeg = veg.length;
+    ((typeof state !== 'undefined' && state.street_trees) || []).forEach(function(t) {
+      var z = +t.xM, x = LM.roadLeft + (+t.yM || 0), h = +t.height;
+      if (!isFinite(z) || z < LM.sceneMinZ || z > LM.sceneMaxZ) return;
+      var cR = isFinite(h) && h > 0 ? Math.max(1, Math.min(4, 0.35 * h)) : 2;
+      veg.push({ segId: null, type: 'tree', x: x, z: z, canopyR: cR, trunkR: Math.min(0.15, cR * 0.1), prov: t.prov || null, species: t.species || '', id: t.id, confirmed: !!t.confirmed });
+    });
     DESIGN_MODEL.vegetation = veg;
+    DESIGN_MODEL.vegetationCounts = { segment: nSeg, imported: veg.length - nSeg };
+    // Transit stops (Site import: OSM bus stops, CoV rapid transit stations: state.transit_stops), same
+    // frame and extent. Plan and 3D draw DESIGN_MODEL.transit; no view reads state.transit_stops to draw.
+    DESIGN_MODEL.transit = ((typeof state !== 'undefined' && state.transit_stops) || [])
+      .filter(function(t) { var z = +t.xM; return isFinite(z) && z >= LM.sceneMinZ && z <= LM.sceneMaxZ; })
+      .map(function(t) { return { id: t.id, x: LM.roadLeft + (+t.yM || 0), z: +t.xM, kind: t.kind || 'bus', name: t.name || '', prov: t.prov || null, confirmed: !!t.confirmed }; });
   })();
   // Movement paths: the centre-lines people and vehicles follow in the animated export. Data
   // only -- the animator reads these and nothing else. {id, kind:'lane'|'bike'|'sidewalk'|'deck',
@@ -5475,6 +5515,9 @@ function _renderPlanView(o) {
     if (v.type === 'tree' && _iTch) {   // technical: open canopy circle + centre dot
       s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='none' stroke='#1A1A1A' stroke-width='0.6' data-veg='${i}'/>`;
       s += `<circle cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' r='1.3' fill='#1A1A1A'/>`;
+    } else if (v.type === 'tree' && v.segId === null) {   // imported street tree: dashed until confirmed on site
+      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='rgba(94,140,80,.18)' stroke='#5E8C50' stroke-width='0.9'${v.confirmed ? '' : ` stroke-dasharray='3,2'`} data-veg='${i}'/>`;
+      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${Math.max(1, v.trunkR * HS).toFixed(2)}' ry='${Math.max(1, v.trunkR * pvSC).toFixed(2)}' fill='#6b4c2a'/>`;
     } else if (v.type === 'tree') {
       s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='rgba(111,154,90,.30)' stroke='#5d8a52' stroke-width='0.7' stroke-dasharray='3,2' data-veg='${i}'/>`;
       s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${Math.max(1, v.trunkR * HS).toFixed(2)}' ry='${Math.max(1, v.trunkR * pvSC).toFixed(2)}' fill='#6b4c2a'/>`;
@@ -5484,6 +5527,13 @@ function _renderPlanView(o) {
     } else {   // planter: footprint of the 3D planter box (2r x 2r)
       s += `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}' rx='1.5' fill='#8fae78' stroke='#6f5a3e' stroke-width='0.7' data-veg='${i}'/>`;
     }
+  });
+  // Transit stops from DESIGN_MODEL.transit (the Site import): a 0.9 m square and its label, dashed
+  // until confirmed on site. Tagged data-transit='<index>' for the check.
+  (_pvDM.transit || []).forEach(function(t, i) {
+    const c = worldToPlan(t.x, t.z), w = 0.9 * HS, h = 0.9 * pvSC;
+    s += `<rect x='${(c.px - w / 2).toFixed(2)}' y='${(c.py - h / 2).toFixed(2)}' width='${w.toFixed(2)}' height='${h.toFixed(2)}' fill='${_iTch ? '#FFFFFF' : '#3AA8E4'}' stroke='#17191C' stroke-width='0.7'${t.confirmed ? '' : ` stroke-dasharray='2,1'`} data-transit='${i}'/>`;
+    s += `<text x='${(c.px + w * 0.7).toFixed(2)}' y='${(c.py + 3).toFixed(2)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' fill='${_iTch ? '#1A1A1A' : '#1F6FA0'}'>${t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop'}</text>`;
   });
   if (_bikeSeg) {
     const pvLaneY = _bikeSeg.y0, pvLaneH = _bikeSeg.y1 - _bikeSeg.y0;
@@ -7415,6 +7465,16 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       }
     });
   }
+
+  // Transit stops from DESIGN_MODEL.transit: a 0.6 x 0.6 x 2.4 m post on the sidewalk at (x, z) with a
+  // flag at its top on the road side. The post carries userData.transit = entry index for the check.
+  (_dm3d.transit || []).forEach(function(t, i) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2.4, 0.6), new THREE.MeshStandardMaterial({color: 0x2f5d86, roughness: 0.8}));
+    post.position.set(t.x, 1.2, t.z); post.castShadow = true;
+    post.userData.transit = i; post.userData.label = t.kind === 'rapid' ? 'Rapid transit station' : 'Bus stop'; g.add(post);
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.45, 0.6), new THREE.MeshStandardMaterial({color: 0x3AA8E4, roughness: 0.6}));
+    flag.position.set(t.x + 0.32, 2.15, t.z); g.add(flag);
+  });
 
   // Manholes in 3D at their stored world position (yM across, xM along), WW1 outer radius.
   const mhs3d = state['manholes'] || [];
@@ -21615,7 +21675,7 @@ SMP.refresh = function() {
   try { if (typeof updateCurbFeatureDists === 'function') updateCurbFeatureDists(); } catch (e) {}
   SMP.decorateChecks();
   try { if (typeof renderVerdict === 'function') renderVerdict(); } catch (e) {}
-  try { renderPlanView(); } catch (e) {}
+  try { syncDesignModel('site-context'); } catch (e) {}   // the model carries the imported trees and stops: Plan, Section and 3D redraw from it
   try { saveSettings(); } catch (e) {}
 };
 
@@ -22046,20 +22106,7 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   }
 };
 
-// ── Plan: imported trees and transit stops (hydrants are drawn as curb features) ─────────────
-SMP.drawPlan = function() {
-  var svg = document.getElementById('planView'); if (!svg) return;
-  var old = svg.querySelector('#smpPlan'); if (old) old.remove();
-  var tr = state.street_trees || [], ts = state.transit_stops || []; if (!tr.length && !ts.length) return;
-  var LM = _dmCurrent().landmarks, p = function(o) { return worldToPlan(LM.roadLeft + (+o.yM || 0), +o.xM); }, a = worldToPlan(0, 0), b = worldToPlan(1, 0), k = Math.hypot(b.px - a.px, b.py - a.py) || 20;
-  var inDrawing = function(o) { var q = p(o); return q.px >= -2 && q.px <= (typeof _pvVW !== 'undefined' ? _pvVW : 760) + 2; };   // beyond the drawn stretch: not drawn (the margin holds the dimension chains)
-  tr = tr.filter(inDrawing); ts = ts.filter(inDrawing); if (!tr.length && !ts.length) return;
-  var ns = 'http://www.w3.org/2000/svg', g = document.createElementNS(ns, 'g'); g.id = 'smpPlan'; g.setAttribute('pointer-events', 'none');
-  tr.forEach(function(o) { var q = p(o), c = document.createElementNS(ns, 'circle'); c.setAttribute('cx', q.px); c.setAttribute('cy', q.py); c.setAttribute('r', 1.5 * k); c.setAttribute('fill', 'rgba(94,140,80,.18)'); c.setAttribute('stroke', '#5E8C50'); c.setAttribute('stroke-width', 1); if (!o.confirmed) c.setAttribute('stroke-dasharray', '3 2'); g.appendChild(c); });
-  ts.forEach(function(o) { var q = p(o), r = document.createElementNS(ns, 'rect'), s = 0.9 * k; r.setAttribute('x', q.px - s / 2); r.setAttribute('y', q.py - s / 2); r.setAttribute('width', s); r.setAttribute('height', s); r.setAttribute('fill', '#3AA8E4'); r.setAttribute('stroke', '#17191C'); if (!o.confirmed) r.setAttribute('stroke-dasharray', '2 1'); g.appendChild(r);
-    var t = document.createElementNS(ns, 'text'); t.setAttribute('x', q.px + s * 0.7); t.setAttribute('y', q.py + 3); t.setAttribute('font-size', 9); t.setAttribute('fill', '#3AA8E4'); t.textContent = o.kind === 'rapid' ? 'Rapid transit' : 'Bus stop'; g.appendChild(t); });
-  svg.appendChild(g);
-};
+// (Imported trees and transit stops are drawn by the Plan itself, from DESIGN_MODEL.vegetation / .transit.)
 
 // ── Report: the imported items with their source and date (sources sheet) ────────────────────
 SMP.sourcesList = function() {
@@ -22076,7 +22123,7 @@ SMP.sourcesList = function() {
   wrap('render', function() { SMP.decorateChecks(); });
   wrap('handleInput', function() { SMP.decorateChecks(); });
   wrap('updateC02Status', function() { SMP.decorateChecks(); });
-  wrap('renderPlanView', function() { SMP.drawPlan(); });
+
   wrap('renderBldgList', function(side) { SMP.decorateBldg(side); });   // (siteUI is not wrapped: it keeps a flag on itself, siteUI.custom)
   wrap('renderVerdict', function() {
     var b = document.getElementById('verdictBanner'), n = SMP.unconfirmed().length, pv = criteria.filter(function(c) { return SMP.isProvisional(c.id); }).length; if (!b || !(n || pv)) return;
@@ -22094,7 +22141,7 @@ SMP.sourcesList = function() {
     SMP.tags(); SMP.syncButton();
     SMP.msg('Site set on <b>' + SM.esc(p.name || 'the street') + '</b>. Import the street context to fill the lanes, buildings and site objects.');
   };
-  setTimeout(function() { try { var cze = document.getElementById('siteContextZ'); if (cze) cze.value = SITE_CONTEXT_Z; SMP.tags(); SMP.decorateBldg('L'); SMP.decorateBldg('R'); SMP.decorateChecks(); SMP.drawPlan(); } catch (e) {} }, 1600);
+  setTimeout(function() { try { var cze = document.getElementById('siteContextZ'); if (cze) cze.value = SITE_CONTEXT_Z; SMP.tags(); SMP.decorateBldg('L'); SMP.decorateBldg('R'); SMP.decorateChecks(); } catch (e) {} }, 1600);
 })();
 </script>
 <style>
