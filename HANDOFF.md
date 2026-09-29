@@ -476,6 +476,46 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - The largest black field in the cut is 0.067 m (technical screen) and 0.16 m (A-201); schematic has none.
     - The viewport scrolls, opening at the ground.
     - Samples: both modes 11 pages, 0 overlaps. Sample A-201 is now 1:100 (was 1:50).
+- **D. Parklet placement and moving (commit 4).** The model stays parklet-anchored (the deck at world z 0..L).
+  - **`pkZ`:** the parklet's centre in a street frame, in metres from the located point (`SITE_ORIENT`, the import's origin), positive along world +Z. It lives in `state.__place = {pkZ, corners}`, saved in localStorage and in the design's `siteObjects.place`. `SM.use` resets it for a new site.
+  - **`DESIGN_MODEL.site`:** `pkZ` plus `lat`/`lon` derived by `pkLatLon()` (the origin moved `pkZ` along the bearing). `SITE_ORIENT` is never rewritten, so nothing can drift.
+  - **`SMP.frame`:** puts the origin at z = L/2 − pkZ, so a re-import or re-clip lands the context around the moved parklet. The query still centres on the origin.
+  - **`pkMove(dz)` / `pkMoveTo(s)`:**
+    - They shift every context position by −dz: manholes, curb features, driveways, street trees and transit stops (`xM`), and the buildings' `zOffset` on both sides.
+    - The deck and everything on it (railing, wheel stops, furniture, planters, the sketched shape) keep their world coordinates, so relative to the street they move by dz. The across position is unchanged.
+    - `pkAfterMove` then sets C03 from the nearest corner (if corners are known), runs the clearance updates (hydrant, pole, signal, driveway, manhole), then `syncDesignModel`, `renderVerdict`, the panels and the save.
+  - **Place step (Site tab, `#pkPlaceSite`, below the import row):**
+    - A host-frontage list of `BLDG_L` buildings, each with its centre in the street frame; choosing one centres the parklet on it, snapped to the grid.
+    - "Pick in Plan": the next Plan click on a frontage picks it.
+    - The distance from the intersection corner, in metres, set exactly (not snapped). Positive puts the parklet on the −Z side of the nearest corner on its +Z side, measured to the parklet's end; negative uses the nearest corner on its −Z side.
+    - The corners, with "Find corners", Add and Remove.
+  - **Corners:**
+    - `pkFindCorners()` makes one cached Overpass query for the highway ways through the located way's nodes.
+    - A corner is a way crossing at 35° or more that isn't the same street. It's stored as `{s (centreline), half, name, src}`. The curb return facing the parklet is s ∓ half.
+    - `half` comes from the `width` tag, else lanes × 1.65 + 2.4 (a parking lane each side). It's marked "estimate" and editable.
+  - **Moving in the Plan:**
+    - Dragging the deck (`_pvDeckDragging` in `planMD`/`planMM`/`planMU`) moves the parklet by the pointer's travel along the street, snapped to the grid. `pkShiftView` pans the view with the street, so the street stays put and the deck follows the pointer.
+    - The pan mousedown and the pan guard now skip the deck.
+    - With the parklet selected, Arrow Left/Right move it one grid step (Shift ×4; +Z runs left in the Plan). The Δ Z field, the move buttons (their component along the street) and the Z field (= pkZ) move it too. X and rotation are disabled.
+  - **Selection panel:** selecting the parklet (`setSelection('parklet')`) deselects furniture, hides `#rightPanel` and fills the Selection panel (`cadParkletUpdate`): its name, X (fixed), Z = pkZ, the parklet properties (geometry, lane, width/length, "Fit to lane minimum") and the placement controls. `renderRightPanel` has no parklet case any more; the pop-up is gone.
+  - **Known limits:**
+    - At fit zoom, the C13/C03 zone handles' hit radius (about 3 m) covers the deck ends, so grab the deck away from its ends.
+    - The Plan still draws C03 at both ends from the single `intersection_dist`.
+    - The corners' half widths are estimates unless OSM has `width`.
+  - **Verified (Robson & Burrard, 150 m import, 7-piece design):**
+    - Host frontage Arc'teryx (39.8 m): pkZ 17.25 against a centre of 17.30 (0.05 m); its world centre 8.85 against the deck centre 8.80.
+    - Corners found: Burrard (s −19.21, half 12.3, estimate) and Thurlow (s 187.97).
+    - −12.0 m from Burrard: the field reads −12.00, and the parklet end sits 12.00 from the curb return (−6.91 → 5.09). intersection_dist 12.00, C03 pass.
+    - A 3 m drag (zoom 4, synthetic mouse events):
+      - pkZ 13.89 → 16.89.
+      - Furniture street-frame min/max 9.19/19.89 → 12.19/22.89; world z unchanged.
+      - Trees, curb features and buildings shifted exactly −3 (error 0).
+      - lat/lon moved 3.000 m.
+      - hydrant_dist 2.05 → 5.05 and C03 12.00 → 15.00, re-run.
+    - No drift: back by the same amount, then 40 nudges of ±0.25 m. Every position and lat/lon equal the start exactly, with the same checks.
+    - Arrow Left +0.25 m; Δ Z 1 → +1.00 m.
+    - Clicking the deck: the Selection panel shows "Parklet" with its properties and placement, `#rightPanel` is hidden, and the only fixed element on screen is the toast.
+    - Samples: both modes 11 pages, 0 overlaps. Plan: 0 text overlaps.
 
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:

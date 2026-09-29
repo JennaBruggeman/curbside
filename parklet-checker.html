@@ -447,6 +447,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 
 <div class='ctx-section' id='ctxSite'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site</span></div><div class="sb-section">        <div class="sb-section-lbl">Site Setup</div>                <div class="ff">          <label>Street address</label>          <input type="text" id="streetAddress" placeholder="e.g. 1000-block Robson St"                 oninput="saveSettings()">        </div>
         <div class='site-map-row'><button type='button' class='ctx-btn' id='siteMapBtn' onclick='SM.open()'>Locate on map</button><span class='hint' id='siteMapHint'>Search an address, click the street, then the parklet's side. Uses OpenStreetMap.</span></div>
+        <div class='pk-place-site' id='pkPlaceSite' aria-label='Place the parklet'></div>
         <div class='site-orient-block' id='siteOrient'>
           <div class='ff'>
             <label>Street runs <span class='hint'>bearing of the street axis, clockwise from true north</span></label>
@@ -2371,7 +2372,9 @@ function buildDesignModel() {
   segs.forEach(function(s) { if (s.type === 'travel-lane') s.dirZ = s.direction === 'far' ? -1 : 1; });
   // Site orientation (Brief 11a): north is derived here and only here; every view reads site.northDeg.
   var _so = siteDerive(SITE_ORIENT);
-  DESIGN_MODEL.site      = { availableCrossSectionWidth: TOTAL_ROAD, lat: +SITE_ORIENT.lat, lon: +SITE_ORIENT.lon, streetBearing: _so.streetBearing,
+  // the parklet along the street (Brief 18 D): pkZ, and lat / lon derived from the located point, pkZ and the bearing
+  var _pkZ = typeof pkZNow === 'function' ? pkZNow() : 0, _pkLL = typeof pkLatLon === 'function' ? pkLatLon(_pkZ) : { lat: +SITE_ORIENT.lat, lon: +SITE_ORIENT.lon };
+  DESIGN_MODEL.site      = { availableCrossSectionWidth: TOTAL_ROAD, lat: _pkLL.lat, lon: _pkLL.lon, pkZ: _pkZ, streetBearing: _so.streetBearing,
     parkletSide: _so.side.name, sideBearing: _so.sideBearing, roadBearing: _so.roadBearing, northDeg: _so.northDeg, contextZ: siteContextZ(SITE_CONTEXT_Z) };
   DESIGN_MODEL.crossSection = segs;
   DESIGN_MODEL.segments  = segs;
@@ -3467,13 +3470,18 @@ document.addEventListener('keydown', function(e) {
   // Do not intercept when a text control has focus
   var ae = document.activeElement;
   if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+  var step = (typeof _snapEnabled !== 'undefined' && _snapEnabled &&
+              typeof _gridSpacing !== 'undefined' && _gridSpacing > 0) ? _gridSpacing : 0.05;
+  if (e.shiftKey) step = step * 4;
+  // the parklet selected (Brief 18 D): Left / Right move it along the curb (world +Z runs left in the Plan); across it stays
+  if (typeof _pkSel === 'function' && _pkSel()) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); pkMove((e.key === 'ArrowLeft' ? 1 : -1) * step, 'parklet-nudge'); }
+    return;
+  }
   if (typeof FL3D === 'undefined' || FL3D.selId === null) return;
   var inst = FL3D.placed.find(function(i) { return i.id === FL3D.selId; });
   if (!inst) return;
   e.preventDefault();
-  var step = (typeof _snapEnabled !== 'undefined' && _snapEnabled &&
-              typeof _gridSpacing !== 'undefined' && _gridSpacing > 0) ? _gridSpacing : 0.05;
-  if (e.shiftKey) step = step * 4;
   var dir = _arrows[e.key];
   inst.x = (typeof inst.x === 'number' ? inst.x : 0) + dir[0] * step;
   inst.z = (typeof inst.z === 'number' ? inst.z : 0) + dir[1] * step;
@@ -3530,6 +3538,7 @@ function _initSVGZoom(svgId, vb, baseW, baseH) {
       if (_planPlacing||_curbPlacing||_c06Placing) return;
       const pos = planSVGCoords(e);
       if (nearMH(pos.x,pos.y)>=0||nearCF(pos.x,pos.y)>=0||nearDriveway(pos.x,pos.y)>=0||nearZoneHandle(pos.x,pos.y)) return;
+      if (typeof pkOnDeck === 'function' && pkOnDeck(pos.x, pos.y)) return;   // the deck drags the parklet (Brief 18 D)
       // Don't start pan when clicking furniture or corner handles
       if (window.FL3D && window.FL3D.placed && window.FL3D.placed.length) {
         const {HS:_pHS, pvSC:_ppvSC} = planMetrics();
@@ -3552,7 +3561,7 @@ function _initSVGZoom(svgId, vb, baseW, baseH) {
   svg.addEventListener('dblclick', function() { _svgResetVB(svgId); });
 }
 document.addEventListener('mousemove', function(e) {
-  if (_pvPanDrag && _planDragging<0 && _curbDragging<0 && !_c13Dragging && !_c03Dragging && _drivewayDragging<0 && !_pvFurnDragging && !_pvFurnCornerDragging) {
+  if (_pvPanDrag && _planDragging<0 && _curbDragging<0 && !_c13Dragging && !_c03Dragging && _drivewayDragging<0 && !_pvFurnDragging && !_pvFurnCornerDragging && !(typeof _pvDeckDragging !== 'undefined' && _pvDeckDragging)) {
     const svg = document.getElementById('planView');
     if (svg) {
       const r = svg.getBoundingClientRect();
@@ -7000,6 +7009,7 @@ function initPlanInteraction() {
 function planMD(e) {
   _planMoved = false;
   const pos = planSVGCoords(e);
+  if (typeof _pkPickFrontage !== 'undefined' && _pkPickFrontage) return;   // picking a frontage: the click places the parklet
   // ── Measure mode click ────────────────────────────────────────────────
   if (_pvMeasureMode) {
     var _mw = planToWorld(pos.x, pos.y), mwx = _mw.x, mwz = _mw.z;
@@ -7096,7 +7106,10 @@ function planMD(e) {
       _c03DragValX0 = parseFloat(state[`intersection_dist`] || `6`) || 6;
     }
     e.preventDefault();
+    return;
   }
+  // the deck (Brief 18 D): dragging it moves the whole parklet along the curb
+  if (pkOnDeck(pos.x, pos.y)) { _pvDeckDragging = { cx: e.clientX, applied: 0 }; _pvDeckMoved = false; e.preventDefault(); }
 }
 
 function planMM(e) {
@@ -7104,6 +7117,15 @@ function planMM(e) {
   const ctm = svg.getScreenCTM();
   if (!ctm) return;
   const sx = ctm.a, sy = ctm.d;
+  // ── Deck drag (Brief 18 D): the pointer's travel along the street, snapped to the grid, moves the parklet; the view
+  // follows the street so it stays put while the deck moves under the pointer
+  if (typeof _pvDeckDragging !== 'undefined' && _pvDeckDragging) {
+    const _raw = planDeltaToWorld((e.clientX - _pvDeckDragging.cx) / sx, 0).z;
+    const _tgt = (_snapEnabled && _gridSpacing > 0) ? Math.round(_raw / _gridSpacing) * _gridSpacing : Math.round(_raw * 100) / 100;
+    const _d = +(_tgt - _pvDeckDragging.applied).toFixed(6);
+    if (Math.abs(_d) > 1e-9) { _pvDeckDragging.applied = _tgt; _pvDeckMoved = true; _planMoved = true; pkShiftView(_d); pkMove(_d, 'parklet-drag'); }
+    return;
+  }
   // ── Corner drag ───────────────────────────────────────────────────────
   if (_pvFurnCornerDragging) {
     const _cdsx = (e.clientX - _pvFurnCornerDragging.startClientX) / sx;
@@ -7265,6 +7287,7 @@ function planMM(e) {
 }
 
 function planMU() {
+  if (typeof _pvDeckDragging !== 'undefined' && _pvDeckDragging) { _pvDeckDragging = null; setTimeout(function() { _pvDeckMoved = false; }, 0); }
   if (_pvFurnDragging || _pvFurnCornerDragging) {
     var _muInst = (_pvFurnDragging && window.FL3D) ? window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }) : null;
     if (_muInst && _muInst.archetype && flSnapSeat(_muInst)) { flRebuildInstMesh(_muInst); _dmSyncObject(_muInst); }
@@ -11198,6 +11221,13 @@ function setSelection(type, id, data) {
     var _rp = document.getElementById('rightPanel');
     if (_rp) _rp.style.display = 'none';
     if (typeof cadToolsUpdate === 'function') cadToolsUpdate(data);
+  } else if (type === 'parklet') {
+    // the parklet (Brief 18 D): its properties and placement in the Selection panel; no pop-up
+    var _rpk = document.getElementById('rightPanel');
+    if (_rpk) _rpk.style.display = 'none';
+    if (window.FL3D && FL3D.selId !== null && typeof fl3DSelect === 'function') fl3DSelect(null);
+    _selection = { type: 'parklet', id: id, data: data };
+    if (typeof cadParkletUpdate === 'function') cadParkletUpdate();
   } else {
     if (!type && typeof cadToolsUpdate === 'function') cadToolsUpdate(null);
     renderRightPanel();
@@ -11216,8 +11246,7 @@ function renderRightPanel() {
   if (!_selection) { panel.style.display='none'; return; }
   panel.style.display = 'flex';
   switch(_selection.type) {
-    case 'parklet':       title.textContent='PARKLET';           content.innerHTML=renderParkletProps(); break;
-    case 'furniture':     panel.style.display='none'; break;
+    case 'furniture':     panel.style.display='none'; break;   // the parklet and furniture show in the Selection panel
     case 'furniture-info':title.textContent='FURNITURE INFO';    content.innerHTML=renderFurnitureInfoProps(_selection.data); break;
     case 'hydrant':       title.textContent='FIRE HYDRANT';      content.innerHTML=renderStreetObjProps('hydrant',_selection.data); break;
     case 'pole':          title.textContent='UTILITY POLE';      content.innerHTML=renderStreetObjProps('pole',_selection.data); break;
@@ -11403,6 +11432,8 @@ function pvHandleClick(e) {
   var pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
   var sp=pt.matrixTransform(ctm.inverse());
   var x=sp.x, y=sp.y;
+  if (typeof _pkPickFrontage !== 'undefined' && _pkPickFrontage) { pkPickAt(x, y); return; }   // Brief 18 D: the frontage under the click
+  if (typeof _pvDeckMoved !== 'undefined' && _pvDeckMoved) { setSelection('parklet', 'parklet', null); return; }   // the end of a deck drag
   var _pm=planMetrics();
   var HS=_pm.HS, pvSC=_pm.pvSC, PK_X=_pm.PK_X, PK_W=_pm.PK_W, PK_Y=_pm.PK_Y, pvPkH=_pm.PK_H;
   // Hit-test furniture footprints
@@ -11421,6 +11452,186 @@ function pvHandleClick(e) {
   if (x>=PK_X&&x<=PK_X+PK_W&&y>=PK_Y&&y<=PK_Y+pvPkH){setSelection('parklet','parklet',null);return;}
   clearSelection();
 }
+
+// ── Parklet placement (Brief 18 D) ─────────────────────────────────────────────────────────────────
+// The model is parklet-anchored: the deck at world z 0..L. Along the street the parklet sits at pkZ, its centre in the
+// street frame: metres from the located point (SITE_ORIENT; the import's origin), + along world +Z. Moving the parklet
+// changes pkZ and shifts every site-context position (the objects' xM, the buildings' zOffset) by the opposite amount,
+// so the deck and all on it (railing, wheel stops, furniture, planters, a sketched shape) move along the curb while the
+// street stays put; the across position is the parking segment's, unchanged. site.lat / lon derive from the located
+// point, pkZ and the bearing (pkLatLon), so there is nothing to drift. state.__place = {pkZ, corners: [{s, half, name,
+// src}]}: a corner is a cross street, s its centreline in the street frame, half its half width; its curb return facing
+// the parklet is s - half (a corner on the +Z side) or s + half.
+var _pvDeckDragging = null, _pvDeckMoved = false, _pkPickFrontage = false;
+function pkPlace() {
+  if (typeof state === 'undefined') return { pkZ: 0, corners: [] };
+  var p = state.__place; if (!p || typeof p !== 'object') p = state.__place = { pkZ: 0, corners: [] };
+  if (typeof p.pkZ !== 'number' || !isFinite(p.pkZ)) p.pkZ = 0;
+  if (!Array.isArray(p.corners)) p.corners = [];
+  return p;
+}
+function pkZNow() { return pkPlace().pkZ; }
+function pkLatLon(pz) {
+  var lat0 = +SITE_ORIENT.lat, lon0 = +SITE_ORIENT.lon, z = pz == null ? pkZNow() : pz, E = siteBearingWorld(90), N = siteBearingWorld(0);
+  var ky = 110574, kx = 111320 * Math.cos(lat0 * Math.PI / 180);   // SM.enu's metres
+  return { lat: lat0 + z * N.z / ky, lon: lon0 + z * E.z / kx };
+}
+function _pkSel() { return typeof _selection !== 'undefined' && !!_selection && _selection.type === 'parklet' && !(window.FL3D && FL3D.selId != null); }
+function pkOnDeck(px, py) { var m = planMetrics(); return px >= m.PK_X && px <= m.PK_X + m.PK_W && py >= m.PK_Y && py <= m.PK_Y + m.PK_H; }
+// the frontages on the parklet's side (BLDG_L), each with its centre in the street frame
+function pkFrontages() {
+  var L = designParkletLength, c = pkZNow();
+  return (BLDG_L.buildings || []).map(function(b, i) {
+    var z0 = +b.zOffset || 0, len = +b.length || 0;
+    return { i: i, s: z0 + len / 2 - L / 2 + c, s0: z0 - L / 2 + c, s1: z0 + len - L / 2 + c, len: len, name: b.name || (b.use ? b.use.charAt(0).toUpperCase() + b.use.slice(1) : 'Building ' + (i + 1)) };
+  }).filter(function(f) { return f.len >= 0.1; });
+}
+// the host: the frontage the parklet's centre is in front of
+function pkHostIdx() { var c = pkZNow(), h = pkFrontages().filter(function(f) { return c >= f.s0 - 1e-6 && c <= f.s1 + 1e-6; }).sort(function(a, b) { return Math.abs(a.s - c) - Math.abs(b.s - c); })[0]; return h ? h.i : -1; }
+// the signed distance from the nearest curb return, positive when the corner is on the parklet's +Z side (the sign runs
+// along -Z from the corner to the parklet): {d, s (the return), k (the corner)}
+function pkCornerDist(L) {
+  L = L == null ? designParkletLength : L;
+  var c = pkZNow(), best = null;
+  pkPlace().corners.forEach(function(k) {
+    var up = k.s > c, r = up ? k.s - k.half : k.s + k.half, d = up ? r - (c + L / 2) : r - (c - L / 2);
+    if (!best || Math.abs(d) < Math.abs(best.d)) best = { d: d, s: r, k: k };
+  });
+  return best;
+}
+function pkMoveTo(s, why) { return pkMove(s - pkZNow(), why); }
+function pkMove(dz, why) {
+  dz = +dz; if (!isFinite(dz) || Math.abs(dz) < 1e-9) return false;
+  var p = pkPlace(); p.pkZ = +(p.pkZ + dz).toFixed(6);
+  ['manholes', 'curb_features', 'driveways', 'street_trees', 'transit_stops'].forEach(function(k) {
+    (state[k] || []).forEach(function(o) { if (o && o.xM != null && isFinite(+o.xM)) o.xM = +o.xM - dz; });
+  });
+  [BLDG_L, BLDG_R].forEach(function(B) { (B.buildings || []).forEach(function(b) { if (b.zOffset != null && isFinite(+b.zOffset)) b.zOffset = +b.zOffset - dz; }); });
+  pkAfterMove(why || 'parklet-move');
+  return true;
+}
+// the checks after a move: C03 from the nearest corner (when the corners are known), the clearances to the site objects;
+// the model and every view
+function pkAfterMove(why) {
+  var cd = pkCornerDist();
+  if (cd) { var v = Math.abs(cd.d).toFixed(2); state['intersection_dist'] = v; var ie = document.getElementById('intersection_dist'); if (ie) ie.value = v; try { handleInput('c3', 'intersection_dist', v); } catch (e) {} }
+  try { renderBldgControls(); } catch (e) {}
+  try { updateCurbFeatureDists(); } catch (e) {}
+  try { updateDrivewayDist(); } catch (e) {}
+  try { updateManholeCrit(); } catch (e) {}
+  try { if (typeof SMP !== 'undefined' && SMP.decorateChecks) SMP.decorateChecks(); } catch (e) {}
+  try { syncDesignModel(why); } catch (e) { console.warn('[place] sync failed', e); }
+  try { if (typeof renderVerdict === 'function') renderVerdict(); } catch (e) {}
+  pkPanelRefresh();
+  try { saveSettings(); } catch (e) {}
+}
+// the Plan follows the street during a deck drag: the context moved -d, so the view moves with it
+function pkShiftView(d) {
+  if (typeof _pvVB === 'undefined' || !_pvVB) return;
+  var m = planMetrics(); _pvVB.x += d * m.HS; _pvUserMod = true;
+}
+function pkPlaceFrontage(i) {
+  if (i === '' || i == null) return;
+  var f = pkFrontages().find(function(q) { return q.i === +i; }); if (!f) return;
+  var t = (_snapEnabled && _gridSpacing > 0) ? Math.round(f.s / _gridSpacing) * _gridSpacing : Math.round(f.s * 100) / 100;
+  if (!pkMoveTo(t, 'place-frontage')) pkPanelRefresh();
+}
+// the distance from the corner, exact (not snapped): d >= 0 puts the parklet on the -Z side of the nearest corner on its
+// +Z side (its end d from that curb return), d < 0 on the +Z side of the nearest corner on its -Z side
+function pkPlaceCorner(v) {
+  var d = parseFloat(v), L = designParkletLength, c = pkZNow(); if (!isFinite(d)) return;
+  var ks = pkPlace().corners.filter(function(k) { return d >= 0 ? k.s > c : k.s < c; }).sort(function(a, b) { return Math.abs(a.s - c) - Math.abs(b.s - c); });
+  if (!ks.length) { pkMsg('No corner on that side of the parklet: ' + (d >= 0 ? 'a positive distance measures from a corner on its +Z side.' : 'a negative distance measures from a corner on its -Z side.')); return; }
+  var k = ks[0], t = d >= 0 ? (k.s - k.half) - d - L / 2 : (k.s + k.half) - d + L / 2;
+  if (!pkMoveTo(+t.toFixed(4), 'place-corner')) pkPanelRefresh();
+}
+function pkSetCornerHalf(i, v) { var k = pkPlace().corners[i], h = parseFloat(v); if (!k || !(h > 0)) return; k.half = h; k.src = 'user'; pkAfterMove('corner-edit'); }
+function pkDelCorner(i) { pkPlace().corners.splice(i, 1); pkAfterMove('corner-edit'); }
+function pkAddCorner(v) { var s = parseFloat(v); if (!isFinite(s)) return; pkPlace().corners.push({ s: s, half: 5.7, name: 'Corner', src: 'user' }); pkPlace().corners.sort(function(a, b) { return a.s - b.s; }); pkAfterMove('corner-edit'); }
+function pkMsg(t) { var el = document.getElementById('pkPlaceMsg'); if (el) el.textContent = t; }
+// The cross streets from OpenStreetMap: the highway ways through the located street's nodes (one query, cached). A corner
+// is where one crosses at 35 degrees or more; its half width from its width tag, else its lanes at 3.3 m and a 2.4 m
+// parking lane a side (an estimate, editable).
+async function pkFindCorners() {
+  var sm = state.__siteMap;
+  if (!sm || !sm.wayId) { pkMsg('Locate the site on the map first: the corners come from the located street.'); return null; }
+  pkMsg('Finding the cross streets...');
+  var q = '[out:json][timeout:25];way(' + sm.wayId + ')->.s;.s out body geom;node(w.s)->.n;way(bn.n)[highway]->.x;.x out body geom;', j = null;
+  for (var t = 0; t < 3 && !j; t++) { try { j = await SM.overpass('cross|' + sm.wayId, q); } catch (e) { if (e && e.offline) { pkMsg(SM.offlineText); return null; } SM.nextOverpass(); } }
+  if (!j) { pkMsg('The map service did not answer: try again, or add a corner by hand.'); return null; }
+  var el = j.elements || [], me = el.find(function(w) { return w.type === 'way' && w.id === sm.wayId && w.nodes; });
+  if (!me) { pkMsg('The located street was not in the answer: try again.'); return null; }
+  var T = SM.enu(+SITE_ORIENT.lat, +SITE_ORIENT.lon), E = siteBearingWorld(90), N = siteBearingWorld(0), idx = {}, out = [], sb = +sm.streetBearing || 0;
+  me.nodes.forEach(function(id, i) { idx[id] = me.geometry[i]; });
+  el.forEach(function(w) {
+    if (w.type !== 'way' || w.id === sm.wayId || !w.nodes || !w.geometry) return;
+    var tg = w.tags || {};
+    if (!tg.highway || /^(footway|path|cycleway|steps|pedestrian|track|bridleway|corridor|elevator|service|proposed|construction)$/.test(tg.highway)) return;
+    if (sm.name && tg.name === sm.name) return;   // the street itself, continued
+    w.nodes.forEach(function(id, i) {
+      var p = idx[id], q = w.geometry[i + 1] || w.geometry[i - 1]; if (!p || !q) return;
+      var a = T.to(p.lat, p.lon), b = T.to(q.lat, q.lon), bw = Math.atan2(b.e - a.e, b.n - a.n) * 180 / Math.PI, da = (((bw - sb) % 180) + 180) % 180;
+      if (Math.min(da, 180 - da) < 35) return;
+      var wd = parseFloat(tg.width), ln = parseInt(tg.lanes, 10), half = isFinite(wd) && wd > 3 ? wd / 2 : (isFinite(ln) && ln > 0 ? ln : 2) * 1.65 + 2.4;
+      var s = a.e * E.z + a.n * N.z;
+      if (!out.some(function(k) { return Math.abs(k.s - s) < 4; })) out.push({ s: +s.toFixed(2), half: +half.toFixed(2), name: tg.name || tg.highway, src: isFinite(wd) && wd > 3 ? 'osm' : 'estimate' });
+    });
+  });
+  out.sort(function(a, b) { return a.s - b.s; });
+  pkPlace().corners = out;
+  pkAfterMove('corners');
+  pkMsg(out.length ? out.length + ' cross street' + (out.length > 1 ? 's' : '') + ' found on ' + (sm.name || 'the street') + '.' : 'No cross street on this OSM way: add a corner by hand.');
+  return out;
+}
+function pkPickInPlan() { _pkPickFrontage = true; pkMsg('Click a frontage on the parklet\'s side in the Plan.'); try { appSetMode('design'); } catch (e) {} }
+function pkPickAt(px, py) {
+  _pkPickFrontage = false;
+  var w = planToWorld(px, py), L = designParkletLength, c = pkZNow(), s = w.z - L / 2 + c;
+  var f = w.x < 0 ? pkFrontages().find(function(q) { return s >= q.s0 && s <= q.s1; }) : null;
+  if (!f) { pkMsg('No frontage there: click a building on the parklet\'s side.'); pkPanelRefresh(); return; }
+  pkPlaceFrontage(f.i);
+}
+function _pkEsc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
+// the Place controls (the Site tab's step and the Selection panel): the host frontage, the distance from the corner,
+// the corners, where the parklet is
+function pkPlaceHtml(pre) {
+  var L = designParkletLength, c = pkZNow(), fr = pkFrontages(), host = pkHostIdx(), cd = pkCornerDist(L), ll = pkLatLon(), P = pkPlace(), f2 = function(v) { return DRAW_STYLE.fmt(v); };
+  var h = "<div class='pk-place' data-pk='" + pre + "'>";
+  if (pre === 'pk') h += "<div class='sb-section-lbl' style='margin-top:10px'>Place</div>";
+  h += "<div class='ff'><label for='" + pre + "Frontage'>Host frontage <span class='hint'>the parklet centres on it</span></label><select id='" + pre + "Frontage' onchange='pkPlaceFrontage(this.value)'>" +
+    "<option value=''>" + (fr.length ? 'Choose a frontage' : 'No frontages: import the street context') + '</option>' +
+    fr.map(function(q) { return "<option value='" + q.i + "'" + (q.i === host ? ' selected' : '') + '>' + _pkEsc(q.name) + ' - ' + f2(q.len) + ' m, centre ' + f2(q.s) + '</option>'; }).join('') + '</select>' +
+    " <button type='button' class='ctx-btn' onclick='pkPickInPlan()'>Pick in Plan</button></div>";
+  h += "<div class='ff'><label for='" + pre + "CornerDist'>Distance from intersection corner <span class='unit'>m</span><span class='hint'>from the nearest cross-street curb return to the parklet's end; positive when the corner is on the parklet's +Z side</span></label>" +
+    "<input type='number' step='0.01' id='" + pre + "CornerDist' value='" + (cd ? f2(cd.d) : '') + "'" + (P.corners.length ? '' : ' disabled') + " onchange='pkPlaceCorner(this.value)'></div>";
+  h += "<div class='hint' style='display:block'>Corners: " + (P.corners.length ? P.corners.map(function(k, i) {
+      return _pkEsc(k.name) + ' at ' + f2(k.s) + " m, half width <input type='number' step='0.1' min='2' max='20' style='width:4.5em' value='" + k.half + "' aria-label='Half width of " + _pkEsc(k.name) + "' onchange='pkSetCornerHalf(" + i + ", this.value)'> m" + (k.src === 'estimate' ? ' (estimate)' : '') +
+        " <button type='button' class='ctx-btn' aria-label='Remove this corner' onclick='pkDelCorner(" + i + ")'>Remove</button>";
+    }).join('; ') : 'none yet') + '</div>';
+  h += "<div class='site-map-row'><button type='button' class='ctx-btn' onclick='pkFindCorners()'>Find corners</button>" +
+    " <input type='number' step='0.1' id='" + pre + "CornerAdd' placeholder='corner at, m' style='width:7em' aria-label='Add a corner at this position along the street'>" +
+    " <button type='button' class='ctx-btn' onclick=\"pkAddCorner(document.getElementById('" + pre + "CornerAdd').value)\">Add corner</button></div>";
+  h += "<span class='hint' style='display:block' data-pkz='" + c + "'>Along the street: centre " + f2(c) + ' m from the located point (pkZ); ' + ll.lat.toFixed(6) + ', ' + ll.lon.toFixed(6) + '. Drag the deck in the Plan, or use the arrow keys, to move it.</span>';
+  if (pre === 'pk') h += "<span class='smp-msg' id='pkPlaceMsg' role='status' aria-live='polite'></span>";
+  return h + '</div>';
+}
+function pkPanelRefresh() {
+  var el = document.getElementById('pkPlaceSite'); if (el) { var m = document.getElementById('pkPlaceMsg'), keep = m ? m.textContent : ''; el.innerHTML = pkPlaceHtml('pk'); if (keep) pkMsg(keep); }
+  if (_pkSel()) cadParkletUpdate();
+}
+// the Selection panel for the parklet: X (across) fixed on the parking segment, Z its place along the curb (pkZ), the
+// parklet's properties and its placement
+function cadParkletUpdate() {
+  var g = function(id) { return document.getElementById(id); }, nm = g('cadSelName'), px = g('cadPosX'), pz = g('cadPosZ'), rt = g('cadRot'), prm = g('cadParams');
+  var LM = DESIGN_MODEL.landmarks;
+  if (nm) { nm.textContent = 'Parklet'; nm.classList.remove('empty-state'); }
+  if (px) { px.value = DRAW_STYLE.fmt(LM.deckX0, 3); px.disabled = true; px.title = 'The parklet stays on the parking lane: only its place along the curb moves'; }
+  if (pz) { pz.value = DRAW_STYLE.fmt(pkZNow(), 3); pz.title = 'Along the curb: the parklet centre, m from the located point (pkZ)'; }
+  if (rt) { rt.value = '0'; rt.disabled = true; }
+  ['cadActions', 'cadAlign'].forEach(function(id) { var e = g(id); if (e) e.style.display = 'none'; });
+  if (prm) { prm.innerHTML = renderParkletProps().replace(/renderRightPanel\(\)/g, 'cadParkletUpdate()') + _rpS('PLACEMENT') + pkPlaceHtml('sel'); prm.style.display = 'block'; }
+}
+window.addEventListener('load', function() { setTimeout(function() { try { pkPanelRefresh(); } catch (e) {} }, 900); });
 
 // ── STARTUP DEFAULTS ──────────────────────────────────────────────
 // NOTE (R13 fix): this used to call setCanvasView('plan') here, which silently
@@ -12007,6 +12218,21 @@ function cadToggleDim() {
     var h = inst ? flInstPanelHtml(inst) : '';
     el.innerHTML = h;
     el.style.display = h ? 'block' : 'none';
+  };
+})();
+// The parklet in the Selection panel (Brief 18 D): Z, the Delta fields and the move buttons move it along the curb (pkMove);
+// across it stays on the parking segment. A furniture selection gets the X and rotation fields back.
+(function() {
+  var _prevCTU = cadToolsUpdate, ap = cadApplyPos, ad = cadApplyDelta, mc = cadMoveCardinal;
+  cadToolsUpdate = function(inst) { ['cadPosX', 'cadRot'].forEach(function(id) { var e = document.getElementById(id); if (e) { e.disabled = false; e.title = ''; } }); _prevCTU(inst); };
+  cadApplyPos = function() { if (_pkSel()) { var v = parseFloat((document.getElementById('cadPosZ') || {}).value); if (isFinite(v)) pkMoveTo(v, 'parklet-z'); return; } return ap.apply(this, arguments); };
+  cadApplyDelta = function() {
+    if (_pkSel()) { var dx = document.getElementById('cadDX'), dz = document.getElementById('cadDZ'), v = parseFloat(dz && dz.value) || 0; if (dx) dx.value = '0'; if (dz) dz.value = '0'; pkMove(v, 'parklet-delta'); return; }
+    return ad.apply(this, arguments);
+  };
+  cadMoveCardinal = function(dir) {
+    if (_pkSel()) { var dist = parseFloat((document.getElementById('cadMoveDist') || {}).value) || 0.25, v = CAD_CARDINAL[dir], k = v && Math.abs(v.z) >= 0.5 ? Math.sign(v.z) : 0; if (k) pkMove(k * dist, 'parklet-move'); return; }
+    return mc.apply(this, arguments);
   };
 })();
 
@@ -14896,7 +15122,8 @@ function pkSerialize() {
       street_trees: (typeof state !== 'undefined' && state['street_trees'])  ? JSON.parse(JSON.stringify(state['street_trees']))  : [],
       transit_stops:(typeof state !== 'undefined' && state['transit_stops']) ? JSON.parse(JSON.stringify(state['transit_stops'])) : [],
       prov:         (typeof state !== 'undefined' && state['__prov'])        ? JSON.parse(JSON.stringify(state['__prov']))        : {},
-      siteMap:      (typeof state !== 'undefined' && state['__siteMap'])     ? JSON.parse(JSON.stringify(state['__siteMap']))     : null
+      siteMap:      (typeof state !== 'undefined' && state['__siteMap'])     ? JSON.parse(JSON.stringify(state['__siteMap']))     : null,
+      place:        (typeof state !== 'undefined' && state['__place'])       ? JSON.parse(JSON.stringify(state['__place']))       : null   // Brief 18 D: pkZ, corners
     },
     furniture: {
       placed: (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? FL3D.placed.map(function(inst) {
@@ -15054,6 +15281,7 @@ function pkApplyDesignState(raw) {
       state['transit_stops'] = data.siteObjects.transit_stops || [];
       state['__prov']        = data.siteObjects.prov          || {};
       state['__siteMap']     = data.siteObjects.siteMap       || null;
+      state['__place']       = data.siteObjects.place         || { pkZ: 0, corners: [] };
     }
   }
 
@@ -23113,6 +23341,7 @@ SM.use = function() {
   var ad = document.getElementById('streetAddress'); if (ad && addr) ad.value = addr;
   siteUI.custom = [0, 45, 90, 135].indexOf(Math.round(sn.bearing * 100) / 100) < 0;   // show the bearing field for an oblique street
   state.__siteMap = { wayId: p.wayId, name: p.name, highway: p.highway, lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name, sideBearing: p.side.bearing, address: addr, fetchedAt: p.fetchedAt };
+  state.__place = { pkZ: 0, corners: [] };   // a new site: the parklet at the located point, its corners not yet found
   siteSet({ lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name }, 'site-map');
   if (typeof SM.onUse === 'function') SM.onUse(state.__siteMap);
   console.log('[site-map] site set from OSM way ' + p.wayId + ' (' + (p.name || 'unnamed') + '): ' + sn.lat.toFixed(6) + ', ' + sn.lon.toFixed(6) + ', street axis ' + sn.bearing.toFixed(2) + ' deg, parklet on the ' + p.side.name + ' side');
@@ -23297,12 +23526,14 @@ SMP.refresh = function() {
   SMP.decorateChecks();
   try { if (typeof renderVerdict === 'function') renderVerdict(); } catch (e) {}
   try { syncDesignModel('site-context'); } catch (e) {}   // the model carries the imported trees and stops: Plan, Section and 3D redraw from it
+  try { if (typeof pkPanelRefresh === 'function') pkPanelRefresh(); } catch (e) {}   // the Place step lists the imported frontages
   try { saveSettings(); } catch (e) {}
 };
 
 // ── Geometry: lat / lon -> world (x across, z along) ──────────────────────────────────────────
 SMP.frame = function() {
-  var sm = state.__siteMap, DM = buildDesignModel(), LM = DM.landmarks, T = SM.enu(sm.lat, sm.lon), E = siteBearingWorld(90), N = siteBearingWorld(0), zc = DM.parklet.length / 2;
+  // the located point is the street frame's origin; the parklet's centre (world z L/2) sits pkZ along it (Brief 18 D)
+  var sm = state.__siteMap, DM = buildDesignModel(), LM = DM.landmarks, T = SM.enu(sm.lat, sm.lon), E = siteBearingWorld(90), N = siteBearingWorld(0), zc = DM.parklet.length / 2 - (typeof pkZNow === 'function' ? pkZNow() : 0);
   return { LM: LM, L: DM.parklet.length, w: function(lat, lon) { var v = T.to(lat, lon); return { x: LM.roadCenterX + v.e * E.x + v.n * N.x, z: zc + v.e * E.z + v.n * N.z }; } };
 };
 SMP.inPoly = function(p, poly) { var c = false; for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) { var a = poly[i], b = poly[j]; if ((a.z > p.z) !== (b.z > p.z) && p.x < (b.x - a.x) * (p.z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
