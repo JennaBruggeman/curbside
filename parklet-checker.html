@@ -4983,6 +4983,15 @@ function _drawSection(svgEl, o) {
     function postXY(sx, y0, a, h, b, hb) { return polyXY([[sx - b, y0], [sx - b, y0 - hb], [sx - a, y0 - hb], [sx - a, y0 - h], [sx + a, y0 - h], [sx + a, y0 - hb], [sx + b, y0 - hb], [sx + b, y0]], SIL); }
     var bv = '';
     // a tree crown in section (Brief 18): the form outline at 'context'; no fill (technical), 35 % planting (schematic)
+    // a tree in section (Brief 19 D): DRAW_SYMBOLS.treeElev at this strip's scale; an imported tree by its form, a planted
+    // one 2 m to its crown; technical line-art, schematic its crown in 35 % sage (the depth tiers: Brief 19 E)
+    function _treeSec(v, atRoad, c, trunk, it) {
+      var gy = atRoad ? GROUND_Y : SW_TOP, P2 = DRAW_STYLE.pen(DK), form = !!v.form, r = Math.max(0.15, v.canopyR || 0.4);
+      DRAW_SYMBOLS.treeElev(P2, X(v.x), gy, { sc: SC, clearH: form ? v.clearH : 2.0, top: form ? Math.max(v.heightM, v.clearH + 1) : 2.0 + 1.12 * r, canopyR: r, trunkR: form ? v.trunkR : 0.06,
+        conifer: v.leaf === 'conifer', bare: v.segId === null && treeBare(v, treeSeasonNow()), seed: treeSeed(v), trunk: trunk, c: c,
+        fill: isTech ? null : 'fill.planting', fop: isTech ? null : 0.35, data: " data-canopy='1'" });
+      return P2.body();
+    }
     function _crown(c, q) {
       q = q || "'";
       return ' fill=' + q + (isTech ? 'none' : T.fill.planting) + q + (isTech ? '' : ' fill-opacity=' + q + '0.35' + q) + (c ? K1('context', { c: c, q: q }) : K('context', { q: q }));
@@ -4997,17 +5006,8 @@ function _drawSection(svgEl, o) {
             rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
             xToPx: X, yDeck: b0, SC: SC, isBeyond: true, tech: isTech, id: inst.id, silhouette: { w: DRAW_STYLE.sw(DK, 'context'), c: BINK, paper: T.paper } });
         } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), SIL);
-      } else if (it.kind === 'tree' && d.v.form) {   // imported street tree: trunk to clearH, the crown an ellipse from clearH to its height, 2 canopyR wide
-        var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, top = Math.max(v.heightM, v.clearH + 1), tw = Math.max(2, 2 * v.trunkR * SC);
-        // the crown (Brief 18): its form outline at 'context', no fill (technical) or 35 % planting (schematic); bare in winter: fine, dashed
-        g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(gy - Y((v.clearH + top) / 2)) + "' rx='" + f1(v.canopyR * SC) + "' ry='" + f1(Y(top - v.clearH) / 2) + "'" +
-          (treeBare(v, treeSeasonNow()) ? " fill='none'" + K1('fine', { c: BINK, dash: 'hidden' }) : _crown(BINK)) + " data-canopy='1'/>";
-        g += rectXY(tx - tw / 2, tx + tw / 2, gy, gy - Y(v.clearH), SIL);
-      } else if (it.kind === 'tree') {
-        var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, r = Math.max(0.15, v.canopyR) * SC, tw = Math.max(2, 0.12 * SC);
-        var tTop = gy - Y(2.0), cy = tTop - r * 0.3;
-        g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(cy) + "' rx='" + f1(r) + "' ry='" + f1(r * 0.82) + "'" + _crown(BINK) + ' data-canopy=\'1\'/>';
-        g += rectXY(tx - tw / 2, tx + tw / 2, gy, tTop, SIL);
+      } else if (it.kind === 'tree') {   // Brief 19 D: DRAW_SYMBOLS.treeElev, its form's outline, trunk and branches
+        g += _treeSec(d.v, d.atRoadLevel, BINK, true, it);
       } else if (it.kind === 'planter') {
         g += rectXY(X(it.x0), X(it.x1), surf(d.v.x), surf(d.v.x) - Y(0.5), SIL);
       } else if (it.kind === 'building') {
@@ -5056,16 +5056,12 @@ function _drawSection(svgEl, o) {
         var v = d.v, tx = Math.round(X(v.x)), gy = d.atRoadLevel ? GROUND_Y : SW_TOP;
         if (it.kind === 'planter') {
           g += rectXY(X(it.x0), X(it.x1), gy, gy - Y(0.5), solid('fill.planting'));
-        } else if (v.form) {   // imported street tree at the cut: trunk to clearH, crown ellipse 2 canopyR wide
-          var top = Math.max(v.heightM, v.clearH + 1), tw2 = Math.max(2, 2 * v.trunkR * SC), bare = treeBare(v, treeSeasonNow());
-          g += '<ellipse cx="' + tx + '" cy="' + f1(gy - Y((v.clearH + top) / 2)) + '" rx="' + f1(v.canopyR * SC) + '" ry="' + f1(Y(top - v.clearH) / 2) + '"' +
-            (bare ? ' fill="none"' + K('fine', { dash: 'hidden' }) : _crown(null, '"')) + ' data-canopy="1"/>';
-          g += cutRect(tx - tw2 / 2, tx + tw2 / 2, gy, gy - Y(v.clearH), 2 * (v.trunkR || 0));
+        } else if (v.form) {   // imported street tree at the cut: its trunk cut (Brief 18: solid only when thin), the crown and branches beyond it
+          var tw2 = Math.max(2, 2 * v.trunkR * SC);
+          g += _treeSec(v, d.atRoadLevel, T.ink, false, it) + cutRect(tx - tw2 / 2, tx + tw2 / 2, gy, gy - Y(v.clearH), 2 * (v.trunkR || 0));
         } else {
-          var tDiam = Math.max(2, Math.round(0.12 * SC)), tH = Math.round(2.0 * SC), cR = Math.round(Math.max(0.15, v.canopyR || 0.4) * SC);
-          var tTop = gy - tH, cCY = tTop - Math.round(cR * 0.3), cRY = Math.round(cR * 0.82);
-          g += '<ellipse cx="' + tx + '" cy="' + cCY + '" rx="' + cR + '" ry="' + cRY + '"' + _crown(null, '"') + ' data-canopy="1"/>';
-          g += '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="' + T.fill.cut + '"' + K('object') + '/>';
+          var tDiam = Math.max(2, Math.round(0.12 * SC)), tH = Math.round(2.0 * SC), tTop = gy - tH;
+          g += _treeSec(v, d.atRoadLevel, T.ink, false, it) + '<rect x="' + (tx - tDiam / 2).toFixed(1) + '" y="' + tTop + '" width="' + tDiam + '" height="' + tH + '" fill="' + T.fill.cut + '"' + K('object') + '/>';
         }
       } else if (it.kind === 'bollard') {
         // a steel bollard, cut: solid
@@ -5631,6 +5627,15 @@ DRAW_STYLE.fmt = function(v, dp) { var d = dp == null ? 2 : dp, p = Math.pow(10,
 // 1:1000-1:250) adds the segment labels, the overall dimensions, building addresses, failed checks' rule lozenges
 // and the site symbols without labels; near (> 8 px/m) draws everything. Context (buildings, trees, stops, poles,
 // lanes) is never culled, only annotation. The Plan and the report both ask lodTier.
+// a tree's seed and its plan outline's points (Brief 19 D): an imported tree by its City id, a planted one by its segment
+// and its place along the street (street frame, so a parklet move keeps its shape); the points by its size, the same
+// on screen and on paper
+function treeSeed(v) {
+  if (v.id != null) return DRAW_SYMBOLS.seedOf('id' + v.id);
+  var L = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.parklet) ? DESIGN_MODEL.parklet.length : 0, pk = typeof pkZNow === 'function' ? pkZNow() : 0;
+  return DRAW_SYMBOLS.seedOf('seg' + v.segId + ':' + Math.round((v.z - L / 2 + pk) * 10));
+}
+function treeN(v) { return Math.max(64, Math.min(200, Math.round(24 * (v.canopyR || 1)))); }
 function lodTier(pxPerM) { return pxPerM < 2 ? 'far' : pxPerM <= 8 ? 'mid' : 'near'; }
 var LOD_RANK = { far: 0, mid: 1, near: 2 };
 DRAW_STYLE.fmtClear = function(v, req, id, max) { return DRAW_STYLE.fmt(v) + ' (' + (max ? '≤' : '≥') + DRAW_STYLE.fmt(req) + ' ' + id + ')'; };
@@ -5763,19 +5768,87 @@ var DRAW_SYMBOLS = {
   // in winter 'hidden'; the trunk dot in ink. Schematic: the canopy at 35 % planting fill, no outline, a darker centre
   // dot (bare in winter: the outline as technical, no fill). The provenance (City / estimate) is in the tooltip and
   // the report's Sources sheet, never a ring.
+  // Brief 19 D: the canopy is no longer a circle but the procedural irregular outline (DRAW_SYMBOLS.canopyPath: the base
+  // ellipse perturbed by two octaves of lobes, 8-14 % of the radius, seeded by the tree, o.seed / o.n), so the Plan and
+  // the report draw the same shape every time. Technical: that outline at 'context', no fill (conifer a short dash, a
+  // bare tree 'hidden'), the trunk dot; schematic: the outline filled 35 % sage, no stroke, a darker dot.
   tree: function(P, x, y, rx, ry, o) {
-    o = o || {}; var k = P.ctx.k, f = function(v) { return (+v).toFixed(2); }, r = rx, q = ry == null ? rx : ry;
-    var d = 'M' + f(x - r) + ' ' + f(y) + 'A' + f(r) + ' ' + f(q) + ' 0 1 0 ' + f(x + r) + ' ' + f(y) + 'A' + f(r) + ' ' + f(q) + ' 0 1 0 ' + f(x - r) + ' ' + f(y) + 'Z';
-    var dot = Math.max(0.5 * k, o.trunk || 0), bb = [x - r, y - q, x + r, y + q];
+    o = o || {}; var k = P.ctx.k, q = ry == null ? rx : ry;
+    var d = DRAW_SYMBOLS.canopyPath(x, y, rx, q, o.seed || 1, o.n || 96, true);
+    var dot = Math.max(0.5 * k, o.trunk || 0), bb = [x - rx, y - q, x + rx, y + q];
     if (P.ctx.mode === 'schematic' && !o.bare) {
       P.path(d, { fill: 'fill.planting', fop: 0.35, cls: 'none', data: o.data, title: o.title, bb: bb });
       P.circle(x, y, dot, { fill: 'fill.plantingDark', cls: 'none' });
       return;
     }
-    var c = Math.SQRT1_2, a = 1.5 * k;
-    d += 'M' + f(x + c * (r - a)) + ' ' + f(y - c * (q - a)) + 'L' + f(x + c * (r + a)) + ' ' + f(y - c * (q + a));
     P.path(d, { cls: 'context', dash: o.bare ? 'hidden' : o.conifer ? 'short' : null, data: o.data, title: o.title, bb: bb });
     P.circle(x, y, dot, { fill: 'ink', cls: 'none' });
+  },
+  // a seeded random stream in [0, 1) (mulberry32) and a stable seed from a string
+  _rng: function(seed) { var a = seed >>> 0; return function() { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; },
+  seedOf: function(s) { var h = 2166136261; s = String(s); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; },
+  // the canopy's radius around it, n samples of a unit radius: rounded lobes (7-12 around, scalloped inward) and a finer
+  // octave (26-38 around, the crinkled edge of the references), together taking 8-14 % off the radius at most; seeded, so the same every time
+  canopyProfile: function(seed, n) {
+    var R = DRAW_SYMBOLS._rng(seed), k1 = 7 + Math.floor(R() * 6), k2 = 26 + Math.floor(R() * 13), p1 = R() * 6.2832, p2 = R() * 6.2832, p3 = R() * 6.2832, A = 0.08 + R() * 0.06, out = [];
+    for (var i = 0; i < n; i++) {
+      var t = i / n * 6.283185307, lobe = Math.abs(Math.sin(k1 * t / 2 + p1)), fine = 0.5 + 0.35 * Math.sin(k2 * t + p2) + 0.15 * Math.sin(2.3 * k2 * t + p3);
+      out.push(1 - A * (0.55 * (1 - Math.sqrt(lobe)) + 0.45 * fine));
+    }
+    return out;
+  },
+  // the outline as path data: the ellipse (cx, cy, rx, ry) through the profile (y up on the sheet: -sin), closed
+  canopyPath: function(cx, cy, rx, ry, seed, n, close) {
+    var p = DRAW_SYMBOLS.canopyProfile(seed, n), f = function(v) { return (+v).toFixed(2); };
+    return 'M' + p.map(function(r, i) { var t = i / n * 6.283185307; return f(cx + Math.cos(t) * rx * r) + ' ' + f(cy - Math.sin(t) * ry * r); }).join('L') + (close ? 'Z' : '');
+  },
+  // A tree in section or elevation (Brief 19 D/E), standing at (cx, gy), o.sc drawing units per metre: the crown's form
+  // (the A2 ellipse from clearH to top, canopyR a side) perturbed as in plan, or a conifer's layered triangular lobes;
+  // inside it, faint lobe arcs at 'fine'; the trunk (two lines, 'general', running on into the crown at 'fine') and 4-7
+  // primary branches at 'fine' fading into the crown. Winter (o.bare): the trunk and the branches only. o.fill / o.fop:
+  // a schematic fill; o.op: every stroke's opacity (a depth tier); o.trunk false: the caller draws the trunk (a cut).
+  // Seeded (o.seed): the same drawing every time; at most 300 points.
+  treeElev: function(P, cx, gy, o) {
+    var sc = o.sc, ch = o.clearH, top = Math.max(o.top, ch + 1), rx = o.canopyR * sc, ry = (top - ch) / 2 * sc, cy = gy - (ch + top) / 2 * sc, R = DRAW_SYMBOLS._rng((o.seed || 1) ^ 0x9E3779B9);
+    var f = function(v) { return (+v).toFixed(2); }, tw = Math.max(0.06, o.trunkR || 0.08) * sc, op = o.op, c = o.c || 'ink';
+    var n = Math.max(72, Math.min(180, Math.round(14 * (o.canopyR + (top - ch) / 2))));
+    var stroke = function(cls, extra) { return Object.assign({ cls: cls, c: c, op: op }, extra || {}); };
+    var crown = null;
+    if (!o.bare) {
+      if (o.conifer) {   // stacked triangular tiers, widest at the bottom, a zigzag each side
+        var tiers = 4 + Math.floor(R() * 3), L2 = [], R2 = [], hT = (top - ch) * sc;
+        for (var j = 0; j < tiers; j++) {
+          var yb = gy - ch * sc - hT * j / tiers * 0.92, yt = gy - ch * sc - hT * (j + 1) / tiers, wv = rx * (1 - j / tiers * 0.8) * (0.9 + 0.2 * R());
+          L2.push([cx - wv, yb], [cx - wv * 0.45, yt + (yb - yt) * 0.35]); R2.push([cx + wv, yb], [cx + wv * 0.45, yt + (yb - yt) * 0.35]);
+        }
+        var pts = L2.concat([[cx, gy - top * sc]], R2.reverse());
+        crown = 'M' + pts.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L') + 'Z';
+      } else crown = DRAW_SYMBOLS.canopyPath(cx, cy, rx, ry, o.seed || 1, n, true);
+      P.path(crown, Object.assign(stroke('context'), { fill: o.fill || 'none', fop: o.fop, bb: [cx - rx, gy - top * sc, cx + rx, gy - ch * sc], data: o.data }));
+    }
+    // the trunk: to the crown's underside, then on into it
+    var t0 = gy, t1 = gy - ch * sc, t2 = gy - (ch + (top - ch) * 0.35) * sc;
+    if (o.trunk !== false) {
+      P.line(cx - tw, t0, cx - tw * 0.8, t1, stroke('general')); P.line(cx + tw, t0, cx + tw * 0.8, t1, stroke('general'));
+      if (o.fill && !o.bare) P.rect(cx - tw * 0.8, t1, tw * 1.6, t0 - t1, { fill: c, fop: op != null ? op : 1, cls: 'none' });
+    }
+    P.line(cx - tw * 0.8, t1, cx - tw * 0.4, t2, stroke('fine')); P.line(cx + tw * 0.8, t1, cx + tw * 0.4, t2, stroke('fine'));
+    // the primary branches: from the trunk up and out, bending once, ending short of the outline (bare: nearly at it)
+    var nb = o.bare ? 6 + Math.floor(R() * 3) : 4 + Math.floor(R() * 4), reach = o.bare ? 0.92 : 0.72;
+    for (var b = 0; b < nb; b++) {
+      var side = b % 2 ? 1 : -1, a = (0.25 + 0.6 * (b + R() * 0.8) / nb) * Math.PI / 2, sy = t1 - (t1 - t2) * (0.2 + 0.8 * b / nb);
+      var ex = cx + side * Math.cos(a) * rx * reach, ey = cy - Math.sin(a) * ry * reach * (0.6 + 0.5 * R());
+      var mx = (cx + ex) / 2 + side * rx * 0.08, my = (sy + ey) / 2 + ry * 0.1;
+      P.polyline([[cx + side * tw * 0.5, sy], [mx, my], [ex, ey]], stroke('fine', { join: 'round' }));
+    }
+    // faint lobe arcs inside the crown (technical line-art, as the reference's inner cloud lines)
+    if (!o.bare && !o.conifer && !o.fill) {
+      for (var m = 0; m < 3; m++) {
+        var ax = cx + (R() - 0.5) * rx * 0.9, ay = cy + (R() - 0.3) * ry * 0.7, ar = Math.min(rx, ry) * (0.22 + R() * 0.15), a0 = Math.PI * (0.05 + R() * 0.3), pr = DRAW_SYMBOLS.canopyProfile((o.seed || 1) + m + 1, 14), arc = [];
+        for (var q = 0; q < 14; q++) { var tt = a0 + q / 13 * Math.PI * 0.9; arc.push([ax + Math.cos(tt) * ar * pr[q], ay - Math.sin(tt) * ar * pr[q]]); }
+        P.polyline(arc, stroke('fine', { join: 'round', op: op != null ? op * 0.8 : 0.8 }));
+      }
+    }
   },
   // bus stop (Brief 18): the letter B, bold, no box; grey until confirmed on site
   busStop: function(P, x, y, o) {
@@ -6230,6 +6303,9 @@ function _renderPlanView(o) {
     s += `<line x1='0' y1='${uy0.toFixed(2)}' x2='${VW}' y2='${uy0.toFixed(2)}'${K('context', { c: 'mid', dash: 'hidden' })}/>`;
     annSeg('Unallocated ' + DRAW_STYLE.fmt(_pvLM.roadRight - _pvLM.allocatedRight), uy1 - 3 * U);
   }
+  // the parking row each side of the parklet, under the trees' canopies
+  s += `<rect x="0" y="${PK_Y}" width="${PK_X}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}"/>`;
+  s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${VW-PK_X-PK_W}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}"/>`;
   // Trees and planters from DESIGN_MODEL.vegetation, on top of their bands, true scale
   // (ellipse radii use each axis's own px/m). Tagged data-veg='<index>' for the check.
   _pvDM.vegetation.forEach(function(v, i) {
@@ -6238,7 +6314,7 @@ function _renderPlanView(o) {
       // DRAW_SYMBOLS.tree: the canopy outline (conifer dashed; bare in winter fine, dashed) and the trunk; schematic lays the
       // planting fill under a leafed canopy. An imported street tree's tooltip is the City's name.
       const bare = v.segId === null && treeBare(v, treeSeasonNow());
-      s += _sym(function(P) { DRAW_SYMBOLS.tree(P, c.px, c.py, rx, ry, { conifer: v.leaf === 'conifer', bare: bare, trunk: Math.max(v.trunkR || 0, 0.1) * HS, data: ` data-veg='${i}'`, title: v.segId === null && v.form ? treeTip(v) : '' }); });
+      s += _sym(function(P) { DRAW_SYMBOLS.tree(P, c.px, c.py, rx, ry, { seed: treeSeed(v), n: treeN(v), conifer: v.leaf === 'conifer', bare: bare, trunk: Math.max(v.trunkR || 0, 0.1) * HS, data: ` data-veg='${i}'`, title: v.segId === null && v.form ? treeTip(v) : '' }); });
     } else {   // planter: the footprint of the 3D planter box (2r x 2r), the planting fill and (technical) its band
       const _pR = function(a) { return `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}'${a}/>`; };
       s += _pR(` fill='${DK.T.fill.planting}'${K('edge')} data-veg='${i}'`) + _band('planting', _pR);
@@ -6313,8 +6389,7 @@ function _renderPlanView(o) {
   }
   
 // Parking lane flanks  
-s += `<rect x="0" y="${PK_Y}" width="${PK_X}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}"/>`;
-  s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${VW-PK_X-PK_W}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}"/>`;
+// (the parking row each side of the parklet: painted before the trees, Brief 19 D, so a canopy over it shows)
 
 // ── C13: Parking meter setback zones
 const C13_REQ = 1.5;
@@ -20082,7 +20157,7 @@ RPT.planObjects = function(P, G, F, o) {
     if (!inZ(v.z)) return;
     // DRAW_SYMBOLS.tree, as the Plan draws it (Brief 18: screen and report symbols are the same)
     var cx = F.sx(v.z), cy = F.sy(v.x), r = Math.max(0.8, v.canopyR * F.k);
-    DRAW_SYMBOLS.tree(P, cx, cy, r, r, { conifer: v.leaf === 'conifer', bare: v.segId === null && typeof treeBare === 'function' && treeBare(v, treeSeasonNow()), trunk: Math.max(v.trunkR || 0, 0.1) * F.k });
+    DRAW_SYMBOLS.tree(P, cx, cy, r, r, { conifer: v.leaf === 'conifer', bare: v.segId === null && typeof treeBare === 'function' && treeBare(v, treeSeasonNow()), trunk: Math.max(v.trunkR || 0, 0.1) * F.k, seed: treeSeed(v), n: treeN(v), data: " data-tree='1'" });
     if (!o.genus || !v.genus) return;
     var tx = cx + r * 0.72 + 0.4, ty = cy - r * 0.72, g2 = v.genus.slice(0, 2).toUpperCase();
     if (tagged.some(function(q) { return Math.abs(q[0] - tx) < 5 && Math.abs(q[1] - ty) < 3; })) return;   // one tag for a cluster
@@ -20369,10 +20444,12 @@ RPT.sheetSection = function(d) {
   };
   var tree = function(it, cut) {
     var v = it.data.v, top = v.form ? Math.max(v.heightM, v.clearH + 1) : 2 + 1.12 * v.canopyR, ch = v.form ? v.clearH : 2.0, base = v.x < 0 ? lv.curbTop : 0, tr = v.trunkR || 0.08;
-    if (!cut) rectXY(v.x - tr, v.x + tr, base, base + ch, SIL);
-    else if (2 * tr <= 0.2) rectXY(v.x - tr, v.x + tr, base, base + ch, { fill: RPT.INK, cls: 'object' });   // thin: solid
-    else { poche(v.x - tr, v.x + tr, base, base + ch); rectXY(v.x - tr, v.x + tr, base, base + ch, { cls: 'cut' }); }
-    P.ellipse(X(v.x), Y(base + (ch + top) / 2), v.canopyR * k, (top - ch) / 2 * k, { cls: 'context', fill: tech ? 'none' : DRAW_STYLE.schematic.fill.planting, fop: tech ? null : 0.35, data: " data-canopy='1'" });
+    if (cut && 2 * tr <= 0.2) rectXY(v.x - tr, v.x + tr, base, base + ch, { fill: RPT.INK, cls: 'object' });   // thin: solid
+    else if (cut) { poche(v.x - tr, v.x + tr, base, base + ch); rectXY(v.x - tr, v.x + tr, base, base + ch, { cls: 'cut' }); }
+    // Brief 19 D: DRAW_SYMBOLS.treeElev, as the screen's Section draws it
+    DRAW_SYMBOLS.treeElev(P, X(v.x), Y(base), { sc: k, clearH: ch, top: top, canopyR: Math.max(0.15, v.canopyR || 0.4), trunkR: v.form ? v.trunkR : 0.06, conifer: v.leaf === 'conifer',
+      bare: v.segId === null && typeof treeBare === 'function' && treeBare(v, treeSeasonNow()), seed: treeSeed(v), trunk: !cut, c: 'ink',
+      fill: tech ? null : 'fill.planting', fop: tech ? null : 0.35, data: " data-canopy='1'" });
   };
   var endPiece = function(it, cut) {
     var e = it.data.end, pl = it.kind === 'end-planter', q = pl ? rectXY(e.x0, e.x1, lv.deckTop, lv.deckTop + (e.y1 - e.y0), cut ? { fill: FI.planter, cls: 'object' } : SIL) : rectXY(e.x0, e.x1, 0, e.y1, cut ? { fill: FI.ws, cls: 'object' } : SIL);

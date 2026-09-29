@@ -589,6 +589,27 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 
     - **Plan:** addresses are drawn at mid and near (16 / 24 / 17), none at far. At Robson, 0 overlaps at 1, 4 and 12 px/m.
     - **A-201:** notes the cut building at Robson and Commercial. At W 41st there's no building at the cut (a gap), so no note.
+- **D. Technical trees, line-art (commit 4).** Jenna's references: the right-hand two images (a plan canopy ring and an elevation tree) are technical; the soft layered sections are schematic.
+  - **`DRAW_SYMBOLS.canopyProfile(seed, n)`:** a unit radius around the tree.
+    - Two octaves: 7–12 rounded lobes, scalloped inward (the square root of |sin|), plus a finer crinkle of 26–38 around.
+    - Together they take 8–14 % off the radius.
+    - Seeded by mulberry32 via `DRAW_SYMBOLS.seedOf`. `treeSeed(v)` uses the City tree id, or for a planted tree its segment and street-frame z, so a parklet move keeps the shape.
+  - **`canopyPath`:** the ellipse run through that profile. `treeN(v)` is 24 × canopyR, clamped to 64–200 points, so the screen and the paper draw the same shape.
+  - **Plan (`DRAW_SYMBOLS.tree`):** in technical, the outline at `context`, no fill, and the trunk dot (conifer: short dash; bare: hidden). In schematic, the same outline filled 35 % sage. The 18 NE tick is gone, replaced by the irregular edge. No check measures trees, so no tree clearance circle is drawn.
+  - **Section and elevation (`DRAW_SYMBOLS.treeElev`):**
+    - The form's A2 ellipse from clearH to top, perturbed the same way; a conifer gets 4–6 stacked triangular tiers.
+    - Three faint inner lobe arcs at `fine` (the reference's cloud lines).
+    - A two-line trunk at `general` running on into the crown at `fine`; 4–7 primary branches at `fine`, bent once, ending at 72 % of the crown (bare: 6–8 branches to 92 %, no crown).
+    - `trunk: false` at the cut, which keeps 18's cut trunk.
+    - Used by the screen's Section (`_treeSec`, beyond and cut) and A-201, with the same seeds.
+  - **Plan draw order:** the parking row each side of the parklet is now painted before the trees, so canopies over it show.
+  - **Verified (technical, all three sites):**
+    - Same tree twice: plan and elevation path data identical. Screen against report: normalised radii within 0.0002.
+    - Largest tree per site (plan / elevation points): Quercus 13.7 m 144 / 227; Carpinus 16.8 m 73 / 204; Acer 16.8 m 144 / 248. Maximum over all trees: 232 / 214 / 248 (at most 300).
+    - Lobe amplitude 11.7 / 12.3 / 10.2 %.
+    - A-102 at 1:100, cropped to the densest 30.5 m: 11 / 18 / 9 trees, 0 overlaps. The trees' path data was identical on a second export.
+    - Robson: the "outside" count was 0. At Commercial and W 41st, 10 and 21 texts land outside the page with the moved crop. Not tree tags (A-102 draws none); to be traced in E's runs.
+  - **Against the references:** the plan outline reads as a lobed, crinkled ring like the plan reference, but closed (the brief asks for a closed outline) and without the reference's loose flecks. The elevation has the reference's lobed crown, inner lobe lines, branches and two-line trunk; its lobes are smoother and larger than the reference's fine leaf fringe, within the 8–14 % amplitude and the 300-point budget.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
