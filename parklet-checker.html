@@ -3320,7 +3320,8 @@ function _pvAppendAnno(svg, vb, sb, baseW) {
   const nice = [1, 2, 5, 10, 20, 50, 100];
   let m = nice[0];
   nice.forEach(function(v) { if (v * pxPerM <= 110) m = v; });
-  const L = m * vb.pxM, bx1 = cx - 35 * U, bx0 = bx1 - L, by = cy + 1.5 * U;
+  // the bar ends clear of the north arrow's box by its last label's width (Brief 19: 'N' met '100 m' on a turned street)
+  const L = m * vb.pxM, bx1 = cx - (40 + (String(m).length + 2) * 5.5) * U, bx0 = bx1 - L, by = cy + 1.5 * U;
   DRAW_SYMBOLS.scaleBar(P, bx0, by, L, m);
   let h = P.body();
   const zoomed = Math.abs(vb.w - (vb.fitW || vb.w)) > 1, inFS = !!(_fsPanel && _fsPanel.contains(svg));
@@ -6110,8 +6111,10 @@ function _renderPlanView(o) {
     if (!atTier(o.tier || ANN_TIER[kind])) return;
     const px = o.px || DRAW_STYLE.TYPE.screen[o.role || 'tag'], sz = px * U, w = _pvTW(str, px) * U + 2 * U, anc = o.anchor || 'start';
     const x0 = anc === 'middle' ? x - w / 2 : anc === 'end' ? x - w : x;
-    ANN.push({ kind: kind, x: x, y: y, box: [x0, y - 0.82 * sz, x0 + w, y + 0.28 * sz], axis: o.axis || 'x', lo: o.lo, hi: o.hi, at: o.at || null,
-      draw: function(X, Y) { return `<text x='${X.toFixed(2)}' y='${Y.toFixed(2)}' font-family='${DRAW_STYLE.FONT}' font-size='${sz.toFixed(2)}'${anc !== 'start' ? ` text-anchor='${anc}'` : ''}${o.bold ? ` font-weight='600'` : ''} fill='${DRAW_STYLE.c(DK, o.c || 'anno')}'${o.data || ''}>${_annEsc(str)}</text>`; } });
+    // o.rot -90 (Brief 19 C: an address along a deep footprint): turned about its anchor, reading upward, centred on it
+    const rot = o.rot === -90, box = rot ? [x - 0.5 * sz, y - w / 2, x + 0.5 * sz, y + w / 2] : [x0, y - 0.82 * sz, x0 + w, y + 0.28 * sz];
+    ANN.push({ kind: kind, x: x, y: y, box: box, axis: o.axis || 'x', lo: o.lo, hi: o.hi, at: o.at || null,
+      draw: function(X, Y) { return `<text x='${X.toFixed(2)}' y='${(rot ? Y : Y).toFixed(2)}'${rot ? ` transform='rotate(-90 ${X.toFixed(2)} ${Y.toFixed(2)})' dy='${(0.32 * sz).toFixed(2)}'` : ''} font-family='${DRAW_STYLE.FONT}' font-size='${sz.toFixed(2)}'${anc !== 'start' ? ` text-anchor='${anc}'` : ''}${o.bold ? ` font-weight='600'` : ''} fill='${DRAW_STYLE.c(DK, o.c || 'anno')}'${o.data || ''}>${_annEsc(str)}</text>`; } });
   };
   // a rule lozenge (DRAW_SYMBOLS.lozenge) centred at x, y: it moves to the next row up when taken
   const annLozenge = function(code, st, x, y, at) {
@@ -6778,9 +6781,12 @@ const manholes = state['manholes'] || [];
         s += _rect(body, `fill='${DK.T.fill.building}'${K('context')} data-bldg='${side}${i}'`);
         if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${DK.T.fill.sidewalk}'`);
         s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${DK.T.fill.cut}'`);   // the facade wall, cut: solid
-        // its label: at the left of its visible part, moving along it
-        const lx = Math.max(body.x, VIS.x0) + 5 * U;
-        annText('segment', label, lx, body.y + body.h / 2 + 3 * U, { axis: 'x', lo: Math.max(body.x, VIS.x0), hi: body.x + body.w });
+        // its address (Brief 19 C; mid and near tiers): centred in the footprint along its long axis, moving along it
+        if (b.address) {
+          const _vert = body.h > body.w * 1.15, _cx = body.x + body.w / 2, _cy = body.y + body.h / 2;
+          annText('segment', b.address, _cx, _cy, _vert ? { anchor: 'middle', rot: -90, axis: 'y', lo: body.y, hi: body.y + body.h, c: 'ink', data: ` data-addr='${side}${i}'` }
+            : { anchor: 'middle', axis: 'x', lo: Math.max(body.x, VIS.x0), hi: body.x + body.w, c: 'ink', data: ` data-addr='${side}${i}'` });
+        }
       });
     };
     _drawSide(_pvDM.buildings.L, 'L', 'Building interior');
@@ -19437,7 +19443,8 @@ var RPT = {};
 RPT.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
 RPT.fx = function(v, d) { return (+v).toFixed(d == null ? 3 : d); };
 // the address as printed: ', Vancouver, BC' added only when the address does not already name the city
-RPT.addr = function(DM) { var a = DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
+// the site address line (Brief 19 C): the host frontage's civic address (the City's), else the project's address field
+RPT.addr = function(DM) { var h = typeof pkHostAddress === 'function' ? pkHostAddress() : null, a = h || DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
 RPT.DISCLAIMER = 'Preliminary assessment — not a substitute for City of Vancouver review';
 
 // ── Data: one snapshot of the model for every sheet ───────────────────────────────────────────
@@ -20110,8 +20117,11 @@ RPT.sheetSite = function(d) {
       P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, cls: 'edge' });
       var z0 = Math.max(fp.z0, zA), z1 = Math.min(fp.z1, zB), cx = F.sx((z0 + z1) / 2), wmm = (z1 - z0) * k, face = F.sy(fp.faceX) + (side === 'L' ? -8 : 10);   // inside the footprint, clear of the section marker
       if (side === 'L' && G.DM.site.host && G.DM.site.host.index === bi) hostAt = [cx, F.sy((x0 + x1) / 2)];
-      var nm = b.name || '', use = b.use ? String(b.use) : '';
-      if (wmm > RPT.tw(nm || use, RPT.TX.tag) + 2) { if (nm) P.text(cx, face - (side === 'L' ? 2.6 : 0), nm, RPT.TX.tag, { anchor: 'middle', bold: true }); P.text(cx, face + (side === 'L' ? 0 : 2.6), use, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); }
+      // its address (Brief 19 C), then its name and use where they fit
+      var nm = b.name || '', use = b.use ? String(b.use) : '', ad = b.address || '';
+      var l1 = ad || nm, l2 = ad ? [nm, use].filter(Boolean).join(', ') : use;
+      if (l1 && wmm > RPT.tw(l1, RPT.TX.tag) + 2) P.text(cx, face - (side === 'L' ? 2.6 : 0), l1, RPT.TX.tag, { anchor: 'middle', bold: true, data: ad ? " data-addr='1'" : '' });
+      if (l2 && wmm > RPT.tw(l2, RPT.TX.tag) + 2) P.text(cx, face + (side === 'L' ? 0 : 2.6), l2, RPT.TX.tag, { anchor: 'middle', c: RPT.MID });
     });
   });
   // the annotation tier from the sheet's scale (Brief 19 A): 1:250 is mid (no tree tags, no object labels), nearer is near
@@ -20432,6 +20442,8 @@ RPT.sheetSection = function(d) {
     { t: 'Railing ' + R.h.toFixed(3) + ' m above the deck, rails at ' + R.rails.map(function(h) { return h.toFixed(2); }).join(' and ') + ' m: details A-301.', at: [X(LM.deckX1) + (mir ? 6 : -6), Y(lv.deckTop + R.h) - 3] },
     { t: 'Beyond the cut: silhouettes, the nearer in front; trees as their crown outline.', at: furnAt }
   ];
+  // the building the cut passes through: its address (Brief 19 C)
+  if (cbf) keys.push({ t: 'Building at the cut: ' + (cb.address || 'no address point (City of Vancouver property-addresses)') + (cb.name ? ', ' + cb.name : '') + '.', at: [X(cbf.faceX) + (mir ? 3 : -3), Y(lv.curbTop + Math.min(cb.height || 8, 4))] });
   return RPT.dsheet(d, 'A-201', 'Section A-A', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: xL, xBot: xR });
 };
 
@@ -23715,7 +23727,7 @@ SMP.reclip = async function() {
   var ck = SM.round(sm.lat) + ',' + SM.round(sm.lon), osm = await SM.cacheGet('overpass|ctx3|' + SMP.R + '|' + sm.wayId + '|' + ck), osmAt = SM._hitAt;   // the cache is per radius
   if (!osm) { console.warn('[site-map] reclip: no import within ' + SMP.R + ' m in the cache; import again'); return null; }
   var cov = {};
-  for (var ds of ['water-hydrants', 'public-trees', 'bikeways', 'rapid-transit-stations']) {
+  for (var ds of ['water-hydrants', 'public-trees', 'bikeways', 'rapid-transit-stations', 'property-addresses']) {
     var j = await SM.cacheGet('cov|' + ds + '|' + SMP.R + '|' + ck), at = SM._hitAt, rows = (j && j.results) || [];
     for (var pg = 1; j && j.results && j.results.length === 100 && pg < SMP.COV_PAGES; pg++) { j = await SM.cacheGet('cov|' + ds + '|' + SMP.R + '|' + ck + '|p' + pg); if (j && j.results) rows = rows.concat(j.results); }
     cov[ds] = { rows: rows, at: at };
@@ -23735,6 +23747,7 @@ SMP.reclip = async function() {
       if (o.heightManual) b.heightManual = true;
     });
   });
+  if (cov['property-addresses'] && cov['property-addresses'].rows.length) SMP.applyAddresses(cov['property-addresses'].rows, cov['property-addresses'].at, rep);
   SMP.applyObjects(cov, stops, osmAt, rep);
   ['curb_features', 'street_trees', 'transit_stops'].forEach(function(k) { (state[k] || []).forEach(function(o) { var c = conf[k + '|' + o.id]; if (c) { o.confirmed = true; if (c !== true) o.confirmedAt = c; } }); });
   try { renderBldgControls(); } catch (e) {}
@@ -23935,7 +23948,7 @@ SMP.msg = function(html) { var el = document.getElementById('smpMsg'); if (el) e
 // next Overpass server). The line always ends in a result or an error, never in a spinner.
 SMP.TIMEOUT = 20000;      // CoV steps
 SMP.OV_TIMEOUT = 50000;   // the Overpass step: longer than the relay's 45 s, so the relay answers (504) before the page gives up
-SMP.STEPS = [['street', 'OSM street'], ['buildings', 'OSM buildings'], ['hydrants', 'CoV hydrants'], ['trees', 'CoV trees'], ['transit', 'transit']];
+SMP.STEPS = [['street', 'OSM street'], ['buildings', 'OSM buildings'], ['hydrants', 'CoV hydrants'], ['trees', 'CoV trees'], ['transit', 'transit'], ['addresses', 'CoV addresses']];
 // A step: its work gets an AbortSignal; at the limit the signal is aborted with {limitS} as the reason,
 // and the request fails through SM.classify ('no answer within N s'). Work that ignores the abort is
 // cut off 1.5 s later with the same classification.
@@ -23947,7 +23960,38 @@ SMP.step = function(fn, ms) {
 };
 // The Overpass query's own [timeout:NN]: 25 s, and after a timed-out attempt at most the step limit - 2 s
 SMP.ovQueryTimeout = function(limitMs) { return SMP._ovTimedOut ? Math.max(1, Math.floor(limitMs / 1000) - 2) : 25; };
-SMP.COVLABEL = { 'water-hydrants': 'CoV hydrants', 'public-trees': 'CoV trees', 'rapid-transit-stations': 'transit', bikeways: 'CoV bikeways' };
+SMP.COVLABEL = { 'water-hydrants': 'CoV hydrants', 'public-trees': 'CoV trees', 'rapid-transit-stations': 'transit', bikeways: 'CoV bikeways', 'property-addresses': 'CoV addresses' };
+// Building addresses (Brief 19 C): the City's property-addresses (civic_number, std_street, a point) within the inner
+// ring; each inner building takes the point inside its footprint (several: the nearest its frontage's middle), else
+// the nearest within 15 m, else it carries a 'no address point' note. On the building entry with its provenance.
+SMP.addrText = function(r) {
+  var n = r.civic_number, s = String(r.std_street || '').trim().toLowerCase().replace(/\b([a-z])/g, function(c) { return c.toUpperCase(); }).replace(/\b(\d+)(St|Nd|Rd|Th)\b/g, function(m, a, b) { return a + b.toLowerCase(); });
+  return n && s ? n + ' ' + s : null;
+};
+SMP.applyAddresses = function(rows, at, rep) {
+  var F = SMP.frame(), DM = buildDesignModel(), matched = 0, none = 0;
+  var pts = (rows || []).map(function(r) { var g = SMP.pt(r), t = SMP.addrText(r); if (!g || !t) return null; var w = F.w(g.lat, g.lon); return { x: w.x, z: w.z, t: t, id: r.site_id || SMP.rowId(r) || '' }; }).filter(Boolean);
+  ['L', 'R'].forEach(function(side) {
+    ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).forEach(function(b, i) {
+      var f = ((DM.buildings || {})[side] || [])[i] && DM.buildings[side][i].footprint; if (!f) return;
+      var x0 = Math.min(f.faceX, f.backX), x1 = Math.max(f.faceX, f.backX), fz = (f.z0 + f.z1) / 2;
+      var d = function(p) { return Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(f.z0 - p.z, 0, p.z - f.z1)); };
+      var c = pts.map(function(p) { return { p: p, d: d(p), m: Math.hypot(p.x - f.faceX, p.z - fz) }; }).filter(function(q) { return q.d <= 15; }).sort(function(a, q) { return a.d - q.d || a.m - q.m; })[0];
+      b.__prov = b.__prov || {};
+      if (c) { b.address = c.p.t; b.addressNote = null; b.__prov.address = { source: 'cov', id: 'property-addresses ' + c.p.id + (c.d > 0 ? ' (' + c.d.toFixed(1) + ' m off the footprint)' : ''), fetchedAt: at }; matched++; }
+      else { b.address = null; b.addressNote = 'no address point'; b.__prov.address = { source: 'cov', id: 'property-addresses: none within 15 m', fetchedAt: at }; none++; }
+    });
+  });
+  if (rep) rep.addresses = { matched: matched, none: none, points: pts.length };
+  return { matched: matched, none: none, points: pts.length };
+};
+// the parklet's host frontage's address (Brief 19 C): the report's site address line
+// (a parklet in front of a gap: the nearest frontage within 15 m)
+function pkHostAddress() {
+  var i = typeof pkHostIdx === 'function' ? pkHostIdx() : -1;
+  if (i < 0 && typeof pkFrontages === 'function') { var c = pkZNow(), n = pkFrontages().map(function(q) { return { i: q.i, d: Math.min(Math.abs(c - q.s0), Math.abs(c - q.s1)) }; }).filter(function(q) { return q.d <= 15 && (BLDG_L.buildings[q.i] || {}).address; }).sort(function(a, b) { return a.d - b.d; })[0]; if (n) i = n.i; }
+  var b = i >= 0 ? (BLDG_L.buildings || [])[i] : null; return b && b.address ? b.address : null;
+}
 SMP.progress = function(st, tail) {
   return SMP.STEPS.map(function(s) { var v = st[s[0]] || 'wait'; return "<span class='smp-st " + v + "'>" + s[1] + (v === 'ok' ? '...' : v === 'run' ? '...' : v === 'fail' ? ' - failed' : '') + '</span>'; }).join(' ') + (tail ? ' ' + tail : '');
 };
@@ -23993,11 +24037,13 @@ SMP.importContext = async function() {
     await runStep('hydrants', async function(sig) { cov['water-hydrants'] = await SMP.cov('water-hydrants', 'geo_point_2d', la, lo, sig); cov.bikeways = await SMP.cov('bikeways', 'geom', la, lo, sig); });
     cov['public-trees'] = await runStep('trees', function(sig) { return SMP.cov('public-trees', 'geo_point_2d', la, lo, sig); });
     cov['rapid-transit-stations'] = await runStep('transit', function(sig) { return SMP.cov('rapid-transit-stations', 'geo_point_2d', la, lo, sig); });
+    cov['property-addresses'] = await runStep('addresses', function(sig) { return SMP.cov('property-addresses', 'geo_point_2d', la, lo, sig); });
     // apply (every fetch succeeded)
     cur = 'apply'; SMP._touched = [];
     var P = data.parts, before = SMP.snapshot();
     SMP.applyStreet(P.way, P.routes, P.stops, cov.bikeways, data.osm.at, rep, P.cands);
     SMP.applyBuildings(P.blds, P.pois, data.osm.at, rep);
+    SMP.applyAddresses(cov['property-addresses'].rows, cov['property-addresses'].at, rep);
     SMP.applyObjects(cov, P.stops, data.osm.at, rep);
     SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString();
     // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import

@@ -571,6 +571,24 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - **Robson at 1000 m:** 1,359 footprints, 561 streets, 17 parks, 19 water rings in 3.6 s; the Fit-all screenshot shows the harbour and Lost Lagoon filled.
     - **Rendering:** Fit-all renders in 8–17 ms, and the far-tier image takes 100–230 ms to build (once per import or zoom).
     - **Report:** A-101 has its locator at all three sites.
+- **C. Building addresses (commit 3).**
+  - **Source (step 0):** City of Vancouver `property-addresses` (`civic_number`, `std_street`, a point). It is fetched within the inner ring as a new import step, "CoV addresses" (and on a re-clip).
+  - **Matching (`SMP.applyAddresses`):** each inner building (`BLDG_L`/`BLDG_R`) takes the point inside its footprint box (if several, the one nearest its frontage's middle), else the nearest within 15 m. The result is stored on the entry as `address`, with `__prov.address` (the City's site id, or "none within 15 m" plus `addressNote: 'no address point'`). `SMP.addrText` turns "1001 ROBSON ST" into "1001 Robson St".
+  - **Plan (mid and near tiers):** the address is centred in the footprint in ink at 9 px, turned -90° along a deep footprint (`annText` `o.rot`), and moves along its long axis. The generic "Building interior" / "Opposite building" labels are gone.
+  - **A-101:** each building shows its address, then its name and use.
+  - **Report:** the site address line (`RPT.addr`, used on the cover, the title block and the header) is the host frontage's address (`pkHostAddress`). If the parklet faces a gap, it's the nearest frontage within 15 m; else the project address.
+  - **A-201:** keys "Building at the cut: <address>, <name>".
+  - **Scale bar:** it now ends clear of the north arrow by its last label's width. On Commercial Dr the "N" met "100 m".
+  - **Verified (600 m):**
+
+    | Site | Inner buildings | With address | "No address point" | Address points | Host / site address |
+    |---|---|---|---|---|---|
+    | Robson & Burrard | 18 | 16 | 2 (the old Law Courts, Kiehl's) | 44 | 1001 Robson St (Arc'teryx) |
+    | Commercial & 1st | 24 | 24 | 0 | 94 | 1622 Commercial Drive |
+    | W 41st & Dunbar | 17 | 17 | 0 | 77 | no host in the first run (the parklet faces a gap), so the nearest-frontage fallback was added |
+
+    - **Plan:** addresses are drawn at mid and near (16 / 24 / 17), none at far. At Robson, 0 overlaps at 1, 4 and 12 px/m.
+    - **A-201:** notes the cut building at Robson and Commercial. At W 41st there's no building at the cut (a gap), so no note.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
