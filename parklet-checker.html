@@ -523,9 +523,15 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 </div>
 </div>
 <div class='ctx-section' id='ctxExport' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Export</span></div>
-<div class='ctx-group'>
-  <div class='ctx-label'>Output</div>
-  <button class='ctx-btn ctx-btn-full' id='pdfExportBtn' onclick='RPT.print()' style='margin-bottom:6px' title='Drawing set and assessment: A3 drawings at true scale, A4 text sheets. Save as PDF from the print dialog.'>&#8595; Report (print / save as PDF)</button>
+<div class='ctx-group' id='rptCard'>
+  <div class='ctx-label'>Report</div>
+  <div class='ctx-row' role='radiogroup' aria-label='Report type' style='gap:14px;margin-bottom:4px'>
+    <label class='px-chk'><input type='radio' name='rptMode' id='rptModeSch' value='schematic' checked onchange='RPT.syncCard()'> Schematic</label>
+    <label class='px-chk'><input type='radio' name='rptMode' id='rptModeTech' value='technical' onchange='RPT.syncCard()'> Technical</label>
+  </div>
+  <div id='rptModeNote' style='font-size:11px;color:var(--text-mu);line-height:1.5;margin-bottom:6px'>Image-led, for a client or the Parklet Manual pre-application.</div>
+  <div id='rptRenders'></div>
+  <button class='ctx-btn ctx-btn-full' id='pdfExportBtn' onclick='RPT.print()' style='margin-bottom:6px' title='A3 landscape sheets, drawings at true scale. Save as PDF from the print dialog.'>&#8595; Report (print / save as PDF)</button>
   <button class='ctx-btn ctx-btn-full' onclick='window.print()' style='margin-bottom:4px'>&#128438; Print (browser dialog)</button>
 </div>
 <div class='ctx-group' id='px3dGroup'>
@@ -18626,7 +18632,12 @@ RPT.DISCLAIMER = 'Preliminary assessment — not a substitute for City of Vancou
 RPT.PILL = { pass: 'Pass', fail: 'Fail', unclear: 'Not confirmed', provisional: 'Provisional' };
 
 // ── Data: one snapshot of the model for every sheet ───────────────────────────────────────────
-RPT.data = function() {
+// The two reports (Brief 12b). One set of sheet builders; the mode is the style token each reads (fills,
+// lineweights) and RPT.SHEETS picks which sheets a mode prints.
+RPT.MODE_NOTE = { schematic: 'Image-led, for a client or the Parklet Manual pre-application.', technical: 'Drawing set: no photoreal, no colour fills.' };
+RPT.mode = function() { var el = document.querySelector('input[name=rptMode]:checked'); return el && el.value === 'technical' ? 'technical' : 'schematic'; };
+RPT.syncCard = function() { var n = document.getElementById('rptModeNote'); if (n) n.textContent = RPT.MODE_NOTE[RPT.mode()]; if (RPT.renderList) RPT.renderList(); };
+RPT.data = function(mode) {
   var DM = buildDesignModel(), rows = complianceRows(), now = new Date();
   var n = { pass: 0, fail: 0, unclear: 0 }; rows.forEach(function(r) { n[r.status] = (n[r.status] || 0) + 1; });
   // Site from map (Brief 13): a check that depends on unconfirmed imported site data is provisional,
@@ -18634,7 +18645,7 @@ RPT.data = function() {
   var sp = typeof SMP !== 'undefined'; rows.forEach(function(r) { r.provisional = sp && SMP.isProvisional(r.id); });
   var prov = sp && SMP.anyPending();
   var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.slice() : [];
-  return { DM: DM, rows: rows, n: n, overall: prov ? 'provisional' : n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
+  return { mode: mode === 'technical' ? 'technical' : 'schematic', DM: DM, rows: rows, n: n, overall: prov ? 'provisional' : n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
     opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null,
     date: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
 };
@@ -18914,12 +18925,11 @@ RPT.axonImg = function(wMm, hMm) {
   }
 };
 RPT.drawings = async function(d) {
-  var host = RPT.host(), out = {};
+  var host = RPT.host(), out = {}, tech = d.mode === 'technical';
   try {
-    out.plan = RPT.planAt(host, 'schematic');
-    out.tplan = RPT.planAt(host, 'technical');
-    out.section = RPT.sectionSVG(host, 'schematic');
-    out.axon = RPT.axonImg(376, 212);
+    out.plan = RPT.planAt(host, tech ? 'technical' : 'schematic');
+    out.section = RPT.sectionSVG(host, tech ? 'technical' : 'schematic');
+    if (!tech) out.axon = RPT.axonImg(376, 212);
   } finally { host.remove(); }
   return out;
 };
@@ -19002,8 +19012,17 @@ RPT.axonSheet = function(drw) {
   return RPT.sheet('a3', '05', 'Axonometric', "<div class='drw'><figure class='fig'>" + img + '</figure>' +
     RPT.titleBlock('05', 'Axonometric', 'NTS', '', a ? RPT.north(a.north) : '', '<p>Isometric (45° / 35.26°) from the road side, as the Brief 06 export; far-side context cut away; people and vehicles not shown.</p>') + '</div>', 'NTS');
 };
-RPT.drawingSheets = function(d, drw) {
-  return [RPT.planSheet('02', 'Site plan', drw.plan, d, false), RPT.planSheet('03', 'Technical plan', drw.tplan, d, true), RPT.sectionSheet(drw.section, d), RPT.axonSheet(drw)];
+// Which sheets each report prints, in order (the builders are shared; each reads d.mode).
+RPT.SHEETS = {
+  schematic: ['cover', 'summary', 'plan', 'section', 'axon', 'schedule', 'compliance'],
+  technical: ['summary', 'plan', 'section', 'schedule', 'compliance', 'lanes', 'sources']
+};
+RPT.BUILDERS = {
+  cover: function(d, drw) { return RPT.cover(d, drw); }, summary: function(d) { return RPT.summary(d); },
+  plan: function(d, drw) { return RPT.planSheet('02', 'Site plan', drw.plan, d, d.mode === 'technical'); },
+  section: function(d, drw) { return RPT.sectionSheet(drw.section, d); }, axon: function(d, drw) { return RPT.axonSheet(drw); },
+  schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
+  lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); }
 };
 // Keyed plan for the schedule: the deck and pieces as in the generator's plan thumbnail, each
 // piece labelled with its tag (placed clear of the tags already set).
@@ -19118,9 +19137,7 @@ RPT.GLYPHS = { '⌀': 'dia. ', '\u2265': '>=', '\u2264': '<=', '\u2192': '->', '
 RPT.glyphSafe = function(html) { return html.replace(/[←-⏿■-➿]/g, function(c) { return RPT.GLYPHS[c] != null ? RPT.GLYPHS[c] : ''; }); };
 RPT.build = function(d, drw) {
   drw = drw || {};
-  var sheets = [RPT.cover(d, drw), RPT.summary(d)];
-  if (RPT.drawingSheets) sheets = sheets.concat(RPT.drawingSheets(d, drw));
-  sheets.push(RPT.schedule(d), RPT.compliance(d), RPT.lanes(d), RPT.sources(d));
+  var sheets = RPT.SHEETS[d.mode].map(function(k) { return RPT.BUILDERS[k](d, drw); }).filter(Boolean);
   return RPT.glyphSafe('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' + RPT.esc(d.DM.project.name) + ' - parklet report</title>' +
     '<style>' + RPT.css(d) + '</style></head><body>' + sheets.join('') + '</body></html>');
 };
@@ -19231,8 +19248,8 @@ RPT.ready = function(doc) {
 };
 // Two frames of the report's own window: layout and paint have run for what was just loaded.
 RPT.frames = function(win) { return new Promise(function(res) { win.requestAnimationFrame(function() { win.requestAnimationFrame(function() { res(); }); }); }); };
-RPT.prepare = async function() {
-  var d = RPT.data(), drw = RPT.drawings ? await RPT.drawings(d) : {};
+RPT.prepare = async function(mode) {
+  var d = RPT.data(mode || RPT.mode()), drw = RPT.drawings ? await RPT.drawings(d) : {};
   var old = document.getElementById('rptFrame'); if (old) old.remove();
   // a visible (0-opacity) frame at the page width, so the document is laid out and its frames run
   var f = document.createElement('iframe'); f.id = 'rptFrame'; f.title = 'Report'; f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
