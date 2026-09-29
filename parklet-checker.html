@@ -4022,13 +4022,24 @@ document.addEventListener('mouseup', function() {
     }
     strip.innerHTML = html;
     strip.style.width = f.W.toFixed(2) + 'px';
-    strip.style.height = SECTION_H + 'px';
+    strip.style.height = (f.stripH || SECTION_H) + 'px'; strip.style.setProperty('--se-gy', f.groundY + 'px');
     var row = document.getElementById('seDimRow');
     if (row) row.style.width = f.W.toFixed(2) + 'px';
     _renderDimRow(f);
     _drawStrip(f);
     _attachStripEvents(strip);
+    _vpHeight(f);
   }
+  // The Section pans vertically (Brief 18): the strip is as tall as the section's extent; the viewport is as tall as its
+  // panel allows and scrolls, and a new extent scrolls to the ground.
+  function _vpHeight(f) {
+    var vp = document.getElementById('seViewport'), pn = document.getElementById('csPanel'); if (!vp || !pn || !f) return;
+    var pr = pn.getBoundingClientRect(), vr = vp.getBoundingClientRect(), st = document.getElementById('seStats');
+    var avail = Math.floor(pr.bottom - vr.top - (st ? st.offsetHeight : 0) - 8);
+    vp.style.maxHeight = avail > 120 ? avail + 'px' : '';
+    if (vp._seH !== f.stripH) { vp._seH = f.stripH; vp.scrollTop = vp.scrollHeight; }
+  }
+  window.seViewportHeight = function() { _vpHeight(_frame); };
 
   // Widths changed (resize drag, typed width, external model change): the boxes, the chain and
   // the drawing are placed again from the rebuilt model; the boxes themselves are kept.
@@ -4051,10 +4062,12 @@ document.addEventListener('mouseup', function() {
       }
     }
     strip.style.width = f.W.toFixed(2) + 'px';
+    strip.style.height = (f.stripH || SECTION_H) + 'px'; strip.style.setProperty('--se-gy', f.groundY + 'px');
     var row = document.getElementById('seDimRow');
     if (row) row.style.width = f.W.toFixed(2) + 'px';
     _renderDimRow(f);
     _drawStrip(f);
+    _vpHeight(f);
   }
 
   function _renderDimRow(f) {
@@ -4701,6 +4714,22 @@ function getSectionScene(sec) {
 // any unallocated (or over-allocated) width. Looking +Z (section.dir = +1) mirrors it: world +X
 // runs to the left. o = {pxPerM (default 60), minWidth (px), labels}.
 var SECTION_POCHE_PX = 24, SECTION_H = 260, SECTION_GROUND_Y = 228;
+// The Section's height above the road (Brief 18), m: the tallest building the cut passes through or sees within its
+// depth (on the sidewalk) or the tallest tree in the depth, plus 2 m; at least 8 m. The screen strip and the report's
+// A-201 both take it.
+function sectionExtentM(DM) {
+  var L = DM.parklet.length, sec = DM.section || { z: L / 2, zFar: L / 2 }, lo = Math.min(sec.z, sec.zFar), hi = Math.max(sec.z, sec.zFar);
+  var cb = (typeof PARKLET_LEVELS !== 'undefined' && PARKLET_LEVELS.curbTop) || 0.15, top = 0;
+  ['L', 'R'].forEach(function(side) {
+    ((DM.buildings || {})[side] || []).forEach(function(b) { var f = b.footprint; if (f && f.visible && f.z1 >= lo && f.z0 <= hi) top = Math.max(top, (b.height || 8) + cb); });
+  });
+  (DM.vegetation || []).forEach(function(v) {
+    if (v.type !== 'tree') return;
+    var r = v.canopyR || 0;
+    if (v.z + r >= lo && v.z - r <= hi) top = Math.max(top, (v.form ? Math.max(v.heightM, v.clearH + 1) : 2 + 1.12 * r) + (v.x < 0 ? cb : 0));
+  });
+  return Math.max(8, top + 2);
+}
 function sectionFrame(DM, o) {
   o = o || {};
   var LM = DM.landmarks, SC = o.pxPerM || 60, sb = 0;
@@ -4710,7 +4739,9 @@ function sectionFrame(DM, o) {
   var xR = LM.allocatedRight + Math.abs(rem);
   var W = Math.max(o.minWidth || 0, SECTION_POCHE_PX + (xR - xL) * SC);
   var mir = !!(DM.section && DM.section.dir === 1);
-  return { SC: SC, xL: xL, xR: xR, W: W, H: SECTION_H + (o.labels === 'paper' ? 44 : 0), groundY: SECTION_GROUND_Y,
+  // the vertical extent (Brief 18): 14 px of headroom over sectionExtentM, the ground, 32 px below it
+  var extM = sectionExtentM(DM), gY = Math.round(14 + extM * SC), stripH = gY + (SECTION_H - SECTION_GROUND_Y);
+  return { SC: SC, xL: xL, xR: xR, W: W, H: stripH + (o.labels === 'paper' ? 44 : 0), groundY: gY, stripH: stripH, extM: extM,
     mir: mir, xs: mir ? -1 : 1, x0: mir ? W - SECTION_POCHE_PX + xL * SC : SECTION_POCHE_PX - xL * SC,
     poche: SECTION_POCHE_PX, minWidth: o.minWidth || 0, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
     swRaise: Math.round(PARKLET_LEVELS.curbTop * SC), deckTk: Math.max(3, Math.round(PARKLET_LEVELS.deckThk * SC)) };
@@ -4738,7 +4769,7 @@ function renderCrossSection(target, opts) {
 }
 function _drawSection(svgEl, o) {
   var DM = DESIGN_MODEL, f = sectionFrame(DM, o), SC = f.SC, mir = f.mir, xs = f.xs, W = f.W, H = f.H;
-  var STRIP_H = SECTION_H, GROUND_Y = f.groundY, SW_RAISE = f.swRaise, DECK_TK = f.deckTk;
+  var STRIP_H = f.stripH, GROUND_Y = f.groundY, SW_RAISE = f.swRaise, DECK_TK = f.deckTk;
   var isTech = (typeof drawingTheme !== 'undefined' && drawingTheme.mode === 'technical');
   var SE_TYPES = window.SE_TYPES || {};
   var paper = o.labels === 'paper';
@@ -4769,6 +4800,15 @@ function _drawSection(svgEl, o) {
   var arch = '<g data-layer="cut-drawing"' + (mir ? ' transform="matrix(-1 0 0 1 ' + f2(W) + ' 0)"' : '') + '>';
   // a rect as a shape for the hatch bands
   var R = function(x, y, w, h) { return function(a) { return "<rect x='" + f2(x) + "' y='" + f2(y) + "' width='" + f2(w) + "' height='" + f2(h) + "'" + a + '/>'; }; };
+  // a cut building's poche (Brief 18: no black fields): paper, then a 45 degree hatch at 'fine' 4 mm apart (technical) or a
+  // 25 % warm grey (schematic)
+  var pocheRect = function(x, y, w, h) {
+    var a = '<rect x="' + f2(x) + '" y="' + f2(y) + '" width="' + f2(w) + '" height="' + f2(h) + '"';
+    return a + ' fill="' + P.paper + '"/>' + a + (isTech ? ' fill="url(#' + DK.pid + '-poche)"' : ' fill="' + T.mid + '" fill-opacity="0.25"') + ' data-poche="1"/>';
+  };
+  // the ground (Brief 18): an earth hatch in a 2 mm band under a surface line
+  var EB = 2 * DK.k;
+  var earth = function(xa, xb, y) { return xb - xa > 0.5 ? '<rect x="' + f2(xa) + '" y="' + f2(y) + '" width="' + f2(xb - xa) + '" height="' + f2(EB) + '" fill="url(#' + DK.pid + '-earth)" data-earth="1"/>' : ''; };
   var _cutBuildingL = function() { return sectionCutBuildingL(DM); };
   var segs = [{ type: 'building', xa: 0, xb: U(f.sidewalkX0) }].concat(DM.crossSection.slice().sort(function(a, b) { return a.x0 - b.x0; })
     .map(function(q) { return { type: q.type, variant: q.variant, width: q.width, id: q.id, xa: U(q.x0), xb: U(q.x1) }; }));
@@ -4793,15 +4833,19 @@ function _drawSection(svgEl, o) {
               if (x1 - _bx0 > 0.5) { var _bR = R(_bx0, SW_TOP, x1 - _bx0, GROUND_Y - SW_TOP + m(0.12)); s += _bR(" fill='" + P.plant + "'") + band('planting', _bR); }
             }
             s += '<line x1="' + f2(faceX) + '" y1="' + SW_TOP + '" x2="' + x1 + '" y2="' + SW_TOP + '"' + K('cut') + '/>';
+            s += earth(faceX, x1, GROUND_Y + m(0.12));
           }
           if (i !== 0 || _cb) {
-            // cut wall: solid poche (tech) / warm dark tone with hatch (schematic)
-            var _wx0 = (i === 0) ? xOff : xOff, _ww = (i === 0) ? faceX - xOff : px;
+            // the cut building (Brief 18): its poche from the sidewalk to its roof, the wall lines (face, roof) at 'cut'; the
+            // ground under it
+            var _wx0 = xOff, _ww = (i === 0) ? faceX - xOff : px, _fl = (i === 0) ? faceX : xOff;
+            var _roof = Math.max(0, SW_TOP - m(_cb && _cb.height ? _cb.height : 8));
             if (_ww > 0.5) {
-              s += '<rect x="' + _wx0 + '" y="0" width="' + f2(_ww) + '" height="' + STRIP_H + '" fill="' + P.wall + '"/>';   // the cut wall: solid
+              s += '<rect x="' + f2(_wx0) + '" y="' + f2(SW_TOP) + '" width="' + f2(_ww) + '" height="' + f2(STRIP_H - SW_TOP) + '" fill="' + P.soil + '"/>';
+              s += pocheRect(_wx0, _roof, _ww, SW_TOP - _roof);
+              s += '<line x1="' + f2(_wx0) + '" y1="' + f2(_roof) + '" x2="' + f2(_fl) + '" y2="' + f2(_roof) + '"' + K('cut') + ' data-roof="1"/>';
             }
-            var _fl = (i === 0) ? faceX : xOff;
-            s += '<line x1="' + f2(_fl) + '" y1="0" x2="' + f2(_fl) + '" y2="' + STRIP_H + '"' + K('cut') + '/>';
+            s += '<line x1="' + f2(_fl) + '" y1="' + f2(_roof) + '" x2="' + f2(_fl) + '" y2="' + f2(SW_TOP) + '"' + K('cut') + '/>';
           }
           break;
         }
@@ -4814,6 +4858,7 @@ function _drawSection(svgEl, o) {
             s += '<line x1="' + tx + '" y1="' + SW_TOP + '" x2="' + tx + '" y2="' + f2(SW_TOP + m(0.12)) + '"' + K('fine', { c: 'mid' }) + '/>';
           s += '<line x1="' + xOff + '" y1="' + SW_TOP + '" x2="' + x1 + '" y2="' + SW_TOP + '"' + K('cut') + '/>';
           s += '<line x1="' + xOff + '" y1="' + f2(GROUND_Y + m(0.12)) + '" x2="' + x1 + '" y2="' + f2(GROUND_Y + m(0.12)) + '"' + K('fine', { c: 'mid' }) + '/>';
+          s += earth(xOff, x1, GROUND_Y + m(0.12));
           break;
         }
 
@@ -4823,7 +4868,7 @@ function _drawSection(svgEl, o) {
           var slp = m(0.09), nS = Math.max(2, Math.floor(px / m(0.6)));
           for (var k = 0; k <= nS; k++) { var sx = xOff + slp/2 + (px - slp) * k / nS; s += '<rect x="' + f2(sx - slp/2) + '" y="' + f2(DECK_BOT) + '" width="' + f2(slp) + '" height="' + f2(GROUND_Y - DECK_BOT) + '" fill="' + P.wood + '"' + K('fine') + '/>'; }
           // road subgrade continues under the deck
-          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + P.soil + '"/>';
+          s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + P.soil + '"/>' + earth(xOff, x1, GROUND_Y);
           // deck boards, cut: thin material, solid in technical (the board joints in paper), the deck colour in schematic
           s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="' + (isTech ? T.fill.cut : P.deck) + '"/>';
           s += '<rect x="' + xOff + '" y="' + DECK_TOP + '" width="' + px + '" height="' + DECK_TK + '" fill="url(#seGrain)"/>';
@@ -4840,6 +4885,7 @@ function _drawSection(svgEl, o) {
           var _gR = R(xOff, surfY, px, Math.min(STRIP_H - surfY, m(0.6)));
           s += '<rect x="' + xOff + '" y="' + surfY + '" width="' + px + '" height="' + (STRIP_H - surfY) + '" fill="' + (isGround ? P.plant : P.slab) + '"/>' + band(isGround ? 'planting' : 'concrete', _gR);
           s += '<line x1="' + xOff + '" y1="' + surfY + '" x2="' + x1 + '" y2="' + surfY + '"' + K('object') + '/>';
+          if (!isGround) s += earth(xOff, x1, surfY);   // planted ground is earth already
           if (bv === 'raised') s += '<rect x="' + f2(xOff + 1) + '" y="' + f2(GROUND_Y - m(0.15)) + '" width="' + f2(px - 2) + '" height="' + f2(m(0.15)) + '" fill="' + P.slab + '"' + K('object') + '/>';
           break;
         }
@@ -4847,14 +4893,14 @@ function _drawSection(svgEl, o) {
         case 'bike-lane': {
           // asphalt: its fill and the edge line only
           s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + T.fill.bike + '"/>';
-          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '"' + K('object') + '/>';
+          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '"' + K('object') + '/>' + earth(xOff, x1, GROUND_Y);
           break;
         }
 
         case 'buf-bl': {
           var blv = seg.variant || 'painted';
           s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + T.fill.road + '"/>';
-          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '"' + K('object') + '/>';
+          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '"' + K('object') + '/>' + earth(xOff, x1, GROUND_Y);
           if (blv === 'raised') s += '<rect x="' + f2(xOff + 1) + '" y="' + f2(GROUND_Y - m(0.15)) + '" width="' + f2(px - 2) + '" height="' + f2(m(0.15)) + '" fill="' + P.slab + '"' + K('object') + '/>';
           break;
         }
@@ -4862,7 +4908,7 @@ function _drawSection(svgEl, o) {
         case 'travel-lane': case 'transit-lane': case 'turn-lane': case 'parking': {
           // asphalt (road, parking): the fill and the cut line only
           s += '<rect x="' + xOff + '" y="' + GROUND_Y + '" width="' + px + '" height="' + (STRIP_H - GROUND_Y) + '" fill="' + (seg.type === 'parking' ? T.fill.parking : T.fill.road) + '"/>';
-          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '"' + K('cut') + '/>';
+          s += '<line x1="' + xOff + '" y1="' + GROUND_Y + '" x2="' + x1 + '" y2="' + GROUND_Y + '"' + K('cut') + '/>' + earth(xOff, x1, GROUND_Y);
           break;
         }
 
@@ -4911,10 +4957,14 @@ function _drawSection(svgEl, o) {
     return "<rect x='" + f1(l) + "' y='" + f1(t) + "' width='" + f1(Math.max(0.8, r - l)) + "' height='" + f1(Math.max(0.8, b - t)) + "'" + st + '/>';
   }
   var FL_LABEL = LBL;   // furniture labels at the one label size
-      // ── BEYOND: elevation, outline only ─────────────────────────────────────────────────────
-    // beyond the cut: elevation outlines in DRAW_STYLE's general weight; schematic a 10 % tint of the palette's fill
+      // ── BEYOND: silhouettes (Brief 18) ──────────────────────────────────────────────────────
+    // beyond the cut: silhouettes only, at 'context', with an opaque paper fill, drawn far to near (getSectionScene's order)
+    // so a nearer one hides a farther one; furniture as its outline only (flSectionArchetype's silhouette), no detail
     var BINK = isTech ? T.ink : T.anno;
-    function bst(tint) { return " fill='" + (isTech ? 'none' : DRAW_STYLE.c(DK, tint)) + "'" + (isTech ? '' : " fill-opacity='0.10'") + K1('general', { c: BINK }); }
+    var SIL = " fill='" + T.paper + "'" + K1('context', { c: BINK });
+    function polyXY(pts, st) { return "<polygon points='" + pts.map(function(p) { return f1(p[0]) + ',' + f1(p[1]); }).join(' ') + "'" + st + '/>'; }
+    // a post on a wider base (pole, hydrant) as one outline: shaft half-width a to height h, base half-width b to height hb (px)
+    function postXY(sx, y0, a, h, b, hb) { return polyXY([[sx - b, y0], [sx - b, y0 - hb], [sx - a, y0 - hb], [sx - a, y0 - h], [sx + a, y0 - h], [sx + a, y0 - hb], [sx + b, y0 - hb], [sx + b, y0]], SIL); }
     var bv = '';
     // a tree crown in section (Brief 18): the form outline at 'context'; no fill (technical), 35 % planting (schematic)
     function _crown(c, q) {
@@ -4929,26 +4979,26 @@ function _drawSection(svgEl, o) {
           var b0 = flBaseY(inst) === 0 ? ((inst.x || 0) < 0 ? SW_TOP : GROUND_Y) : pkSurface - Y(flSupportTop(inst));
           g += flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0,
             rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
-            xToPx: X, yDeck: b0, SC: SC, isBeyond: true, tech: isTech, id: inst.id });
-        } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('fill.furniture'));
+            xToPx: X, yDeck: b0, SC: SC, isBeyond: true, tech: isTech, id: inst.id, silhouette: { w: DRAW_STYLE.sw(DK, 'context'), c: BINK, paper: T.paper } });
+        } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), SIL);
       } else if (it.kind === 'tree' && d.v.form) {   // imported street tree: trunk to clearH, the crown an ellipse from clearH to its height, 2 canopyR wide
         var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, top = Math.max(v.heightM, v.clearH + 1), tw = Math.max(2, 2 * v.trunkR * SC);
         // the crown (Brief 18): its form outline at 'context', no fill (technical) or 35 % planting (schematic); bare in winter: fine, dashed
         g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(gy - Y((v.clearH + top) / 2)) + "' rx='" + f1(v.canopyR * SC) + "' ry='" + f1(Y(top - v.clearH) / 2) + "'" +
           (treeBare(v, treeSeasonNow()) ? " fill='none'" + K1('fine', { c: BINK, dash: 'hidden' }) : _crown(BINK)) + " data-canopy='1'/>";
-        g += rectXY(tx - tw / 2, tx + tw / 2, gy, gy - Y(v.clearH), bst('fill.ground'));
+        g += rectXY(tx - tw / 2, tx + tw / 2, gy, gy - Y(v.clearH), SIL);
       } else if (it.kind === 'tree') {
         var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, r = Math.max(0.15, v.canopyR) * SC, tw = Math.max(2, 0.12 * SC);
         var tTop = gy - Y(2.0), cy = tTop - r * 0.3;
         g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(cy) + "' rx='" + f1(r) + "' ry='" + f1(r * 0.82) + "'" + _crown(BINK) + ' data-canopy=\'1\'/>';
-        g += rectXY(tx - tw / 2, tx + tw / 2, gy, tTop, bst('fill.ground'));
+        g += rectXY(tx - tw / 2, tx + tw / 2, gy, tTop, SIL);
       } else if (it.kind === 'planter') {
-        g += rectXY(X(it.x0), X(it.x1), surf(d.v.x), surf(d.v.x) - Y(0.5), bst('fill.planting'));
+        g += rectXY(X(it.x0), X(it.x1), surf(d.v.x), surf(d.v.x) - Y(0.5), SIL);
       } else if (it.kind === 'building') {
         // plain facade: the building's end elevation from its face to its rear wall, standing on
         // the sidewalk level; the setback in front of the face is dimensioned on the ground.
         var f = d.f, top = Math.max(0, SW_TOP - Y(it.y1));
-        g += rectXY(X(f.faceX), X(f.backX), SW_TOP, top, bst('fill.building'));
+        g += rectXY(X(f.faceX), X(f.backX), SW_TOP, top, SIL);
         if ((f.setback || 0) > 0.01) {
           var a = X(f.frontageX), b = X(f.faceX), yy = SW_TOP - 6;
           g += "<line x1='" + f1(a) + "' y1='" + yy + "' x2='" + f1(b) + "' y2='" + yy + "'" + K1('context', { c: BINK }) + '/>';
@@ -4957,20 +5007,19 @@ function _drawSection(svgEl, o) {
         }
       } else if (it.kind === 'street') {
         var cf = d.cf, sx = X(cx), w2 = (it.x1 - it.x0) / 2 * SC;
-        if (cf.type === 'P') { g += rectXY(sx - Y(0.085), sx + Y(0.085), SW_TOP, SW_TOP - Y(8.0), bst('fill.concrete')); g += rectXY(sx - Y(0.11), sx + Y(0.11), SW_TOP, SW_TOP - Y(0.22), bst('fill.concrete')); }
-        else if (cf.type === 'H') { g += rectXY(sx - Y(0.13), sx + Y(0.13), SW_TOP, SW_TOP - Y(0.55), bst('fill.furniture')); g += rectXY(sx - w2, sx + w2, SW_TOP - Y(0.55), SW_TOP - Y(0.645), bst('fill.furniture')); }
-        else g += rectXY(sx - w2, sx + w2, SW_TOP, SW_TOP - Y(1.2), bst('fill.concrete'));
+        if (cf.type === 'P') g += postXY(sx, SW_TOP, Y(0.085), Y(8.0), Y(0.11), Y(0.22));
+        else if (cf.type === 'H') g += postXY(sx, SW_TOP, Y(0.13), Y(0.55), Math.max(Y(0.13), w2), 0) + rectXY(sx - w2, sx + w2, SW_TOP - Y(0.55), SW_TOP - Y(0.645), SIL);
+        else g += rectXY(sx - w2, sx + w2, SW_TOP, SW_TOP - Y(1.2), SIL);
       } else if (it.kind === 'manhole') {
-        g += rectXY(X(it.x0), X(it.x1), surf(cx), surf(cx) - 3, bst('fill.concrete'));
+        g += rectXY(X(it.x0), X(it.x1), surf(cx), surf(cx) - 3, SIL);
       } else if (it.kind === 'bollard') {
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(0.9), bst('fill.concrete'));
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(0.9), SIL);
       } else if (it.kind === 'deck') {
-        g += rectXY(X(it.x0), X(it.x1), DECK_BOT, pkSurface, bst('fill.deck'));
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, DECK_BOT, bst('fill.deck'));
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, pkSurface, SIL);   // the deck and its structure, one outline
       } else if (it.kind === 'end-planter') {
-        g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('fill.planting'));
+        g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), SIL);
       } else if (it.kind === 'wheel-stop') {
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), bst('fill.concrete'));
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), SIL);
       }
       bv += g + '</g>';
     });
@@ -4979,6 +5028,12 @@ function _drawSection(svgEl, o) {
     var sv = '';
     // cut objects: the palette's fill (a token) outlined in the object weight; steel and thin material cut solid
     function solid(fill) { return " fill='" + DRAW_STYLE.c(DK, fill) + "'" + K1('object'); }
+    // cut material (Brief 18): solid only when thin (up to 0.2 m); thicker, the poche over paper, outlined at 'cut'
+    function cutRect(xa, xb, ya, yb, wM) {
+      if (wM <= 0.2) return rectXY(xa, xb, ya, yb, solid('fill.cut'));
+      return rectXY(xa, xb, ya, yb, " fill='" + T.paper + "' stroke='none'") +
+        rectXY(xa, xb, ya, yb, (isTech ? " fill='url(#" + DK.pid + "-poche)'" : " fill='" + T.mid + "' fill-opacity='0.25'") + K1('cut') + " data-poche='1'");
+    }
     scene.cut.forEach(function(it) {
       var d = it.data, g = open('cut', it), cx = (it.x0 + it.x1) / 2;
       if (it.kind === 'tree' || it.kind === 'planter') {
@@ -4989,7 +5044,7 @@ function _drawSection(svgEl, o) {
           var top = Math.max(v.heightM, v.clearH + 1), tw2 = Math.max(2, 2 * v.trunkR * SC), bare = treeBare(v, treeSeasonNow());
           g += '<ellipse cx="' + tx + '" cy="' + f1(gy - Y((v.clearH + top) / 2)) + '" rx="' + f1(v.canopyR * SC) + '" ry="' + f1(Y(top - v.clearH) / 2) + '"' +
             (bare ? ' fill="none"' + K('fine', { dash: 'hidden' }) : _crown(null, '"')) + ' data-canopy="1"/>';
-          g += rectXY(tx - tw2 / 2, tx + tw2 / 2, gy, gy - Y(v.clearH), solid('fill.cut'));
+          g += cutRect(tx - tw2 / 2, tx + tw2 / 2, gy, gy - Y(v.clearH), 2 * (v.trunkR || 0));
         } else {
           var tDiam = Math.max(2, Math.round(0.12 * SC)), tH = Math.round(2.0 * SC), cR = Math.round(Math.max(0.15, v.canopyR || 0.4) * SC);
           var tTop = gy - tH, cCY = tTop - Math.round(cR * 0.3), cRY = Math.round(cR * 0.82);
@@ -5068,11 +5123,6 @@ function _drawSection(svgEl, o) {
 // Plan view
 
 // ─────────────────────────────────────────────
-// A check zone's length along the street: a context dimension line in the zone's colour with 45 degree ticks, the rule
-// ID in its lozenge above (DRAW_SYMBOLS.lozenge), the requirement under it. st: the check's status; ctx: the drawing's
-// DRAW_STYLE context.
-// With ann (the Plan's annotation layer, Brief 18) the lozenge and the value are registered there and placed by its one
-// pass (the value at the dimension text size); nothing is dropped however short the zone is on screen.
 // the flexible posts beside a protected bike lane along a parklet of length L (m) with wheel stops ws (m) per end: one at
 // each end (Manual p.48) and every 2 m between the wheel stops. The Plan and the report place them from this.
 function bikePostZs(L, ws) {
@@ -5081,6 +5131,11 @@ function bikePostZs(L, ws) {
   z.push(L - ws / 2);
   return z;
 }
+// A check zone's length along the street: a context dimension line in the zone's colour with 45 degree ticks, the rule
+// ID in its lozenge above (DRAW_SYMBOLS.lozenge), the requirement under it. st: the check's status; ctx: the drawing's
+// DRAW_STYLE context.
+// With ann (the Plan's annotation layer, Brief 18) the lozenge and the value are registered there and placed by its one
+// pass (the value at the dimension text size); nothing is dropped however short the zone is on screen.
 function dimArrow(x1, x2, midY, code, req, st, ctx, ann) {
   const P = DRAW_STYLE.pen(ctx), z = DRAW_STYLE.zone(ctx, st), cx = (x1 + x2) / 2, k = ctx.k;
   P.line(x1, midY, x2, midY, { cls: 'context', c: z.c, op: z.op });
@@ -5478,7 +5533,9 @@ var DRAW_STYLE = {
     fill: { sidewalk: '#FFFFFF', deck: '#FFFFFF', planting: '#FFFFFF', plantingDark: '#1A1A1A', bike: '#FFFFFF', road: '#FFFFFF', parking: '#FFFFFF', water: '#FFFFFF',
             building: '#FFFFFF', ground: '#FFFFFF', furniture: '#FFFFFF', concrete: '#FFFFFF', gravel: '#FFFFFF', steel: '#1A1A1A', cut: '#1A1A1A', failTint: '#FFFFFF' },
     // concrete: random dots per mm2; timber: lines along the boards; planting: a cross-hatch at +-ang; gravel: stipple; cut: solid
-    hatch: { concrete: { dots: 0.8, r: 0.1 }, asphalt: null, timber: { lines: 3 }, planting: { cross: 4, ang: 25 }, gravel: { dots: 2.4, r: 0.07 }, cut: { solid: true } }
+    // earth: 45 degree lines 0.8 mm apart (the ground's 2 mm band); poche: 45 degree lines 4 mm apart (a cut building, Brief 18)
+    hatch: { concrete: { dots: 0.8, r: 0.1 }, asphalt: null, timber: { lines: 3 }, planting: { cross: 4, ang: 25 }, gravel: { dots: 2.4, r: 0.07 }, cut: { solid: true },
+      earth: { gap: 0.8, ang: 45 }, poche: { gap: 4, ang: 45 } }
   },
   schematic: {
     ink: '#2B2B2B', anno: '#5A5A5A', mid: '#8A857D', light: '#CFC9BE', paper: '#FFFFFF',
@@ -5486,7 +5543,7 @@ var DRAW_STYLE = {
     fill: { sidewalk: '#E9E2D3', deck: '#C8A97A', planting: '#9DB58E', plantingDark: '#56704B', bike: '#B7CDA0', road: '#D9D5CF', parking: '#E4DFD6', water: '#CFE0E6',
             building: '#F1EDE5', ground: '#E9E2D3', furniture: '#F7F4EE', concrete: '#E9E2D3', gravel: '#D8CFBD', steel: '#2B2B2B', cut: '#2B2B2B', failTint: '#EBCFC9' },
     // the same names as flat fills: no hatch but the solid cut
-    hatch: { concrete: null, asphalt: null, timber: null, planting: null, gravel: null, cut: { solid: true } }
+    hatch: { concrete: null, asphalt: null, timber: null, planting: null, gravel: null, cut: { solid: true }, earth: { gap: 0.8, ang: 45 }, poche: null }
   },
   UI: { sel: '#0696D7', accent: '#3AA8E4', guide: '#0696D7', snapGrid: '#0696D7', snapPk: '#C03030', snap: '#E68A00', measure: '#FF6B00',
         axisX: '#C03030', axisZ: '#0696D7', halo: '#FFFFFF', chip: 'rgba(50,50,50,0.68)', chipInk: '#FFFFFF', secFill: 'rgba(58,168,228,0.07)', handle: '#3AA8E4', grid: 'rgba(0,0,0,0.10)', gridMaj: 'rgba(0,0,0,0.20)' }
@@ -5576,6 +5633,8 @@ DRAW_STYLE.hatchDefs = function(ctx) {
   if (H.gravel) s += dots(pid + '-gravel', H.gravel.dots, H.gravel.r);
   if (H.timber) { s += lines(pid + '-timber', H.timber.lines, 0); s += lines(pid + '-timberH', H.timber.lines, 90); }
   if (H.planting) { s += lines(pid + '-plantA', H.planting.cross, H.planting.ang); s += lines(pid + '-plantB', H.planting.cross, -H.planting.ang); }
+  if (H.earth) s += lines(pid + '-earth', H.earth.gap, H.earth.ang);
+  if (H.poche) s += lines(pid + '-poche', H.poche.gap, H.poche.ang);
   return s;
 };
 // A hatch band inside a shape's boundary (hatch only at material boundaries): shape(attrs) returns the shape's
@@ -10509,25 +10568,36 @@ function flSectionArchetype(type, params, ctx) {
   var sn = Math.sin(ctx.rot || 0), cs = Math.cos(ctx.rot || 0), T = DS.tokens.technical, s = '';
   function wx(lx, lz) { return ctx.x + lx * sn - lz * cs; }            // canonical frame, as getFurnitureCorners
   function pt(lx, y, lz) { return [ctx.xToPx(wx(lx, lz)), ctx.yDeck - y * ctx.SC]; }
-  var parts = flParts(type, params);
+  var parts = flParts(type, params), geo = [];
   parts.filter(function(q) { return !q.veg; }).concat(parts.filter(function(q) { return q.veg; })).forEach(function(q) {
     var m = flMatInfo(flPartMat(type, q.role, ctx.mats)), fill, stroke, extra = '';
     // Beyond the cut (Brief 08): elevation outline, one weight lighter; no fill in technical,
     // a 10% tint in schematic.
     if (ctx.isBeyond) { fill = ctx.tech ? 'none' : m.tint; stroke = ctx.tech ? T.ink : m.edge; if (!ctx.tech) extra = " fill-opacity='0.10'"; }
     else { fill = ctx.tech ? (q.veg ? 'none' : T.lt) : m.tint; stroke = ctx.tech ? T.ink : m.edge; if (!ctx.tech && m.opacity !== undefined) extra = " fill-opacity='" + Math.max(0.4, m.opacity) + "'"; }
-    var st = " class='" + (q.veg ? 'fl-veg' : 'fl-part') + "' fill='" + fill + "'" + DRAW_STYLE.stroke(stroke, ctx.isBeyond ? (ctx.tech ? 0.4 : 0.35) : (ctx.tech ? 0.7 : 0.5)) + extra;
-    var cn = _flCorners(q), P = [];
+    var cls = " class='" + (q.veg ? 'fl-veg' : 'fl-part') + "'", w = ctx.isBeyond ? (ctx.tech ? 0.4 : 0.35) : (ctx.tech ? 0.7 : 0.5);
+    var st = cls + " fill='" + fill + "'" + DRAW_STYLE.stroke(stroke, w) + extra;
+    var cn = _flCorners(q), P = [], e = { cls: cls, st: st, veg: !!q.veg, fill: fill === 'none' ? (ctx.paper || '#FFFFFF') : fill, stroke: stroke, w: w };
     if (q.k === 'sph') {
       var xs = cn.map(function(v) { return ctx.xToPx(wx(v[0], v[1])); }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
-      s += "<ellipse cx='" + ((x0 + x1) / 2).toFixed(2) + "' cy='" + (ctx.yDeck - (q.y0 + q.y1) / 2 * ctx.SC).toFixed(2) + "' rx='" + ((x1 - x0) / 2).toFixed(2) + "' ry='" + ((q.y1 - q.y0) / 2 * ctx.SC).toFixed(2) + "'" + st + '/>';
-      return;
+      e.g = "<ellipse cx='" + ((x0 + x1) / 2).toFixed(2) + "' cy='" + (ctx.yDeck - (q.y0 + q.y1) / 2 * ctx.SC).toFixed(2) + "' rx='" + ((x1 - x0) / 2).toFixed(2) + "' ry='" + ((q.y1 - q.y0) / 2 * ctx.SC).toFixed(2) + "'";
+      geo.push(e); return;
     }
     if (q.k === 'wedge') _flWedgeVerts(q).forEach(function(v) { P.push(pt(v[0], v[1], v[2])); });
     else if (q.k === 'cone') { cn.forEach(function(v) { P.push(pt(v[0], q.y0, v[1])); }); P.push(pt((q.x0 + q.x1) / 2, q.y1, (q.z0 + q.z1) / 2)); }
     else cn.forEach(function(v) { P.push(pt(v[0], q.y0, v[1])); P.push(pt(v[0], q.y1, v[1])); });
-    s += "<polygon points='" + _flHull(P).map(function(v) { return v[0].toFixed(2) + ',' + v[1].toFixed(2); }).join(' ') + "'" + st + '/>';
+    e.g = "<polygon points='" + _flHull(P).map(function(v) { return v[0].toFixed(2) + ',' + v[1].toFixed(2); }).join(' ') + "'";
+    geo.push(e);
   });
+  // A silhouette (Brief 18): the parts twice, first outlined at twice the weight, then filled opaque with no stroke, so
+  // only the outer edge of their union shows. ctx.silhouette {w, c, paper} (beyond the cut): the whole piece, paper
+  // filled. Otherwise the plants (veg parts) are drawn this way, so overlapping crowns read as one outline.
+  var two = function(list, fill, c, w) {
+    return list.map(function(e) { return e.g + e.cls + " fill='" + (fill || e.fill) + "'" + DRAW_STYLE.stroke(c || e.stroke, 2 * (w || e.w)) + '/>'; }).join('') +
+      list.map(function(e) { return e.g + e.cls + " fill='" + (fill || e.fill) + "' stroke='none'/>"; }).join('');
+  };
+  if (ctx.silhouette) s = two(geo, ctx.silhouette.paper, ctx.silhouette.c, ctx.silhouette.w);
+  else s = geo.filter(function(e) { return !e.veg; }).map(function(e) { return e.g + e.st + '/>'; }).join('') + two(geo.filter(function(e) { return e.veg; }));
   return "<g class='fl-sec' data-arch='" + type + "'" + (ctx.id != null ? " data-inst='" + ctx.id + "'" : '') + " data-sc='" + ctx.SC + "'>" + s + '</g>';
 }
 
@@ -19350,7 +19420,7 @@ RPT.pen = function(ctx) {
 };
 // the report's hatch kinds -> DRAW_STYLE materials (ds); the accessible route is the report's own (not a material)
 RPT.HATCH = {
-  cut: { ds: 'cut' }, earth: { ds: 'gravel' }, concrete: { ds: 'concrete' }, asphalt: { ds: 'asphalt' }, timber: { ds: 'timber' }, timberCut: { ds: 'timber' },
+  cut: { ds: 'cut' }, earth: { ds: 'earth' }, poche: { ds: 'poche' }, concrete: { ds: 'concrete' }, asphalt: { ds: 'asphalt' }, timber: { ds: 'timber' }, timberCut: { ds: 'timber' },
   planting: { ds: 'planting' }, gravel: { ds: 'gravel' }, steel: { ds: 'cut' },
   route: { ang: -45, gap: 1.0 }
 };
@@ -19888,36 +19958,78 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
 
 // ── A-201 Section A-A, 1:50 (1:100 when it does not fit): sidewalk to the first travel lane, datum at the top of the curb ──
 RPT.sheetSection = function(d) {
-  var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), FI = RPT.fills(d.mode), lv = G.lv, R = G.rail;
-  var lane = G.segs.find(function(s) { return s.type === 'travel-lane'; }), xL = LM.sidewalkL.x0 - 0.4, xR = (lane ? lane.x1 : LM.roadRight) + 0.4;
-  var sc = (xR - xL) * 20 + 70 <= RPT.DA.w ? 50 : 100, k = 1000 / sc;   // the next scale, never shrunk
-  var mir = G.sec.dir === 1, W = (xR - xL) * k, X0 = (RPT.DA.w - W) / 2, ROAD = 150;
+  var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), FI = RPT.fills(d.mode), lv = G.lv, R = G.rail, tech = d.mode === 'technical', T = DRAW_STYLE.t(d.mode);
+  // across: from 1 m into the building the cut passes through (else the sidewalk less 0.4 m) to the end of the first lane
+  var cb = sectionCutBuildingL(G.DM), cbf = cb ? cb.footprint : null;
+  var lane = G.segs.find(function(s) { return s.type === 'travel-lane'; }), xL = Math.min(LM.sidewalkL.x0 - 0.4, cbf ? cbf.faceX - 1.0 : Infinity), xR = (lane ? lane.x1 : LM.roadRight) + 0.4;
+  // up (Brief 18): the Section's extent (sectionExtentM, as on screen); 1:50, or the next scale out when the drawing and
+  // its rows do not fit the drawing area, never shrunk
+  var ext = sectionExtentM(G.DM), sc = RPT.fitScale({ z0: xL, z1: xR, x0: -0.45, x1: ext }, 50, 70, 52), k = 1000 / sc;
+  var mir = G.sec.dir === 1, W = (xR - xL) * k, X0 = (RPT.DA.w - W) / 2, ROAD = 8 + ext * k;
   var X = function(x) { return mir ? X0 + W - (x - xL) * k : X0 + (x - xL) * k; }, Y = function(y) { return ROAD - y * k; };
   var box = function(x0, x1, y0, y1) { var a = X(x0), b = X(x1); return [Math.min(a, b), Y(y1), Math.abs(b - a), (y1 - y0) * k]; };
   var rectXY = function(x0, x1, y0, y1, o) { var q = box(x0, x1, y0, y1); P.rect(q[0], q[1], q[2], q[3], o); return q; };
   var shape = function(q) { return "<rect x='" + q[0].toFixed(2) + "' y='" + q[1].toFixed(2) + "' width='" + q[2].toFixed(2) + "' height='" + q[3].toFixed(2) + "'/>"; };
-  var hat = function(q, kind) { P.hatch(shape(q), [q[0], q[1], q[0] + q[2], q[1] + q[3]], kind); };
+  var hat = function(q, kind, o) { P.hatch(shape(q), [q[0], q[1], q[0] + q[2], q[1] + q[3]], kind, o); };
+  // a cut building's poche (no black fields): a 45 degree hatch 4 mm apart (technical) or a 25 % warm grey (schematic)
+  var poche = function(x0, x1, y0, y1) { var q = rectXY(x0, x1, y0, y1, { fill: '#FFFFFF', w: 0 }); if (tech) hat(q, 'poche', { band: false }); else rectXY(x0, x1, y0, y1, { fill: T.mid, fop: 0.25, w: 0 }); return q; };
   P.clipOpen("<rect x='" + X0 + "' y='8' width='" + W + "' height='" + (ROAD + 0.5 * k - 8) + "'/>");
-  // ground below everything, then the cut: sidewalk slab, curb, road, deck (cut weight for deck and curb)
-  var gq = rectXY(xL, xR, -0.45, -0.1, { fill: FI.earth, w: 0 }); hat(gq, 'earth');
-  var sw = rectXY(xL, -0.15, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', cls: 'object' }); hat(sw, 'concrete');
-  rectXY(xL, -0.15, -0.1, lv.curbTop - 0.1, { fill: FI.earth, cls: 'object' });
-  var cb = rectXY(-0.15, 0, -0.3, lv.curbTop, { fill: '#FFFFFF', cls: 'cut' }); hat(cb, 'concrete');
+  // Beyond the cut first (Brief 18), far to near (getSectionScene's order): silhouettes at 'context' with an opaque paper
+  // fill, so a nearer one hides a farther one; furniture as its outline only (flSectionArchetype's silhouette); a tree as
+  // its trunk and its crown outline (no fill / 35 %). The cut is drawn over them.
+  var SIL = { fill: '#FFFFFF', cls: 'context' }, scn = getSectionScene(G.sec), furnAt = null;
+  var baseOf = function(it) { var on = it.x0 >= LM.deckX0 - 0.01 && it.x1 <= LM.deckX1 + 0.01; return on ? lv.deckTop : it.x1 <= 0 ? lv.curbTop : 0; };
+  var furn = function(it, cut) {
+    var inst = it.data && it.data.inst, sp = inst && typeof flInstSpec === 'function' ? flInstSpec(inst) : null, base = baseOf(it), fq;
+    if (sp && !cut) {
+      P.add(flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: inst.x || 0, rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
+        xToPx: X, yDeck: Y(base), SC: k, isBeyond: true, tech: tech, id: inst.id, silhouette: { w: DRAW_STYLE.W.context, c: RPT.INK, paper: '#FFFFFF' } }));
+      fq = box(it.x0, it.x1, base, base + (it.y1 - it.y0)); P.grow(fq[0], fq[1], fq[0] + fq[2], fq[1] + fq[3]);
+    } else fq = rectXY(it.x0, it.x1, base, base + (it.y1 - it.y0), cut ? { fill: FI.furn, cls: 'object' } : SIL);
+    if (!furnAt) furnAt = [fq[0] + fq[2] / 2, fq[1] - 4];
+  };
+  var tree = function(it, cut) {
+    var v = it.data.v, top = v.form ? Math.max(v.heightM, v.clearH + 1) : 2 + 1.12 * v.canopyR, ch = v.form ? v.clearH : 2.0, base = v.x < 0 ? lv.curbTop : 0, tr = v.trunkR || 0.08;
+    if (!cut) rectXY(v.x - tr, v.x + tr, base, base + ch, SIL);
+    else if (2 * tr <= 0.2) rectXY(v.x - tr, v.x + tr, base, base + ch, { fill: RPT.INK, cls: 'object' });   // thin: solid
+    else { poche(v.x - tr, v.x + tr, base, base + ch); rectXY(v.x - tr, v.x + tr, base, base + ch, { cls: 'cut' }); }
+    P.ellipse(X(v.x), Y(base + (ch + top) / 2), v.canopyR * k, (top - ch) / 2 * k, { cls: 'context', fill: tech ? 'none' : DRAW_STYLE.schematic.fill.planting, fop: tech ? null : 0.35, data: " data-canopy='1'" });
+  };
+  var endPiece = function(it, cut) {
+    var e = it.data.end, pl = it.kind === 'end-planter', q = pl ? rectXY(e.x0, e.x1, lv.deckTop, lv.deckTop + (e.y1 - e.y0), cut ? { fill: FI.planter, cls: 'object' } : SIL) : rectXY(e.x0, e.x1, 0, e.y1, cut ? { fill: FI.ws, cls: 'object' } : SIL);
+    if (cut && pl) hat(q, 'planting');
+  };
+  scn.beyond.forEach(function(it) {
+    if (it.kind === 'building') { var bf = it.data.f; rectXY(Math.min(bf.faceX, bf.backX), Math.max(bf.faceX, bf.backX), lv.curbTop, lv.curbTop + (it.y1 || 8), Object.assign({ data: " data-bldg-beyond='1'" }, SIL)); }
+    else if (it.kind === 'furniture') furn(it, false);
+    else if (it.kind === 'tree' && it.data && it.data.v) tree(it, false);
+    else if (it.kind === 'end-planter' || it.kind === 'wheel-stop') endPiece(it, false);
+  });
+  // the cut: the ground, the sidewalk slab (from the building face), curb, road; an earth hatch in a 2 mm band under each
+  // surface; the building the cut passes through, its poche to its roof and its wall lines at 'cut'
+  var sx0 = cbf ? cbf.faceX : xL, eb = 2 / k, eFill = tech ? '#FFFFFF' : FI.earth;
+  rectXY(xL, xR, -0.45, -0.1, { fill: FI.earth, w: 0 });
+  var sw = rectXY(sx0, -0.15, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', cls: 'object' }); hat(sw, 'concrete');
+  rectXY(xL, -0.15, -0.1, lv.curbTop - 0.1, { fill: FI.earth, w: 0 });
+  var cbq = rectXY(-0.15, 0, -0.3, lv.curbTop, { fill: '#FFFFFF', cls: 'cut' }); hat(cbq, 'concrete');
   var rd = rectXY(0, xR, -0.1, 0, { fill: '#FFFFFF', cls: 'object' }); hat(rd, 'asphalt');
+  hat(rectXY(sx0, -0.15, lv.curbTop - 0.1 - eb, lv.curbTop - 0.1, { fill: eFill, w: 0, data: " data-earth='1'" }), 'earth', { band: false });
+  hat(rectXY(0, xR, -0.1 - eb, -0.1, { fill: eFill, w: 0, data: " data-earth='1'" }), 'earth', { band: false });
+  if (cbf) {
+    var bh = lv.curbTop + (cb.height || 8);
+    poche(xL, cbf.faceX, lv.curbTop, bh);
+    P.line(X(xL), Y(bh), X(cbf.faceX), Y(bh), { cls: 'cut' }); P.line(X(cbf.faceX), Y(lv.curbTop), X(cbf.faceX), Y(bh), { cls: 'cut', data: " data-face='1'" });
+  }
   // deck structure (indicative supports from the road to the deck), then the deck board cut: thin material, solid
   for (var sx0 = LM.deckX0 + 0.3; sx0 < LM.deckX1 - 0.1; sx0 += 0.6) rectXY(sx0 - 0.025, sx0 + 0.025, 0, lv.deckTop - lv.deckThk, { cls: 'general' });
   rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk - 0.09, lv.deckTop - lv.deckThk, { cls: 'general' });
   var dk = rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk, lv.deckTop, { fill: '#FFFFFF', cls: 'cut' }); hat(dk, 'cut');
-  // beyond: end planter, wheel stop, furniture and trees in the section depth (general)
+  // at the cut: furniture, trees, the end pieces (the planter's height for its level)
   var ep = G.ends.find(function(e) { return e.kind === 'end-planter'; }), ph = ep ? (ep.y1 - ep.y0) : 0;
-  if (ep) { var pq = rectXY(ep.x0, ep.x1, lv.deckTop, lv.deckTop + ph, { fill: FI.planter, cls: 'general' }); hat(pq, 'planting'); }
-  var ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; }); if (ws) rectXY(ws.x0, ws.x1, 0, ws.y1, { fill: FI.ws, cls: 'general' });
-  var scn = getSectionScene(G.sec), furnAt = null;
-  scn.beyond.concat(scn.cut).forEach(function(it) {
-    if (it.kind === 'furniture') { var on = it.x0 >= LM.deckX0 - 0.01 && it.x1 <= LM.deckX1 + 0.01, base = on ? lv.deckTop : it.x1 <= 0 ? lv.curbTop : 0; var fq = rectXY(it.x0, it.x1, base, base + (it.y1 - it.y0), { fill: FI.furn, cls: scn.cut.indexOf(it) >= 0 ? 'object' : 'general' }); if (!furnAt) furnAt = [fq[0] + fq[2] / 2, fq[1] - 4]; }
-    else if (it.kind === 'tree' && it.data && it.data.v) { var v = it.data.v, top = v.form ? Math.max(v.heightM, v.clearH + 1) : 2 + 1.12 * v.canopyR, ch = v.form ? v.clearH : 2.0, base = v.x < 0 ? lv.curbTop : 0;
-      rectXY(v.x - (v.trunkR || 0.08), v.x + (v.trunkR || 0.08), base, base + ch, { cls: 'general' });
-      P.ellipse(X(v.x), Y(base + (ch + top) / 2), v.canopyR * k, (top - ch) / 2 * k, { cls: 'context', fill: d.mode === 'technical' ? 'none' : DRAW_STYLE.schematic.fill.planting, fop: d.mode === 'technical' ? null : 0.35 }); }
+  scn.cut.forEach(function(it) {
+    if (it.kind === 'furniture') furn(it, true);
+    else if (it.kind === 'tree' && it.data && it.data.v) tree(it, true);
+    else if (it.kind === 'end-planter' || it.kind === 'wheel-stop') endPiece(it, true);
   });
   // the railing on the traffic side: a post (elevation) and the two rails (cut: steel, solid)
   var rpx0 = LM.deckX1 - R.postW, post = rectXY(rpx0, LM.deckX1, lv.deckTop, lv.deckTop + R.h, { fill: RPT.MARK.post, w: 0, data: " data-rail-h='" + R.h + "'" });
@@ -19949,7 +20061,7 @@ RPT.sheetSection = function(d) {
     { t: 'Deck board ' + (lv.deckThk * 1000).toFixed(0) + ' mm, cut; deck +' + lv.deckTop.toFixed(3) + ' m above the road.', at: [X((LM.deckX0 + LM.deckX1) / 2), Y(lv.deckTop) - 5] },
     { t: 'Supports indicative, not a structural design.', at: [X(LM.deckX0 + 0.3), Y(0.05) - 1] },
     { t: 'Railing ' + R.h.toFixed(3) + ' m above the deck, rails at ' + R.rails.map(function(h) { return h.toFixed(2); }).join(' and ') + ' m: details A-301.', at: [X(LM.deckX1) + (mir ? 6 : -6), Y(lv.deckTop + R.h) - 3] },
-    { t: 'Furniture and trees beyond the cut in elevation.', at: furnAt }
+    { t: 'Beyond the cut: silhouettes, the nearer in front; trees as their crown outline.', at: furnAt }
   ];
   return RPT.dsheet(d, 'A-201', 'Section A-A', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: xL, xBot: xR });
 };
@@ -20124,7 +20236,7 @@ RPT.sheetTitle = function(d, drw) {
     function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone'];
   for (var i = 0; i < syms.length; i += 2) { syms[i](lx + 8, ly - 1); P.text(lx + 20, ly, syms[i + 1], TX.tag); ly += 5.4; }
   ly += 2;
-  [['concrete', 'Concrete'], ['timber', 'Timber deck, along the boards'], ['planting', 'Planting'], ['earth', 'Gravel, subgrade'], ['cut', 'Cut steel, thin material'], ['route', 'Accessible route']].forEach(function(q) {
+  [['concrete', 'Concrete'], ['timber', 'Timber deck, along the boards'], ['planting', 'Planting'], ['earth', 'Earth, subgrade'], ['poche', 'Cut building'], ['cut', 'Cut steel, thin material'], ['route', 'Accessible route']].forEach(function(q) {
     var r = "<rect x='" + lx + "' y='" + (ly - 3) + "' width='16' height='4'/>"; P.rect(lx, ly - 3, 16, 4, { cls: 'general' }); P.hatch(r, [lx, ly - 3, lx + 16, ly + 1], q[0], { band: false }); P.text(lx + 20, ly, q[1], TX.tag); ly += 5.4;
   });
   var ab = [['C01 - C15', 'Parklet Manual checks'], ['CoV', 'City of Vancouver (open data)'], ['DBH', 'diameter at breast height'], ['EDM', 'Engineering Design Manual'], ['max / min', 'maximum / minimum'], ['NTS', 'not to scale'],
@@ -20610,14 +20722,14 @@ RPT.print = async function() {
 #seTrash { position: absolute; top: 0; left: 0; right: 0; height: 22px; display: flex; align-items: center; justify-content: center;
   font: var(--fs-11) var(--font-ui); color: var(--st-fail-ink); background: #FBEDED; border-bottom: 1px dashed var(--st-fail-ink);
   opacity: 0; pointer-events: none; transition: opacity .2s; }
-#seViewport { overflow-x: auto; overflow-y: hidden; width: 100%; padding: 0 12px 4px; box-sizing: border-box; overscroll-behavior-x: contain;
+#seViewport { overflow-x: auto; overflow-y: auto; width: 100%; padding: 0 12px 4px; box-sizing: border-box; overscroll-behavior-x: contain;
   scrollbar-width: thin; scrollbar-color: var(--d-lt) transparent; }
 #seStrip .se-seg { position: absolute; top: 0; height: 100%; box-sizing: border-box; background: transparent; border-right: 1px solid rgba(26,26,26,.08); }
 #seStrip .se-seg:not(.se-fixed) { cursor: grab; }
 #seStrip .se-seg:not(.se-fixed):hover { background: rgba(26,26,26,.035); }
 #seStrip .se-seg.se-selected, #seStrip .se-seg:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: -2px; z-index: 2; }
 #seStrip .se-seg.se-dragging { opacity: .35; }
-.se-name { position: absolute; top: 6px; left: 2px; right: 2px; z-index: 5; text-align: center; pointer-events: none;
+.se-name { position: absolute; top: max(6px, calc(var(--se-gy, 228px) - 222px)); left: 2px; right: 2px; z-index: 5; text-align: center; pointer-events: none;
   font: 600 var(--fs-11)/1.2 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--d-mid); white-space: nowrap; overflow: hidden; }
 .se-rh { position: absolute; top: 0; bottom: 0; right: 0; width: 8px; z-index: 8; cursor: col-resize; opacity: 0; transition: opacity .12s; }
 .se-rh.se-rh-l { right: auto; left: 0; }
@@ -20625,7 +20737,8 @@ RPT.print = async function() {
 #seStrip .se-seg:not(.se-fixed):hover .se-rh, #seStrip .se-seg.se-selected .se-rh { opacity: 1; }
 #seInsLine { display: none; position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -4.5px; z-index: 20; pointer-events: none; box-sizing: border-box;
   background: rgba(58,168,228,.22); border-left: 2px solid var(--accent-ui); border-right: 2px solid var(--accent-ui); }
-#seUnalloc { position: absolute; top: 0; height: 100%; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+#seUnalloc { position: absolute; top: 0; height: 100%; display: flex; align-items: flex-start; justify-content: center; box-sizing: border-box;
+  padding-top: max(6px, calc(var(--se-gy, 228px) - 130px));
   border: 1px dashed var(--d-mid); overflow: hidden; z-index: 5; }
 #seUnalloc.over { border-color: var(--st-fail-ink); }
 .se-unalloc-hdr { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--d-mid); pointer-events: none; white-space: nowrap; }

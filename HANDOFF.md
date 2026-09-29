@@ -453,6 +453,29 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - Screen pen and report pen give the same elements, fills and dashes for tree, conifer, hydrant, bus stop, post and bike in both modes.
     - Section crowns: `none`, and `#9DB58E` at 0.35.
     - Samples: both modes 11 pages, 0 overlaps. Plan: 0 text overlaps.
+- **C. Section (commit 3).** Covers the screen strip (`_drawSection`) and the report's A-201 (`RPT.sheetSection`).
+  - **Vertical extent:** `sectionExtentM(DM)` is the tallest building the cut passes or sees within its depth (standing on the sidewalk), or the tallest tree in the depth, plus 2 m; at least 8 m.
+    - `sectionFrame` puts the ground at 14 px + extent × px/m, with 32 px below it. It returns `stripH` and `extM`; `SECTION_H` and `SECTION_GROUND_Y` remain only as the below-ground offset.
+    - The editor strip takes `stripH` and sets `--se-gy`, which keeps the segment names and the Unallocated label near the ground.
+    - `#seViewport` scrolls vertically (`overflow-y: auto`). `_vpHeight()` limits it to the panel and scrolls to the ground whenever the extent changes.
+    - A-201 uses the same extent and picks its scale with `RPT.fitScale` from 1:50 (the next scale when it doesn't fit, never shrunk). With a 10 m+ extent it goes to 1:100.
+  - **Beyond the cut:** silhouettes only, at `context`, with an opaque paper fill, drawn far to near (getSectionScene's order) so the nearer hides the farther.
+    - Furniture uses `flSectionArchetype(..., {silhouette: {w, c, paper}})`: every part drawn twice, first outlined at twice the weight, then filled with no stroke, so only the outer edge of the union shows.
+    - A pole or hydrant is one outline (`postXY`). The deck is one rect.
+    - Tree crowns stay transparent as in B.
+    - The planter's plant spheres (overlapping ellipses) are also drawn as one silhouette in the cut. These were the canopy arcs.
+    - A-201 now draws the buildings beyond, the furniture silhouettes and the end pieces in the same order, then the cut over them.
+  - **Poché:** there are no black fields. A cut building is its wall lines at `cut` (face and roof) over a 45° hatch at `fine`, 4 mm apart (new `poche` material, technical) or a 25 % warm grey (schematic).
+    - It is drawn from the sidewalk to its roof; A-201 extends 1 m into it.
+    - A cut trunk thicker than 0.2 m gets the same poché (`cutRect`). Only thin material is solid: deck boards, steel, poles.
+  - **Ground:** an earth hatch (new `earth` material: 45°, 0.8 mm apart, both modes) in a 2 mm band under each surface line: the road and lane surfaces, the underside of the sidewalk slab, and the paved buffer. Planted ground has no band. The report's `earth` kind now uses it instead of the gravel stipple, and the hatch legend lists "Earth, subgrade" and "Cut building".
+  - **Verified (Robson, 150 m):**
+    - Chair behind planter (section at z 11.3, looking +z): the chair's group comes before the planter's, and every planter shape is filled opaque.
+    - The tallest maple (Acer, 13.7 m in the City's data at z 151; a section reaching it) is whole: the crown top is 194 px inside the strip. Extent 16.85 m.
+    - The cut building is drawn to its 4.2 m roof, on screen and in A-201 (face line 42 mm at 1:100).
+    - The largest black field in the cut is 0.067 m (technical screen) and 0.16 m (A-201); schematic has none.
+    - The viewport scrolls, opening at the ground.
+    - Samples: both modes 11 pages, 0 overlaps. Sample A-201 is now 1:100 (was 1:50).
 
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
