@@ -541,7 +541,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <label class='px-chk'><input type='radio' name='rptMode' id='rptModeSch' value='schematic' checked onchange='RPT.syncCard()'> Schematic</label>
     <label class='px-chk'><input type='radio' name='rptMode' id='rptModeTech' value='technical' onchange='RPT.syncCard()'> Technical</label>
   </div>
-  <div id='rptModeNote' style='font-size:11px;color:var(--text-mu);line-height:1.5;margin-bottom:6px'>Image-led, for a client or the Parklet Manual pre-application.</div>
+  <div id='rptModeNote' style='font-size:11px;color:var(--text-mu);line-height:1.5;margin-bottom:6px'>The drawing set in colour, with the renders on the title sheet.</div>
   <div id='rptRenders'></div>
   <button class='ctx-btn ctx-btn-full' id='pdfExportBtn' onclick='RPT.print()' style='margin-bottom:6px' title='17 x 11 in landscape sheets, drawings at true scale, as a PDF file.'>&#8595; Download report (PDF)</button>
   <button class='ctx-btn ctx-btn-full' id='rptSampleBtn' onclick='RPT.openSample()' style='margin-bottom:6px' title='A finished report of a bundled reference design, in the selected type. Opens in a new tab; your design is not touched.'>See a sample report</button>
@@ -5645,6 +5645,13 @@ var DRAW_SYMBOLS = {
     P.rect(x - w / 2, y - h / 2, w, h, { cls: 'edge', fill: o.fill || 'fill.concrete', data: o.data });
     var d = Math.max(0.25 * k, Math.min(w, h) * 0.12);
     [-0.28, 0.28].forEach(function(t) { P.circle(x + (w > h ? t * w : 0), y + (w > h ? 0 : t * h), d, { cls: 'fine' }); });
+  },
+  // a numbered hex key, 5.2 mm across: its note is in the sheet's annotation column
+  hexKey: function(P, x, y, n) {
+    var k = P.ctx.k, r = 2.6 * k, pts = [];
+    for (var i = 0; i < 6; i++) { var a = Math.PI / 3 * i; pts.push([x + r * Math.cos(a), y + r * Math.sin(a)]); }
+    P.poly(pts, { cls: 'general', fill: 'paper' });
+    P.text(x, y + P.fs('tag') * 0.36, String(n), P.fs('tag'), { anchor: 'middle', bold: true, c: 'ink' });
   },
   // a rule ID in a 6 mm lozenge (a pointed hexagon 3 mm high, at least 6 mm long): fail red, pass ink at 50 %
   lozenge: function(P, x, y, id, st) {
@@ -18823,7 +18830,7 @@ RPT.DISCLAIMER = 'Preliminary assessment — not a substitute for City of Vancou
 // ── Data: one snapshot of the model for every sheet ───────────────────────────────────────────
 // The two reports (Brief 12b). One set of sheet builders; the mode is the style token each reads (fills,
 // lineweights) and RPT.SHEETS picks which sheets a mode prints.
-RPT.MODE_NOTE = { schematic: 'Image-led, for a client or the Parklet Manual pre-application.', technical: 'Drawing set: no photoreal, no colour fills.' };
+RPT.MODE_NOTE = { schematic: 'The drawing set in colour, with the renders on the title sheet.', technical: 'The same drawing set in line and hatch, no images.' };
 RPT.mode = function() { var el = document.querySelector('input[name=rptMode]:checked'); return el && el.value === 'technical' ? 'technical' : 'schematic'; };
 RPT.syncCard = function() { var n = document.getElementById('rptModeNote'); if (n) n.textContent = RPT.MODE_NOTE[RPT.mode()]; if (RPT.renderList) RPT.renderList(); };
 RPT.data = function(mode) {
@@ -18958,6 +18965,8 @@ RPT.sources = function(d) {
   Object.keys(dates).filter(function(k) { return /^CoV /.test(k); }).sort().forEach(function(k) { std.push(['City of Vancouver open data: ' + k.slice(4), 'fetched ' + day(dates[k])]); });
   var mly = (d.renders || []).filter(function(r) { return r.mapillary; });
   if (mly.length) std.push(['Mapillary (CC BY-SA)', 'context photo for the photoreal renders: ' + mly.map(function(r) { return r.mapillary; }).join('; ')]);
+  // the design's renders (printed on A-000 in the schematic report): listed in both reports
+  (d.renders || []).forEach(function(r, i) { std.push(['Visualisation ' + (i + 1) + ': ' + (RPT.PRESET_LBL[r.preset] || r.preset) + ' view', 'AI-assisted, indicative; ' + r.provider + ', rendered ' + r.date + (r.camera ? '; ' + r.camera : '')]); });
   var brands = {}; d.placed.forEach(function(p) { var pr = flPreset(p.objId); if (pr) brands[pr.brand] = (brands[pr.brand] || []).concat([pr.name + (pr.src ? ' - ' + pr.src : '')]); });
   Object.keys(brands).forEach(function(b) { std.push([b + ' product data', Array.from(new Set(brands[b])).join('; ')]); });
   std.push(['DM Sans (SIL Open Font License 1.1)', 'the report\'s typeface, embedded'], ['jsPDF, svg2pdf.js (MIT)', 'the PDF engine (tools/vendor)']);
@@ -18977,25 +18986,6 @@ RPT.sources = function(d) {
   if (imp.length) blocks.push({ h2: 'Imported site data (verify on site)' }, { table: { cols: two('Item', 'Source'), rows: imp } }, { p: 'Nothing imported is authoritative: each imported value is a starting point to verify on site, and the checks that depend on one stay provisional until it is confirmed.' });
   blocks = blocks.concat(RPT.treeBlocks(DM), [{ h2: 'From the design model' }, { table: { cols: two('Value', 'Derived from'), rows: model } }, { h2: 'Assumptions' }, { table: { cols: two('Topic', 'Assumption'), rows: assume } }]);
   return RPT.textSheet('X-001', 'Sources', '', blocks.concat([{ h2: 'Site' }], RPT.siteBlocks(d).slice(1)), false);
-};
-// ── G-001 Cover: the name, address, checks and status; the first ticked Street / Corner render, else the axon ─
-RPT.cover = function(d, drw) {
-  return { id: 'G-001', title: 'Cover', scale: 0, draw: function(P) {
-    var DM = d.DM, TX = RPT.TX, x0 = 132, top = RPT.HEAD + 4, avW = RPT.SW - x0, avH = RPT.SH - RPT.TB.h - top - 14;
-    var cr = (d.renders || []).find(function(r) { return r.preset === 'street' || r.preset === 'corner'; }), im = cr || (drw && drw.axon ? { url: drw.axon.url, w: drw.axon.w, h: drw.axon.h } : null);
-    if (im) {
-      var w = avW, h = w * im.h / im.w; if (h > avH) { h = avH; w = h * im.w / im.h; }
-      P.add("<image href='" + im.url + "' xlink:href='" + im.url + "' x='" + (x0 + (avW - w) / 2).toFixed(2) + "' y='" + top.toFixed(2) + "' width='" + w.toFixed(2) + "' height='" + h.toFixed(2) + "' preserveAspectRatio='xMidYMid meet'/>");
-      P.text(x0 + (avW - w) / 2, top + h + 5, cr ? 'AI-assisted visualisation — indicative (' + RPT.PRESET_LBL[cr.preset] + ' view, ' + cr.provider + ')' : 'Axonometric, from the design model', TX.tag, { c: RPT.MID });
-    }
-    var y = 120;
-    if (d.sample) { var bw = RPT.tw(RPT.SAMPLE_BAND, 3, true) + 8; P.rect(0, y - 6.5, bw, 9.5, { w: RPT.LW.cut }); P.text(4, y, RPT.SAMPLE_BAND, 3, { bold: true }); y += 16; }
-    P.text(0, y, 'PARKLET SITING AND DESIGN ASSESSMENT', TX.tag, { c: RPT.MID }); y += 11;
-    RPT.wrap(DM.project.name, 120, 8, true).slice(0, 2).forEach(function(l) { P.text(0, y, l, 8, { bold: true }); y += 9; });
-    P.text(0, y, RPT.addr(DM), TX.head, { c: RPT.MID }); y += 8;
-    var kv = RPT.units({ kv: [['Date', d.date], ['Checks', d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + d.n.unclear + ' not confirmed'], ['Status', { pass: 'PASS', fail: 'FAIL', unclear: 'NOT CONFIRMED', provisional: 'PROVISIONAL' }[d.overall]], ['Report', d.mode === 'technical' ? 'Technical drawing set' : 'Schematic report']] }, 110);
-    kv.forEach(function(u) { RPT.drawUnit(P, u, 0, y, 110); y += u.h; });
-  } };
 };
 
 
@@ -19069,21 +19059,29 @@ RPT.pen = function(ctx) {
     return " fill='" + F.c + "'" + (F.a != null ? " fill-opacity='" + F.a + "'" : '') + (o.fop != null ? " fill-opacity='" + o.fop + "'" : '') +
       DRAW_STYLE.stroke(S.c, w, { op: S.a != null ? S.a : o.op, dash: o.dash ? DRAW_STYLE.dash(ctx, o.dash) : '', cap: o.cap, join: o.join }) + (o.data || '');
   };
+  // the drawing's extent (every shape and text; inside a rect clip, clamped to it): dsheet centres a drawing by it
+  var bb = [Infinity, Infinity, -Infinity, -Infinity], clips = [];
+  var grow = function(x0, y0, x1, y1) {
+    if (clips.length) { var c = clips[clips.length - 1]; if (c) { x0 = Math.max(x0, c[0]); y0 = Math.max(y0, c[1]); x1 = Math.min(x1, c[2]); y1 = Math.min(y1, c[3]); if (x1 < x0 || y1 < y0) return; } }
+    bb[0] = Math.min(bb[0], x0); bb[1] = Math.min(bb[1], y0); bb[2] = Math.max(bb[2], x1); bb[3] = Math.max(bb[3], y1);
+  };
+  var growPts = function(pts) { var xs = pts.map(function(p) { return p[0]; }), ys = pts.map(function(p) { return p[1]; }); grow(Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)); };
   var P = {
     f: f, st: st, boxes: boxes, ctx: ctx,
+    bbox: function() { return bb.slice(); }, grow: grow,
     fs: function(role) { return DRAW_STYLE.fs(ctx, role); },
-    polyline: function(pts, o) { out.push("<polyline points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "'" + st(o) + '/>'); return P; },
+    polyline: function(pts, o) { growPts(pts); out.push("<polyline points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "'" + st(o) + '/>'); return P; },
     add: function(s) { out.push(s); return P; },
-    line: function(x1, y1, x2, y2, o) { out.push("<line x1='" + f(x1) + "' y1='" + f(y1) + "' x2='" + f(x2) + "' y2='" + f(y2) + "'" + st(o) + '/>'); return P; },
-    rect: function(x, y, w, h, o) { var x0 = Math.min(x, x + w), y0 = Math.min(y, y + h); out.push("<rect x='" + f(x0) + "' y='" + f(y0) + "' width='" + f(Math.abs(w)) + "' height='" + f(Math.abs(h)) + "'" + st(o) + '/>'); return P; },
-    poly: function(pts, o) { out.push("<polygon points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "'" + st(o) + '/>'); return P; },
+    line: function(x1, y1, x2, y2, o) { grow(Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2)); out.push("<line x1='" + f(x1) + "' y1='" + f(y1) + "' x2='" + f(x2) + "' y2='" + f(y2) + "'" + st(o) + '/>'); return P; },
+    rect: function(x, y, w, h, o) { var x0 = Math.min(x, x + w), y0 = Math.min(y, y + h); grow(x0, y0, x0 + Math.abs(w), y0 + Math.abs(h)); out.push("<rect x='" + f(x0) + "' y='" + f(y0) + "' width='" + f(Math.abs(w)) + "' height='" + f(Math.abs(h)) + "'" + st(o) + '/>'); return P; },
+    poly: function(pts, o) { growPts(pts); out.push("<polygon points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "'" + st(o) + '/>'); return P; },
     path: function(d, o) { out.push("<path d='" + d + "'" + st(o) + '/>'); return P; },
-    circle: function(cx, cy, r, o) { out.push("<circle cx='" + f(cx) + "' cy='" + f(cy) + "' r='" + f(r) + "'" + st(o) + '/>'); return P; },
-    ellipse: function(cx, cy, rx, ry, o) { out.push("<ellipse cx='" + f(cx) + "' cy='" + f(cy) + "' rx='" + f(rx) + "' ry='" + f(ry) + "'" + st(o) + '/>'); return P; },
+    circle: function(cx, cy, r, o) { grow(cx - r, cy - r, cx + r, cy + r); out.push("<circle cx='" + f(cx) + "' cy='" + f(cy) + "' r='" + f(r) + "'" + st(o) + '/>'); return P; },
+    ellipse: function(cx, cy, rx, ry, o) { grow(cx - rx, cy - ry, cx + rx, cy + ry); out.push("<ellipse cx='" + f(cx) + "' cy='" + f(cy) + "' rx='" + f(rx) + "' ry='" + f(ry) + "'" + st(o) + '/>'); return P; },
     text: function(x, y, s, size, o) {
       o = o || {}; size = size || RPT.TX.body; s = String(s);
       var C = col(DRAW_STYLE.c(ctx, o.c || 'ink')), w = RPT.tw(s, size, o.bold), x0 = o.anchor === 'middle' ? x - w / 2 : o.anchor === 'end' ? x - w : x;
-      boxes.push({ text: true, t: s.slice(0, 32), x0: x0, x1: x0 + w, y0: y - size * 0.74, y1: y + size * 0.22 });
+      boxes.push({ text: true, t: s.slice(0, 32), x0: x0, x1: x0 + w, y0: y - size * 0.74, y1: y + size * 0.22 }); grow(x0, y - size * 0.74, x0 + w, y + size * 0.22);
       out.push("<text x='" + f(x) + "' y='" + f(y) + "' font-size='" + size + "'" + (o.anchor ? " text-anchor='" + o.anchor + "'" : '') + (o.bold ? " font-family='" + RPT.FONT_B + "'" : '') +
         " fill='" + C.c + "'" + (C.a != null ? " fill-opacity='" + C.a + "'" : o.op != null && o.op < 1 ? " fill-opacity='" + o.op + "'" : '') + (o.ls ? " letter-spacing='" + o.ls + "'" : '') + (o.data || '') + '>' + RPT.esc(s) + '</text>');
       return P;
@@ -19122,13 +19120,19 @@ RPT.pen = function(ctx) {
       out.push("<g clip-path='url(#" + id + ")' fill='none'" + DRAW_STYLE.stroke(ink, K.w || DRAW_STYLE.W.fine, { dash: H.dash || '', cap: H.cap }) + '>' + s + '</g>');
       return P;
     },
-    clipOpen: function(shape) { var id = 'rc' + (++RPT._hid); defs.push("<clipPath id='" + id + "'>" + shape + '</clipPath>'); out.push("<g clip-path='url(#" + id + ")'>"); return P; },
-    clipClose: function() { out.push('</g>'); return P; },
+    clipOpen: function(shape) {
+      var id = 'rc' + (++RPT._hid), m = /x='([-\d.]+)' y='([-\d.]+)' width='([-\d.]+)' height='([-\d.]+)'/.exec(shape);
+      clips.push(m ? [+m[1], +m[2], +m[1] + +m[3], +m[2] + +m[4]] : null);
+      defs.push("<clipPath id='" + id + "'>" + shape + '</clipPath>'); out.push("<g clip-path='url(#" + id + ")'>"); return P;
+    },
+    clipClose: function() { clips.pop(); out.push('</g>'); return P; },
     // another pen's drawing (and its clip paths and text boxes) appended to this one
     // (moved down by dy mm when given: a drawing laid out from 0 placed in the drawing area)
-    merge: function(Q, dy) {
-      dy = dy || 0; out.push(dy ? "<g transform='translate(0 " + f(dy) + ")'>" + Q.body() + '</g>' : Q.body()); Q.defsList().forEach(function(x) { defs.push(x); });
-      Q.boxes.forEach(function(b) { boxes.push(dy ? Object.assign({}, b, { y0: b.y0 + dy, y1: b.y1 + dy }) : b); }); return P;
+    // (moved by dx, dy mm when given: a drawing laid out anywhere, centred in the drawing area)
+    merge: function(Q, dy, dx) {
+      dy = dy || 0; dx = dx || 0; out.push(dy || dx ? "<g transform='translate(" + f(dx) + ' ' + f(dy) + ")'>" + Q.body() + '</g>' : Q.body()); Q.defsList().forEach(function(x) { defs.push(x); });
+      Q.boxes.forEach(function(b) { boxes.push(dy || dx ? Object.assign({}, b, { x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0 + dy, y1: b.y1 + dy }) : b); });
+      var q = Q.bbox(); if (isFinite(q[0])) grow(q[0] + dx, q[1] + dy, q[2] + dx, q[3] + dy); return P;
     },
     body: function() { return out.join(''); }, defsList: function() { return defs; },
     inner: function() { return (defs.length ? '<defs>' + defs.join('') + '</defs>' : '') + out.join(''); },
@@ -19201,41 +19205,80 @@ RPT.bar = function(P, x, y, scale) {
   P.text(x + mm + 4, y + 5.2, '1:' + scale, RPT.TX.body, { bold: true });
   return mm;
 };
-// The title block, 85 x 45 mm at the bottom right of every sheet: sheet ID | title; project and address; scale |
-// date | status; the issuing tool with the report's style, and "DIMENSIONS IN METRES".
-RPT.tblock = function(P, id, title, scaleTxt, d) {
-  var w = RPT.TB.w, h = RPT.TB.h, x = RPT.SW - w, y = RPT.SH - h, DM = d.DM, TX = RPT.TX, g = { w: RPT.LW.gen };
-  P.rect(x, y, w, h, { w: RPT.LW.obj, fill: '#FFFFFF' });
-  P.line(x + 30, y, x + 30, y + 17, g); P.line(x, y + 17, x + w, y + 17, g); P.line(x, y + 26, x + w, y + 26, g); P.line(x, y + 36, x + w, y + 36, g);
-  P.line(x + 28, y + 26, x + 28, y + 36, g); P.line(x + 56, y + 26, x + 56, y + 36, g);
-  P.text(x + 2, y + 3.8, 'SHEET', TX.tag, { c: RPT.MID });
-  P.text(x + 15, y + 12.6, id, id.length > 6 ? 4.4 : 5.6, { anchor: 'middle', bold: true, data: " data-sheet-id='1'" });
-  RPT.wrap(String(title).toUpperCase(), w - 34, TX.head, true).slice(0, 2).forEach(function(l, i) { P.text(x + 32, y + 6.6 + i * 4.8, l, TX.head, { bold: true }); });
-  P.text(x + 2, y + 21, RPT.wrap(DM.project.name, w - 4, TX.body)[0], TX.body);
-  P.text(x + 2, y + 24.4, RPT.wrap(RPT.addr(DM), w - 4, TX.tag)[0], TX.tag, { c: RPT.MID });
-  P.text(x + 2, y + 29.2, 'SCALE', TX.tag, { c: RPT.MID }); P.text(x + 2, y + 33.8, scaleTxt, TX.body, { bold: true });
-  P.text(x + 30, y + 29.2, 'DATE', TX.tag, { c: RPT.MID }); P.text(x + 30, y + 33.8, d.date, TX.body);
-  P.text(x + 58, y + 29.2, 'STATUS', TX.tag, { c: RPT.MID }); P.text(x + 58, y + 33.8, d.sample ? 'SAMPLE' : 'PRELIMINARY', TX.body, { bold: true });
-  P.text(x + 2, y + 40.6, 'Curbside ' + RPT.VERSION + '  ·  ' + d.mode.toUpperCase(), TX.tag, { data: " data-style='1'" });
-  P.text(x + w - 2, y + 40.6, 'DIMENSIONS IN METRES', TX.tag, { anchor: 'end', c: RPT.MID });
+// The key plan, 30 x 20 mm: the street (frontage, curbs), the deck solid and the sheet's extent (ext {zA, zB, xTop,
+// xBot}) as a rectangle, at one scale that fits them.
+RPT.keyPlan = function(P, d, x, y, w, h, ext) {
+  var LM = d.DM.landmarks, L = d.DM.parklet.length, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight;
+  var x0 = Math.min(LM.sidewalkL.x0 - 2, ext ? ext.xTop : 0), x1 = Math.max(far + 2, ext ? ext.xBot : 0);
+  var zA = Math.min(-L * 0.6, ext ? ext.zA : 0), zB = Math.max(L * 1.6, ext ? ext.zB : 0);
+  var k = Math.min((w - 2) / (zB - zA), (h - 2) / (x1 - x0)), ox = x + (w - (zB - zA) * k) / 2, oy = y + (h - (x1 - x0) * k) / 2;
+  var sx = function(z) { return ox + (zB - z) * k; }, sy = function(xx) { return oy + (xx - x0) * k; };
+  P.rect(x, y, w, h, { cls: 'fine' });
+  [[LM.sidewalkL.x0, 'context'], [0, 'general'], [LM.roadRight, 'general'], [far, 'context']].forEach(function(q) { P.line(sx(zB), sy(q[0]), sx(zA), sy(q[0]), { cls: q[1] }); });
+  P.rect(sx(L), sy(LM.deckX0), L * k, (LM.deckX1 - LM.deckX0) * k, { fill: 'ink', cls: 'none' });
+  if (ext) P.rect(sx(ext.zB), sy(ext.xTop), (ext.zB - ext.zA) * k, (ext.xBot - ext.xTop) * k, { cls: 'object', fill: 'none', data: " data-keyplan-crop='1'" });
 };
-// one caption per drawing, 2.5 mm, word-wrapped to width w (mm), at most max lines
-RPT.caption = function(P, x, y, w, s, max) {
-  RPT.wrap(s, w, RPT.TX.body).slice(0, max).forEach(function(l, i) { P.text(x, y + i * RPT.TX.body * RPT.GRID.lh, l, RPT.TX.body, { c: RPT.MID }); });
+// The title block, 85 x 45 mm at the bottom right of every sheet: the key plan (30 x 20) | sheet ID and title;
+// project and address; scale | date | status; the issuing tool with the report's style, and "DIMENSIONS IN METRES".
+RPT.tblock = function(P, id, title, scaleTxt, d, ext) {
+  var w = RPT.TB.w, h = RPT.TB.h, x = RPT.SW - w, y = RPT.SH - h, DM = d.DM, TX = RPT.TX, g = { cls: 'general' };
+  P.rect(x, y, w, h, { cls: 'edge', fill: '#FFFFFF' });
+  P.line(x + 33, y, x + 33, y + 22, g); P.line(x, y + 22, x + w, y + 22, g); P.line(x, y + 30, x + w, y + 30, g); P.line(x, y + 38.5, x + w, y + 38.5, g);
+  P.line(x + 28, y + 30, x + 28, y + 38.5, g); P.line(x + 56, y + 30, x + 56, y + 38.5, g);
+  RPT.keyPlan(P, d, x + 1.5, y + 1, 30, 20, ext);
+  P.text(x + 35, y + 3.8, 'Sheet', TX.tag, { c: RPT.MID });
+  P.text(x + 35, y + 10.4, id, id.length > 6 ? 4.4 : 5.2, { bold: true, data: " data-sheet-id='1'" });
+  RPT.wrap(String(title).toUpperCase(), w - 37, TX.head, true).slice(0, 2).forEach(function(l, i) { P.text(x + 35, y + 15.4 + i * 4.2, l, TX.head, { bold: true }); });
+  P.text(x + 2, y + 25.4, RPT.wrap(DM.project.name, w - 4, TX.body)[0], TX.body);
+  P.text(x + 2, y + 28.6, RPT.wrap(RPT.addr(DM), w - 4, TX.tag)[0], TX.tag, { c: RPT.MID });
+  P.text(x + 2, y + 32.8, 'Scale', TX.tag, { c: RPT.MID }); P.text(x + 2, y + 37, scaleTxt, TX.body, { bold: true });
+  P.text(x + 30, y + 32.8, 'Date', TX.tag, { c: RPT.MID }); P.text(x + 30, y + 37, d.date, TX.body);
+  P.text(x + 58, y + 32.8, 'Status', TX.tag, { c: RPT.MID }); P.text(x + 58, y + 37, d.sample ? 'Sample' : 'Preliminary', TX.body, { bold: true });
+  P.text(x + 2, y + 42.6, 'Curbside ' + RPT.VERSION + '  ·  ' + d.mode.charAt(0).toUpperCase() + d.mode.slice(1), TX.tag, { data: " data-style='1'" });
+  P.text(x + w - 2, y + 42.6, 'DIMENSIONS IN METRES', TX.tag, { anchor: 'end', c: RPT.MID });
 };
-// a drawing sheet: the builder's pen (the drawing), the band under it (scale bar and the caption, left of the title
-// block) -> a page object the engine renders (the title block, header and footer are added per page)
-RPT.dsheet = function(d, id, title, scale, D, notes) {
-  var P = RPT.pen(), y = RPT.SH - RPT.BAND, wl = RPT.SW - RPT.TB.w - 6;
-  P.merge(D, RPT.DA.y);   // the builder draws from 0: its drawing sits in the drawing area, under the header strip
-  P.line(0, y - 2, wl, y - 2, { w: RPT.LW.obj });
-  if (scale) RPT.bar(P, 0, y + 2, scale);
-  RPT.caption(P, 0, y + (scale ? 13 : 4), wl, (notes || []).join(' '), scale ? 5 : 8);
-  return { id: id, title: title, scale: scale, draw: function(Q) { Q.merge(P); } };
+// A drawing sheet (Brief 17): the builder's drawing centred in the drawing area (clear of the title block); the band
+// under it: north (plans: ext.north) and the scale bar; the keys: each {t: a short note, at: [x, y] in the drawing
+// (a hex key is placed there) or null (a general note)}, listed numbered in the 60 mm annotation column, no
+// paragraphs. -> a page object the engine renders (title block with the key plan of ext, header, footer per page).
+RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
+  var P = RPT.pen(), DA = RPT.DA, AC = RPT.AC, bb = D.bbox(), dx = 0, dy = DA.y, TX = RPT.TX;
+  if (isFinite(bb[0])) {
+    dx = DA.x + (DA.w - (bb[2] - bb[0])) / 2 - bb[0]; dy = DA.y + (DA.h - (bb[3] - bb[1])) / 2 - bb[1];
+    var tbx = RPT.SW - RPT.TB.w - 3, tby = RPT.SH - RPT.TB.h - 3;   // clear of the title block: up as far as the area allows
+    if (bb[2] + dx > tbx && bb[3] + dy > tby) dy -= Math.min(bb[3] + dy - tby, Math.max(0, bb[1] + dy - DA.y));
+  }
+  P.merge(D, dy, dx);
+  // hex keys on the drawing (at their place, or the nearest step aside that clears the drawing's text and the other
+  // keys), their notes in the column
+  var n = 0, ky = AC.y + 5, w = AC.w - 8, used = [];
+  var clear = function(x, y) {
+    var b = [x - 3, y - 3, x + 3, y + 3];
+    if (b[0] < DA.x || b[1] < DA.y || b[2] > DA.x + DA.w || b[3] > DA.y + DA.h) return false;   // inside the drawing area
+    return !P.boxes.concat(used).some(function(q) { return b[0] < q.x1 && q.x0 < b[2] && b[1] < q.y1 && q.y0 < b[3]; });
+  };
+  var place = function(at) {
+    var x = at[0] + dx, y = at[1] + dy, st = [[0, 0], [0, -6], [0, 6], [6, 0], [-6, 0], [6, -6], [-6, -6], [6, 6], [-6, 6], [0, -12], [0, 12], [12, 0], [-12, 0]];
+    for (var i = 0; i < st.length; i++) if (clear(x + st[i][0], y + st[i][1])) return [x + st[i][0], y + st[i][1]];
+    return [x, y];
+  };
+  P.text(AC.x, ky, 'Notes', TX.body, { bold: true }); P.line(AC.x, ky + 1.6, AC.x + AC.w, ky + 1.6, { cls: 'general' }); ky += 7;
+  (keys || []).forEach(function(q) {
+    var lines = RPT.wrap(q.t, w, TX.body), num = q.at ? ++n : null;
+    if (num) { var at = place(q.at); DRAW_SYMBOLS.hexKey(P, at[0], at[1], num); used.push({ x0: at[0] - 3, y0: at[1] - 3, x1: at[0] + 3, y1: at[1] + 3 }); DRAW_SYMBOLS.hexKey(P, AC.x + 2.6, ky - 0.9, num); }
+    else P.text(AC.x + 2.6, ky, '-', TX.body, { anchor: 'middle', c: RPT.MID });
+    lines.forEach(function(l, i) { P.text(AC.x + 8, ky + i * TX.body * RPT.GRID.lh, l, TX.body); });
+    ky += lines.length * TX.body * RPT.GRID.lh + 2.4;
+  });
+  // the band: north on a plan, the scale bar and the scale
+  var by = RPT.SH - 13;
+  if (ext && ext.north) RPT.northSym(P, 10, by + 1.5, 4.5);
+  if (scale) RPT.bar(P, ext && ext.north ? 26 : 0, by - 2, scale);
+  return { id: id, title: title, scale: scale, ext: ext || null, draw: function(Q) { Q.merge(P); } };
 };
 
 // ── What every drawing reads, once per report ───────────────────────────────────────────────────
-RPT.SEG = { sidewalk: 'SIDEWALK', parklet: 'PARKLET', 'travel-lane': 'TRAVEL LANE', 'bike-lane': 'BIKE LANE', 'buf-pk': 'BUFFER', 'buf-bl': 'BUFFER', planting: 'PLANTING', parking: 'PARKING', 'turn-lane': 'TURN LANE', transit: 'TRANSIT LANE', median: 'MEDIAN', curb: 'CURB' };
+RPT.SEG = { sidewalk: 'Sidewalk', parklet: 'Parklet', 'travel-lane': 'Travel lane', 'bike-lane': 'Bike lane', 'buf-pk': 'Buffer', 'buf-bl': 'Buffer', planting: 'Planting', parking: 'Parking', 'turn-lane': 'Turn lane', transit: 'Transit lane', median: 'Median', curb: 'Curb' };
 RPT.geo = function(d) {
   var DM = d.DM, LM = DM.landmarks, L = DM.parklet.length, rows = {};
   d.rows.forEach(function(r) { rows[r.id] = r; });
@@ -19368,20 +19411,24 @@ RPT.planObjects = function(P, G, F, o) {
 };
 
 // ── A-101 Site plan, 1:250 ─────────────────────────────────────────────────────────────────────────
+// Every drawing sheet (Brief 17): one drawing, centred in the drawing area at its scale; north and the scale bar in
+// the band under it; numbered hex keys on the drawing, their notes in the 60 mm annotation column (no paragraphs);
+// the key plan in the title block shows the drawing's extent (ext).
 RPT.sheetSite = function(d) {
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), sc = 250, k = 1000 / sc, FI = RPT.fills(d.mode);
   var span = (RPT.DA.w - 28) / k, mid = G.L / 2, zA = Math.max(LM.sceneMinZ, mid - span / 2), zB = Math.min(LM.sceneMaxZ, zA + span); zA = Math.max(LM.sceneMinZ, zB - span);
   var far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, room = (RPT.DA.h - 24) / k - (far - LM.sidewalkL.x0), bd = Math.max(4, Math.min(18, room / 2));   // building depth shown each side
   var xTop = LM.sidewalkL.x0 - bd, xBot = far + bd, F = RPT.pframe(sc, zA, zB, xTop, 14, 12);
-  var xa = F.sx(zB), xb = F.sx(zA), ya = F.sy(xTop), yb = F.sy(xBot);
+  var xa = F.sx(zB), xb = F.sx(zA), ya = F.sy(xTop), yb = F.sy(xBot), hostAt = null;
   P.clipOpen("<rect x='" + xa + "' y='" + ya + "' width='" + (xb - xa) + "' height='" + (yb - ya) + "'/>");
   // buildings with their programme
   ['L', 'R'].forEach(function(side) {
-    (G.DM.buildings[side] || []).forEach(function(b) {
+    (G.DM.buildings[side] || []).forEach(function(b, bi) {
       var fp = b.footprint; if (!fp || !fp.visible || fp.z1 < zA || fp.z0 > zB) return;
       var x0 = Math.min(fp.faceX, fp.backX), x1 = Math.max(fp.faceX, fp.backX);
-      P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, w: RPT.LW.obj });
+      P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, cls: 'edge' });
       var z0 = Math.max(fp.z0, zA), z1 = Math.min(fp.z1, zB), cx = F.sx((z0 + z1) / 2), wmm = (z1 - z0) * k, face = F.sy(fp.faceX) + (side === 'L' ? -8 : 10);   // inside the footprint, clear of the section marker
+      if (side === 'L' && G.DM.site.host && G.DM.site.host.index === bi) hostAt = [cx, F.sy((x0 + x1) / 2)];
       var nm = b.name || '', use = b.use ? String(b.use) : '';
       if (wmm > RPT.tw(nm || use, RPT.TX.tag) + 2) { if (nm) P.text(cx, face - (side === 'L' ? 2.6 : 0), nm, RPT.TX.tag, { anchor: 'middle', bold: true }); P.text(cx, face + (side === 'L' ? 0 : 2.6), use, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); }
     });
@@ -19389,53 +19436,58 @@ RPT.sheetSite = function(d) {
   RPT.planBase(P, G, F, d.mode, {});
   RPT.planObjects(P, G, F, { genus: true });
   P.clipClose();
-  P.rect(xa, ya, xb - xa, yb - ya, { w: RPT.LW.ctx });
-  P.text((F.sx(0) + F.sx(G.L)) / 2, F.sy((LM.deckX0 + LM.deckX1) / 2) + 0.9, 'PARKLET', RPT.TX.tag, { anchor: 'middle', bold: true });
-  // the section cut, north, key dims
+  P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
+  var pc = [(F.sx(0) + F.sx(G.L)) / 2, F.sy((LM.deckX0 + LM.deckX1) / 2)];
+  P.text(pc[0], pc[1] + 0.9, 'Parklet', RPT.TX.tag, { anchor: 'middle', bold: true });
+  // the section cut and the key dimensions
   RPT.secMarker(P, F.sx(G.sec.z), F.sy(LM.sidewalkL.x0) - 1, F.sy(LM.roadRight) + 1, G.sec.dir === 1);
-  RPT.northSym(P, xb - 10, ya + 10, 5);
   RPT.dimV(P, F.sy(0), F.sy(LM.roadRight), xb + 3, G.DM.totalRoad.toFixed(2), { side: 'right', ext: xb });
   RPT.dimV(P, F.sy(LM.sidewalkL.x0), F.sy(0), xb + 3, (0 - LM.sidewalkL.x0).toFixed(2), { side: 'right', ext: xb, size: RPT.TX.tag });
   RPT.dimH(P, F.sx(G.L), F.sx(0), F.sy(LM.deckX1) + 3.5, G.L.toFixed(2), { ext: F.sy(LM.deckX1) });
-  var gl = {}; G.trees.forEach(function(v) { if (v.genus && v.z >= zA && v.z <= zB) gl[v.genus.slice(0, 2).toUpperCase()] = v.genus; });
-  var notes = ['Context: OpenStreetMap buildings and street, City of Vancouver open data (trees, hydrants, poles, signals, chambers); indicative, confirm on site.',
-    'Stretch shown: z ' + zA.toFixed(1) + ' to ' + zB.toFixed(1) + ' m (1:250); buildings drawn to ' + bd.toFixed(0) + ' m deep. Section A-A: sheet A-201.',
-    Object.keys(gl).length ? 'Street trees by genus: ' + Object.keys(gl).sort().map(function(t) { return t + ' ' + gl[t]; }).join(', ') + '.' : 'No street trees in this stretch.'];
-  return RPT.dsheet(d, 'A-101', 'Site plan', sc, P, notes);
+  var gl = {}, tree = null; G.trees.forEach(function(v) { if (v.genus && v.z >= zA && v.z <= zB) { gl[v.genus.slice(0, 2).toUpperCase()] = v.genus; if (!tree) tree = [F.sx(v.z), F.sy(v.x)]; } });
+  var keys = [
+    { t: 'Parklet, ' + G.L.toFixed(2) + ' m: layout A-102, deck A-103.', at: [pc[0], pc[1] - 4] },
+    { t: 'Section A-A: sheet A-201.', at: [F.sx(G.sec.z) + 5, F.sy(LM.sidewalkL.x0) - 6] },
+    { t: Object.keys(gl).length ? 'Street trees by genus: ' + Object.keys(gl).sort().map(function(t) { return t + ' ' + gl[t]; }).join(', ') + '.' : 'No street trees in this stretch.', at: tree ? [tree[0] + 4, tree[1] - 4] : null },
+    { t: 'Buildings from OpenStreetMap, drawn ' + bd.toFixed(0) + ' m deep; name and use where known.', at: hostAt },
+    { t: 'Site objects from City of Vancouver open data: indicative, confirm on site.', at: null }
+  ];
+  return RPT.dsheet(d, 'A-101', 'Site plan', sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: xBot, north: true });
 };
 
-// ── A-102 Layout plan, 1:100 (schematic: the coloured plan) ─────────────────────────────────────────
+// ── A-102 Layout plan, 1:100 ────────────────────────────────────────────────────────────────────────
 RPT.sheetLayout = function(d) {
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), sc = 100, k = 1000 / sc;
   var span = (RPT.DA.w - 58) / k, want0 = -(G.c13 + G.c03 + 1), want1 = G.L + G.c13 + G.c03 + 1;
   var zA = Math.max(want0, (want0 + want1) / 2 - span / 2), zB = zA + span;
   var xTop = LM.sidewalkL.x0 - 0.8, xBot = LM.roadRight + 0.8, F = RPT.pframe(sc, zA, zB, xTop, 46, 22);
-  var xa = F.sx(zB), xb = F.sx(zA), ya = F.sy(xTop), yb = F.sy(xBot);
+  var xa = F.sx(zB), xb = F.sx(zA), ya = F.sy(xTop), yb = F.sy(xBot), zoneAt = null;
   P.clipOpen("<rect x='" + xa + "' y='" + ya + "' width='" + (xb - xa) + "' height='" + (yb - ya) + "'/>");
   RPT.planBase(P, G, F, d.mode, { boards: true, hatchSidewalk: true });
   // the parklet's own pieces: railing line, end planters, wheel stops
-  var rx = F.sy(LM.deckX1 - 0.02); P.line(F.sx(0), rx, F.sx(G.L), rx, { w: RPT.LW.obj });
-  G.ends.forEach(function(e) { P.rect(F.sx(e.z1), F.sy(e.x0), (e.z1 - e.z0) * k, (e.x1 - e.x0) * k, { fill: e.kind === 'wheel-stop' ? RPT.fills(d.mode).ws : RPT.fills(d.mode).planter, w: RPT.LW.obj }); });
+  var rx = F.sy(LM.deckX1 - 0.02); P.line(F.sx(0), rx, F.sx(G.L), rx, { cls: 'edge' });
+  G.ends.forEach(function(e) { P.rect(F.sx(e.z1), F.sy(e.x0), (e.z1 - e.z0) * k, (e.x1 - e.x0) * k, { fill: e.kind === 'wheel-stop' ? RPT.fills(d.mode).ws : RPT.fills(d.mode).planter, cls: 'edge' }); });
   RPT.planFurn(P, G, F, d);
   RPT.planObjects(P, G, F, {});
-  // clearance zones, dashed, with the rule ID; red while that check fails
-  var zone = function(id, z0, z1, x0, x1, label) {
+  // clearance zones: DRAW_STYLE's zone line (fine, dashed; red when that check fails), the rule ID in its lozenge
+  var zst = function(id) { return G.fail(id) ? 'fail' : 'pass'; };
+  var zone = function(id, z0, z1, x0, x1) {
     z0 = Math.max(Math.min(z0, z1), F.zA); z1 = Math.min(Math.max(z0, z1), F.zB); if (z1 - z0 < 0.05) return;
-    var bad = G.fail(id), c = bad ? RPT.RED : RPT.INK, X0 = F.sx(z1), W = (z1 - z0) * k;
-    P.rect(X0, F.sy(x0), W, (x1 - x0) * k, { w: RPT.LW.gen, dash: 'zone', c: c, fill: bad ? 'rgba(198,40,40,0.06)' : 'none', data: " data-zone='" + id + "'" });
-    if (W > RPT.tw(label, RPT.TX.tag) + 1) P.text(X0 + W / 2, F.sy(x0) + 2.4, label, RPT.TX.tag, { anchor: 'middle', c: c });
+    var z = DRAW_STYLE.zone(P.ctx, zst(id)), X0 = F.sx(z1), W = (z1 - z0) * k;
+    P.rect(X0, F.sy(x0), W, (x1 - x0) * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, fill: 'none', data: " data-zone='" + id + "'" });
+    if (W > 7) { DRAW_SYMBOLS.lozenge(P, X0 + W / 2, F.sy(x0) + 2.4, id.replace(/^c(\d)$/, 'C0$1').toUpperCase(), zst(id)); if (!zoneAt) zoneAt = [X0 + W / 2 + 5, F.sy(x1) - 2]; }
   };
   var dx0 = LM.deckX0, dx1 = LM.deckX1;
-  zone('c13', -G.c13, 0, dx0, dx1, 'C13 ' + G.c13.toFixed(1)); zone('c13', G.L, G.L + G.c13, dx0, dx1, 'C13 ' + G.c13.toFixed(1));
-  zone('c3', -G.c13 - G.c03, -G.c13, dx0, dx1, 'C03 ' + G.c03.toFixed(1)); zone('c3', G.L + G.c13, G.L + G.c13 + G.c03, dx0, dx1, 'C03 ' + G.c03.toFixed(1));
+  zone('c13', -G.c13, 0, dx0, dx1); zone('c13', G.L, G.L + G.c13, dx0, dx1);
+  zone('c3', -G.c13 - G.c03, -G.c13, dx0, dx1); zone('c3', G.L + G.c13, G.L + G.c13 + G.c03, dx0, dx1);
   G.cf.forEach(function(c) {
-    if (c.type === 'H') zone('c5', c.z - 5, c.z + 5, Math.min(c.x - 0.6, dx0), dx1, 'C05 5.0');
+    if (c.type === 'H') zone('c5', c.z - 5, c.z + 5, Math.min(c.x - 0.6, dx0), dx1);
     var r = c.type === 'P' ? (G.trolley ? 2.4 : 1.0) : c.type === 'S' ? 2.0 : 0, id = c.type === 'P' ? 'c7' : 'c8';
-    if (r) { var bad = G.fail(id); P.circle(F.sx(c.z), F.sy(c.x), r * k, { w: RPT.LW.gen, dash: 'zone', c: bad ? RPT.RED : RPT.INK, data: " data-zone='" + id + "'" }); P.text(F.sx(c.z) + r * k + 0.6, F.sy(c.x) - 0.6, (id === 'c7' ? 'C07 ' : 'C08 ') + r.toFixed(1), RPT.TX.tag, { c: bad ? RPT.RED : RPT.INK }); }
+    if (r) { var z = DRAW_STYLE.zone(P.ctx, zst(id)); P.circle(F.sx(c.z), F.sy(c.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='" + id + "'" }); DRAW_SYMBOLS.lozenge(P, F.sx(c.z) + r * k + 4, F.sy(c.x) - 2, id === 'c7' ? 'C07' : 'C08', zst(id)); }
   });
-  G.mh.forEach(function(m) { var bad = G.fail('c9'), r = 1 + (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47); P.circle(F.sx(m.z), F.sy(m.x), r * k, { w: RPT.LW.gen, dash: 'zone', c: bad ? RPT.RED : RPT.INK, data: " data-zone='c9'" }); });
+  G.mh.forEach(function(m) { var z = DRAW_STYLE.zone(P.ctx, zst('c9')), r = 1 + (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47); P.circle(F.sx(m.z), F.sy(m.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='c9'" }); DRAW_SYMBOLS.lozenge(P, F.sx(m.z) + r * k + 4, F.sy(m.x) - 2, 'C09', zst('c9')); });
   P.clipClose();
-  P.rect(xa, ya, xb - xa, yb - ya, { w: RPT.LW.ctx });
+  P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
   // across: the running chain of segments (frontage .. far curb) and the overall, left of the drawing
   var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0];
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk') return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
@@ -19443,17 +19495,19 @@ RPT.sheetLayout = function(d) {
   RPT.chainV(P, stops.map(function(x) { return F.sy(x); }), xa - 12, m, { ext: xa, side: 'left' });
   // along: the deck from the host building's frontage line (the nearer end of its frontage), and its length
   var host = G.DM.site.host && G.DM.buildings.L[G.DM.site.host.index], hz = host && host.footprint ? (Math.abs(host.footprint.z0) <= Math.abs(host.footprint.z1 - G.L) ? host.footprint.z0 : host.footprint.z1) : null;
-  var ay = F.sy(xTop) - 7, zs = [0, G.L], lab = null;
+  var ay = F.sy(xTop) - 7, zs = [0, G.L];
   if (hz != null && hz >= zA && hz <= zB && Math.abs(hz) > 0.05 && Math.abs(hz - G.L) > 0.05) { zs.push(hz); }
   zs.sort(function(a, b) { return b - a; });
   RPT.chainH(P, zs.map(function(z) { return F.sx(z); }), ay, zs.slice(1).map(function(z, i) { return zs[i] - z; }), { ext: F.sy(LM.sidewalkL.x0), up: true });
-  if (hz != null && zs.indexOf(hz) >= 0) P.text(F.sx(hz), ay - 13, 'HOST FRONTAGE (' + (host.name || host.use || 'host') + ')', RPT.TX.tag, { anchor: hz > G.L / 2 ? 'end' : 'start', c: RPT.MID });
   RPT.secMarker(P, F.sx(G.sec.z), F.sy(LM.sidewalkL.x0) - 1, F.sy(LM.roadRight) + 1, G.sec.dir === 1);
-  RPT.northSym(P, xb - 8, yb + 12, 4.5);
-  var notes = ['Segments from the Section editor, curb to far curb, chained with the overall; the deck located from the host building frontage.',
-    'Clearance zones dashed with the Parklet Manual rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal box, C09 chamber, C13 parking); red = that check fails.',
-    'Furniture tags: schedule S-001. Hydrant H, pole P, signal S, bus stop, street trees as canopy circles.'];
-  return RPT.dsheet(d, 'A-102', d.mode === 'technical' ? 'Layout plan' : 'Coloured plan', sc, P, notes);
+  var keys = [
+    { t: 'Segments from the Section editor, chained with the overall, frontage to far curb.', at: [xa - 20, (F.sy(0) + F.sy(LM.roadRight)) / 2] },
+    { t: hz != null && zs.indexOf(hz) >= 0 ? 'The deck located from the host frontage (' + (host.name || host.use || 'host') + ').' : 'The deck located along the curb from its start.', at: [F.sx(G.L / 2), ay - 9] },
+    { t: 'Clearance zones dashed, with their rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal, C09 chamber, C13 parking); red: the check fails.', at: zoneAt },
+    { t: 'Furniture tags: schedule S-001.', at: null },
+    { t: 'Section A-A: sheet A-201; deck plan A-103.', at: [F.sx(G.sec.z) + 10, F.sy(LM.sidewalkL.x0) - 6] }
+  ];
+  return RPT.dsheet(d, 'A-102', 'Layout plan', sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: xBot, north: true });
 };
 
 // ── A-103 Deck plan, 1:50 (split into equal parts with match lines when the deck does not fit the width) ──
@@ -19467,12 +19521,12 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), sc = 50, k = 1000 / sc, FI = RPT.fills(d.mode), L = G.L;
   var za = part[0], zb = part[1], first = za <= 0.001, last = zb >= L - 0.001;
   var zA = za - (first ? 0.8 : 0.3), zB = zb + (last ? 0.8 : 0.3);
-  var xTop = LM.deckX0 - 0.6, F = RPT.pframe(sc, zA, zB, xTop, (RPT.DA.w - (zB - zA) * k) / 2 + 8, 70);
+  var xTop = LM.deckX0 - 0.6, F = RPT.pframe(sc, zA, zB, xTop, 20, 70);
   var sy = function(x) { return F.sy(x); }, sx = function(z) { return F.sx(z); };
-  var ya = sy(xTop), yb = sy(LM.deckX1 + 0.9), xa = sx(zB), xb = sx(zA);
+  var ya = sy(xTop), yb = sy(LM.deckX1 + 0.9), xa = sx(zB), xb = sx(zA), routeAt = null, entryAt = null;
   P.clipOpen("<rect x='" + xa + "' y='" + (ya - 40) + "' width='" + (xb - xa) + "' height='" + (yb - ya + 80) + "'/>");
   // sidewalk edge, curb, the road side
-  P.line(xa, sy(0), xb, sy(0), { w: RPT.LW.obj }); P.text(xa + 2, sy(0) - 1.4, 'CURB (EDGE OF SIDEWALK)', RPT.TX.tag, { c: RPT.MID });
+  P.line(xa, sy(0), xb, sy(0), { cls: 'edge' }); P.text(xa + 2, sy(0) - 1.4, 'Curb (edge of sidewalk)', RPT.TX.tag, { c: RPT.MID });
   var b = RPT.planBase(P, G, F, d.mode, { boards: true, labels: false });
   // accessible route (the generator's access model: cells at least the route width, reached from the entries), hatched
   var acc = d.gm && d.gm.grid;
@@ -19483,61 +19537,71 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
       for (var i = 0; i <= acc.nx; i++) {
         var on = i < acc.nx && acc.reached[j * acc.nx + i];
         if (on && i0 < 0) i0 = i;
-        if (!on && i0 >= 0) { rects += "<rect x='" + sx((j + 1) * C).toFixed(2) + "' y='" + sy(LM.deckX0 + i0 * C).toFixed(2) + "' width='" + (C * k).toFixed(2) + "' height='" + ((i - i0) * C * k).toFixed(2) + "'/>"; i0 = -1; }
+        if (!on && i0 >= 0) { var rz = (j + 0.5) * C; if (!routeAt && rz >= za && rz <= zb) routeAt = [sx(rz), sy(LM.deckX0 + (i0 + i) / 2 * C)]; rects += "<rect x='" + sx((j + 1) * C).toFixed(2) + "' y='" + sy(LM.deckX0 + i0 * C).toFixed(2) + "' width='" + (C * k).toFixed(2) + "' height='" + ((i - i0) * C * k).toFixed(2) + "'/>"; i0 = -1; }
       }
     }
     if (rects) P.hatch(rects, [xa, ya, xb, yb], 'route');
-    (d.gm.entryZ || []).forEach(function(ez) { if (ez == null || ez < zA || ez > zB) return; var T = typeof GEN !== 'undefined' ? GEN.TURN : 1.5; P.rect(sx(ez + T / 2), sy(LM.deckX0), T * k, T * k, { w: RPT.LW.gen, dash: 'hidden' }); P.text(sx(ez), sy(LM.deckX0) + T * k / 2 + 0.7, 'ENTRY', RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); });
+    (d.gm.entryZ || []).forEach(function(ez) { if (ez == null || ez < zA || ez > zB) return; var T = typeof GEN !== 'undefined' ? GEN.TURN : 1.5; P.rect(sx(ez + T / 2), sy(LM.deckX0), T * k, T * k, { cls: 'general', dash: 'hidden' }); P.text(sx(ez), sy(LM.deckX0) + T * k / 2 + 0.7, 'Entry', RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); if (!entryAt) entryAt = [sx(ez) + T * k / 2 + 4, sy(LM.deckX0) + 3]; });
   }
   // end planters and wheel stops
-  G.ends.forEach(function(e) { if (e.z1 < zA || e.z0 > zB) return; P.rect(sx(e.z1), sy(e.x0), (e.z1 - e.z0) * k, (e.x1 - e.x0) * k, { fill: e.kind === 'wheel-stop' ? FI.ws : FI.planter, w: RPT.LW.obj });
-    if (e.kind === 'end-planter') P.hatch("<rect x='" + sx(e.z1) + "' y='" + sy(e.x0) + "' width='" + ((e.z1 - e.z0) * k) + "' height='" + ((e.x1 - e.x0) * k) + "'/>", [sx(e.z1), sy(e.x0), sx(e.z0), sy(e.x1)], 'planting'); });
+  var plAt = null, wsAt = null;
+  G.ends.forEach(function(e) { if (e.z1 < zA || e.z0 > zB) return; P.rect(sx(e.z1), sy(e.x0), (e.z1 - e.z0) * k, (e.x1 - e.x0) * k, { fill: e.kind === 'wheel-stop' ? FI.ws : FI.planter, cls: 'edge' });
+    if (e.kind === 'end-planter') { P.hatch("<rect x='" + sx(e.z1) + "' y='" + sy(e.x0) + "' width='" + ((e.z1 - e.z0) * k) + "' height='" + ((e.x1 - e.x0) * k) + "'/>", [sx(e.z1), sy(e.x0), sx(e.z0), sy(e.x1)], 'planting'); plAt = [sx((e.z0 + e.z1) / 2), sy(e.x0) - 3]; }
+    else wsAt = [sx((e.z0 + e.z1) / 2), sy(e.x1) + 6]; });
   // railing along the road-side edge: its line, a post square at every post, a grid line through each post
   var R = G.rail, rx = LM.deckX1 - R.postW / 2, posts = [];
   for (var z = R.firstPost; z < L - 0.1; z += R.post) posts.push(z);
-  P.line(sx(Math.max(0, za)), sy(rx), sx(Math.min(L, zb)), sy(rx), { w: RPT.LW.obj });
+  P.line(sx(Math.max(0, za)), sy(rx), sx(Math.min(L, zb)), sy(rx), { cls: 'edge' });
   posts.forEach(function(z, n) {
     if (z < za - 1e-6 || z > zb + 1e-6) return;
     P.rect(sx(z) - R.postW * k / 2, sy(rx) - R.postW * k / 2, R.postW * k, R.postW * k, { fill: RPT.INK, w: 0 });
-    P.line(sx(z), ya - 7, sx(z), yb + 2, { w: RPT.LW.hatch, dash: 'centre', c: RPT.MID });
-    RPT.sym.grid(P, sx(z), ya - 10, String(n + 1));
+    P.line(sx(z), ya - 7, sx(z), yb + 2, { cls: 'fine', dash: 'centre', c: RPT.MID });
+    RPT.sym.grid(P, sx(z), ya - 12, String(n + 1));
   });
   RPT.planFurn(P, G, F, d);
   P.clipClose();
+  // the section cut where it falls on this part
+  if (G.sec.z >= za - 1e-6 && G.sec.z <= zb + 1e-6) RPT.secMarker(P, sx(G.sec.z), ya - 2, yb + 1, G.sec.dir === 1);
   // match line
-  var notes = [];
+  var mlAt = null;
   if (nParts > 1) {
     var mz = idx === 0 ? zb : za, mx = sx(mz);
-    P.line(mx, ya - 4, mx, yb + 4, { w: RPT.LW.cut, dash: 'property' });
-    P.text(mx + (idx === 0 ? -1.5 : 1.5), yb + 8, 'MATCH LINE  z ' + mz.toFixed(2) + ' m  SEE A-103-' + (idx === 0 ? 2 : 1), RPT.TX.tag, { anchor: idx === 0 ? 'end' : 'start', bold: true });
+    DRAW_SYMBOLS.matchLine(P, mx, ya - 4, yb + 12, 'Match line z ' + mz.toFixed(2) + ' m, see A-103-' + (idx === 0 ? 2 : 1), idx === 0 ? 'left' : 'right');   // its label below the section marker
+    mlAt = null;
   }
   // dimensions: the deck length on this sheet (and overall), width, wheel stops and planters
   var dy = yb + 16, lenHere = Math.min(L, zb) - Math.max(0, za);
   RPT.dimH(P, sx(Math.min(L, zb)), sx(Math.max(0, za)), dy, lenHere.toFixed(2) + (nParts > 1 ? ' (of ' + L.toFixed(2) + ' overall)' : ''), { ext: sy(LM.deckX1), data: " data-deck-len='" + lenHere.toFixed(3) + "'" });
   RPT.dimV(P, sy(LM.deckX0), sy(LM.deckX1), xb + 14, (LM.deckX1 - LM.deckX0).toFixed(2), { side: 'right', ext: sx(Math.max(0, za)) });
-  if (posts.length > 1) { var pa = posts.filter(function(z) { return z >= za && z <= zb; }); if (pa.length > 1) RPT.dimH(P, sx(pa[1]), sx(pa[0]), ya - 16, R.post.toFixed(2) + ' TYP. POST SPACING', { ext: ya - 12 }); }
+  if (posts.length > 1) { var pa = posts.filter(function(z) { return z >= za && z <= zb; }); if (pa.length > 1) RPT.dimH(P, sx(pa[1]), sx(pa[0]), ya - 18, R.post.toFixed(2) + ' typ.', { ext: ya - 16 }); }
   G.ends.forEach(function(e) {
     if (e.z1 < zA || e.z0 > zB) return;
     if (e.kind === 'wheel-stop') {
       var dzg = e.end ? e.z0 - L : 0 - e.z1, gz0 = e.end ? L : e.z1, gz1 = e.end ? e.z0 : 0;
       RPT.dimH(P, sx(Math.max(gz0, gz1)), sx(Math.min(gz0, gz1)), sy(e.x1) + 5, dzg.toFixed(2), { ext: sy(e.x1), side: e.end ? 'left' : 'right' });
-      P.text(sx((e.z0 + e.z1) / 2), sy(e.x1) + 11, 'WHEEL STOP ' + (e.x1 - e.x0).toFixed(2) + ' x ' + (e.z1 - e.z0).toFixed(2), RPT.TX.tag, { anchor: e.end ? 'start' : 'end' });
     } else {
       RPT.dimH(P, sx(e.z1), sx(e.z0), ya - 3, (e.z1 - e.z0).toFixed(2), { ext: sy(e.x0) });
-      P.text(sx((e.z0 + e.z1) / 2), sy((e.x0 + e.x1) / 2) + 0.7, 'PLANTER', RPT.TX.tag, { anchor: 'middle', bold: true });
     }
   });
-  notes.push('Deck only, 1:50. Grid lines 1, 2, 3 ... at every railing post (' + R.post.toFixed(2) + ' m, first at ' + R.firstPost.toFixed(2) + ' m); railing ' + R.h.toFixed(2) + ' m high on the traffic side (details A-301).',
-    'Hatched: the accessible route (clear width >= ' + (typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92) + ' m reached from the entry turning spaces, generator access model).',
-    'Tags F1, F2 ...: furniture schedule S-001. Wheel stops 0.25 m clear of each deck end; end planters in the 1.1 m end zones.');
+  var ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; });
+  var keys = [
+    { t: 'Grid lines 1, 2, 3 ... at the railing posts, ' + R.post.toFixed(2) + ' m apart, the first at ' + R.firstPost.toFixed(2) + ' m.', at: null },
+    { t: 'Railing ' + R.h.toFixed(2) + ' m high on the traffic side: details A-301.', at: [sx((Math.max(0, za) + Math.min(L, zb)) / 2), sy(rx) + 5] },
+    { t: 'Hatched: the accessible route, clear width ' + (typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92) + ' m or more from the entries.', at: routeAt },
+    { t: 'Entry turning space, ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(2) + ' m square.', at: entryAt },
+    { t: 'End planter in the 1.10 m end zone.', at: plAt },
+    { t: ws ? 'Wheel stop ' + (ws.x1 - ws.x0).toFixed(2) + ' x ' + (ws.z1 - ws.z0).toFixed(2) + ', 0.25 m clear of the deck end.' : 'Wheel stops 0.25 m clear of each deck end.', at: wsAt },
+    { t: 'Furniture tags: schedule S-001.', at: null }
+  ];
   var id = nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103';
-  return RPT.dsheet(d, id, 'Deck plan' + (nParts > 1 ? ' (' + (idx + 1) + ' of ' + nParts + ')' : ''), sc, P, notes);
+  return RPT.dsheet(d, id, 'Deck plan' + (nParts > 1 ? ' (' + (idx + 1) + ' of ' + nParts + ')' : ''), sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: LM.deckX1 + 0.9, north: true });
 };
 
-// ── A-201 Section A-A, 1:50: sidewalk to the first travel lane, datum at the top of the curb ──────────
+// ── A-201 Section A-A, 1:50 (1:100 when it does not fit): sidewalk to the first travel lane, datum at the top of the curb ──
 RPT.sheetSection = function(d) {
-  var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), sc = 50, k = 1000 / sc, FI = RPT.fills(d.mode), lv = G.lv, R = G.rail;
+  var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), FI = RPT.fills(d.mode), lv = G.lv, R = G.rail;
   var lane = G.segs.find(function(s) { return s.type === 'travel-lane'; }), xL = LM.sidewalkL.x0 - 0.4, xR = (lane ? lane.x1 : LM.roadRight) + 0.4;
+  var sc = (xR - xL) * 20 + 70 <= RPT.DA.w ? 50 : 100, k = 1000 / sc;   // the next scale, never shrunk
   var mir = G.sec.dir === 1, W = (xR - xL) * k, X0 = (RPT.DA.w - W) / 2, ROAD = 150;
   var X = function(x) { return mir ? X0 + W - (x - xL) * k : X0 + (x - xL) * k; }, Y = function(y) { return ROAD - y * k; };
   var box = function(x0, x1, y0, y1) { var a = X(x0), b = X(x1); return [Math.min(a, b), Y(y1), Math.abs(b - a), (y1 - y0) * k]; };
@@ -19545,136 +19609,135 @@ RPT.sheetSection = function(d) {
   var shape = function(q) { return "<rect x='" + q[0].toFixed(2) + "' y='" + q[1].toFixed(2) + "' width='" + q[2].toFixed(2) + "' height='" + q[3].toFixed(2) + "'/>"; };
   var hat = function(q, kind) { P.hatch(shape(q), [q[0], q[1], q[0] + q[2], q[1] + q[3]], kind); };
   P.clipOpen("<rect x='" + X0 + "' y='8' width='" + W + "' height='" + (ROAD + 0.5 * k - 8) + "'/>");
-  // ground below everything, then the cut: sidewalk slab, curb, road, deck (0.7 for deck and curb)
+  // ground below everything, then the cut: sidewalk slab, curb, road, deck (cut weight for deck and curb)
   var gq = rectXY(xL, xR, -0.45, -0.1, { fill: FI.earth, w: 0 }); hat(gq, 'earth');
-  var sw = rectXY(xL, -0.15, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', w: RPT.LW.cut }); hat(sw, 'concrete');
-  rectXY(xL, -0.15, -0.1, lv.curbTop - 0.1, { fill: FI.earth, w: RPT.LW.cut });
-  var cb = rectXY(-0.15, 0, -0.3, lv.curbTop, { fill: '#FFFFFF', w: RPT.LW.cutH }); hat(cb, 'concrete');
-  var rd = rectXY(0, xR, -0.1, 0, { fill: '#FFFFFF', w: RPT.LW.cut }); hat(rd, 'asphalt');
-  // deck structure (indicative supports from the road to the deck), then the deck board cut
-  for (var sx0 = LM.deckX0 + 0.3; sx0 < LM.deckX1 - 0.1; sx0 += 0.6) rectXY(sx0 - 0.025, sx0 + 0.025, 0, lv.deckTop - lv.deckThk, { w: RPT.LW.gen });
-  rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk - 0.09, lv.deckTop - lv.deckThk, { w: RPT.LW.gen });
-  var dk = rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk, lv.deckTop, { fill: '#FFFFFF', w: RPT.LW.cutH }); hat(dk, 'timberCut');
-  // beyond: end planter, wheel stop, furniture and trees in the section depth (outline 0.25)
+  var sw = rectXY(xL, -0.15, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', cls: 'object' }); hat(sw, 'concrete');
+  rectXY(xL, -0.15, -0.1, lv.curbTop - 0.1, { fill: FI.earth, cls: 'object' });
+  var cb = rectXY(-0.15, 0, -0.3, lv.curbTop, { fill: '#FFFFFF', cls: 'cut' }); hat(cb, 'concrete');
+  var rd = rectXY(0, xR, -0.1, 0, { fill: '#FFFFFF', cls: 'object' }); hat(rd, 'asphalt');
+  // deck structure (indicative supports from the road to the deck), then the deck board cut: thin material, solid
+  for (var sx0 = LM.deckX0 + 0.3; sx0 < LM.deckX1 - 0.1; sx0 += 0.6) rectXY(sx0 - 0.025, sx0 + 0.025, 0, lv.deckTop - lv.deckThk, { cls: 'general' });
+  rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk - 0.09, lv.deckTop - lv.deckThk, { cls: 'general' });
+  var dk = rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk, lv.deckTop, { fill: '#FFFFFF', cls: 'cut' }); hat(dk, 'cut');
+  // beyond: end planter, wheel stop, furniture and trees in the section depth (general)
   var ep = G.ends.find(function(e) { return e.kind === 'end-planter'; }), ph = ep ? (ep.y1 - ep.y0) : 0;
-  if (ep) { var pq = rectXY(ep.x0, ep.x1, lv.deckTop, lv.deckTop + ph, { fill: FI.planter, w: RPT.LW.gen }); hat(pq, 'planting'); }
-  var ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; }); if (ws) rectXY(ws.x0, ws.x1, 0, ws.y1, { fill: FI.ws, w: RPT.LW.gen });
-  var scn = getSectionScene(G.sec);
+  if (ep) { var pq = rectXY(ep.x0, ep.x1, lv.deckTop, lv.deckTop + ph, { fill: FI.planter, cls: 'general' }); hat(pq, 'planting'); }
+  var ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; }); if (ws) rectXY(ws.x0, ws.x1, 0, ws.y1, { fill: FI.ws, cls: 'general' });
+  var scn = getSectionScene(G.sec), furnAt = null;
   scn.beyond.concat(scn.cut).forEach(function(it) {
-    if (it.kind === 'furniture') { var on = it.x0 >= LM.deckX0 - 0.01 && it.x1 <= LM.deckX1 + 0.01, base = on ? lv.deckTop : it.x1 <= 0 ? lv.curbTop : 0; rectXY(it.x0, it.x1, base, base + (it.y1 - it.y0), { fill: FI.furn, w: scn.cut.indexOf(it) >= 0 ? RPT.LW.cut : RPT.LW.gen }); }
+    if (it.kind === 'furniture') { var on = it.x0 >= LM.deckX0 - 0.01 && it.x1 <= LM.deckX1 + 0.01, base = on ? lv.deckTop : it.x1 <= 0 ? lv.curbTop : 0; var fq = rectXY(it.x0, it.x1, base, base + (it.y1 - it.y0), { fill: FI.furn, cls: scn.cut.indexOf(it) >= 0 ? 'object' : 'general' }); if (!furnAt) furnAt = [fq[0] + fq[2] / 2, fq[1] - 4]; }
     else if (it.kind === 'tree' && it.data && it.data.v) { var v = it.data.v, top = v.form ? Math.max(v.heightM, v.clearH + 1) : 2 + 1.12 * v.canopyR, ch = v.form ? v.clearH : 2.0, base = v.x < 0 ? lv.curbTop : 0;
-      rectXY(v.x - (v.trunkR || 0.08), v.x + (v.trunkR || 0.08), base, base + ch, { w: RPT.LW.gen });
-      P.ellipse(X(v.x), Y(base + (ch + top) / 2), v.canopyR * k, (top - ch) / 2 * k, { w: RPT.LW.ctx, fill: d.mode === 'technical' ? 'none' : 'rgba(127,160,110,0.35)' }); }
+      rectXY(v.x - (v.trunkR || 0.08), v.x + (v.trunkR || 0.08), base, base + ch, { cls: 'general' });
+      P.ellipse(X(v.x), Y(base + (ch + top) / 2), v.canopyR * k, (top - ch) / 2 * k, { cls: 'context', fill: d.mode === 'technical' ? 'none' : DRAW_STYLE.schematic.fill.planting, fop: 0.45 }); }
   });
-  // the railing on the traffic side: a post (elevation) and the two rails (cut)
+  // the railing on the traffic side: a post (elevation) and the two rails (cut: steel, solid)
   var rpx0 = LM.deckX1 - R.postW, post = rectXY(rpx0, LM.deckX1, lv.deckTop, lv.deckTop + R.h, { fill: RPT.MARK.post, w: 0, data: " data-rail-h='" + R.h + "'" });
-  R.rails.forEach(function(h, i) { var th = i === R.rails.length - 1 ? R.topRail : R.midRail; rectXY(rpx0, LM.deckX1, lv.deckTop + h - (i === R.rails.length - 1 ? 0.04 : 0), lv.deckTop + h + th - (i === R.rails.length - 1 ? 0.04 : 0), { fill: RPT.INK, w: RPT.LW.cut }); });
+  R.rails.forEach(function(h, i) { var th = i === R.rails.length - 1 ? R.topRail : R.midRail; rectXY(rpx0, LM.deckX1, lv.deckTop + h - (i === R.rails.length - 1 ? 0.04 : 0), lv.deckTop + h + th - (i === R.rails.length - 1 ? 0.04 : 0), { fill: RPT.INK, cls: 'object' }); });
   P.clipClose();
   // datum (top of curb) and levels
-  P.line(X0 - 4, Y(lv.curbTop), X0 + W + 4, Y(lv.curbTop), { w: RPT.LW.ctx, dash: 'centre' });
+  P.line(X0 - 4, Y(lv.curbTop), X0 + W + 4, Y(lv.curbTop), { cls: 'context', dash: 'centre' });
   var lx = mir ? X0 - 8 : X0 + W + 8, right = !mir;
-  RPT.sym.level(P, lx, Y(lv.deckTop), 'DECK +' + (lv.deckTop - lv.curbTop).toFixed(3), right);
-  RPT.sym.level(P, lx, Y(lv.curbTop) + 6, 'TOP OF CURB +/-0.000 (DATUM)', right);
-  RPT.sym.level(P, lx, Y(0) + 12, 'ROAD ' + (0 - lv.curbTop).toFixed(3), right);
+  RPT.sym.level(P, lx, Y(lv.deckTop), 'Deck +' + (lv.deckTop - lv.curbTop).toFixed(3), right);
+  RPT.sym.level(P, lx, Y(lv.curbTop) + 6, 'Top of curb ±0.000 (datum)', right);
+  RPT.sym.level(P, lx, Y(0) + 12, 'Road ' + (0 - lv.curbTop).toFixed(3), right);
   // heights at the railing: railing height above the deck, planter height, the deck above the datum
   var rX = X(LM.deckX1) + (mir ? -10 : 10);
-  RPT.dimV(P, Y(lv.deckTop + R.h), Y(lv.deckTop), rX, R.h.toFixed(3) + ' RAILING', { side: mir ? 'left' : 'right', ext: X(LM.deckX1), data: " data-dim='rail-h'" });
-  if (ep) RPT.dimV(P, Y(lv.deckTop + ph), Y(lv.deckTop), X(ep.x0) + (mir ? 6 : -6), ph.toFixed(3) + ' PLANTER', { side: mir ? 'right' : 'left', size: RPT.TX.tag });
+  RPT.dimV(P, Y(lv.deckTop + R.h), Y(lv.deckTop), rX, R.h.toFixed(3) + ' railing', { side: mir ? 'left' : 'right', ext: X(LM.deckX1), data: " data-dim='rail-h'" });
+  if (ep) RPT.dimV(P, Y(lv.deckTop + ph), Y(lv.deckTop), X(ep.x0) + (mir ? 6 : -6), ph.toFixed(3) + ' planter', { side: mir ? 'right' : 'left', size: RPT.TX.tag });
   // clearance from the railing to the adjacent travel lane
-  if (lane) RPT.dimH(P, Math.min(X(LM.deckX1), X(lane.x0)), Math.max(X(LM.deckX1), X(lane.x0)), Y(lv.deckTop + R.h + 0.35), (lane.x0 - LM.deckX1).toFixed(2) + ' TO LANE', { ext: Y(lv.deckTop + R.h), data: " data-dim='lane-clear'" });
+  if (lane) RPT.dimH(P, Math.min(X(LM.deckX1), X(lane.x0)), Math.max(X(LM.deckX1), X(lane.x0)), Y(lv.deckTop + R.h + 0.35), (lane.x0 - LM.deckX1).toFixed(2) + ' to lane', { ext: Y(lv.deckTop + R.h), data: " data-dim='lane-clear'" });
   // across: the running chain to the end of the first lane, and the overall
-  var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0], labs = [];
+  var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0];
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk' || (lane && sg.x0 >= lane.x1 - 1e-6)) return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
   var ys = Y(-0.45) + 8, xs = stops.map(X);
   if (mir) { xs.reverse(); m.reverse(); }
   RPT.chainH(P, xs, ys, m, { ext: Y(-0.45) });
   stops.slice(0, -1).forEach(function(x, i) { var sg = i === 0 ? { type: 'sidewalk' } : G.segs.find(function(s) { return Math.abs(s.x0 - x) < 1e-6 && s.type !== 'sidewalk'; }); if (!sg) return;
-    var cx = (X(x) + X(stops[i + 1])) / 2; P.text(cx, Y(-0.45) + 24, RPT.SEG[sg.type] || sg.type.toUpperCase(), RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); });
-  var notes = ['Section A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + '; objects up to ' + G.sec.depth.toFixed(1) + ' m beyond the cut drawn in elevation (0.25), the cut in 0.5 / 0.7.',
-    'Levels from the Section: road 0, sidewalk and top of curb +' + lv.curbTop.toFixed(3) + ' m above the road, deck +' + lv.deckTop.toFixed(3) + ' (deck board ' + lv.deckThk.toFixed(3) + '); supports indicative.',
-    'Railing ' + R.h.toFixed(3) + ' m above the deck (rails at ' + R.rails.map(function(h) { return h.toFixed(2); }).join(' / ') + '); details A-301.'];
-  return RPT.dsheet(d, 'A-201', 'Section A-A', sc, P, notes);
+    var cx = (X(x) + X(stops[i + 1])) / 2; P.text(cx, Y(-0.45) + 24, RPT.SEG[sg.type] || sg.type, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); });
+  var keys = [
+    { t: 'Section A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ': the cut drawn in the cut weight, ' + G.sec.depth.toFixed(1) + ' m beyond in elevation.', at: null },
+    { t: 'Deck board ' + (lv.deckThk * 1000).toFixed(0) + ' mm, cut; deck +' + lv.deckTop.toFixed(3) + ' m above the road.', at: [X((LM.deckX0 + LM.deckX1) / 2), Y(lv.deckTop) - 5] },
+    { t: 'Supports indicative, not a structural design.', at: [X(LM.deckX0 + 0.3), Y(0.05) - 1] },
+    { t: 'Railing ' + R.h.toFixed(3) + ' m above the deck, rails at ' + R.rails.map(function(h) { return h.toFixed(2); }).join(' and ') + ' m: details A-301.', at: [X(LM.deckX1) + (mir ? 6 : -6), Y(lv.deckTop + R.h) - 3] },
+    { t: 'Furniture and trees beyond the cut in elevation.', at: furnAt }
+  ];
+  return RPT.dsheet(d, 'A-201', 'Section A-A', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: xL, xBot: xR });
 };
 
 // ── A-301 Details, 1:10: railing elevation and section, deck edge at the curb, wheel stop ───────────
 RPT.sheetDetails = function(d) {
   var G = RPT.geo(d), P = RPT.pen(), sc = 10, k = 1000 / sc, R = G.rail, lv = G.lv, ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; });
-  var cell = function(n, x, y, title) { P.circle(x + 4, y + 4, 3.2, { w: RPT.LW.gen }); P.text(x + 4, y + 5.2, String(n), RPT.TX.head, { anchor: 'middle', bold: true }); P.text(x + 10, y + 5.2, title, RPT.TX.head, { bold: true }); P.text(x + 10 + RPT.tw(title, RPT.TX.head) + 3, y + 5.2, '1:10', RPT.TX.body, { c: RPT.MID }); };
-  // 1 railing elevation: a 1.4 m run (two posts), deck surface, rails; heights and spacing
-  var ox = 20, gy = 104, run = 1.4, p0 = 0.2;
-  cell(1, 4, 6, 'RAILING ELEVATION');
-  P.line(ox - 4, gy, ox + run * k + 4, gy, { w: RPT.LW.cutH });
-  [p0, p0 + R.post].forEach(function(z) { P.rect(ox + z * k - R.postW * k / 2, gy - R.h * k, R.postW * k, R.h * k, { w: RPT.LW.obj, fill: '#FFFFFF' }); });
+  var SPL = 176, HSP = 128;   // the four details' cells
+  var cell = function(n, x, y, title) { P.circle(x + 4, y + 4, 3.2, { cls: 'general' }); P.text(x + 4, y + 5.2, String(n), RPT.TX.head, { anchor: 'middle', bold: true }); P.text(x + 10, y + 5.2, title, RPT.TX.head, { bold: true }); P.text(x + 10 + RPT.tw(title, RPT.TX.head, true) + 3, y + 5.2, '1:10', RPT.TX.body, { c: RPT.MID }); };
+  // 1 railing elevation: a 1.3 m run (two posts), deck surface, rails; heights and spacing
+  var ox = 16, gy = 104, run = 1.3, p0 = 0.2;
+  cell(1, 4, 6, 'Railing elevation');
+  P.line(ox - 4, gy, ox + run * k + 4, gy, { cls: 'cut' });
+  [p0, p0 + R.post].forEach(function(z) { P.rect(ox + z * k - R.postW * k / 2, gy - R.h * k, R.postW * k, R.h * k, { cls: 'edge', fill: '#FFFFFF' }); });
   var top = R.rails[R.rails.length - 1], mid = R.rails[0];
-  P.rect(ox, gy - (top + R.topRail - 0.04) * k, run * k, R.topRail * k, { w: RPT.LW.obj, fill: '#FFFFFF' });
-  P.rect(ox, gy - (mid + R.midRail) * k, run * k, R.midRail * k, { w: RPT.LW.obj, fill: '#FFFFFF' });
+  P.rect(ox, gy - (top + R.topRail - 0.04) * k, run * k, R.topRail * k, { cls: 'edge', fill: '#FFFFFF' });
+  P.rect(ox, gy - (mid + R.midRail) * k, run * k, R.midRail * k, { cls: 'edge', fill: '#FFFFFF' });
   RPT.dimV(P, gy - R.h * k, gy, ox + run * k + 12, R.h.toFixed(3), { side: 'right', ext: ox + run * k });
   RPT.dimV(P, gy - mid * k, gy, ox + run * k + 5, mid.toFixed(3), { side: 'right', ext: ox + run * k, size: RPT.TX.tag });
-  RPT.dimH(P, ox + p0 * k, ox + (p0 + R.post) * k, gy + 8, R.post.toFixed(3) + ' POST SPACING', { ext: gy });
-  RPT.dimH(P, ox + (p0 + R.post) * k - R.postW * k / 2, ox + (p0 + R.post) * k + R.postW * k / 2, gy - 0.22 * k, R.postW.toFixed(3) + ' POST', { side: 'right' });
-  P.text(ox, gy + 15, 'DECK SURFACE +' + (lv.deckTop - lv.curbTop).toFixed(3) + '; posts ' + (R.postW * 1000).toFixed(0) + ' x ' + (R.postW * 1000).toFixed(0) + ', ' + R.mat + ' steel', RPT.TX.tag, { c: RPT.MID });
-  // 2 railing section: the post in elevation, both rails cut, base plate on the deck board
+  RPT.dimH(P, ox + p0 * k, ox + (p0 + R.post) * k, gy + 8, R.post.toFixed(3) + ' post spacing', { ext: gy });
+  RPT.dimH(P, ox + (p0 + R.post) * k - R.postW * k / 2, ox + (p0 + R.post) * k + R.postW * k / 2, gy - 0.22 * k, R.postW.toFixed(3) + ' post', { side: 'right' });
+  // 2 railing section: the post in elevation, both rails cut (steel: solid), base plate on the deck board
   var sx0 = 250, sgy = 104;
-  cell(2, 208, 6, 'RAILING SECTION');
-  var bd = P.rect(sx0 - 20, sgy, 40 + R.postW * k, lv.deckThk * k, { w: RPT.LW.cutH, fill: '#FFFFFF' });
+  cell(2, SPL + 4, 6, 'Railing section');
+  P.rect(sx0 - 20, sgy, 40 + R.postW * k, lv.deckThk * k, { cls: 'cut', fill: '#FFFFFF' });
   P.hatch("<rect x='" + (sx0 - 20) + "' y='" + sgy + "' width='" + (40 + R.postW * k) + "' height='" + (lv.deckThk * k) + "'/>", [sx0 - 20, sgy, sx0 + 20 + R.postW * k, sgy + lv.deckThk * k], 'timberCut');
-  P.rect(sx0 - 5, sgy - 1, R.postW * k + 10, 1, { w: RPT.LW.obj, fill: RPT.LT });
-  P.rect(sx0, sgy - R.h * k, R.postW * k, R.h * k - 1, { w: RPT.LW.obj, fill: '#FFFFFF' });
-  [[top, R.topRail, 0.04], [mid, R.midRail, 0]].forEach(function(q) { var y = sgy - (q[0] + q[1] - q[2]) * k; P.rect(sx0 - 0.5, y, R.postW * k + 1, q[1] * k, { w: RPT.LW.cut, fill: '#FFFFFF' }); P.hatch("<rect x='" + (sx0 - 0.5) + "' y='" + y + "' width='" + (R.postW * k + 1) + "' height='" + (q[1] * k) + "'/>", [sx0 - 1, y, sx0 + R.postW * k + 1, y + q[1] * k], 'cut'); });
-  RPT.dimV(P, sgy - (top + R.topRail - 0.04) * k, sgy - (top - 0.04) * k, sx0 + R.postW * k + 8, (R.topRail * 1000).toFixed(0) + ' TOP RAIL', { side: 'right', size: RPT.TX.tag });
-  RPT.dimV(P, sgy - (mid + R.midRail) * k, sgy - mid * k, sx0 + R.postW * k + 8, (R.midRail * 1000).toFixed(0) + ' MID RAIL', { side: 'right', size: RPT.TX.tag });
-  RPT.dimV(P, sgy, sgy + lv.deckThk * k, sx0 - 26, (lv.deckThk * 1000).toFixed(0) + ' DECK BOARD', { side: 'left', size: RPT.TX.tag, ext: sx0 - 20 });
+  P.rect(sx0 - 5, sgy - 1, R.postW * k + 10, 1, { cls: 'edge', fill: RPT.INK });
+  P.rect(sx0, sgy - R.h * k, R.postW * k, R.h * k - 1, { cls: 'edge', fill: '#FFFFFF' });
+  [[top, R.topRail, 0.04], [mid, R.midRail, 0]].forEach(function(q) { var y = sgy - (q[0] + q[1] - q[2]) * k; P.rect(sx0 - 0.5, y, R.postW * k + 1, q[1] * k, { cls: 'object', fill: RPT.INK }); });
+  RPT.dimV(P, sgy - (top + R.topRail - 0.04) * k, sgy - (top - 0.04) * k, sx0 + R.postW * k + 8, (R.topRail * 1000).toFixed(0) + ' top rail', { side: 'right', size: RPT.TX.tag });
+  RPT.dimV(P, sgy - (mid + R.midRail) * k, sgy - mid * k, sx0 + R.postW * k + 8, (R.midRail * 1000).toFixed(0) + ' mid rail', { side: 'right', size: RPT.TX.tag });
+  RPT.dimV(P, sgy, sgy + lv.deckThk * k, sx0 - 26, (lv.deckThk * 1000).toFixed(0) + ' deck board', { side: 'left', size: RPT.TX.tag, ext: sx0 - 20 });
   // 3 deck edge at the curb: the sidewalk slab and curb, the gap, the deck board and its connector
   var cx0 = 95, cgy = 206;
-  cell(3, 4, 132, 'DECK EDGE AT THE CURB');
+  cell(3, 4, HSP + 4, 'Deck edge at the curb');
   var cq = [cx0 - 15, cgy - lv.curbTop * k, 15, (lv.curbTop + 0.15) * k];
-  P.rect(cq[0], cq[1], cq[2], cq[3], { w: RPT.LW.cutH, fill: '#FFFFFF' }); P.hatch("<rect x='" + cq[0] + "' y='" + cq[1] + "' width='" + cq[2] + "' height='" + cq[3] + "'/>", [cq[0], cq[1], cq[0] + cq[2], cq[1] + cq[3]], 'concrete');
-  P.rect(cx0 - 50, cgy - lv.curbTop * k, 35, 10, { w: RPT.LW.cut, fill: '#FFFFFF' }); P.hatch("<rect x='" + (cx0 - 50) + "' y='" + (cgy - lv.curbTop * k) + "' width='35' height='10'/>", [cx0 - 50, cgy - lv.curbTop * k, cx0 - 15, cgy - lv.curbTop * k + 10], 'concrete');
+  P.rect(cq[0], cq[1], cq[2], cq[3], { cls: 'cut', fill: '#FFFFFF' }); P.hatch("<rect x='" + cq[0] + "' y='" + cq[1] + "' width='" + cq[2] + "' height='" + cq[3] + "'/>", [cq[0], cq[1], cq[0] + cq[2], cq[1] + cq[3]], 'concrete');
+  P.rect(cx0 - 50, cgy - lv.curbTop * k, 35, 10, { cls: 'object', fill: '#FFFFFF' }); P.hatch("<rect x='" + (cx0 - 50) + "' y='" + (cgy - lv.curbTop * k) + "' width='35' height='10'/>", [cx0 - 50, cgy - lv.curbTop * k, cx0 - 15, cgy - lv.curbTop * k + 10], 'concrete');
   var gap = 0.012, dx0 = cx0 + gap * k;
-  P.rect(dx0, cgy - lv.deckTop * k, 60, lv.deckThk * k, { w: RPT.LW.cutH, fill: '#FFFFFF' }); P.hatch("<rect x='" + dx0 + "' y='" + (cgy - lv.deckTop * k) + "' width='60' height='" + (lv.deckThk * k) + "'/>", [dx0, cgy - lv.deckTop * k, dx0 + 60, cgy - lv.deckTop * k + lv.deckThk * k], 'timberCut');
-  P.rect(dx0 + 2, cgy - (lv.deckTop - lv.deckThk) * k, 5, (lv.deckTop - lv.deckThk) * k, { w: RPT.LW.gen });
-  P.line(cx0 - 60, cgy, cx0 + 70, cgy, { w: RPT.LW.cut });
-  P.rect(cx0 - 3, cgy - lv.deckTop * k - 0.4, 8, 0.4, { w: RPT.LW.obj, fill: RPT.INK });
-  RPT.dimH(P, cx0, dx0, cgy - lv.deckTop * k - 7, (gap * 1000).toFixed(0) + ' MAX GAP (C14)', { ext: cgy - lv.deckTop * k, side: 'right' });
+  P.rect(dx0, cgy - lv.deckTop * k, 60, lv.deckThk * k, { cls: 'cut', fill: '#FFFFFF' }); P.hatch("<rect x='" + dx0 + "' y='" + (cgy - lv.deckTop * k) + "' width='60' height='" + (lv.deckThk * k) + "'/>", [dx0, cgy - lv.deckTop * k, dx0 + 60, cgy - lv.deckTop * k + lv.deckThk * k], 'timberCut');
+  P.rect(dx0 + 2, cgy - (lv.deckTop - lv.deckThk) * k, 5, (lv.deckTop - lv.deckThk) * k, { cls: 'general' });
+  P.line(cx0 - 60, cgy, cx0 + 70, cgy, { cls: 'object' });
+  P.rect(cx0 - 3, cgy - lv.deckTop * k - 0.4, 8, 0.4, { cls: 'edge', fill: RPT.INK });
+  RPT.dimH(P, cx0, dx0, cgy - lv.deckTop * k - 7, (gap * 1000).toFixed(0) + ' max gap (C14)', { ext: cgy - lv.deckTop * k, side: 'right' });
   RPT.dimV(P, cgy - lv.deckTop * k, cgy - lv.curbTop * k, cx0 + 72, ((lv.deckTop - lv.curbTop) * 1000).toFixed(0), { side: 'right', size: RPT.TX.tag });
-  RPT.dimV(P, cgy - lv.curbTop * k, cgy, cx0 - 62, (lv.curbTop * 1000).toFixed(0) + ' CURB', { side: 'left', size: RPT.TX.tag });
-  P.text(cx0 - 60, cgy + 24, 'Connector plate over the gap, 13 mm max (C14). Deck board ' + (lv.deckThk * 1000).toFixed(0) + ' mm; supports indicative.', RPT.TX.tag, { c: RPT.MID });
+  RPT.dimV(P, cgy - lv.curbTop * k, cgy, cx0 - 62, (lv.curbTop * 1000).toFixed(0) + ' curb', { side: 'left', size: RPT.TX.tag });
   // 4 wheel stop: elevation and section, anchor pins; 0.25 m clear of the deck end
-  cell(4, 208, 132, 'WHEEL STOP');
+  cell(4, SPL + 4, HSP + 4, 'Wheel stop');
   if (ws) {
     // the elevation broken in the middle (the full 1:10 length would not fit the cell): each end drawn true, the length dimensioned
-    var wl = (ws.x1 - ws.x0) * k, wh = ws.y1 * k, ww = (ws.z1 - ws.z0) * k, ex = 222, ey = 190, endL = 0.45 * k, br = 12, shown = 2 * endL + br;
-    P.line(ex - 4, ey, ex + shown + 4, ey, { w: RPT.LW.cut });
-    P.rect(ex, ey - wh, endL, wh, { w: RPT.LW.obj, fill: RPT.fills(d.mode).ws }); P.rect(ex + endL + br, ey - wh, endL, wh, { w: RPT.LW.obj, fill: RPT.fills(d.mode).ws });
-    [ex + endL + 2, ex + endL + br - 2].forEach(function(bx) { P.path('M' + bx + ' ' + (ey - wh - 3) + ' l1.2 3 l-2.4 ' + (wh / 2) + ' l2.4 ' + (wh / 2) + ' l-1.2 3', { w: RPT.LW.gen }); });
-    [0.25 * (ws.x1 - ws.x0), 0.75 * (ws.x1 - ws.x0)].forEach(function(xp) { var X = xp < 0.9 ? ex + xp * k : ex + shown - ((ws.x1 - ws.x0) - xp) * k; P.line(X, ey - wh, X, ey + 8, { w: RPT.LW.gen, dash: 'hidden' }); });
-    RPT.dimH(P, ex, ex + shown, ey + 13, (ws.x1 - ws.x0).toFixed(3) + ' (BROKEN)', { ext: ey });
+    var wh = ws.y1 * k, ww = (ws.z1 - ws.z0) * k, ex = SPL + 18, ey = 190, endL = 0.45 * k, br = 12, shown = 2 * endL + br;
+    P.line(ex - 4, ey, ex + shown + 4, ey, { cls: 'object' });
+    P.rect(ex, ey - wh, endL, wh, { cls: 'edge', fill: RPT.fills(d.mode).ws }); P.rect(ex + endL + br, ey - wh, endL, wh, { cls: 'edge', fill: RPT.fills(d.mode).ws });
+    [ex + endL + 2, ex + endL + br - 2].forEach(function(bx) { P.path('M' + bx + ' ' + (ey - wh - 3) + ' l1.2 3 l-2.4 ' + (wh / 2) + ' l2.4 ' + (wh / 2) + ' l-1.2 3', { cls: 'general' }); });
+    [0.25 * (ws.x1 - ws.x0), 0.75 * (ws.x1 - ws.x0)].forEach(function(xp) { var X = xp < 0.9 ? ex + xp * k : ex + shown - ((ws.x1 - ws.x0) - xp) * k; P.line(X, ey - wh, X, ey + 8, { cls: 'general', dash: 'hidden' }); });
+    RPT.dimH(P, ex, ex + shown, ey + 13, (ws.x1 - ws.x0).toFixed(3) + ' (broken)', { ext: ey });
     RPT.dimV(P, ey - wh, ey, ex - 4, (ws.y1 * 1000).toFixed(0), { side: 'left', ext: ex });
-    var sx1 = ex + shown + 26;
-    P.line(sx1 - 6, ey, sx1 + ww + 6, ey, { w: RPT.LW.cut });
-    P.rect(sx1, ey - wh, ww, wh, { w: RPT.LW.cut, fill: '#FFFFFF' }); P.hatch("<rect x='" + sx1 + "' y='" + (ey - wh) + "' width='" + ww + "' height='" + wh + "'/>", [sx1, ey - wh, sx1 + ww, ey], 'concrete');
+    var sx1 = ex + shown + 18;
+    P.line(sx1 - 6, ey, sx1 + ww + 6, ey, { cls: 'object' });
+    P.rect(sx1, ey - wh, ww, wh, { cls: 'cut', fill: '#FFFFFF' }); P.hatch("<rect x='" + sx1 + "' y='" + (ey - wh) + "' width='" + ww + "' height='" + wh + "'/>", [sx1, ey - wh, sx1 + ww, ey], 'concrete');
     RPT.dimH(P, sx1, sx1 + ww, ey - wh - 5, ((ws.z1 - ws.z0) * 1000).toFixed(0), { ext: ey - wh });
-    P.text(ex, ey + 22, 'Elevation (left) and section (right). Pinned with two anchors; set ' + (ws.end ? ws.z0 - G.L : -ws.z1).toFixed(2) + ' m clear of the deck end.', RPT.TX.tag, { c: RPT.MID });
   }
-  P.line(RPT.DA.w / 2, 4, RPT.DA.w / 2, RPT.DA.h - 2, { w: RPT.LW.ctx }); P.line(4, 128, RPT.DA.w - 4, 128, { w: RPT.LW.ctx });
-  var notes = ['Drawn from the parklet model: railing (PARKLET_RAIL: ' + R.h + ' m, rails ' + R.rails.join(' / ') + ' m, posts ' + R.post + ' m, ' + R.postW * 1000 + ' mm), deck levels and the wheel stop the 3D and the photoreal prompt use.',
-    'Schematic details for the pre-application: not a structural design. Dimensions in metres, or in millimetres where stated.'];
-  return RPT.dsheet(d, 'A-301', 'Details', sc, P, notes);
-};
-
-// ── Axonometric (schematic): the Brief 06 camera, rendered offscreen; NTS in the title block ───────
-RPT.sheetAxon = function(d, drw) {
-  var P = RPT.pen(), a = drw.axon;
-  if (a) { var w = RPT.DA.w, h = Math.min(RPT.DA.h, w * a.h / a.w); P.add("<image href='" + a.url + "' xlink:href='" + a.url + "' x='0' y='" + ((RPT.DA.h - h) / 2).toFixed(2) + "' width='" + w + "' height='" + h.toFixed(2) + "' preserveAspectRatio='xMidYMid meet'/>"); }
-  else P.text(RPT.DA.w / 2, RPT.DA.h / 2, '3D view not available.', RPT.TX.body, { anchor: 'middle', c: RPT.MID });
-  if (a && a.north) { var n = a.north, cx = RPT.DA.w - 10, cy = 12, ang = Math.atan2(n.x, -n.y), c = Math.cos(ang), s = Math.sin(ang), T = function(x, y) { return [cx + x * c - y * s, cy + x * s + y * c]; };
-    P.circle(cx, cy, 5, { w: RPT.LW.gen, fill: '#FFFFFF' }); P.poly([T(0, -4.2), T(2.1, 2.8), T(0, 1.4), T(-2.1, 2.8)], { fill: RPT.INK, w: 0 }); var L = T(0, -7.6); P.text(L[0], L[1] + 1.2, 'N', RPT.TX.body, { anchor: 'middle', bold: true }); }
-  return RPT.dsheet(d, 'V-001', 'Axonometric', 0, P, ['Isometric (45 / 35.26 degrees) from the road side, as the animated axon export; far-side context cut away; people and vehicles not shown.']);
+  P.line(SPL, 4, SPL, 2 * HSP - 16, { cls: 'context' }); P.line(4, HSP, 2 * SPL - 12, HSP, { cls: 'context' });
+  var keys = [
+    { t: 'Railing: ' + R.h.toFixed(3) + ' m, rails at ' + R.rails.map(function(h) { return h.toFixed(2); }).join(' and ') + ' m, posts ' + (R.postW * 1000).toFixed(0) + ' mm ' + R.mat + ' steel every ' + R.post.toFixed(2) + ' m.', at: [ox + p0 * k + 8, gy - R.h * k - 5] },
+    { t: 'Deck surface +' + (lv.deckTop - lv.curbTop).toFixed(3) + ' above the top of the curb.', at: [ox + run * k * 0.6, gy + 3] },
+    { t: 'Connector plate over the gap, 13 mm max (C14).', at: [cx0 + 5, cgy - lv.deckTop * k - 3] },
+    { t: ws ? 'Wheel stop: elevation and section; two anchor pins; set ' + (ws.end ? ws.z0 - G.L : -ws.z1).toFixed(2) + ' m clear of the deck end.' : 'Wheel stop not in the model.', at: ws ? [SPL + 18 + 20, 190 - ws.y1 * k - 6] : null },
+    { t: 'Drawn from the parklet model (PARKLET_RAIL, PARKLET_LEVELS); not a structural design. Millimetres where stated.', at: null }
+  ];
+  return RPT.dsheet(d, 'A-301', 'Details', sc, P, keys, null);
 };
 
 // ── The sheets each report prints, in order (the builders are shared; each reads d.mode) ────────────
+// Brief 17: both reports print the same sheets with the same information; the mode is only the style token, and the
+// schematic shows the renders (or the axonometric) on the title sheet
 RPT.SHEETS = {
-  schematic: ['cover', 'site', 'layout', 'section', 'axon', 'renders', 'schedule', 'compliance'],
+  schematic: ['title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources'],
   technical: ['title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
@@ -19683,23 +19746,21 @@ RPT.sheetList = function(d) {
   RPT.SHEETS[d.mode].forEach(function(k) {
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.parklet.length); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:50' }); }); return; }
-    var M = { cover: ['G-001', 'Cover', 'NTS'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:250'], layout: ['A-102', d.mode === 'technical' ? 'Layout plan' : 'Coloured plan', '1:100'],
+    var M = { title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:250'], layout: ['A-102', 'Layout plan', '1:100'],
       section: ['A-201', 'Section A-A', '1:50'], details: ['A-301', 'Details', '1:10'], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
-      compliance: ['C-001', d.mode === 'technical' ? 'Compliance' : 'Compliance summary', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], sources: ['X-001', 'Sources', '-'] }[k];
+      compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
   });
   return out;
 };
 RPT.BUILDERS = {
-  cover: function(d, drw) { return RPT.cover(d, drw); },
-  title: function(d) { return RPT.sheetTitle(d); },
+  title: function(d, drw) { return RPT.sheetTitle(d, drw); },
   site: function(d) { return RPT.sheetSite(d); },
   layout: function(d) { return RPT.sheetLayout(d); },
   deck: function(d, drw, s) { return RPT.sheetDeck(d, s.part, s.i, s.n); },
   section: function(d) { return RPT.sheetSection(d); },
   details: function(d) { return RPT.sheetDetails(d); },
-  axon: function(d, drw) { return RPT.sheetAxon(d, drw); },
-  render: function(d, drw, s) { return RPT.sheetRender(d, s.r, s.i); },
+
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
   lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); }
 };
@@ -19721,50 +19782,69 @@ RPT.groupsFor = function(placed) {
 };
 
 // ── A-000 Title sheet (technical): project, drawing list, revisions, status stamp, legend ─────────────
-RPT.sheetTitle = function(d) {
-  var P = RPT.pen(), DM = d.DM, x = 6, y = 10, TX = RPT.TX, list = RPT.sheetList(d);
-  P.text(x, y, 'CURBSIDE  -  PARKLET DRAWING SET', TX.tag, { c: RPT.MID, ls: 0.3 });
+// ── A-000 Title sheet, both reports: the project, the status, the drawing list, revisions, the legend and the
+// abbreviations; a visual panel under the drawing list: the schematic prints the renders there (or the
+// axonometric), the technical a key plan of the site. The panel has no text, so both reports read the same.
+RPT.sheetTitle = function(d, drw) {
+  var P = RPT.pen(), DM = d.DM, x = 0, y = 6, TX = RPT.TX, list = RPT.sheetList(d);
+  P.text(x, y, 'Curbside parklet drawing set', TX.tag, { c: RPT.MID });
   P.text(x, y + 11, DM.project.name, 8, { bold: true });
   P.text(x, y + 19, RPT.addr(DM), TX.head);
   P.text(x, y + 25, 'Lat ' + (+DM.site.lat).toFixed(5) + ', lon ' + (+DM.site.lon).toFixed(5) + '  -  street bearing ' + (+DM.site.streetBearing).toFixed(1) + ' deg  -  parklet on the ' + DM.site.parkletSide + ' side', TX.body, { c: RPT.MID });
   P.text(x, y + 30.5, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + d.n.unclear + ' not confirmed' + (d.provisional ? '  (provisional: imported site data not yet verified on site)' : ''), TX.body, { c: RPT.MID });
   // status stamp
-  P.rect(x, y + 36, 112, 12, { w: RPT.LW.cutH }); P.rect(x + 1.2, y + 37.2, 109.6, 9.6, { w: RPT.LW.hatch });
-  P.text(x + 56, y + 44, 'PRELIMINARY — NOT FOR CONSTRUCTION', TX.head, { anchor: 'middle', bold: true, ls: 0.2 });
-  if (d.sample) P.text(x + 118, y + 44, RPT.SAMPLE_BAND, TX.head, { bold: true });
+  P.rect(x, y + 36, 112, 12, { cls: 'cut' }); P.rect(x + 1.2, y + 37.2, 109.6, 9.6, { cls: 'fine' });
+  P.text(x + 56, y + 44, 'Preliminary: not for construction', TX.head, { anchor: 'middle', bold: true });
   // drawing list
   var ty = y + 60;
-  P.text(x, ty, 'DRAWING LIST', TX.head, { bold: true }); ty += 3;
-  P.line(x, ty + 1.5, x + 180, ty + 1.5, { w: RPT.LW.obj });
-  P.text(x, ty + 5.5, 'SHEET', TX.tag, { c: RPT.MID }); P.text(x + 26, ty + 5.5, 'TITLE', TX.tag, { c: RPT.MID }); P.text(x + 180, ty + 5.5, 'SCALE', TX.tag, { c: RPT.MID, anchor: 'end' });
+  P.text(x, ty, 'Drawing list', TX.head, { bold: true }); ty += 3;
+  P.line(x, ty + 1.5, x + 180, ty + 1.5, { cls: 'edge' });
+  P.text(x, ty + 5.5, 'Sheet', TX.tag, { c: RPT.MID }); P.text(x + 26, ty + 5.5, 'Title', TX.tag, { c: RPT.MID }); P.text(x + 180, ty + 5.5, 'Scale', TX.tag, { c: RPT.MID, anchor: 'end' });
   ty += 7;
-  list.forEach(function(s) { ty += 5.2; P.text(x, ty, s.id, TX.body, { bold: true }); P.text(x + 26, ty, s.title, TX.body); P.text(x + 180, ty, s.scale === '-' ? '' : s.scale, TX.body, { anchor: 'end' }); P.line(x, ty + 1.6, x + 180, ty + 1.6, { w: RPT.LW.hatch, c: RPT.LT }); });
+  list.forEach(function(s) { ty += 5.2; P.text(x, ty, s.id, TX.body, { bold: true }); P.text(x + 26, ty, s.title, TX.body); P.text(x + 180, ty, s.scale === '-' ? '' : s.scale, TX.body, { anchor: 'end' }); P.line(x, ty + 1.6, x + 180, ty + 1.6, { cls: 'fine', c: RPT.LT }); });
   // revisions
-  ty += 12; P.text(x, ty, 'REVISIONS', TX.head, { bold: true }); ty += 3; P.line(x, ty + 1.5, x + 180, ty + 1.5, { w: RPT.LW.obj });
-  P.text(x, ty + 5.5, 'REV', TX.tag, { c: RPT.MID }); P.text(x + 14, ty + 5.5, 'DATE', TX.tag, { c: RPT.MID }); P.text(x + 40, ty + 5.5, 'DESCRIPTION', TX.tag, { c: RPT.MID });
+  ty += 12; P.text(x, ty, 'Revisions', TX.head, { bold: true }); ty += 3; P.line(x, ty + 1.5, x + 180, ty + 1.5, { cls: 'edge' });
+  P.text(x, ty + 5.5, 'Rev', TX.tag, { c: RPT.MID }); P.text(x + 14, ty + 5.5, 'Date', TX.tag, { c: RPT.MID }); P.text(x + 40, ty + 5.5, 'Description', TX.tag, { c: RPT.MID });
   ty += 12.7; P.text(x, ty, 'A', TX.body, { bold: true }); P.text(x + 14, ty, d.date, TX.body); P.text(x + 40, ty, 'Preliminary issue for the Parklet Manual pre-application (generated by Curbside ' + RPT.VERSION + ')', TX.body);
+  // the visual panel
+  var px = x, py = ty + 10, pw = 180, ph = 64;
+  var ims = d.mode === 'schematic' ? ((d.renders || []).length ? d.renders.slice(0, 4) : (drw && drw.axon ? [drw.axon] : [])) : [];
+  if (ims.length) {
+    var n = ims.length, cols = n > 2 ? 2 : n, rows = Math.ceil(n / cols), gap = 3, cw = (pw - gap * (cols - 1)) / cols, ch = (ph - gap * (rows - 1)) / rows;
+    ims.forEach(function(im, i) {
+      var w = cw, h = w * im.h / im.w; if (h > ch) { h = ch; w = h * im.w / im.h; }
+      var ix = px + (i % cols) * (cw + gap) + (cw - w) / 2, iy = py + Math.floor(i / cols) * (ch + gap) + (ch - h) / 2;
+      P.add("<image href='" + im.url + "' xlink:href='" + im.url + "' x='" + ix.toFixed(2) + "' y='" + iy.toFixed(2) + "' width='" + w.toFixed(2) + "' height='" + h.toFixed(2) + "' preserveAspectRatio='xMidYMid meet'" + (im.key ? " data-render='" + RPT.esc(im.key) + "'" : '') + '/>');
+      P.grow(ix, iy, ix + w, iy + h);
+    });
+  } else RPT.keyPlan(P, d, px, py, pw, ph, null);
   // legend: linetypes, symbols, hatches, abbreviations
-  var lx = 204, ly = 10;
-  P.text(lx, ly, 'LEGEND', TX.head, { bold: true }); ly += 7;
+  var lx = 196, ly = 10;
+  P.text(lx, ly, 'Legend', TX.head, { bold: true }); ly += 7;
   var lines = [[RPT.LW.cutH, null, 'Cut: deck, curb in section (0.70)'], [RPT.LW.cut, null, 'Objects: deck edge, furniture (0.50)'], [RPT.LW.obj, null, 'Edges: curbs, railing (0.35)'], [RPT.LW.gen, null, 'General (0.25)'],
-    [RPT.LW.ctx, null, 'Context, dimensions (0.18)'], [RPT.LW.hatch, null, 'Fine: hatching, grid (0.13)'], [RPT.LW.hatch, 'zone', 'Clearance zone, with its rule (red: the check fails)'], [RPT.LW.obj, 'centre', 'Section line A-A, centre line'],
+    [RPT.LW.ctx, null, 'Context, dimensions (0.18)'], [RPT.LW.hatch, null, 'Fine: hatching, grid (0.13)'], [RPT.LW.hatch, 'zone', 'Clearance zone (red: the check fails)'], [RPT.LW.obj, 'centre', 'Section line A-A, centre line'],
     [RPT.LW.cutH, 'property', 'Match line, property line'], [RPT.LW.gen, 'hidden', 'Hidden, overhead, lane line']];
   lines.forEach(function(q) { P.line(lx, ly - 0.8, lx + 16, ly - 0.8, { w: q[0], dash: q[1] }); P.text(lx + 20, ly, q[2], TX.tag); ly += 4.6; });
   ly += 3;
   var syms = [function(X, Y) { RPT.sym.hydrant(P, X, Y); }, 'Fire hydrant', function(X, Y) { RPT.sym.pole(P, X, Y); }, 'Utility pole', function(X, Y) { RPT.sym.signal(P, X, Y); }, 'Signal controller box',
-    function(X, Y) { RPT.sym.manhole(P, X, Y, 1.1); }, 'Access chamber / manhole', function(X, Y) { P.circle(X, Y, 1.8, { w: RPT.LW.ctx }); P.circle(X, Y, 0.35, { fill: RPT.INK, w: 0 }); }, 'Street tree canopy (genus tag)',
-    function(X, Y) { RPT.sym.grid(P, X, Y, '1'); }, 'Grid line at a railing post', function(X, Y) { RPT.sym.level(P, X, Y + 1, '', true); }, 'Level (datum: top of curb)'];
+    function(X, Y) { RPT.sym.manhole(P, X, Y, 1.1); }, 'Access chamber / manhole', function(X, Y) { DRAW_SYMBOLS.tree(P, X, Y, 1.8, 1.8); }, 'Street tree canopy (genus tag)',
+    function(X, Y) { DRAW_SYMBOLS.busStop(P, X, Y); }, 'Bus stop',
+    function(X, Y) { RPT.sym.grid(P, X, Y, '1'); }, 'Grid line at a railing post', function(X, Y) { RPT.sym.level(P, X, Y + 1, '', true); }, 'Level (datum: top of curb)',
+    function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone'];
   for (var i = 0; i < syms.length; i += 2) { syms[i](lx + 8, ly - 1); P.text(lx + 20, ly, syms[i + 1], TX.tag); ly += 5.4; }
   ly += 2;
-  [['concrete', 'Concrete (cut)'], ['asphalt', 'Asphalt'], ['timberCut', 'Timber deck (cut)'], ['planting', 'Planting'], ['cut', 'Cut material (45 deg)'], ['route', 'Accessible route']].forEach(function(q) {
-    var r = "<rect x='" + lx + "' y='" + (ly - 3) + "' width='16' height='4'/>"; P.rect(lx, ly - 3, 16, 4, { w: RPT.LW.gen }); P.hatch(r, [lx, ly - 3, lx + 16, ly + 1], q[0]); P.text(lx + 20, ly, q[1], TX.tag); ly += 5.4;
+  [['concrete', 'Concrete'], ['timber', 'Timber deck, along the boards'], ['planting', 'Planting'], ['earth', 'Gravel, subgrade'], ['cut', 'Cut steel, thin material'], ['route', 'Accessible route']].forEach(function(q) {
+    var r = "<rect x='" + lx + "' y='" + (ly - 3) + "' width='16' height='4'/>"; P.rect(lx, ly - 3, 16, 4, { cls: 'general' }); P.hatch(r, [lx, ly - 3, lx + 16, ly + 1], q[0], { band: false }); P.text(lx + 20, ly, q[1], TX.tag); ly += 5.4;
   });
-  var ab = [['C01 - C15', 'Parklet Manual checks'], ['CoV', 'City of Vancouver (open data)'], ['DBH', 'diameter at breast height'], ['EDM', 'Engineering Design Manual'], ['MAX / MIN', 'maximum / minimum'], ['NTS', 'not to scale'],
-    ['OSM', 'OpenStreetMap'], ['TYP.', 'typical'], ['z', 'distance along the street from the deck start (m)']];
-  var ax = lx + 96, ay = 17;
-  P.text(ax, 10, 'ABBREVIATIONS', TX.head, { bold: true });
-  ab.forEach(function(q) { P.text(ax, ay, q[0], TX.tag, { bold: true }); P.text(ax + 20, ay, q[1], TX.tag); ay += 4.6; });
-  return RPT.dsheet(d, 'A-000', 'Title sheet', 0, P, ['Dimensions in metres unless noted. All drawings at the scale stated on a 17 x 11 in sheet (431.8 x 279.4 mm).', 'Generated from the design model; imported site data is indicative and must be verified on site.']);
+  var ab = [['C01 - C15', 'Parklet Manual checks'], ['CoV', 'City of Vancouver (open data)'], ['DBH', 'diameter at breast height'], ['EDM', 'Engineering Design Manual'], ['max / min', 'maximum / minimum'], ['NTS', 'not to scale'],
+    ['OSM', 'OpenStreetMap'], ['typ.', 'typical'], ['z', 'distance along the street from the deck start (m)']];
+  ly += 4; P.text(lx, ly, 'Abbreviations', TX.head, { bold: true }); ly += 7;
+  ab.forEach(function(q) { P.text(lx, ly, q[0], TX.tag, { bold: true }); P.text(lx + 20, ly, q[1], TX.tag); ly += 4.6; });
+  return RPT.dsheet(d, 'A-000', 'Title sheet', 0, P, [
+    { t: 'Dimensions in metres unless noted; drawings at the scale stated on a 17 x 11 in sheet.', at: null },
+    { t: 'Generated from the design model; imported site data is indicative and must be verified on site.', at: null },
+    { t: 'Sources, the renders\' credits and the model\'s assumptions: sheet X-001.', at: null }
+  ], null);
 };
 
 // ── Renders in the schematic report (Brief 12b): only the current design's photoreal images ─────────────
@@ -19778,7 +19858,7 @@ RPT.providerLabel = function(m) { var p = typeof RVZP !== 'undefined' && RVZP.PR
 RPT.renderList = async function() {
   var host = document.getElementById('rptRenders'); if (!host) return;
   RPT._thumbs.forEach(function(u) { URL.revokeObjectURL(u); }); RPT._thumbs = [];
-  if (RPT.mode() === 'technical') { host.innerHTML = "<p class='rpt-rn-note'>Technical: no photoreal renders in the drawing set.</p>"; return; }
+  if (RPT.mode() === 'technical') { host.innerHTML = "<p class='rpt-rn-note'>Technical: the renders are listed on X-001; their images print in the schematic report.</p>"; return; }
   var list = typeof RVZP !== 'undefined' && RVZP.reportRenders ? await RVZP.reportRenders() : [];
   if (!list.length) { host.innerHTML = "<p class='rpt-rn-note' id='rptNoRenders'>No renders of this design yet — Visualize › Photoreal › Render 4</p>"; return; }
   host.innerHTML = "<p class='rpt-rn-note'>Renders of this design (ticked ones print, each on its own sheet):</p>" + list.map(function(e) {
@@ -19805,14 +19885,6 @@ RPT.renderEntry = async function(blob, preset, model, created, cp, cam, key) {
   return { key: key || preset, preset: preset, url: c.toDataURL('image/jpeg', 0.9), w: W, h: H, provider: RPT.providerLabel(model), date: new Date(created).toISOString().slice(0, 10),
     camera: cam ? (cam.ortho ? 'isometric, as the axonometric' : (cam.mm ? cam.mm + ' mm lens' : '') + (cam.angleDeg != null ? ', ' + Math.round(Math.abs(cam.angleDeg)) + ' deg to the deck axis' : '')) : '',
     mapillary: cp ? (cp.attribution || ('Mapillary image ' + cp.id + (cp.creator ? ' by ' + cp.creator : '') + (cp.license ? ', ' + cp.license : ''))) : null };
-};
-// V-101 ... one render per sheet, at the full width, with its caption
-RPT.sheetRender = function(d, r, i) {
-  var P = RPT.pen(), w = RPT.DA.w, h = Math.min(RPT.DA.h, w * r.h / r.w), x = (RPT.DA.w - h * r.w / r.h) / 2;
-  P.add("<image href='" + r.url + "' xlink:href='" + r.url + "' x='" + x.toFixed(2) + "' y='" + ((RPT.DA.h - h) / 2).toFixed(2) + "' width='" + (h * r.w / r.h).toFixed(2) + "' height='" + h.toFixed(2) + "' preserveAspectRatio='xMidYMid meet' data-render='" + RPT.esc(r.key) + "'/>");
-  var cap = 'AI-assisted visualisation — indicative. ' + (RPT.PRESET_LBL[r.preset] || r.preset) + ' view' + (r.camera ? ', ' + r.camera : '') + '; ' + r.provider + ', rendered ' + r.date + '.' +
-    (r.mapillary ? ' Context photo: ' + r.mapillary + ' (Mapillary, CC BY-SA).' : '') + (r.note ? ' ' + r.note : '');
-  return RPT.dsheet(d, 'V-' + (101 + i), 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), 0, P, [cap]);
 };
 
 // ── The sample report (Brief 12b amendment) ─────────────────────────────────────────────────────────
@@ -19880,7 +19952,10 @@ RPT.SH = RPT.PG.H - RPT.PG.mt - RPT.PG.mb;   // 257.4
 RPT.TB = { w: 85, h: 45 };                    // the title block, bottom right of the content box
 RPT.HEAD = 9;                                 // the header strip (project, sample band, Curbside) at the top
 RPT.BAND = RPT.TB.h;                          // the bottom band of a drawing sheet: scale bar and caption left of the title block
-RPT.DA = { x: 0, y: RPT.HEAD, w: RPT.SW, h: RPT.SH - RPT.HEAD - RPT.TB.h - 4 };   // the drawing area
+// the drawing sheets (Brief 17): the annotation column (60 mm, right, above the title block), the drawing area left of
+// it (a drawing is centred there), the band under the drawing area (north, the scale bar)
+RPT.AC = { w: 60, x: RPT.SW - 60, y: RPT.HEAD + 2, h: RPT.SH - RPT.TB.h - 4 - RPT.HEAD - 2 };
+RPT.DA = { x: 0, y: RPT.HEAD + 2, w: RPT.SW - RPT.AC.w - 8, h: RPT.SH - RPT.HEAD - 2 - 18 };
 RPT.VENDOR = { jspdf: 'tools/vendor/jspdf-2.5.2.umd.min.js', svg2pdf: 'tools/vendor/svg2pdf-2.2.4.umd.min.js', regular: 'tools/vendor/DMSans-Regular.ttf', semibold: 'tools/vendor/DMSans-SemiBold.ttf' };
 RPT.FONT = 'DM Sans'; RPT.FONT_B = 'DM Sans SemiBold';   // two faces, two names: the PDF lists both
 RPT._script = function(src) { return new Promise(function(res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function() { rej(new Error('could not load ' + src)); }; document.head.appendChild(s); }); };
@@ -19933,7 +20008,7 @@ RPT.page = function(d, meta, P) {
   P.line(0, 7, S, 7, { w: RPT.LW.ctx });
   // footer: left of the title block, on the last line of the content box
   P.text(0, RPT.SH - 0.8, RPT.DISCLAIMER + '  ·  ' + d.date + '  ·  page ' + meta.n + '/' + meta.N, TX.tag, { c: RPT.MID, data: " data-footer='1'" });
-  RPT.tblock(P, meta.id, meta.title, meta.scale ? '1:' + meta.scale : 'NTS', d);
+  RPT.tblock(P, meta.id, meta.title, meta.scale ? '1:' + meta.scale : 'NTS', d, meta.ext);
 };
 // the full page svg: the content box offset by the margins
 RPT.pageSVG = function(P) {
@@ -20057,7 +20132,7 @@ RPT.render = async function(d, drw) {
     for (var i = 0; i < N; i++) {
       var pg = pages[i], P = RPT.pen(); pens.push(P);
       pg.draw(P);
-      RPT.page(d, { id: pg.id, title: pg.title, scale: pg.scale, n: i + 1, N: N }, P);
+      RPT.page(d, { id: pg.id, title: pg.title, scale: pg.scale, ext: pg.ext, n: i + 1, N: N }, P);
       host.innerHTML = RPT.glyphSafe(RPT.pageSVG(P));
       if (i) doc.addPage([RPT.PG.W, RPT.PG.H], 'landscape');
       await doc.svg(host.firstElementChild, { x: 0, y: 0, width: RPT.PG.W, height: RPT.PG.H });
@@ -20072,7 +20147,8 @@ RPT.fileName = function(d) { return 'curbside-' + String(d.DM.project.name || 'p
 // the whole report: data, renders, drawings, pages -> a PDF (RPT.lastPdf: {blob, name, pages, check})
 RPT.make = async function(mode) {
   var d = RPT.data(mode || RPT.mode());
-  d.renders = d.mode === 'schematic' ? await (RPT.renderSource || RPT.collectRenders)() : [];
+  // the renders are the design's in both reports (their credits in X-001); only the schematic prints the images
+  d.renders = await (RPT.renderSource || RPT.collectRenders)();
   var drw = await RPT.drawings(d), doc = await RPT.render(d, drw);
   RPT.lastData = d;
   RPT.lastPdf = { blob: doc.output('blob'), name: RPT.fileName(d), pages: doc.getNumberOfPages(), check: RPT.lastCheck };
