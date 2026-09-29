@@ -2153,6 +2153,125 @@ function _checkLandmarkConsistency(verbose) {
   return bad.length === 0;
 }
 
+// ── Street trees from the City inventory (Brief 16 A2) ──────────────────────────────────────────
+// Source: CoV open data "public-trees". Its fields (catalog API, read 2026-09-28): asset_id, address,
+// common_name, genus_name, species_name, cultivar_name, height_m, diameter_cm, local_area, geom. There is
+// no height_range_id, date_planted or DBH in inches: height_m is, for most records, the midpoint of the
+// old 10 ft height band in metres (1.5 / 4.6 / 7.6 / 10.7 / 13.7 m = 5 / 15 / 25 / 35 / 45 ft; newer
+// records carry other values, read as measured), and diameter_cm is the DBH.
+// TREE_FORMS: k = crown radius per metre of height, adj = the form in words, prof = the crown's profile
+// for the 3D lathe as [r / canopyR, t] from the crown's underside (t 0) to its top (t 1); the widest point
+// is exactly 1, so Plan, Section and 3D all draw a crown 2 canopyR across. TREE_ARCHETYPES: form, leaf
+// and the spring / summer / autumn colours by genus (one table; _default for a genus not listed). A
+// cultivar named fastigiate / columnar / upright / spire, vase or pendula overrides the genus form.
+var TREE_CLEAR_H = 2.5;   // branch clearance over the walk: the crown's underside (the number that matters beside a parklet)
+var TREE_FORMS = {
+  round:     { k: 0.35, adj: 'round-headed', prof: [[0, 0], [0.55, 0.03], [0.9, 0.2], [1, 0.5], [0.9, 0.8], [0.55, 0.96], [0, 1]] },
+  oval:      { k: 0.28, adj: 'oval',         prof: [[0, 0], [0.45, 0.03], [0.85, 0.2], [1, 0.48], [0.88, 0.78], [0.45, 0.97], [0, 1]] },
+  columnar:  { k: 0.15, adj: 'columnar',     prof: [[0, 0], [0.7, 0.04], [1, 0.18], [1, 0.75], [0.7, 0.93], [0, 1]] },
+  vase:      { k: 0.38, adj: 'vase-shaped',  prof: [[0, 0], [0.3, 0.04], [0.65, 0.35], [0.95, 0.68], [1, 0.82], [0.6, 0.97], [0, 1]] },
+  conical:   { k: 0.25, adj: 'conical',      prof: [[0, 0], [1, 0.04], [0.78, 0.3], [0.5, 0.6], [0.2, 0.88], [0, 1]] },
+  weeping:   { k: 0.40, adj: 'weeping',      prof: [[0, 0], [0.9, 0.02], [1, 0.35], [0.88, 0.7], [0.5, 0.93], [0, 1]] },
+  spreading: { k: 0.45, adj: 'spreading',    prof: [[0, 0], [0.65, 0.08], [1, 0.4], [0.95, 0.65], [0.6, 0.9], [0, 1]] }
+};
+// colours: [spring, summer, autumn]. Genus list: the Brief's start, plus what the import returns at
+// Robson & Burrard (Acer, Quercus, Parrotia, Gleditsia, Carpinus) and on W 13th Ave at Oak (Quercus,
+// Malus, Acer), plus the City's most common genera.
+var TREE_ARCHETYPES = {
+  _default:       { form: 'round',     leaf: 'deciduous', colors: ['#9CC06A', '#4E7D3A', '#C08A34'] },
+  ACER:           { form: 'round',     leaf: 'deciduous', colors: ['#A2C46C', '#4B7B36', '#D0502C'] },
+  PRUNUS:         { form: 'vase',      leaf: 'deciduous', colors: ['#F2B3C6', '#557F3C', '#B9472F'] },   // cherry: spring pink
+  MALUS:          { form: 'round',     leaf: 'deciduous', colors: ['#F3CFD9', '#557F3C', '#C06E36'] },
+  PYRUS:          { form: 'oval',      leaf: 'deciduous', colors: ['#F1EFE4', '#4F7C3A', '#A8362E'] },
+  TILIA:          { form: 'oval',      leaf: 'deciduous', colors: ['#A9C872', '#4A7A38', '#CBA43F'] },
+  QUERCUS:        { form: 'spreading', leaf: 'deciduous', colors: ['#B0C266', '#46703A', '#9A4A26'] },
+  FRAXINUS:       { form: 'oval',      leaf: 'deciduous', colors: ['#A8C46E', '#4C7B39', '#D7B745'] },
+  LIQUIDAMBAR:    { form: 'conical',   leaf: 'deciduous', colors: ['#9FC46B', '#46783A', '#8E2B3A'] },
+  CARPINUS:       { form: 'columnar',  leaf: 'deciduous', colors: ['#A6C46E', '#4A7A38', '#D2A63A'] },   // 'Frans Fontaine': the CoV downtown default
+  GLEDITSIA:      { form: 'spreading', leaf: 'deciduous', colors: ['#C3D27A', '#6C9243', '#E0C23C'] },
+  PLATANUS:       { form: 'spreading', leaf: 'deciduous', colors: ['#A8C272', '#4D7A3A', '#B98E42'] },
+  BETULA:         { form: 'oval',      leaf: 'deciduous', colors: ['#B5CF74', '#5A8A40', '#E1C24A'] },
+  ULMUS:          { form: 'vase',      leaf: 'deciduous', colors: ['#A9C46C', '#4B7A38', '#C9A43E'] },
+  ZELKOVA:        { form: 'vase',      leaf: 'deciduous', colors: ['#A8C46C', '#4B7A38', '#C0712E'] },
+  MAGNOLIA:       { form: 'round',     leaf: 'deciduous', colors: ['#F3E2EA', '#3F6E36', '#A8893A'] },
+  PARROTIA:       { form: 'oval',      leaf: 'deciduous', colors: ['#A2BF6A', '#4B7536', '#C8502E'] },
+  FAGUS:          { form: 'oval',      leaf: 'deciduous', colors: ['#B2C86E', '#4A7236', '#B06E2E'] },
+  CRATAEGUS:      { form: 'round',     leaf: 'deciduous', colors: ['#EFEDE0', '#4F7C3A', '#B2502E'] },
+  CORNUS:         { form: 'round',     leaf: 'deciduous', colors: ['#F2E9EC', '#4F7C3A', '#A63A36'] },
+  CERCIDIPHYLLUM: { form: 'oval',      leaf: 'deciduous', colors: ['#B7C977', '#5A8A44', '#E3A542'] },
+  AESCULUS:       { form: 'oval',      leaf: 'deciduous', colors: ['#EEE6D8', '#46703A', '#A96D2F'] },
+  PINUS:          { form: 'conical',   leaf: 'conifer',   colors: ['#3E6B45', '#2F5A3C', '#2F5A3C'] },
+  THUJA:          { form: 'conical',   leaf: 'conifer',   colors: ['#3E6B45', '#2F5A3C', '#2F5A3C'] },
+  CHAMAECYPARIS:  { form: 'conical',   leaf: 'conifer',   colors: ['#3E6B45', '#2F5A3C', '#2F5A3C'] },
+  PSEUDOTSUGA:    { form: 'conical',   leaf: 'conifer',   colors: ['#3E6B45', '#2F5A3C', '#2F5A3C'] },
+  PICEA:          { form: 'conical',   leaf: 'conifer',   colors: ['#3E6B45', '#2F5A3C', '#2F5A3C'] },
+  CEDRUS:         { form: 'conical',   leaf: 'conifer',   colors: ['#3E6B45', '#2F5A3C', '#2F5A3C'] },
+  SEQUOIADENDRON: { form: 'conical',   leaf: 'conifer',   colors: ['#3E6B45', '#2F5A3C', '#2F5A3C'] }
+};
+function treeClamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+// Season from a day of the year (the Visualize sun date): Mar-May spring, Jun-Aug summer, Sep-Nov autumn.
+// Dec-Feb has no colour of its own in this schematic: summer. The Visualize default (21 June) is summer.
+function treeSeason(doy) { doy = +doy || 172; return doy >= 60 && doy < 152 ? 'spring' : doy >= 244 && doy < 335 ? 'autumn' : 'summer'; }
+function treeColor(v, season) { var c = v.colors || TREE_ARCHETYPES._default.colors; return c[season === 'spring' ? 0 : season === 'autumn' ? 2 : 1]; }
+// "Carpinus betulus 'Fastigiata'": the City's genus / species / cultivar in botanical form.
+function treeLatin(t) {
+  var gn = String(t.genus || '').trim(), sp = String(t.speciesName || '').trim(), cv = String(t.cultivar || '').trim();
+  if (!gn) return '';
+  var s = gn.charAt(0).toUpperCase() + gn.slice(1).toLowerCase();
+  var hx = sp.match(/^X{1,2}(\s+|$)/i);   // the City writes a hybrid as XX (Quercus XX turneri)
+  if (/^SPECIES$/i.test(sp)) s += ' sp.'; else if (hx) s += ' \u00D7' + (sp.slice(hx[0].length) ? ' ' + sp.slice(hx[0].length).toLowerCase() : ''); else if (sp) s += ' ' + sp.toLowerCase();
+  if (cv && !/^NONE$/i.test(cv)) s += " '" + cv.toLowerCase().replace(/\b[a-z]/g, function(c) { return c.toUpperCase(); }) + "'";
+  return s.replace(/\s+/g, ' ').trim();
+}
+// The one sizing function every view reads (Plan, Section, 3D, the report, the photoreal prompt):
+//   heightM = the City's height_m (the band midpoint), clamped 3-20 m (8 m when missing);
+//   canopyR = the form's k x heightM, scaled 0.8-1.2 by DBH (0.8 at 0 cm, 1.0 at 30 cm, 1.2 at 60 cm and
+//             over; 1.0 when missing), clamped 1-6 m;
+//   trunkR  = DBH / 2 in metres, clamped 0.05-0.4 m (0.1 m when missing);  clearH = TREE_CLEAR_H.
+function treeFromCity(t) {
+  var gn = String(t.genus || '').trim().toUpperCase(), cv = String(t.cultivar || '').toUpperCase();
+  var A = TREE_ARCHETYPES[gn], formSrc = A ? 'genus' : 'default';
+  A = A || TREE_ARCHETYPES._default;
+  var form = A.form;
+  if (/FASTIGIAT|COLUMN|UPRIGHT|SPIRE|FRANS FONTAINE|EMERALD AVENUE/.test(cv)) { form = 'columnar'; formSrc = 'cultivar'; }
+  else if (/VASE/.test(cv)) { form = 'vase'; formSrc = 'cultivar'; }
+  else if (/PENDULA|WEEPING/.test(cv)) { form = 'weeping'; formSrc = 'cultivar'; }
+  var h = +t.height, hOk = t.height != null && isFinite(h) && h > 0, heightM = hOk ? treeClamp(h, 3, 20) : 8;
+  var dbh = +t.dbhCm, dOk = t.dbhCm != null && isFinite(dbh) && dbh > 0;
+  var ft = hOk ? h / 0.3048 : null, n = ft != null ? Math.round((ft - 5) / 10) : null;
+  var band = ft == null ? 'height not given' : Math.abs(ft - (10 * n + 5)) < 0.35 ? (10 * n) + '-' + (10 * n + 10) + ' ft band' : 'measured';
+  return {
+    form: form, formSrc: formSrc, leaf: A.leaf, colors: A.colors,
+    heightM: +heightM.toFixed(2), canopyR: +treeClamp(TREE_FORMS[form].k * heightM * (dOk ? 0.8 + 0.4 * Math.min(1, dbh / 60) : 1), 1, 6).toFixed(3),
+    trunkR: +(dOk ? treeClamp(dbh / 200, 0.05, 0.4) : 0.1).toFixed(3), clearH: TREE_CLEAR_H,
+    genus: gn ? gn.charAt(0) + gn.slice(1).toLowerCase() : '', latin: treeLatin(t), cultivar: /^NONE$/i.test(cv.trim()) ? '' : String(t.cultivar || '').trim(),
+    common: String(t.common || t.species || '').trim(), band: band, heightRaw: hOk ? h : null, dbhCm: dOk ? dbh : null
+  };
+}
+// Tooltip / label text (no straight apostrophe: the Plan's markup turns those into quotes).
+function treeTip(v) {
+  var s = (v.latin || 'Street tree') + (v.common ? ' (' + v.common.toLowerCase() + ')' : '') + ', ' + v.heightM + ' m, ' + v.form + (v.formSrc === 'default' ? ' (form: default)' : '');
+  return s.replace(/'/g, '’').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+// "hornbeam" -> "hornbeams": the last word of the City's common name ("OAK SPECIES" -> oak).
+function treeNoun(v, n) {
+  var w = String(v.common || '').toLowerCase().replace(/\s+species$/, '').trim().split(/\s+/).pop() || 'tree';
+  if (n === 1) return w;
+  return /(s|x|ch|sh)$/.test(w) ? w + 'es' : /[^aeiou]y$/.test(w) ? w.slice(0, -1) + 'ies' : w + 's';
+}
+// The schematic 3D tree: a trunk to the crown and the form's profile turned as a lathe (16 steps, so the
+// crown's box is exactly 2 canopyR across), in the season's colour. No textures. Returns the parts.
+function treeMesh3D(v, season) {
+  var F = TREE_FORMS[v.form] || TREE_FORMS.round, top = Math.max(v.heightM, v.clearH + 1), ch = top - v.clearH, g = new THREE.Group();
+  var tkH = v.clearH + ch * 0.3;
+  var tk = new THREE.Mesh(new THREE.CylinderGeometry(v.trunkR * 0.7, v.trunkR, tkH, 10), new THREE.MeshStandardMaterial({ color: 0x6b4c2a, roughness: 0.9 }));
+  tk.position.y = tkH / 2; tk.castShadow = true; g.add(tk);
+  var pts = F.prof.map(function(p) { return new THREE.Vector2(p[0] * v.canopyR, p[1] * ch); });
+  var cn = new THREE.Mesh(new THREE.LatheGeometry(pts, 16), new THREE.MeshStandardMaterial({ color: new THREE.Color(treeColor(v, season)), roughness: 0.8, side: THREE.DoubleSide }));
+  cn.position.y = v.clearH; cn.castShadow = true; cn.userData.treeSeason = season; g.add(cn);
+  return { group: g, canopy: cn, trunk: tk };
+}
+
 // Build (or rebuild) DESIGN_MODEL from the canonical source.
 // CANONICAL SOURCE: window.seGetSegs() â€” the section editor's _segs array.
 // _segs is what the user directly edits; all three views are projections of it.
@@ -2342,10 +2461,10 @@ function buildDesignModel() {
     // scene extent only. segId null marks an imported tree; its prov and species ride along.
     var nSeg = veg.length;
     ((typeof state !== 'undefined' && state.street_trees) || []).forEach(function(t) {
-      var z = +t.xM, x = LM.roadLeft + (+t.yM || 0), h = +t.height;
+      var z = +t.xM, x = LM.roadLeft + (+t.yM || 0);
       if (!isFinite(z) || z < LM.sceneMinZ || z > LM.sceneMaxZ) return;
-      var cR = isFinite(h) && h > 0 ? Math.max(1, Math.min(4, 0.35 * h)) : 2;
-      veg.push({ segId: null, type: 'tree', x: x, z: z, canopyR: cR, trunkR: Math.min(0.15, cR * 0.1), prov: t.prov || null, species: t.species || '', id: t.id, confirmed: !!t.confirmed });
+      // form, leaf, heightM, canopyR, trunkR, clearH, genus, common ... from the City's numbers (treeFromCity)
+      veg.push(Object.assign({ segId: null, type: 'tree', x: x, z: z, prov: t.prov || null, species: t.species || '', id: t.id, confirmed: !!t.confirmed }, treeFromCity(t)));
     });
     DESIGN_MODEL.vegetation = veg;
     DESIGN_MODEL.vegetationCounts = { segment: nSeg, imported: veg.length - nSeg };
@@ -4433,7 +4552,7 @@ function getSectionScene(sec) {
   (DM.vegetation || []).forEach(function(v, i) {
     var seg = DM.crossSection.find(function(s) { return s.id === v.segId; }) || {};
     var r = v.canopyR, tree = v.type === 'tree';
-    add({ kind: tree ? 'tree' : 'planter', key: 'veg:' + i, x0: v.x - r, x1: v.x + r, y0: 0, y1: tree ? 2.0 + 1.12 * r : 0.5,
+    add({ kind: tree ? 'tree' : 'planter', key: 'veg:' + i, x0: v.x - r, x1: v.x + r, y0: 0, y1: tree ? (v.form ? Math.max(v.heightM, v.clearH + 1) : 2.0 + 1.12 * r) : 0.5,
       z0: v.z - r, z1: v.z + r, data: { v: v, seg: seg, atRoadLevel: seg.x0 >= DM.parklet.width - 0.001 } });
   });
   // bollards along every protected bike lane (road-side edge, every 2 m on the parklet)
@@ -4749,6 +4868,10 @@ function _drawSection(svgEl, o) {
             rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
             xToPx: X, yDeck: b0, SC: SC, isBeyond: true, tech: isTech, id: inst.id });
         } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), bst('#C4906A'));
+      } else if (it.kind === 'tree' && d.v.form) {   // imported street tree: trunk to clearH, the crown an ellipse from clearH to its height, 2 canopyR wide
+        var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, top = Math.max(v.heightM, v.clearH + 1), tw = Math.max(2, 2 * v.trunkR * SC);
+        g += "<ellipse cx='" + f1(tx) + "' cy='" + f1(gy - Y((v.clearH + top) / 2)) + "' rx='" + f1(v.canopyR * SC) + "' ry='" + f1(Y(top - v.clearH) / 2) + "'" + bst('#7FA06E') + " data-canopy='1'/>";
+        g += rectXY(tx - tw / 2, tx + tw / 2, gy, gy - Y(v.clearH), bst('#8A7256'));
       } else if (it.kind === 'tree') {
         var v = d.v, tx = X(v.x), gy = d.atRoadLevel ? GROUND_Y : SW_TOP, r = Math.max(0.15, v.canopyR) * SC, tw = Math.max(2, 0.12 * SC);
         var tTop = gy - Y(2.0), cy = tTop - r * 0.3;
@@ -4801,6 +4924,11 @@ function _drawSection(svgEl, o) {
         var v = d.v, tx = Math.round(X(v.x)), gy = d.atRoadLevel ? GROUND_Y : SW_TOP;
         if (it.kind === 'planter') {
           g += rectXY(X(it.x0), X(it.x1), gy, gy - Y(0.5), solid('#D9D9D9', '#C8C3BA'));
+        } else if (v.form) {   // imported street tree at the cut: trunk to clearH, crown ellipse 2 canopyR wide
+          var top = Math.max(v.heightM, v.clearH + 1), tw2 = Math.max(2, 2 * v.trunkR * SC);
+          g += '<ellipse cx="' + tx + '" cy="' + f1(gy - Y((v.clearH + top) / 2)) + '" rx="' + f1(v.canopyR * SC) + '" ry="' + f1(Y(top - v.clearH) / 2) + '"' +
+            (isTech ? ' fill="none" stroke="#555" stroke-width="0.6"' : ' fill="rgba(80,155,60,.45)" stroke="#2a6818" stroke-width="1.2"') + ' data-canopy="1"/>';
+          g += rectXY(tx - tw2 / 2, tx + tw2 / 2, gy, gy - Y(v.clearH), solid('#2a2016', '#7a4420'));
         } else {
           var tDiam = Math.max(2, Math.round(0.12 * SC)), tH = Math.round(2.0 * SC), cR = Math.round(Math.max(0.15, v.canopyR || 0.4) * SC);
           var tTop = gy - tH, cCY = tTop - Math.round(cR * 0.3), cRY = Math.round(cR * 0.82);
@@ -5512,11 +5640,13 @@ function _renderPlanView(o) {
   // (ellipse radii use each axis's own px/m). Tagged data-veg='<index>' for the check.
   _pvDM.vegetation.forEach(function(v, i) {
     const c = worldToPlan(v.x, v.z), rx = v.canopyR * HS, ry = v.canopyR * pvSC;
+    // an imported street tree: dashed outline = conifer, solid = deciduous; the City's name as its tooltip
+    const _tip = v.segId === null && v.form ? `<title>${treeTip(v)}</title>` : '', _cDash = v.leaf === 'conifer' ? ` stroke-dasharray='3,2'` : '';
     if (v.type === 'tree' && _iTch) {   // technical: open canopy circle + centre dot
-      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='none' stroke='#1A1A1A' stroke-width='0.6' data-veg='${i}'/>`;
+      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='none' stroke='#1A1A1A' stroke-width='0.6'${_cDash} data-veg='${i}'>${_tip}</ellipse>`;
       s += `<circle cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' r='1.3' fill='#1A1A1A'/>`;
-    } else if (v.type === 'tree' && v.segId === null) {   // imported street tree: dashed until confirmed on site
-      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='rgba(94,140,80,.18)' stroke='#5E8C50' stroke-width='0.9'${v.confirmed ? '' : ` stroke-dasharray='3,2'`} data-veg='${i}'/>`;
+    } else if (v.type === 'tree' && v.segId === null) {   // imported street tree: the canopy at canopyR (confirm-on-site lives in the Check list)
+      s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='rgba(94,140,80,.18)' stroke='#5E8C50' stroke-width='0.9'${_cDash} data-veg='${i}'>${_tip}</ellipse>`;
       s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${Math.max(1, v.trunkR * HS).toFixed(2)}' ry='${Math.max(1, v.trunkR * pvSC).toFixed(2)}' fill='#6b4c2a'/>`;
     } else if (v.type === 'tree') {
       s += `<ellipse cx='${c.px.toFixed(2)}' cy='${c.py.toFixed(2)}' rx='${rx.toFixed(2)}' ry='${ry.toFixed(2)}' fill='rgba(111,154,90,.30)' stroke='#5d8a52' stroke-width='0.7' stroke-dasharray='3,2' data-veg='${i}'/>`;
@@ -5533,7 +5663,7 @@ function _renderPlanView(o) {
   (_pvDM.transit || []).forEach(function(t, i) {
     const c = worldToPlan(t.x, t.z), w = 0.9 * HS, h = 0.9 * pvSC;
     s += `<rect x='${(c.px - w / 2).toFixed(2)}' y='${(c.py - h / 2).toFixed(2)}' width='${w.toFixed(2)}' height='${h.toFixed(2)}' fill='${_iTch ? '#FFFFFF' : '#3AA8E4'}' stroke='#17191C' stroke-width='0.7'${t.confirmed ? '' : ` stroke-dasharray='2,1'`} data-transit='${i}'/>`;
-    s += `<text x='${(c.px + w * 0.7).toFixed(2)}' y='${(c.py + 3).toFixed(2)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='7' fill='${_iTch ? '#1A1A1A' : '#1F6FA0'}'>${t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop'}</text>`;
+
   });
   if (_bikeSeg) {
     const pvLaneY = _bikeSeg.y0, pvLaneH = _bikeSeg.y1 - _bikeSeg.y0;
@@ -6030,6 +6160,17 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     U = Math.max(VB.w / _pvPW, VB.h / _pvPH);
   }
   VB.U = U;
+  // Labels at the annotation size (U plan units per screen / paper px): each transit stop's label and,
+  // on paper at 1:100 only, each imported tree's two-letter genus tag above its canopy.
+  (_pvDM.transit || []).forEach(function(t) {
+    const c = worldToPlan(t.x, t.z);
+    s += `<text x='${(c.px + 0.63 * HS).toFixed(2)}' y='${(c.py + 3 * U).toFixed(2)}' font-family='Helvetica Neue, Arial, sans-serif' font-size='${(7 * U).toFixed(2)}' fill='${_iTch ? '#1A1A1A' : '#1F6FA0'}'>${t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop'}</text>`;
+  });
+  if (paper && o.mmPerM === 10) _pvDM.vegetation.forEach(function(v, i) {
+    if (v.segId !== null || !v.genus) return;
+    const c = worldToPlan(v.x, v.z);
+    s += `<text x='${c.px.toFixed(2)}' y='${(c.py - v.canopyR * pvSC - 1.5 * U).toFixed(2)}' text-anchor='middle' font-family='Helvetica Neue, Arial, sans-serif' font-size='${(6 * U).toFixed(2)}' fill='${_iTch ? '#1A1A1A' : '#3F6B34'}' data-veg-tag='${i}'>${v.genus.slice(0, 2).toUpperCase()}</text>`;
+  });
   if (dimsOn) {
     const INK = '#1A1A1A', MID = '#62605C', EXT = '#A19F9A';
     const FNT = `font-family='Helvetica Neue,Arial,sans-serif'`;
@@ -7338,8 +7479,12 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     const matCanopy = new THREE.MeshStandardMaterial({color:0x3d7a4e, roughness:0.7});
     const matBox = new THREE.MeshStandardMaterial({color:0x9a7a58, roughness:0.9});
     const matTop = new THREE.MeshStandardMaterial({color:0x4a8040, roughness:0.7});
+    const _season = treeSeason(typeof RVZ !== 'undefined' && RVZ.o ? RVZ.o.doy : 172);   // the Visualize sun date
     _dm3d.vegetation.forEach(function(v, i) {
-      if (v.type === 'tree') {
+      if (v.type === 'tree' && v.form) {   // imported street tree: trunk + its form's lathe crown in the season's colour
+        const tm = treeMesh3D(v, _season);
+        tm.group.position.set(v.x, 0, v.z); tm.canopy.userData.veg = i; tm.group.userData.label = treeTip(v); g.add(tm.group);
+      } else if (v.type === 'tree') {
         const tk = new THREE.Mesh(new THREE.CylinderGeometry(v.trunkR * 0.6, v.trunkR, 1.4, 6), matTrunk);
         tk.position.set(v.x, 0.7, v.z); tk.castShadow = true; g.add(tk);
         const cn = new THREE.Mesh(new THREE.SphereGeometry(v.canopyR, 8, 6), matCanopy);
@@ -18485,6 +18630,30 @@ RPT.hostLine = function(DM) {
   var h = DM.site.host; if (!h) return 'No building on the parklet side';
   return (h.name || 'Unnamed') + ', ' + h.use + (RPT.hostRaw(DM).entered ? '' : ' (default)');
 };
+// Street trees from the City inventory (the imported DESIGN_MODEL.vegetation entries): the Summary's one
+// line -- count, genus / common name and height band per kind, confirm on site with the fetch date -- and
+// the Sources sheet's row per tree (genus, common name, band, DBH -> heightM, canopyR, form).
+RPT.cityTrees = function(DM) { return (DM.vegetation || []).filter(function(v) { return v.segId === null && v.form; }); };
+RPT.treeFetched = function(list) {
+  var at = list.map(function(v) { return v.prov && v.prov.fetchedAt; }).filter(Boolean).sort().pop();
+  return at && typeof SMP !== 'undefined' ? SMP.day(at) : (at || 'date not recorded');
+};
+RPT.treeSummary = function(DM) {
+  var list = RPT.cityTrees(DM); if (!list.length) return 'None imported';
+  var kinds = {}, order = [];
+  list.forEach(function(v) { var k = (v.genus || 'Unknown genus') + '|' + (v.common || '').toLowerCase() + '|' + v.band; if (!kinds[k]) { kinds[k] = 0; order.push(k); } kinds[k]++; });
+  return list.length + ': ' + order.map(function(k) { var p = k.split('|'); return kinds[k] + ' ' + p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ', ' + p[2]; }).join('; ') +
+    '. Confirm on site (CoV public-trees, fetched ' + RPT.treeFetched(list) + ')';
+};
+RPT.treeRows = function(DM) {
+  return RPT.cityTrees(DM).map(function(v, i) {
+    return 'Tree ' + (i + 1) + ' at ' + (typeof SMP !== 'undefined' ? SMP.where({ xM: v.z }) : 'z ' + v.z.toFixed(1) + ' m') + ': ' + (v.latin || v.genus || 'genus not given') + (v.common ? ', ' + v.common.toLowerCase() : '') +
+      '; ' + v.band + (v.heightRaw != null ? ' (' + v.heightRaw + ' m)' : '') + ', DBH ' + (v.dbhCm != null ? v.dbhCm + ' cm' : 'not given') +
+      ' -> height ' + v.heightM.toFixed(1) + ' m, canopy radius ' + v.canopyR.toFixed(2) + ' m, trunk radius ' + v.trunkR.toFixed(2) + ' m, clear ' + v.clearH.toFixed(1) + ' m, form ' + v.form +
+      (v.formSrc === 'default' ? ' (form: default, genus not in the table)' : v.formSrc === 'cultivar' ? ' (from the cultivar)' : '') + '; ' +
+      (v.confirmed ? 'confirmed on site' : 'confirm on site') + ' (CoV public-trees ' + (v.prov && v.prov.id ? v.prov.id : '') + ', fetched ' + RPT.treeFetched([v]) + ')';
+  });
+};
 RPT.summary = function(d) {
   var DM = d.DM, LM = DM.landmarks, S = DM.street, ins = DM.inputs, gm = d.gm, so = DM.siteObjects;
   var route = ins.route_type && ins.route_type.entered ? (ins.route_type.text || ins.route_type.value) : 'not entered';
@@ -18498,6 +18667,7 @@ RPT.summary = function(d) {
     RPT.kv('Hydrants placed', String(so.hydrants), 'siteObjects.hydrants', 0) + RPT.kv('Poles placed', String(so.poles), 'siteObjects.poles', 0) +
     RPT.kv('Signal boxes placed', String(so.signalBoxes), 'siteObjects.signalBoxes', 0) + RPT.kv('Manholes placed', String(so.manholes), 'siteObjects.manholes', 0) +
     RPT.kv('Driveways placed', String(so.driveways), 'siteObjects.driveways', 0) +
+    RPT.kv('Street trees (City inventory)', RPT.treeSummary(DM)) +
     RPT.kv('Host frontage', RPT.hostLine(DM));
   var furn = d.placed.filter(function(p) { return !p.archetype || !flIsEntourage(p.archetype); }).length;
   var pk = RPT.kv('Width', RPT.fx(DM.parklet.width) + ' m', 'parklet.width', 3) + RPT.kv('Length', RPT.fx(DM.parklet.length) + ' m', 'parklet.length', 3) +
@@ -18617,6 +18787,7 @@ RPT.sources = function(d) {
     'The Section is a schematic cross-section, not a construction drawing. No structural or construction feasibility is assessed.'].filter(Boolean);
   var body = "<div class='flow'>" + RPT.group('Standards and data', li(std)) + RPT.group('Entered inputs', li(entered.length ? entered : ['None entered.'])) +
     (typeof SMP !== 'undefined' && SMP.sourcesList().length ? RPT.group('Imported site data (verify on site)', li(SMP.sourcesList().map(RPT.esc))) : '') +
+    (RPT.cityTrees(DM).length ? RPT.group('Street trees (City inventory)', li(RPT.treeRows(DM).map(RPT.esc))) : '') +
     RPT.group('From the design model', li(model)) + RPT.group('Assumptions', li(assume)) + '</div>';
   return RPT.sheet('a4', '09', 'Sources and assumptions', body, '', 'flows');
 };
@@ -19842,7 +20013,9 @@ RVZ.build = function(o) {
   // Section's 2.0 m and a canopy of foliage clumps inside the model's canopy radius
   (DM.vegetation || []).forEach(function(v) {
     var y = surfY(v.x, v.z), rnd = AXE.rng(Math.round(v.z * 1000) + 3);
-    if (v.type === 'tree') {
+    if (v.type === 'tree' && v.form) {   // imported street tree: the Design 3D's form / size / season mesh
+      dress(treeMesh3D(v, treeSeason(RVZ.o.doy)).group, v.x, y, v.z, 0, { contactOp: 0.35 });
+    } else if (v.type === 'tree') {
       var g = new THREE.Group(), r = Math.max(0.25, v.canopyR), tr = Math.max(0.05, v.trunkR || 0.08);
       var tk = new THREE.Mesh(new THREE.CylinderGeometry(tr * 0.65, tr, 2.3, 10), RVZ.mat('bark')); tk.position.y = 1.15; g.add(tk);
       for (var c = 0; c < 8; c++) {
@@ -20225,7 +20398,10 @@ RVZ.draw = function() {
   }, 0);
 };
 RVZ.set = function(k, v) {
+  var s0 = k === 'doy' ? treeSeason(RVZ.o.doy) : null;
   RVZ.o[k] = v;
+  // the street trees' colour follows the date's season: redraw the Design 3D and the live render when it changes
+  if (s0 && treeSeason(v) !== s0) { if (typeof request3DRebuild === 'function') request3DRebuild('season'); if (RVZ._live && RVZ._live.S) RVZ._rebuildLive(); }
   if (k === 'appearance' || k === 'people') { if (RVZ._live && RVZ._live.S) RVZ._rebuildLive(); }
   try { localStorage.setItem('pkt_rvz', JSON.stringify({ preset: RVZ.o.preset, appearance: RVZ.o.appearance, doy: RVZ.o.doy, min: RVZ.o.min, res: RVZ.o.res, scale: RVZ.o.scale, people: RVZ.o.people })); } catch (e) {}
   RVZ._sync(); RVZ.draw();
@@ -20603,6 +20779,25 @@ RVZP.context = function() {
 };
 RVZP.cap = function(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; };
 // ── Prompt: generated from the model ────────────────────────────────────────────────────────
+// The street trees in words, from the DESIGN_MODEL.vegetation entries every view draws: the imported
+// trees within 15 m of the deck, grouped by form, name and height -- e.g. "two columnar hornbeams
+// (Carpinus betulus 'Fastigiata') about 5 m tall on the sidewalk". '' when there are none.
+RVZP.treeSentence = function() {
+  var DM = _dmCurrent(), L = DM.parklet.length, groups = {}, order = [];
+  (DM.vegetation || []).forEach(function(v) {
+    if (v.segId !== null || !v.form || v.z < -15 || v.z > L + 15) return;
+    var k = [v.form, v.latin, v.common, Math.round(v.heightM)].join('|');
+    if (!groups[k]) { groups[k] = { v: v, n: 0 }; order.push(k); }
+    groups[k].n++;
+  });
+  if (!order.length) return '';
+  order.sort(function(a, b) { return groups[b].n - groups[a].n; });
+  var W = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+  return order.slice(0, 4).map(function(k) {
+    var q = groups[k], v = q.v;
+    return (W[q.n] || String(q.n)) + ' ' + TREE_FORMS[v.form].adj + ' ' + treeNoun(v, q.n) + (v.latin ? ' (' + v.latin + ')' : '') + ' about ' + Math.round(v.heightM) + ' m tall';
+  }).join(', ') + ' on the sidewalk';
+};
 RVZP.ROLE = { frame: 'frames', seat: 'seats', back: 'seat backs', top: 'tabletops', body: 'planters', slat: 'slats', post: 'posts', panel: 'panels', canopy: 'canopies', pole: 'poles', base: 'bases', rail: 'rails', grate: 'tree grates', light: 'lights' };
 RVZP.prompt = function() {
   var DM = _dmCurrent(), counts = {}, types = {}, ent = { seated: 0, walk: 0, bike: 0, car: 0 };
@@ -20624,7 +20819,8 @@ RVZP.prompt = function() {
   if (ent.bike) people.push('a cyclist');
   if (ent.car) people.push('a car in the travel lane');
   var trees = (DM.vegetation || []).filter(function(v) { return v.type === 'tree'; }).length, veg = ['planters with shrubs at both ends of the deck'];
-  if (trees) veg.push('young street trees');
+  var treeWords = RVZP.treeSentence();
+  if (treeWords) veg.push(treeWords); else if (trees) veg.push('young street trees');
   var s = RVZ.sun(), hr = RVZ.o.min / 60, month = RVZ.MONTHS[s.month];
   var when = !s.up ? 'dusk, street lights on' : hr < 10.5 ? 'morning' : hr < 14 ? 'midday' : s.alt < 15 ? 'late afternoon' : 'afternoon';
   var sun = !s.up ? '' : s.alt > 50 ? 'high sun, short crisp shadows' : s.alt > 25 ? 'sun from the ' + siteWind(s.az) + ', clear shadows' : 'low sun from the ' + siteWind(s.az) + ', long shadows';
@@ -20650,6 +20846,7 @@ RVZP.instruction = function() {
     ', 35 mm lens look, slight background softness, ' + (ctx.sign ? 'no added text apart from the sign, ' : 'no text, ') + 'no watermark. The second image is a depth map of the same view: use it only to keep the geometry, do not copy its look. ' +
     'Keep every piece of furniture, planter and the railing exactly as many, as placed and as sized: ' + RVZP.inventory() + '. ' +
     (RVZP.o.railDetail ? RVZP.railText() + ' ' : '') +
+    (RVZP.treeSentence() ? 'Keep the street trees as they stand in the render: ' + RVZP.treeSentence() + '. ' : '') +
     "Keep the near building's face where it is; its materials and the far street may change. Do not add furniture." +
     (ctx.sentence ? ' ' + RVZP.cap(ctx.sentence) + '.' : '') + (ctx.clause ? ' ' + RVZP.cap(ctx.clause) + '.' : '') +
     (RVZP.ref() ? ' The third image is a street photo of this place: use this photo only for the appearance of the street and buildings; the design and camera come from the render.' : '');
@@ -22083,10 +22280,17 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   });
   state.curb_features = cf;
   // street trees (reference: no C01-C15 check measures trees)
-  var tr = []; (cov['public-trees'].rows || []).forEach(function(r) {
+  // (public-trees fields: genus_name, species_name, cultivar_name, common_name, height_m, diameter_cm; the
+  // model sizes each tree from them in treeFromCity. A STUMP or a vacant PLANTING site is not a tree.)
+  var tr = [], notTree = 0; (cov['public-trees'].rows || []).forEach(function(r) {
     var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return; if (!inZ(w)) { dropT++; return; }
-    tr.push({ id: 'cov-' + (SMP.rowId(r) || (g.lat + ',' + g.lon)), xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, species: r.common_name || '', height: r.height_m || null, prov: { source: 'cov', dataset: 'public-trees', id: SMP.rowId(r), fetchedAt: cov['public-trees'].at }, confirmed: false });
+    if (/^(STUMP|PLANTING)$/i.test(String(r.genus_name || '').trim())) { notTree++; return; }
+    tr.push({ id: 'cov-' + (SMP.rowId(r) || (g.lat + ',' + g.lon)), xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, species: r.common_name || '',
+      genus: r.genus_name || '', speciesName: r.species_name || '', cultivar: r.cultivar_name || '', common: r.common_name || '',
+      height: r.height_m != null && r.height_m !== '' ? +r.height_m : null, dbhCm: r.diameter_cm != null && r.diameter_cm !== '' ? +r.diameter_cm : null,
+      prov: { source: 'cov', dataset: 'public-trees', id: SMP.rowId(r), fetchedAt: cov['public-trees'].at }, confirmed: false });
   });
+  if (notTree) rep.notes.push(notTree + ' stump' + (notTree > 1 ? 's' : '') + ' or vacant planting site' + (notTree > 1 ? 's' : '') + ' in the City tree inventory left out');
   state.street_trees = tr; rep.trees = tr.length;
   var outT = (cov['public-trees'].rows || []).filter(function(r) { var g = SMP.pt(r); if (!g) return false; var w = F.w(g.lat, g.lon); return near(w) && (w.x > LM.roadLeft + 0.01 || w.x < LM.bufferL.x0 - 0.01); }).length;
   if (outT) rep.notes.push(outT + ' street tree' + (outT > 1 ? 's fall' : ' falls') + ' outside the sidewalk (curb to frontage) as imported: not moved'); 
