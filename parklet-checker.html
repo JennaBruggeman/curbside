@@ -1470,7 +1470,9 @@ var _pvUserMod = false; // set true when user has zoomed/panned — prevents vie
 function _pvZoomStep(factor) {
   var svg=document.getElementById('planView'); if(!svg) return;
   var cx=_pvVB.x+_pvVB.w/2, cy=_pvVB.y+_pvVB.h/2;
-  var bw=_pvVB.fitW||760, nW=Math.max(bw*0.005,Math.min(bw*1.5,_pvVB.w*factor)), nH=nW*_pvVB.h/_pvVB.w;   // limits from the fitted width
+  // limits from the fitted width; out to 0.8 px/m at least, so the far tier can be reached (Brief 19 A)
+  var _zr = svg.getBoundingClientRect();
+  var bw=_pvVB.fitW||760, nW=Math.max(bw*0.005,Math.min(Math.max(bw*1.5, (_zr.width || 760) * PLAN_PX_M / 0.8),_pvVB.w*factor)), nH=nW*_pvVB.h/_pvVB.w;
   _pvVB.x+=((_pvVB.w-nW)*(cx-_pvVB.x)/_pvVB.w); _pvVB.y+=((_pvVB.h-nH)*(cy-_pvVB.y)/_pvVB.h);
   _pvVB.w=nW; _pvVB.h=nH; _pvUserMod=true;
   _svgApplyVB(svg,_pvVB); _svgAppendSB(svg,_pvVB,760,395);
@@ -2063,8 +2065,8 @@ function _checkLandmarkConsistency(verbose) {
     bad.push({ value: '3D transit count', model: trn.length, independent: nTrn3d });
   [].slice.call(trnPlan).forEach(function(el) {
     var t = trn[+el.getAttribute('data-transit')]; if (!t) return;
-    // DRAW_SYMBOLS.busStop (Brief 18): a B centred on the stop (baseline 0.36 of its size below)
-    var want = worldToPlan(t.x, t.z), cx = +el.getAttribute('x'), cy = +el.getAttribute('y') - 0.36 * +el.getAttribute('font-size');
+    // DRAW_SYMBOLS.busStop (Brief 18): a B centred on the stop (baseline 0.36 of its size below); at the far tier a dot
+    var want = worldToPlan(t.x, t.z), isDot = el.tagName.toLowerCase() === 'circle', cx = isDot ? +el.getAttribute('cx') : +el.getAttribute('x'), cy = isDot ? +el.getAttribute('cy') : +el.getAttribute('y') - 0.36 * +el.getAttribute('font-size');
     if (Math.hypot(cx - want.px, cy - want.py) > 0.5) bad.push({ value: 'transit ' + el.getAttribute('data-transit') + ' Plan position', model: want.px.toFixed(2) + ',' + want.py.toFixed(2), independent: cx.toFixed(2) + ',' + cy.toFixed(2) });
   });
   Object.keys(trn3d).forEach(function(k) {
@@ -3518,7 +3520,8 @@ function _svgWheelZoom(e, svgId, vb, baseW, baseH) {
   const my = vb.y + (e.clientY - r.top) / r.height * vb.h;
   const factor = e.deltaY < 0 ? 1/1.12 : 1.12;
   const pv = svgId === 'planView', bw = pv && vb.fitW ? vb.fitW : baseW;   // the Plan: limits from its fitted width
-  const newW = Math.max(bw * (pv ? 0.005 : 0.08), Math.min(bw * (pv ? 1.5 : 5), vb.w * factor));
+  const _zw = pv ? Math.max(bw * 1.5, (svg && svg.getBoundingClientRect ? svg.getBoundingClientRect().width || 760 : 760) * PLAN_PX_M / 0.8) : bw * 5;   // Plan: out to 0.8 px/m (the far tier)
+  const newW = Math.max(bw * (pv ? 0.005 : 0.08), Math.min(_zw, vb.w * factor));
   const newH = pv ? newW * vb.h / vb.w : newW * baseH / baseW;
   vb.x += (vb.w - newW) * (mx - vb.x) / vb.w;
   vb.y += (vb.h - newH) * (my - vb.y) / vb.h;
@@ -5619,6 +5622,13 @@ DRAW_STYLE.seg = function(type, mode) { var T = DRAW_STYLE.t(mode); return T.fil
 // dimension text (Brief 17, 3b): metres, two decimals, no units; a compliance clearance "1.62 (>=1.50 C13)". The Plan's DIM
 // toggle and the report print these same strings.
 DRAW_STYLE.fmt = function(v, dp) { var d = dp == null ? 2 : dp, p = Math.pow(10, d); return (Math.round(v * p) / p).toFixed(d); };
+// The annotation's level of detail (Brief 19 A), from the drawing's scale in px per metre (a sheet at 1:n is 2000 / n):
+// far (< 2 px/m, smaller than 1:1000) fills and outlines only, no text but the scale bar and north; mid (2-8 px/m,
+// 1:1000-1:250) adds the segment labels, the overall dimensions, building addresses, failed checks' rule lozenges
+// and the site symbols without labels; near (> 8 px/m) draws everything. Context (buildings, trees, stops, poles,
+// lanes) is never culled, only annotation. The Plan and the report both ask lodTier.
+function lodTier(pxPerM) { return pxPerM < 2 ? 'far' : pxPerM <= 8 ? 'mid' : 'near'; }
+var LOD_RANK = { far: 0, mid: 1, near: 2 };
 DRAW_STYLE.fmtClear = function(v, req, id, max) { return DRAW_STYLE.fmt(v) + ' (' + (max ? '≤' : '≥') + DRAW_STYLE.fmt(req) + ' ' + id + ')'; };
 // a check zone's stroke: fine, dashed as 'zone'; fail = zone red; pass = ink at 50% (technical) or zone red at 60% (schematic)
 DRAW_STYLE.zone = function(ctx, st) { var T = ctx.T; return st === 'fail' ? { c: T.fail, op: 1 } : st === 'pass' ? { c: T.pass, op: T.passOp } : { c: T.anno, op: 0.6 }; };
@@ -5766,13 +5776,15 @@ var DRAW_SYMBOLS = {
   // bus stop (Brief 18): the letter B, bold, no box; grey until confirmed on site
   busStop: function(P, x, y, o) {
     o = o || {}; var s = P.fs('body');
+    if (o.noText) { P.circle(x, y, 0.6 * P.ctx.k, { fill: o.unconfirmed ? 'mid' : 'ink', cls: 'none', data: o.data }); return; }   // the far and mid tiers: a dot
     P.text(x, y + 0.36 * s, 'B', s, { anchor: 'middle', bold: true, c: o.unconfirmed ? 'mid' : 'ink', data: o.data });
   },
   // hydrant (Brief 18): one circle, 0.3 m across at model size (o.r, user units) and never under 2.4 mm, with an H
+  // (o.noText, the far and mid tiers: the circle alone)
   hydrant: function(P, x, y, o) {
-    o = o || {}; var k = P.ctx.k, r = Math.max(1.2 * k, o.r || 0);
+    o = o || {}; var k = P.ctx.k, r = Math.max(1.5 * k, o.r || 0);   // its H at 1.9 mm: never under the least text size
     P.circle(x, y, r, { cls: 'edge', fill: 'paper', c: o.c, data: o.data });
-    P.text(x, y + 0.45 * r, 'H', 1.25 * r, { anchor: 'middle', bold: true, c: o.c || 'ink' });
+    if (!o.noText) P.text(x, y + 0.45 * r, 'H', 1.25 * r, { anchor: 'middle', bold: true, c: o.c || 'ink' });
   },
   // a bollard or flexible post (Brief 18): a 0.1 m dot at 'general'; r in user units
   post: function(P, x, y, r, o) {
@@ -6068,6 +6080,10 @@ function _renderPlanView(o) {
   const _sent = function(t) { return t.charAt(0) + t.slice(1).toLowerCase(); };
   // plan-unit annotation (handles, chips, small marks) at a steady screen size: this frame's U (Brief 18: never the last one's)
   const pvZS = paper ? 1 : U;
+  // the annotation tier (Brief 19 A): from the screen's px per metre (paper: the sheet scale, 2 px/m per mm/m)
+  const LOD = paper ? lodTier(2 * (o.mmPerM || 10)) : lodTier(PLAN_PX_M / U), LODn = LOD_RANK[LOD];
+  const atTier = function(t) { return LODn >= LOD_RANK[t]; };
+  if (!paper) window._pvLod = { tier: LOD, pxPerM: +(PLAN_PX_M / U).toFixed(2) };
   const pvDFV = 8 * pvZS, pvDFL = 6 * pvZS, pvDFS = 5.5 * pvZS;
   const pvDTK = (0.85 * pvZS).toFixed(2), pvDEXT = (0.55 * pvZS).toFixed(2);
   const pvDTCK = 2.5 * pvZS, pvDGAP = 1.5 * pvZS;
@@ -6084,8 +6100,11 @@ function _renderPlanView(o) {
   const _annEsc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
   // a text: kind, the string, its anchor point, o = {role 'body' | 'tag' (screen px sizes), px, anchor, c, bold, axis 'x' | 'y', lo, hi (the
   // axis's bounds), data, at [x, y] (the object a leader points to; default the anchor)}
+  // each kind's first tier (o.tier overrides): clearance values, object labels and tree tags near; segment labels mid
+  const ANN_TIER = { dim: 'near', object: 'near', segment: 'mid', tree: 'near' };
   const annText = function(kind, str, x, y, o) {
     o = o || {};
+    if (!atTier(o.tier || ANN_TIER[kind])) return;
     const px = o.px || DRAW_STYLE.TYPE.screen[o.role || 'tag'], sz = px * U, w = _pvTW(str, px) * U + 2 * U, anc = o.anchor || 'start';
     const x0 = anc === 'middle' ? x - w / 2 : anc === 'end' ? x - w : x;
     ANN.push({ kind: kind, x: x, y: y, box: [x0, y - 0.82 * sz, x0 + w, y + 0.28 * sz], axis: o.axis || 'x', lo: o.lo, hi: o.hi, at: o.at || null,
@@ -6093,15 +6112,17 @@ function _renderPlanView(o) {
   };
   // a rule lozenge (DRAW_SYMBOLS.lozenge) centred at x, y: it moves to the next row up when taken
   const annLozenge = function(code, st, x, y, at) {
+    if (!atTier(st === 'fail' ? 'mid' : 'near')) return;   // mid: a failed check's rule only
     const fs = DRAW_STYLE.fs(DK, 'tag'), w = Math.max(6 * DK.k, String(code).length * fs * 0.62 + 2.4 * DK.k), h = 3 * DK.k;
     ANN.push({ kind: 'lozenge', x: x, y: y, box: [x - w / 2, y - h / 2, x + w / 2, y + h / 2], axis: 'y', hi: y + h / 2, at: at || null,
       draw: function(X, Y) { return _sym(function(P) { DRAW_SYMBOLS.lozenge(P, X, Y, code, st); }); } });
   };
   // a delete chip (UI): an object label that moves along the curb, never with a leader; its onclick holds no quotes
   const annChip = function(onclick, x, y) {
-    const r = 5 * U;
+    if (!atTier('mid')) return;
+    const r = 6 * U;   // its x at 9 px, the least text size
     ANN.push({ kind: 'object', x: x, y: y, box: [x - r, y - r, x + r, y + r], axis: 'x', noLead: true,
-      draw: function(X, Y) { return `<g onclick='${onclick}' onmousedown='event.stopPropagation()' style='cursor:pointer'><circle cx='${X.toFixed(1)}' cy='${Y.toFixed(1)}' r='${r.toFixed(1)}' fill='${DRAW_STYLE.UI.chip}'/><text x='${X.toFixed(1)}' y='${(Y + 2.6 * U).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(7.5 * U).toFixed(1)}' fill='${DRAW_STYLE.UI.chipInk}' font-weight='700'>×</text></g>`; } });
+      draw: function(X, Y) { return `<g onclick='${onclick}' onmousedown='event.stopPropagation()' style='cursor:pointer'><circle cx='${X.toFixed(1)}' cy='${Y.toFixed(1)}' r='${r.toFixed(1)}' fill='${DRAW_STYLE.UI.chip}'/><text x='${X.toFixed(1)}' y='${(Y + 3.2 * U).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(1)}' fill='${DRAW_STYLE.UI.chipInk}' font-weight='700'>×</text></g>`; } });
   };
   const annObst = function(x0, y0, x1, y1) { OBST.push([Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)]); };
   const annObj = function(x0, y0, x1, y1, tree) { const b = [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)]; b.tree = !!tree; OBJ.push(b); };
@@ -6216,7 +6237,7 @@ function _renderPlanView(o) {
   // until confirmed on site. Tagged data-transit='<index>' for the check.
   (_pvDM.transit || []).forEach(function(t, i) {
     const c = worldToPlan(t.x, t.z);
-    s += _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'` }); });
+    s += _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'`, noText: LODn < 2 }); });
 
   });
   if (_bikeSeg) {
@@ -6292,14 +6313,16 @@ const C13_REQ = 1.5;
   const c13Px = Math.min(Math.round(c13DisplayM*HS), Math.round(CONTEXT_M*HS)-2);
   // the check zone: DRAW_STYLE's zone line (fine, dashed; fail red, pass per the style), its length with the rule's lozenge
   const c13Z = DRAW_STYLE.zoneSt(DK, c13St);
-  s += `<rect x="${PK_X-c13Px}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
-  s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
+  // the check zones are annotation: none at the far tier (Brief 19 A)
+  const ZN = LODn >= 1;
+  if (ZN) s += `<rect x="${PK_X-c13Px}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
+  if (ZN) s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
   const ANNAPI = { lozenge: annLozenge, text: annText };
-  s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK, ANNAPI);
-  s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK, ANNAPI);
+  if (ZN) s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK, ANNAPI);
+  if (ZN) s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK, ANNAPI);
   // Draggable handles at outer edges of C13 zones
   const c13HY = PK_Y + pvPkH / 2;
-  [[PK_X-c13Px, c13HY],[PK_X+PK_W+c13Px, c13HY]].forEach(function(pt) {
+  (ZN ? [[PK_X-c13Px, c13HY],[PK_X+PK_W+c13Px, c13HY]] : []).forEach(function(pt) {
     s += `<circle cx='${pt[0].toFixed(1)}' cy='${pt[1].toFixed(1)}' r='${(6 * pvZS).toFixed(1)}' fill='${DRAW_STYLE.UI.halo}'${KU(1.5, 'handle')} cursor='ew-resize'/>`;
     s += `<line x1='${(pt[0]-3*pvZS).toFixed(1)}' y1='${pt[1].toFixed(1)}' x2='${(pt[0]+3*pvZS).toFixed(1)}' y2='${pt[1].toFixed(1)}'${KU(1.2, 'handle')}/>`;
     annObst(pt[0] - 6 * pvZS, pt[1] - 6 * pvZS, pt[0] + 6 * pvZS, pt[1] + 6 * pvZS);
@@ -6314,7 +6337,7 @@ const C03_REQ = 6;
   const c03Px = Math.min(Math.round(c03DisplayM*HS), Math.round(maxC03M*HS));
   const c03Z = DRAW_STYLE.zoneSt(DK, c03St);
   const C03_LX = PK_X-c13Px-c03Px, C03_RX = PK_X+PK_W+c13Px;
-  if (c03Px > 4) {
+  if (c03Px > 4 && ZN) {
     s += `<rect x="${C03_LX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
     s += `<rect x="${C03_RX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
     s += dimArrow(C03_LX, C03_LX+c03Px, PK_Y+pvPkH/2, 'C03', DRAW_STYLE.fmtClear(isNaN(c03Raw) ? C03_REQ : c03Raw, C03_REQ, 'C03'), c03St, DK, ANNAPI);
@@ -6335,11 +6358,13 @@ const C03_REQ = 6;
   [[PK_X, PK_X+WS_PX, 1],[PK_X+PK_W-WS_PX, PK_X+PK_W, -1]].forEach(([lx,rx,sd]) => {
     s += `<rect x='${lx}' y='${PK_Y}' width='${rx-lx}' height='${pvPkH}' fill='${DRAW_STYLE.seg('parking', DK.mode)}'/>`;
     const wx = sd > 0 ? rx - 0.325 * HS : lx + 0.325 * HS;
-    s += _sym(function(P) { DRAW_SYMBOLS.wheelStop(P, wx, PK_Y + pvPkH / 2, 0.15 * HS, Math.min(1.8 * pvSC, pvPkH * 0.8)); });
+    if (LODn >= 1) s += _sym(function(P) { DRAW_SYMBOLS.wheelStop(P, wx, PK_Y + pvPkH / 2, 0.15 * HS, Math.min(1.8 * pvSC, pvPkH * 0.8)); });
   });
-  // the deck, and (technical) the timber band at its edges: lines along the boards, which run along the street
+  // the deck, and (technical) the timber band at its edges: lines along the boards, which run along the street; at the
+  // far tier the parklet is one filled rectangle (Brief 19 A)
   const _dkR = function(a) { return `<rect x='${DECK_X}' y='${PK_Y}' width='${DECK_W}' height='${pvPkH}'${a}/>`; };
-  s += _dkR(` fill='${DK.T.fill.deck}'`) + _band('timber', _dkR, { across: true });
+  if (LODn >= 1) s += _dkR(` fill='${DK.T.fill.deck}'`) + _band('timber', _dkR, { across: true });
+  else s += `<rect x='${PK_X}' y='${PK_Y}' width='${PK_W}' height='${pvPkH}' fill='${DRAW_STYLE.c(DK, _iTch ? 'light' : 'fill.deck')}' stroke='none' data-pk-far='1'/>`;
   // ── Metric world-space grid (covers full viewBox — extends with zoom/pan) ─
   if (_gridEnabled && !paper) {
     var _gS = _gridSpacing, _gMaj = 1.0;
@@ -6366,7 +6391,7 @@ const C03_REQ = 6;
   }
   // -- World origin marker (CAD-style): X/Z axes at world (0,0)
   { var _oP = worldToPlan(0, 0), _oX = _oP.px, _oY = _oP.py;
-    var _oVis = !paper && _oX >= VB.x - 40 && _oX <= VB.x + VB.w + 40
+    var _oVis = !paper && LODn >= 1 && _oX >= VB.x - 40 && _oX <= VB.x + VB.w + 40
              && _oY >= VB.y - 40 && _oY <= VB.y + VB.h + 40;
     if (_oVis) {
       var _oL = Math.min(38, HS * 1.2);
@@ -6381,7 +6406,7 @@ const C03_REQ = 6;
   var _dmFurnList = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.objects && DESIGN_MODEL.objects.length > 0)
     ? DESIGN_MODEL.objects
     : (typeof window.FL3D !== 'undefined' && window.FL3D && window.FL3D.placed ? window.FL3D.placed : []);
-  if (_dmFurnList.length > 0) {
+  if (_dmFurnList.length > 0 && LODn >= 1) {   // far: the parklet is one rectangle
     _dmFurnList.forEach(function(inst) {
       try {
         var _iw = typeof inst.x === 'number' ? inst.x : 0;
@@ -6453,7 +6478,7 @@ const C03_REQ = 6;
         var _dcP = worldToPlan(_dSelInst.x, _dSelInst.z), dcx = _dcP.px, dcy = _dcP.py;
         var _dz0 = worldToPlan(_dSelInst.x, 0).px, _dEnd = dcx + (_dz0 > dcx ? 10 : -10);
         s += `<line x1='${_dz0.toFixed(1)}' y1='${dcy.toFixed(1)}' x2='${_dEnd.toFixed(1)}' y2='${dcy.toFixed(1)}'${KU(0.5, 'sel', { dash: [3, 2], op: 0.6 })}/>`;
-        s += `<text x='${((_dz0+dcx)/2).toFixed(1)}' y='${(dcy-3).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='6' fill='#0696D7'>${_pvDragDistances.front.toFixed(2)} m</text>`;
+        s += `<text x='${((_dz0+dcx)/2).toFixed(1)}' y='${(dcy-3).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' fill='#0696D7'>${_pvDragDistances.front.toFixed(2)} m</text>`;
       }
     }
     // Snap marker with type label and coordinates
@@ -6467,8 +6492,8 @@ const C03_REQ = 6;
       var _snCoord = 'X '+_pvActiveSnap.wx.toFixed(3)+' m  Z '+_pvActiveSnap.wz.toFixed(3)+' m';
       var _ltx = smx + 10, _lty = smy - 10;
       s += `<rect x='${_ltx.toFixed(1)}' y='${(_lty-8).toFixed(1)}' width='${Math.max(60,_snCoord.length*4.5+8)}' height='20' fill='rgba(255,255,255,0.92)'${KU(0.7, _smCol)}/>`;
-      s += `<text x='${(_ltx+4).toFixed(1)}' y='${(_lty-1).toFixed(1)}' font-family='${DRAW_STYLE.FONT}' font-size='5' font-weight='700' fill='${_smCol}'>${_snLbl}</text>`;
-      s += `<text x='${(_ltx+4).toFixed(1)}' y='${(_lty+6).toFixed(1)}' font-family='${DRAW_STYLE.FONT}' font-size='5' fill='#333'>${_snCoord}</text>`;
+      s += `<text x='${(_ltx+4).toFixed(1)}' y='${(_lty-1).toFixed(1)}' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' font-weight='700' fill='${_smCol}'>${_snLbl}</text>`;
+      s += `<text x='${(_ltx+4).toFixed(1)}' y='${(_lty+6).toFixed(1)}' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' fill='#333'>${_snCoord}</text>`;
     }
   }
   // Measure tool rendering
@@ -6485,9 +6510,9 @@ const C03_REQ = 6;
       s += `<line x1='${mp1x.toFixed(1)}' y1='${mp1y.toFixed(1)}' x2='${mp2x.toFixed(1)}' y2='${mp2y.toFixed(1)}'${KU(1, 'measure', { dash: [3, 2] })}/>`;
       s += `<circle cx='${mp2x.toFixed(1)}' cy='${mp2y.toFixed(1)}' r='3' fill='${DRAW_STYLE.UI.measure}'${KU(1, 'halo')}/>`;
       s += `<rect x='${(mmidx-38).toFixed(1)}' y='${(mmidy-20).toFixed(1)}' width='76' height='36' fill='white' opacity='0.92'${KU(0.75, 'measure')}/>`;
-      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy-7).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='7.5' font-weight='700' fill='#FF6B00'>${mdist.toFixed(2)} m</text>`;
-      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy+3).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='6' fill='#888'>X${mdX.toFixed(2)} Z${mdZ.toFixed(2)}</text>`;
-      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy+12).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='6' fill='#888'>${mangle.toFixed(1)}\xb0</text>`;
+      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy-7).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' font-weight='700' fill='#FF6B00'>${mdist.toFixed(2)} m</text>`;
+      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy+3).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' fill='#888'>X${mdX.toFixed(2)} Z${mdZ.toFixed(2)}</text>`;
+      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy+12).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' fill='#888'>${mangle.toFixed(1)}\xb0</text>`;
     }
   }
   // the railing on the traffic side (edge), the parklet outline (object)
@@ -6500,7 +6525,7 @@ const C03_REQ = 6;
   }
   annObj(PK_X, PK_Y, PK_X + PK_W, PK_Y + pvPkH);   // the parklet: segment labels keep off it
   annText('object', 'Parklet', DECK_X + DECK_W / 2, PK_Y + pvPkH / 2 - 2 * U, { role: 'body', c: 'ink', anchor: 'middle', axis: 'y', at: [DECK_X + DECK_W / 2, PK_Y + pvPkH / 2] });
-  annText('object', DRAW_STYLE.fmt(DECK_M) + ' deck / ' + DRAW_STYLE.fmt(PARKLET_M) + ' overall', DECK_X + DECK_W / 2, PK_Y + pvPkH / 2 + DRAW_STYLE.fs(DK, 'tag') + 1 * U, { anchor: 'middle', axis: 'y', at: [DECK_X + DECK_W / 2, PK_Y + pvPkH / 2] });
+  annText('object', DRAW_STYLE.fmt(DECK_M) + ' deck / ' + DRAW_STYLE.fmt(PARKLET_M) + ' overall', DECK_X + DECK_W / 2, PK_Y + pvPkH / 2 + DRAW_STYLE.fs(DK, 'tag') + 1 * U, { tier: 'mid', anchor: 'middle', axis: 'y', at: [DECK_X + DECK_W / 2, PK_Y + pvPkH / 2] });
   
 // Clearance labels of site objects (driveways, hydrants, poles, signals): kept inside the drawing (the margin
 // to its right belongs to the dimension chains, e.g. SIDEWALK) and de-collided the way the key plan places its
@@ -6520,7 +6545,7 @@ const dvFts = state[`driveways`] || [];
     const _cz = DRAW_STYLE.zone(DK, pOk ? 'pass' : 'fail'), col = _cz.c, colOp = _cz.op;
     const lt  = DK.T.paper;
     const nearEnd = worldToPlan(0, dv.xM < PARKLET_M / 2 ? 0 : PARKLET_M).px;
-    if (dist > 0.05) {
+    if (dist > 0.05 && LODn >= 1) {
       const bX0 = Math.max(0, Math.min(dvXpx, nearEnd)), bX1 = Math.min(VW, Math.max(dvXpx, nearEnd));   // clipped to the drawing
       const dmCX = (bX0 + bX1) / 2, dimY2 = dvY + 14;
       s += `<line x1='${(bX0+1).toFixed(1)}' y1='${dimY2}' x2='${(bX1-1).toFixed(1)}' y2='${dimY2}'${K('context', { c: col, op: colOp })}/>`;
@@ -6529,7 +6554,7 @@ const dvFts = state[`driveways`] || [];
       _pvClrLbl(dmCX, dimY2 - 2 * U, DRAW_STYLE.fmtClear(dist, 1.5, 'C06'), col);
     }
     s += `<rect x='${(dvXpx-8*pvZS).toFixed(1)}' y='${(dvY-8*pvZS).toFixed(1)}' width='${(16*pvZS).toFixed(1)}' height='${(16*pvZS).toFixed(1)}' fill='${lt}'${K('edge', { c: col })}/>`;
-    s += `<text x='${dvXpx.toFixed(1)}' y='${(dvY+4*pvZS).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(8*pvZS).toFixed(1)}' fill='${col}' font-weight='800'>D</text>`;
+    if (LODn >= 1) s += `<text x='${dvXpx.toFixed(1)}' y='${(dvY+4*pvZS).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9*pvZS).toFixed(1)}' fill='${col}' font-weight='800'>D</text>`;
     annChip('deleteDrivewayById(' + dv.id + ')', dvXpx + 11 * pvZS, dvY - 11 * pvZS);
     annObst(dvXpx - 8 * pvZS, dvY - 8 * pvZS, dvXpx + 8 * pvZS, dvY + 8 * pvZS);
   });
@@ -6550,7 +6575,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     const nearEnd = worldToPlan(0, cf.xM < PARKLET_M / 2 ? 0 : PARKLET_M).px;
     const bX0 = Math.max(0, Math.min(cfX, nearEnd)), bX1 = Math.min(VW, Math.max(cfX, nearEnd));   // clipped to the drawing
     // Setback dim line at curb face level (clearances measured along street from curb)
-    if (dist > 0.05) {
+    if (dist > 0.05 && LODn >= 1) {
       const dmCX = (bX0 + bX1) / 2, dimY = CURB_Y - 4;
       s += `<line x1='${(bX0+1).toFixed(1)}' y1='${dimY}' x2='${(bX1-1).toFixed(1)}' y2='${dimY}'${K('context', { c: col, op: colOp })}/>`;
       const _cfXc = Math.max(0, Math.min(VW, cfX));   // an object beyond the drawing: the tick at its edge
@@ -6564,8 +6589,8 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     if (cf.type === 'H') {
       // the C05 5 m radius (Brief 18): only while C05 is open in the Check list, or when it fails
       const hR = Math.max(6, Math.round(0.10 * pvSC)), _c5Open = !!document.querySelector('#crit_c5.open');
-      if (_c5Open || !pOk) s += `<circle cx='${cfX.toFixed(1)}' cy='${cfY.toFixed(1)}' r='${(def.req * pvSC).toFixed(1)}' fill='none'${K('fine', { c: col, op: colOp, dash: 'zone' })} data-c05='1'/>`;
-      s += _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC }); });
+      if ((_c5Open || !pOk) && LODn >= 1) s += `<circle cx='${cfX.toFixed(1)}' cy='${cfY.toFixed(1)}' r='${(def.req * pvSC).toFixed(1)}' fill='none'${K('fine', { c: col, op: colOp, dash: 'zone' })} data-c05='1'/>`;
+      s += _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC, noText: LODn < 2 }); });
       annText('object', 'Hydrant', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY] }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + hR + 5 * pvZS, cfY - hR - 3 * pvZS);
@@ -6614,7 +6639,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   // the objects segment labels and tree tags keep off: tree canopies, furniture
   _pvDM.vegetation.forEach(function(v) { const c = worldToPlan(v.x, v.z), r = (v.canopyR || 0.4) * pvSC; annObj(c.px - r, c.py - r, c.px + r, c.py + r, true); });
   _dmFurnList.forEach(function(inst) { const c = worldToPlan(+inst.x || 0, +inst.z || 0), dm = flInstDims(inst), r = Math.max(dm.l, dm.d) / 2 * pvSC; annObj(c.px - r, c.py - r, c.px + r, c.py + r); });
-  if (dimsOn) {
+  if (dimsOn && LODn >= 1) {   // far: no dimensions; mid: the overall ones (curb to curb, the deck's length) only
     // DRAW_STYLE: dimension lines 'context', extension lines 'fine', 45 degree ticks 'edge', text ink / annotation grey
     const INK = DK.T.ink, MID = DK.T.anno;
     const FNT = `font-family='${DRAW_STYLE.FONT}'`;
@@ -6653,10 +6678,12 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
         if (b.d.lbl) txt(tx, b.p + 10 * U, b.d.lbl, _PX.lbl, 'start', MID, ` letter-spacing='${(0.6 * U).toFixed(2)}'`);
       });
     };
-    vChain([_rmItems, [_oppItem]], RX1, TX1, true);
-    // tier-2 extension lines break across the tier-1 text column
-    _t2.forEach(function(d) { [d.y1, d.y2].forEach(function(y) { ext(VW + 3 * U, y, RX1, y); ext(TX1 + (_w1 + 4) * U, y, RX2 + 3 * U, y); }); });
-    if (_t2.length) vChain(_t2.map(function(d) { return [d]; }), RX2, TX2, false);
+    if (LODn >= 2) {
+      vChain([_rmItems, [_oppItem]], RX1, TX1, true);
+      // tier-2 extension lines break across the tier-1 text column
+      _t2.forEach(function(d) { [d.y1, d.y2].forEach(function(y) { ext(VW + 3 * U, y, RX1, y); ext(TX1 + (_w1 + 4) * U, y, RX2 + 3 * U, y); }); });
+      if (_t2.length) vChain(_t2.map(function(d) { return [d]; }), RX2, TX2, false);
+    } else { const _cc = _t2.filter(function(d) { return d.strong; }); if (_cc.length) vChain([_cc], RX1, TX1, true); }   // mid: curb to curb
     // ---- bottom: horizontal chains ---------------------------------------------------------
     // Labels stay left of the vertical chains; a chain too long for the view drops its labels
     // and keeps the values.
@@ -6689,13 +6716,14 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
         if (b.lbl) txt(b.p, hy + 11.5 * U, b.d.lbl, _PX.lbl, 'middle', MID, ` letter-spacing='${(0.6 * U).toFixed(2)}'`);
       });
     };
-    hChain([
+    if (LODn < 2) hChain([{ x1: PK_X + WS_PX, x2: PK_X + PK_W - WS_PX, val: DRAW_STYLE.fmt(DECK_M), lbl: '' }], HY1);   // mid: the deck's length
+    else hChain([
       { x1: PK_X, x2: PK_X + WS_PX, val: DRAW_STYLE.fmt(WS_M), lbl: '' },
       { x1: PK_X + WS_PX, x2: PK_X + PK_W - WS_PX, val: DRAW_STYLE.fmt(DECK_M), lbl: '' },
       { x1: PK_X + PK_W - WS_PX, x2: PK_X + PK_W, val: DRAW_STYLE.fmt(WS_M), lbl: '' }
     ], HY1);
-    [PK_X, PK_X + PK_W].forEach(function(x) { ext(x, HY1 + 3 * U, x, HY2 + 3 * U); });
-    hChain([
+    if (LODn >= 2) [PK_X, PK_X + PK_W].forEach(function(x) { ext(x, HY1 + 3 * U, x, HY2 + 3 * U); });
+    if (LODn >= 2) hChain([
       { x1: 0, x2: PK_X, val: DRAW_STYLE.fmt(CONTEXT_M), lbl: '' },
       { x1: PK_X, x2: PK_X + PK_W, val: DRAW_STYLE.fmt(PARKLET_M), lbl: '' },
       { x1: PK_X + PK_W, x2: VW, val: DRAW_STYLE.fmt(CONTEXT_M), lbl: '' }
@@ -6783,7 +6811,7 @@ const manholes = state['manholes'] || [];
       s += `<g style='cursor:pointer' onmousedown='event.stopPropagation()' onclick='_pvSecFlip()' data-pvsl='tag${i}'><title>Click to look the other way</title>` +
         `<polygon points='${f1(tip)},${f1(ty)} ${f1(ax)},${f1(ty - 5 * U)} ${f1(ax)},${f1(ty + 5 * U)}' fill='${INK}'/>` +
         `<circle cx='${f1(_sX)}' cy='${f1(ty)}' r='${f1(R)}' fill='${DK.T.paper}'${K('general')}/>` +
-        `<text x='${f1(_sX)}' y='${f1(ty + 4 * U)}' text-anchor='middle' ${FNT} font-size='${f1(11 * U)}' font-weight='700' fill='${INK}'>A</text></g>`;
+        (LODn >= 1 ? `<text x='${f1(_sX)}' y='${f1(ty + 4 * U)}' text-anchor='middle' ${FNT} font-size='${f1(11 * U)}' font-weight='700' fill='${INK}'>A</text>` : '') + `</g>`;
     });
     // label at the top tag, on the looking side: "A-A  DEPTH 6.0 M" (value 11 px, label 10 px caps)
     // Kept inside the drawing (0..VW), clear of the dimension chains: on the looking side if it
@@ -6796,7 +6824,7 @@ const manholes = state['manholes'] || [];
     const _lx = _sX + _side * _gap, _anc = _side > 0 ? 'start' : 'end';
     { const _lw = (_full ? _wFull : _wShort); annObst(_side > 0 ? _lx : _lx - _lw, _top - 8 * U, _side > 0 ? _lx + _lw : _lx, _top + 6 * U); }   // the section label and its tags are fixed
     [_top, _bot].forEach(function(ty) { annObst(_sX - R - 10 * U, ty - R, _sX + R + 10 * U, ty + R); });
-    s += `<text x='${f1(_lx)}' y='${f1(_top + 4 * U)}' text-anchor='${_anc}' ${FNT} font-size='${f1(11 * U)}' font-weight='600' fill='${INK}' data-dim='sec'>A–A` +
+    if (LODn >= 1) s += `<text x='${f1(_lx)}' y='${f1(_top + 4 * U)}' text-anchor='${_anc}' ${FNT} font-size='${f1(11 * U)}' font-weight='600' fill='${INK}' data-dim='sec'>A–A` +
       (_full ? `<tspan dx='${f1(6 * U)}' font-size='${f1(10 * U)}' font-weight='400' letter-spacing='${f1(0.6 * U)}' fill='${MID}'>${_dTxt}</tspan>` : '') + `<title>A-A, depth ${_sec.depth.toFixed(1)} m</title></text>`;
   }
 
@@ -19735,7 +19763,7 @@ RPT.northSym = function(P, cx, cy, r) {
 RPT.secMarker = function(P, x, y0, y1, lookLeft) { DRAW_SYMBOLS.sectionLine(P, x, y0, y1, 'A', lookLeft ? -1 : 1); };
 // the report's names for DRAW_SYMBOLS
 RPT.sym = {
-  hydrant: function(P, x, y, r) { DRAW_SYMBOLS.hydrant(P, x, y, { r: r }); },
+  hydrant: function(P, x, y, r, noText) { DRAW_SYMBOLS.hydrant(P, x, y, { r: r, noText: noText }); },
   pole: function(P, x, y) { DRAW_SYMBOLS.pole(P, x, y); },
   signal: function(P, x, y, w, h) { DRAW_SYMBOLS.signal(P, x, y, w || 0, h || 0); },
   manhole: function(P, x, y, r) { DRAW_SYMBOLS.manhole(P, x, y, r, r * 609.6 / 939.8); },
@@ -19954,9 +19982,9 @@ RPT.planFurn = function(P, G, F, d, o) {
 };
 RPT.planObjects = function(P, G, F, o) {
   o = o || {}; var inZ = function(z) { return z >= F.zA - 0.01 && z <= F.zB + 0.01; }, tagged = [];
-  G.cf.forEach(function(c) { if (!inZ(c.z)) return; if (c.type === 'H') RPT.sym.hydrant(P, F.sx(c.z), F.sy(c.x), 0.15 * F.k); else (c.type === 'S' ? RPT.sym.signal : RPT.sym.pole)(P, F.sx(c.z), F.sy(c.x)); });
+  G.cf.forEach(function(c) { if (!inZ(c.z)) return; if (c.type === 'H') RPT.sym.hydrant(P, F.sx(c.z), F.sy(c.x), 0.15 * F.k, o.labels === false); else (c.type === 'S' ? RPT.sym.signal : RPT.sym.pole)(P, F.sx(c.z), F.sy(c.x)); });
   G.mh.forEach(function(m) { if (inZ(m.z)) RPT.sym.manhole(P, F.sx(m.z), F.sy(m.x), (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47) * F.k); });
-  G.transit.forEach(function(t) { if (inZ(t.z)) RPT.sym.bus(P, F.sx(t.z), F.sy(t.x)); });
+  G.transit.forEach(function(t) { if (!inZ(t.z)) return; if (o.labels === false) DRAW_SYMBOLS.busStop(P, F.sx(t.z), F.sy(t.x), { noText: true }); else RPT.sym.bus(P, F.sx(t.z), F.sy(t.x)); });   // mid: the symbol without its label
   G.trees.forEach(function(v) {
     if (!inZ(v.z)) return;
     // DRAW_SYMBOLS.tree, as the Plan draws it (Brief 18: screen and report symbols are the same)
@@ -20000,12 +20028,14 @@ RPT.sheetSite = function(d) {
       if (wmm > RPT.tw(nm || use, RPT.TX.tag) + 2) { if (nm) P.text(cx, face - (side === 'L' ? 2.6 : 0), nm, RPT.TX.tag, { anchor: 'middle', bold: true }); P.text(cx, face + (side === 'L' ? 0 : 2.6), use, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); }
     });
   });
+  // the annotation tier from the sheet's scale (Brief 19 A): 1:250 is mid (no tree tags, no object labels), nearer is near
+  var lod = lodTier(2000 / sc), near = lod === 'near';
   RPT.planBase(P, G, F, d.mode, {});
-  RPT.planObjects(P, G, F, { genus: true });
+  RPT.planObjects(P, G, F, { genus: near, labels: near });
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
   var pc = [(F.sx(0) + F.sx(G.L)) / 2, F.sy((LM.deckX0 + LM.deckX1) / 2)];
-  P.text(pc[0], pc[1] + 0.9, 'Parklet', RPT.TX.tag, { anchor: 'middle', bold: true });
+  if (near) P.text(pc[0], pc[1] + 0.9, 'Parklet', RPT.TX.tag, { anchor: 'middle', bold: true });
   // the section cut and the key dimensions
   RPT.secMarker(P, F.sx(G.sec.z), F.sy(LM.sidewalkL.x0) - 1, F.sy(LM.roadRight) + 1, G.sec.dir === 1);
   // across, right of the drawing: the sidewalk and curb to curb; along, under the deck: its length
@@ -20016,7 +20046,7 @@ RPT.sheetSite = function(d) {
   var keys = [
     { t: 'Parklet, ' + G.L.toFixed(2) + ' m: layout A-102, deck A-103.', at: [pc[0], pc[1] - 4] },
     { t: 'Section A-A: sheet A-201.', at: [F.sx(G.sec.z) + 5, F.sy(LM.sidewalkL.x0) - 6] },
-    { t: Object.keys(gl).length ? 'Street trees by genus: ' + Object.keys(gl).sort().map(function(t) { return t + ' ' + gl[t]; }).join(', ') + '.' : 'No street trees in this stretch.', at: tree ? [tree[0] + 4, tree[1] - 4] : null },
+    { t: Object.keys(gl).length ? (near ? 'Street trees by genus: ' + Object.keys(gl).sort().map(function(t) { return t + ' ' + gl[t]; }).join(', ') + '.' : 'Street trees (' + Object.keys(gl).sort().map(function(t) { return gl[t]; }).join(', ') + '): genus tags on A-102.') : 'No street trees in this stretch.', at: tree ? [tree[0] + 4, tree[1] - 4] : null },
     { t: 'Buildings from OpenStreetMap, cut at the sheet\'s extent (' + RPT.fmt(zB - zA) + ' x ' + RPT.fmt(xBot - xTop) + ' m); name and use where known.', at: hostAt },
     { t: 'Site objects from City of Vancouver open data: indicative, confirm on site.', at: null }
   ];

@@ -517,6 +517,30 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - Clicking the deck: the Selection panel shows "Parklet" with its properties and placement, `#rightPanel` is hidden, and the only fixed element on screen is the toast.
     - Samples: both modes 11 pages, 0 overlaps. Plan: 0 text overlaps.
 
+## Drawing language (Brief 19, branch drawing-style, one commit per section; not merged)
+- **A. Annotation level of detail (commit 1).** `lodTier(pxPerM)`: below 2 px/m is far, 2 to 8 is mid, above 8 is near. A sheet at 1:n counts as 2000/n px/m, so 1:250 is mid and 1:100 is near. `LOD_RANK = {far: 0, mid: 1, near: 2}`.
+  - **Plan:** `LOD` comes from PLAN_PX_M / U (`window._pvLod`); paper uses 2 × mm per metre.
+    - **Far:** fills and outlines only. The parklet is one filled rectangle (`data-pk-far`), with no furniture and no wheel stops. No check zones, handles, chips, dimensions, origin marker or section tag text. Hydrants are a bare circle, bus stops a dot. The only text is the scale bar (with its reset) and north.
+    - **Mid:**
+      - segment labels (once per view, at the left edge);
+      - building labels (C makes them addresses);
+      - the deck-length label;
+      - the overall chains only (curb to curb, and the deck length);
+      - rule lozenges for failed checks only;
+      - the check zones and handles;
+      - delete chips;
+      - hydrant and bus-stop symbols with no labels and no letter (a circle and a dot; their letters collided at mid).
+    - **Near:** everything.
+  - **Where it's gated:** in the annotation layer (`annText` by kind, with `o.tier` to override; `annLozenge` by status; `annChip`) and at the few drawing sites (zones, deck, furniture, chains, section tags, driveway D, C05 ring). Context is never culled.
+  - **Smallest text:** 9 px on screen (the chip × went from 7.5 to 9 px, the driveway D from 8 to 9; the measure, snap and drag-distance texts are now 9 px on screen instead of fixed plan units) and 1.8 mm on paper (the hydrant circle is at least 1.5 mm across, so its H is 1.9 mm).
+  - **Zoom out:** the Plan now zooms out to 0.8 px/m, so the far tier can be reached.
+  - **Report:** A-101 at 1:250 is mid, so no genus tags, no "Parklet", bus stops and hydrants without letters or labels, and a tree note without tag codes. A-102 and A-103 are near.
+  - **Verified (Robson & Burrard, technical):**
+    - 1 px/m (far): 6 texts, all scale bar and north; 0 overlaps.
+    - 4 px/m (mid): 39 texts, 0 overlaps; schematic the same.
+    - 12 px/m (near): 66 texts, 0 overlaps.
+    - Smallest text 9 px at all three.
+    - Samples: both modes 11 pages, 0 overlaps.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
