@@ -18689,7 +18689,7 @@ RPT.head = function(no, title, note) {
 RPT.sheet = function(size, no, title, body, note, cls) {
   return "<section class='sheet " + size + (cls ? ' ' + cls : '') + "' data-no='" + RPT.esc(no) + "' data-title='" + RPT.esc(title) + "'>" + RPT.head(no, title, note) + "<div class='body'>" + body + '</div></section>';
 };
-RPT.group = function(title, inner) { return "<div class='grp'><h2>" + RPT.esc(title) + '</h2>' + inner + '</div>'; };
+RPT.group = function(title, inner, keep) { return "<div class='grp" + (keep ? ' grp-keep' : '') + "'><h2>" + RPT.esc(title) + '</h2>' + inner + '</div>'; };
 
 // ── 00 Cover ──────────────────────────────────────────────────────────────────────────────────
 RPT.cover = function(d, drw) {
@@ -18722,88 +18722,114 @@ RPT.treeFetched = function(list) {
   var at = list.map(function(v) { return v.prov && v.prov.fetchedAt; }).filter(Boolean).sort().pop();
   return at && typeof SMP !== 'undefined' ? SMP.day(at) : (at || 'date not recorded');
 };
-RPT.treeSummary = function(DM) {
-  var list = RPT.cityTrees(DM); if (!list.length) return 'None imported';
-  var kinds = {}, order = [];
-  list.forEach(function(v) { var k = (v.genus || 'Unknown genus') + '|' + (v.common || '').toLowerCase() + '|' + v.band; if (!kinds[k]) { kinds[k] = 0; order.push(k); } kinds[k]++; });
-  return list.length + ': ' + order.map(function(k) { var p = k.split('|'); return kinds[k] + ' ' + p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ', ' + p[2]; }).join('; ') +
-    '. Confirm on site (CoV public-trees, fetched ' + RPT.treeFetched(list) + ')';
+// ── Text sheets (Brief 12b): two columns on the A3 page; a label left, its value right in a fixed 40 mm column
+// (units in the value, tabular figures); anything longer than one line is a table of its own, never a wrapped
+// sentence. ──────────────────────────────────────────────────────────────────────────────────────────────
+RPT.table = function(cls, head, rows, numCols) {
+  numCols = numCols || [];
+  var th = head.map(function(h, i) { return '<th' + (numCols.indexOf(i) >= 0 ? " class='num'" : '') + '>' + RPT.esc(h) + '</th>'; }).join('');
+  var tb = rows.map(function(r) { return '<tr' + (r.attrs || '') + '>' + (r.cells || r).map(function(c, i) { return '<td' + (numCols.indexOf(i) >= 0 ? " class='num'" : '') + '>' + c + '</td>'; }).join('') + '</tr>'; }).join('');
+  return "<table class='tbl " + cls + "'><thead><tr>" + th + '</tr></thead><tbody>' + tb + '</tbody></table>';
 };
-RPT.treeRows = function(DM) {
-  return RPT.cityTrees(DM).map(function(v, i) {
-    return 'Tree ' + (i + 1) + ' at ' + (typeof SMP !== 'undefined' ? SMP.where({ xM: v.z }) : 'z ' + v.z.toFixed(1) + ' m') + ': ' + (v.latin || v.genus || 'genus not given') + (v.common ? ', ' + v.common.toLowerCase() : '') +
-      '; ' + v.band + (v.heightRaw != null ? ' (' + v.heightRaw + ' m)' : '') + ', DBH ' + (v.dbhCm != null ? v.dbhCm + ' cm' : 'not given') +
-      ' -> height ' + v.heightM.toFixed(1) + ' m, canopy radius ' + v.canopyR.toFixed(2) + ' m, trunk radius ' + v.trunkR.toFixed(2) + ' m, clear ' + v.clearH.toFixed(1) + ' m, form ' + v.form +
-      (v.formSrc === 'default' ? ' (form: default, genus not in the table)' : v.formSrc === 'cultivar' ? ' (from the cultivar)' : '') + '; ' +
-      (v.confirmed ? 'confirmed on site' : 'confirm on site') + ' (CoV public-trees ' + (v.prov && v.prov.id ? v.prov.id : '') + ', fetched ' + RPT.treeFetched([v]) + ')';
+// The street trees from the City inventory as a table: #, genus / species, common name, height band, DBH, form, source.
+RPT.treeTable = function(DM) {
+  var list = RPT.cityTrees(DM); if (!list.length) return '';
+  var rows = list.map(function(v, i) {
+    var p = v.prov || {};
+    return [String(i + 1), '<i>' + RPT.esc(v.latin || v.genus || 'genus not given') + '</i>', RPT.esc((v.common || '').toLowerCase() || '-'),
+      RPT.esc(v.band + (v.heightRaw != null ? ' (' + v.heightRaw.toFixed(1) + ' m)' : '')), v.dbhCm != null ? v.dbhCm.toFixed(1) + ' cm' : '-',
+      RPT.esc(v.form + (v.formSrc === 'default' ? ' (default)' : v.formSrc === 'cultivar' ? ' (cultivar)' : '')),
+      RPT.esc('CoV public-trees ' + (p.id || '') + ', ' + RPT.treeFetched([v]) + (v.confirmed ? ', confirmed' : ', confirm on site'))];
   });
+  return RPT.group('Street trees (City inventory)', RPT.table('trees', ['#', 'Genus / species', 'Common name', 'Height band', 'DBH', 'Form', 'Source'], rows, [0, 4]) +
+    "<p class='caption'>Height from the City's height_m (the 10 ft band's midpoint), canopy from the form and DBH (the model's treeFromCity); drawn on A-101. Advisory only: no numbered check measures street trees.</p>", list.length <= 16);   // up to 16 rows fit a column: kept whole
 };
-RPT.summary = function(d) {
-  var DM = d.DM, LM = DM.landmarks, S = DM.street, ins = DM.inputs, gm = d.gm, so = DM.siteObjects;
+// Site facts as label / value rows (the value in the 40 mm column)
+RPT.siteTable = function(d) {
+  var DM = d.DM, LM = DM.landmarks, S = DM.street, so = DM.siteObjects || {}, ins = DM.inputs;
   var route = ins.route_type && ins.route_type.entered ? (ins.route_type.text || ins.route_type.value) : 'not entered';
-  var site = RPT.kv('Address', DM.project.address || 'Not entered') +
-    RPT.kv('Curb to curb', RPT.fx(DM.totalRoad) + ' m', 'totalRoad', 3) +
-    RPT.kv('Sidewalk', RPT.fx(LM.sidewalkW) + ' m', 'landmarks.sidewalkW', 3) +
-    RPT.kv('Direction', S.direction) + RPT.kv('Travel lanes', String(S.travelLanes), 'street.travelLanes', 0) +
-    RPT.kv('Route type', route) +
-    RPT.kv('Bike lane', S.bikeLane ? S.bikeLane.type + ', ' + RPT.fx(S.bikeLane.width) + ' m' : 'None') +
-    S.buffers.map(function(b, i) { return RPT.kv({ 'buf-pk': 'Buffer (parklet side)', 'buf-bl': 'Buffer (traffic side)', planting: 'Planting strip' }[b.type], RPT.fx(b.width) + ' m', 'street.buffers.' + i + '.width', 3); }).join('') +
-    RPT.kv('Hydrants placed', String(so.hydrants), 'siteObjects.hydrants', 0) + RPT.kv('Poles placed', String(so.poles), 'siteObjects.poles', 0) +
-    RPT.kv('Signal boxes placed', String(so.signalBoxes), 'siteObjects.signalBoxes', 0) + RPT.kv('Manholes placed', String(so.manholes), 'siteObjects.manholes', 0) +
-    RPT.kv('Driveways placed', String(so.driveways), 'siteObjects.driveways', 0) +
-    RPT.kv('Street trees (City inventory)', RPT.treeSummary(DM)) +
-    RPT.kv('Host frontage', RPT.hostLine(DM));
-  var furn = d.placed.filter(function(p) { return !p.archetype || !flIsEntourage(p.archetype); }).length;
-  var pk = RPT.kv('Width', RPT.fx(DM.parklet.width) + ' m', 'parklet.width', 3) + RPT.kv('Length', RPT.fx(DM.parklet.length) + ' m', 'parklet.length', 3) +
-    RPT.kv('Deck area', RPT.fx(DM.parklet.area, 2) + ' m²', 'parklet.area', 2) + RPT.kv('Footprint', DM.parklet.shape) +
-    RPT.kv('Furniture pieces', String(furn)) +
-    (gm ? RPT.kv('Seats', String(gm.seats)) + RPT.kv('Seats per metre', RPT.fx(gm.density, 2)) + RPT.kv('Utilisation', Math.round(gm.util * 100) + ' %') +
-      RPT.kv('Entry turning spaces', gm.entries + ' of ' + gm.need) +
-      RPT.kv('Accessible route', gm.route > 0 ? RPT.fx(gm.route, 2) + ' m min.' : 'None found') + RPT.kv('Accessible seats', String(gm.access)) : '') +
-    (d.opened ? RPT.kv('Generated scheme', d.opened.title + ' (seed ' + d.opened.seed + ')') : '');
-  var comp = RPT.kv('Checks', String(d.rows.length)) + RPT.kv('Pass', String(d.n.pass)) + RPT.kv('Fail', String(d.n.fail)) + RPT.kv('Not confirmed', String(d.n.unclear)) +
-    RPT.kv('Inputs not entered', String(Object.keys(ins).filter(function(k) { return !ins[k].entered; }).length)) +
-    "<div class='kv'><span class='k'>Overall</span><span class='v'>" + RPT.pill(d.overall) + '</span></div>';
-  var dims = DM.lanes.map(function(a, i) { return RPT.kv('Lane ' + (i + 1) + ' (' + a.role + ')', RPT.fx(a.width) + ' m', 'lanes.' + i + '.width', 3); }).join('') +
-    RPT.kv('Parklet width', RPT.fx(LM.deckW) + ' m', 'landmarks.deckW', 3) +
-    (S.bikeLane ? RPT.kv('Bike lane width', RPT.fx(S.bikeLane.width) + ' m', 'street.bikeLane.width', 3) : '') +
-    RPT.kv('Curb to curb', RPT.fx(DM.totalRoad) + ' m', 'totalRoad', 3);
-  var body = "<div class='cols3'>" + RPT.group('Site', site) + RPT.group('Parklet', pk) + "<div class='stack'>" + RPT.group('Compliance', comp) + RPT.group('Key dimensions', dims) + '</div></div>' +
-    "<p class='caption'>Values are read from the design model at the time of printing. Seats, utilisation and the accessible route are the generator's metrics of the current layout (clear route width " + GEN.ROUTE_W + ' m, BCBC 3.8 - to be confirmed against the Parklet Manual).</p>';
-  return RPT.sheet('a4', '01', 'Summary', body);
+  return RPT.group('Site', RPT.kv('Address', DM.project.address || 'Not entered') + RPT.kv('Curb to curb', RPT.fx(DM.totalRoad, 2) + ' m', 'totalRoad', 2) +
+    RPT.kv('Sidewalk', RPT.fx(LM.sidewalkW, 2) + ' m', 'landmarks.sidewalkW', 2) + RPT.kv('Direction', S.direction) + RPT.kv('Travel lanes', String(S.travelLanes), 'street.travelLanes', 0) +
+    RPT.kv('Route type', route) + RPT.kv('Bike lane', S.bikeLane ? S.bikeLane.type + ', ' + RPT.fx(S.bikeLane.width, 2) + ' m' : 'none') +
+    RPT.kv('Parklet', RPT.fx(DM.parklet.length, 2) + ' x ' + RPT.fx(DM.parklet.width, 2) + ' m') + RPT.kv('Host frontage', RPT.hostLine(DM)) +
+    RPT.kv('Hydrants / poles', (so.hydrants || 0) + ' / ' + (so.poles || 0)) + RPT.kv('Signal boxes / chambers', (so.signalBoxes || 0) + ' / ' + (so.manholes || 0)));
 };
 
-// ── 06 Furniture schedule ─────────────────────────────────────────────────────────────────────
-// One row per archetype + size + finish (+ preset); every placed item is counted in a row.
+// ── S-001 Furniture schedule: tag, item, size, material, count, source ──────────────────────────────
 RPT.schedule = function(d) {
-  var groups = d.groups;
-  var rows = groups.map(function(g) {
+  var rows = d.groups.map(function(g) {
     var sp = g.sp, a = sp ? FL_ARCHETYPES[sp.type] : null, pr = g.row.pr;
-    return '<tr><td class="mono">' + g.tag + '</td><td>' + RPT.esc(g.row.item) + (a && a.cat === 'entourage' ? ' <span class="muted">(entourage, not built)</span>' : '') + '</td>' +
-      '<td class="num">' + g.row.dims + '</td><td>' + RPT.esc(g.row.mats || '-') + '</td><td class="num">' + g.n + '</td>' +
-      '<td>' + (pr ? RPT.esc(pr.brand + ' ' + pr.name + (pr.art && pr.art !== 'not extracted' ? ', art. ' + pr.art : '')) : '<span class="muted">generic</span>') + '</td></tr>';
+    return [g.tag, RPT.esc(g.row.item) + (a && a.cat === 'entourage' ? " <span class='muted'>(entourage, not built)</span>" : ''), g.row.dims + ' m', RPT.esc(g.row.mats || '-'), String(g.n),
+      pr ? RPT.esc(pr.brand + ' ' + pr.name + (pr.art && pr.art !== 'not extracted' ? ', art. ' + pr.art : '') + (pr.src ? ' (' + pr.src + ')' : '')) : "<span class='muted'>generic archetype</span>"];
   });
-  var tbl = "<table class='tbl sched'><thead><tr><th>Tag</th><th>Item</th><th class='num'>l × d × h (m)</th><th>Materials by part</th><th class='num'>Count</th><th>Manufacturer preset</th></tr></thead><tbody>" +
-    (rows.join('') || "<tr><td colspan='6' class='muted'>No furniture placed.</td></tr>") + '</tbody>' +
-    "<tfoot><tr><td></td><td>Total</td><td></td><td>" + groups.length + ' types</td><td class="num" data-count="placed">' + d.placed.length + '</td><td></td></tr></tfoot></table>';
-  RPT._groups = groups;
-  return RPT.sheet('a4', 'S-001', 'Furniture schedule', "<div class='flow'>" + tbl + "<p class='caption'>Tags F1, F2 ... mark each piece on the " + (d.mode === 'technical' ? 'deck plan A-103 and the layout plan A-102' : 'coloured plan A-102') + '.</p></div>', '', 'flows');
+  if (!rows.length) rows = [["<span class='muted'>-</span>", 'No furniture placed.', '', '', '0', '']];
+  var tbl = RPT.table('sched', ['Tag', 'Item', 'Size l x d x h', 'Material', 'Count', 'Source'], rows, [2, 4]).replace('</tbody>', "</tbody><tfoot><tr><td></td><td>Total</td><td></td><td>" + d.groups.length + " types</td><td class='num' data-count='placed'>" + d.placed.length + '</td><td></td></tr></tfoot>');
+  RPT._groups = d.groups;
+  return RPT.sheet('a4', 'S-001', 'Furniture schedule', "<div class='flow'>" + tbl + "<p class='caption'>Tags F1, F2 ... mark each piece on the " + (d.mode === 'technical' ? 'deck plan A-103 and the layout plan A-102' : 'coloured plan A-102') + '. Sizes in metres from each piece\'s parameters (the same the 3D and the plans draw).</p></div>', '', 'flows wide');
 };
 
-// ── 07 Compliance ─────────────────────────────────────────────────────────────────────────────
+// ── C-001 Compliance: one row per check, failures first; "not entered" where the value is a default ────
+RPT.compRows = function(d) {
+  var order = { fail: 0, unclear: 1, pass: 2 };
+  return d.rows.slice().sort(function(a, b) { return (order[a.status] - order[b.status]) || (a.num - b.num); });
+};
 RPT.compliance = function(d) {
-  var rows = d.rows.map(function(r) {
-    var val = r.status === 'unclear' && r.missing.length
-      ? '<span class="ne">Not entered: ' + RPT.esc(r.missing.map(function(m) { return m.label; }).join('; ')) + '</span><span class="cond">' + RPT.esc(r.condition) + '</span>'
-      : RPT.esc(r.msg) + (r.missing.length ? '<span class="ne">Not entered: ' + RPT.esc(r.missing.map(function(m) { return m.label; }).join('; ')) + (r.id === 'c2' ? ' (standard lane envelope applied)' : '') + '</span>' : '');
-    return '<tr data-crit="' + r.id + '"><td class="mono">C' + r.num + '</td><td>' + RPT.esc(r.title) + '</td><td>Parklet Manual p.&nbsp;' + r.page + (r.id === 'c2' ? '; EDM Table 8-10' : '') + '</td><td class="val">' + val + '</td><td>' + RPT.pill(r.status) + (r.provisional ? ' ' + RPT.pill('provisional') : '') + '</td></tr>';
-  }).join('');
+  var tech = d.mode === 'technical';
+  var ref = function(r) { return 'Parklet Manual p.&nbsp;' + r.page + (r.id === 'c2' ? '; EDM Table 8-10' : ''); };
+  var measured = function(r) {
+    if (r.missing.length && r.status === 'unclear') return "<span class='ne'>not entered</span><span class='cond'>" + RPT.esc(r.missing.map(function(m) { return m.label; }).join('; ')) + '</span>';
+    return RPT.esc(r.msg || '-') + (r.missing.length ? "<span class='ne'>not entered: " + RPT.esc(r.missing.map(function(m) { return m.label; }).join('; ')) + (r.id === 'c2' ? ' (standard lane envelope applied)' : '') + '</span>' : '');
+  };
+  var result = function(r) { return RPT.pill(r.status) + (r.provisional ? ' ' + RPT.pill('provisional') : ''); };
+  var rows = RPT.compRows(d).map(function(r) { return { attrs: " data-crit='" + r.id + "'", cells: tech ? ['C' + r.num, ref(r), RPT.esc(r.title), measured(r), result(r)] : ['C' + r.num, RPT.esc(r.title), result(r)] }; });
+  var tbl = tech ? RPT.table('comp', ['Rule', 'Manual reference', 'Requirement', 'Measured value', 'Result'], rows) : RPT.table('comps', ['Rule', 'Requirement', 'Result'], rows);
   var ne = Object.keys(d.DM.inputs).map(function(k) { return d.DM.inputs[k]; }).filter(function(i) { return !i.entered; });
-  var tbl = "<table class='tbl comp'><thead><tr><th>No.</th><th>Rule</th><th>Source</th><th>Current value / condition</th><th>Status</th></tr></thead><tbody>" + rows + '</tbody></table>';
-  var un = "<table class='tbl unconf'><thead><tr><th>Unconfirmed input</th><th>Check</th><th>Value</th></tr></thead><tbody>" +
-    (ne.map(function(i) { return '<tr><td>' + RPT.esc(i.label) + '</td><td class="mono">' + 'C' + criteria.find(function(c) { return c.id === i.crit; }).num + '</td><td class="ne">not entered</td></tr>'; }).join('') || "<tr><td colspan='3'>Every input is entered.</td></tr>") + '</tbody></table>';
-  var adv = typeof SMP !== 'undefined' && SMP.treeAdvisory() ? "<p class='advisory'><b>Advisory (no numbered check):</b> " + RPT.esc(SMP.treeAdvisory().text) + '. ' + RPT.esc(SMP.treeAdvisory().detail) + '.</p>' : '';
-  return RPT.sheet('a4', 'C-001', d.mode === 'technical' ? 'Compliance' : 'Compliance summary', "<div class='flow'>" + tbl + adv + un + '</div>', d.n.pass + ' pass · ' + d.n.fail + ' fail · ' + d.n.unclear + ' not confirmed', 'flows wide');
+  var un = RPT.group('Inputs not entered', ne.length ? RPT.table('unconf', ['Input', 'Check', 'Value'], ne.map(function(i) { return [RPT.esc(i.label), 'C' + criteria.find(function(c) { return c.id === i.crit; }).num, "<span class='ne'>not entered</span>"]; })) : "<p class='muted'>Every input is entered.</p>");
+  var adv = typeof SMP !== 'undefined' && SMP.treeAdvisory() ? RPT.group('Advisory (no numbered check)', RPT.table('adv', ['Advisory', 'Detail'], [[RPT.esc(SMP.treeAdvisory().text), RPT.esc(SMP.treeAdvisory().detail)]])) : '';
+  var note = d.n.pass + ' pass · ' + d.n.fail + ' fail · ' + d.n.unclear + ' not confirmed' + (d.provisional ? ' · provisional' : '');
+  if (tech) return RPT.sheet('a4', 'C-001', 'Compliance', "<div class='flow'>" + tbl + adv + un + '</div>', note, 'flows wide');
+  return RPT.sheet('a4', 'C-001', 'Compliance summary', "<div class='flow'>" + RPT.group('Checks, failures first', tbl) + adv + RPT.siteTable(d) + RPT.treeTable(d.DM) + un + '</div>', note, 'flows');
+};
+
+// ── X-001 Sources: every source, input, import and assumption as a table row ─────────────────────────
+RPT.sources = function(d) {
+  var DM = d.DM, dates = {}, day = function(s) { return s ? (typeof SMP !== 'undefined' ? SMP.day(s) : String(s).slice(0, 10)) : ''; };
+  // the fetch date of each imported source (the latest record of it)
+  var note = function(k, at) { if (at && (!dates[k] || at > dates[k])) dates[k] = at; };
+  if (typeof state !== 'undefined') {
+    ['curb_features', 'street_trees', 'transit_stops', 'manholes'].forEach(function(l) { (state[l] || []).forEach(function(o) { var p = o.prov || {}; if (p.source === 'cov') note('CoV ' + (p.dataset || 'open data'), p.fetchedAt); if (p.source === 'osm') note('OSM', p.fetchedAt); }); });
+    if (typeof SMP !== 'undefined') { var P = SMP.prov(); Object.keys(P).forEach(function(k) { var p = P[k]; if (p.source === 'osm' || p.from === 'osm') note('OSM', p.fetchedAt); if (p.source === 'cov') note('CoV ' + (p.dataset || 'open data'), p.fetchedAt); }); }
+  }
+  var std = [['City of Vancouver, <i>Parklet Manual</i>, Version 1.0 (June 2016)', 'criteria C01 - C15 and their pages'],
+    ['City of Vancouver, <i>Engineering Design Manual</i> (2026)', 'Table 8-10 travel lane widths (8.7.3.1, pp. 275-277); bike lane and buffer widths (8.5.4.5)'],
+    ['City of Vancouver Standard Detail Drawings', 'W4.1 fire hydrant clearance; WW1 manhole; E5.19C utility pole; E1.3 signal controller base'],
+    ['City of Vancouver street standards placement guidance', 'street furniture offsets'],
+    ['British Columbia Building Code 3.8', 'clear route width ' + GEN.ROUTE_W + ' m in the generator\'s access model (the Parklet Manual value is to be confirmed)']];
+  if (dates.OSM) std.push(['OpenStreetMap contributors (ODbL)', 'street geometry, lanes, buildings and their names / uses, bus stops; fetched ' + day(dates.OSM)]);
+  Object.keys(dates).filter(function(k) { return /^CoV /.test(k); }).sort().forEach(function(k) { std.push(['City of Vancouver open data: ' + k.slice(4), 'fetched ' + day(dates[k])]); });
+  var mly = (d.renders || []).filter(function(r) { return r.mapillary; });
+  if (mly.length) std.push(['Mapillary (CC BY-SA)', 'context photo for the photoreal renders: ' + mly.map(function(r) { return RPT.esc(r.mapillary); }).join('; ')]);
+  var brands = {}; d.placed.forEach(function(p) { var pr = flPreset(p.objId); if (pr) brands[pr.brand] = (brands[pr.brand] || []).concat([pr.name + (pr.src ? ' - ' + pr.src : '')]); });
+  Object.keys(brands).forEach(function(b) { std.push([RPT.esc(b) + ' product data', RPT.esc(Array.from(new Set(brands[b])).join('; '))]); });
+  std.push(['DM Sans (SIL Open Font License 1.1)', 'the report\'s typeface, embedded']);
+  var ins = Object.keys(DM.inputs).map(function(k) { return DM.inputs[k]; });
+  var entered = ins.filter(function(i) { return i.entered; }).map(function(i) { return [RPT.esc(i.label), RPT.esc((i.text || i.value) + (i.unit ? ' ' + i.unit : '')) + (i.source === 'placed site objects' ? " <span class='muted'>(measured from placed site objects)</span>" : '')]; });
+  var hr = RPT.hostRaw(DM), hImp = hr && hr.b.__prov && ['use', 'name'].some(function(k) { return hr.b.__prov[k] && hr.b.__prov[k].source !== 'user'; });
+  if (hr && hr.entered) entered.push(['Host building (' + (hImp ? 'imported, verify on site' : 'user input') + ')', RPT.esc(RPT.hostLine(DM) + ', ' + hr.b.frontage + ' frontage, ' + hr.b.storeys + ' storey' + (hr.b.storeys > 1 ? 's' : ''))]);
+  var imp = typeof SMP !== 'undefined' ? SMP.sourcesList().map(function(s) { var i = s.indexOf(': '); return i > 0 ? [RPT.esc(s.slice(0, i)), RPT.esc(s.slice(i + 2))] : [RPT.esc(s), '']; }) : [];
+  var model = [['Travel lane widths', 'the Section editor\'s travel-lane segments against EDM Table 8-10 (' + DM.lanes.map(function(a) { return RPT.fx(a.width, 2) + ' m'; }).join(', ') + ')'],
+    ['Deck area', 'the ' + DM.parklet.shape + ' footprint, ' + RPT.fx(DM.parklet.area, 2) + ' m2'],
+    ['Compliance', 'each check\'s own result for the inputs above; an input not entered leaves its check not confirmed'],
+    ['Seats, route, entries', 'the generator\'s metrics of the current layout (access model)'],
+    ['Railing, deck levels', 'PARKLET_RAIL and PARKLET_LEVELS, the numbers the 3D, the render and these drawings share']];
+  var assume = [['Furniture positions', 'the model\'s; not field-measured'], ['Buildings', 'heights and depths are entered or imported estimates, for context only']];
+  if (hr && !hr.entered) assume.push(['Host building programme', 'not entered: the default (' + hr.b.use + ', ' + hr.b.frontage + ' frontage) is used for the renders, the prompts and the Generate bias']);
+  assume.push(['Library dimensions', 'those marked DI are interpreted, not source data'], ['Drawings', 'schematic, for the pre-application: not construction drawings; no structural or construction feasibility is assessed']);
+  var body = "<div class='flow'>" + RPT.group('Standards and data', RPT.table('src', ['Source', 'Used for'], std)) +
+    RPT.group('Entered inputs', entered.length ? RPT.table('src', ['Input', 'Value'], entered) : "<p class='muted'>None entered.</p>") +
+    (imp.length ? RPT.group('Imported site data (verify on site)', RPT.table('src', ['Item', 'Source'], imp) + "<p class='caption'>Nothing imported is authoritative: each imported value is a starting point to verify on site, and the checks that depend on one stay provisional until it is confirmed.</p>") : '') +
+    RPT.treeTable(DM) + RPT.group('From the design model', RPT.table('src', ['Value', 'Derived from'], model)) + RPT.group('Assumptions', RPT.table('src', ['Topic', 'Assumption'], assume)) + '</div>';
+  return RPT.sheet('a4', 'X-001', 'Sources', body, '', 'flows');
 };
 
 // ── 08 Lane envelope ──────────────────────────────────────────────────────────────────────────
@@ -18832,37 +18858,6 @@ RPT.lanes = function(d) {
   return RPT.sheet('a4', 'C-002', 'Lane envelope (EDM Table 8-10)', body);
 };
 
-// ── 09 Sources and assumptions ────────────────────────────────────────────────────────────────
-RPT.sources = function(d) {
-  var DM = d.DM, li = function(a) { return '<ul>' + a.map(function(s) { return '<li>' + s + '</li>'; }).join('') + '</ul>'; };
-  var std = ['City of Vancouver, <i>Parklet Manual</i>, Version 1.0 (June 2016): criteria C01 - C15 and their pages.',
-    'City of Vancouver, <i>Engineering Design Manual</i> (2026): Table 8-10 travel lane widths (Section 8.7.3.1, pp. 275-277); bike lane and buffer widths (8.5.4.5).',
-    'City of Vancouver Standard Detail Drawings: W4.1 fire hydrant clearance; WW1 manhole; E5.19C utility pole; E1.3 signal controller base.',
-    'City of Vancouver street standards placement guidance (street furniture offsets).',
-    'British Columbia Building Code 3.8 (clear route width ' + GEN.ROUTE_W + ' m used by the generator\'s access model; the Parklet Manual value is to be confirmed).'];
-  var brands = {};
-  d.placed.forEach(function(p) { var pr = flPreset(p.objId); if (pr) brands[pr.brand] = (brands[pr.brand] || []).concat([pr.name + (pr.src ? ' - ' + pr.src : '')]); });
-  Object.keys(brands).forEach(function(b) { std.push(RPT.esc(b) + ' product data for the placed presets: ' + RPT.esc(Array.from(new Set(brands[b])).join('; ')) + '.'); });
-  var ins = Object.keys(DM.inputs).map(function(k) { return DM.inputs[k]; });
-  var entered = ins.filter(function(i) { return i.entered; }).map(function(i) { return RPT.esc(i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : '') + (i.source === 'placed site objects' ? ' (measured from placed site objects)' : '')); });
-  var hr = RPT.hostRaw(DM);
-  var hImp = hr && hr.b.__prov && ['use', 'name'].some(function(k) { return hr.b.__prov[k] && hr.b.__prov[k].source !== 'user'; });   // imported from OSM, not yet confirmed
-  if (hr && hr.entered) entered.push(RPT.esc('Host building (' + (hImp ? 'imported from OpenStreetMap, verify on site' : 'user input') + '): ' + RPT.hostLine(DM) + ', ' + hr.b.frontage + ' frontage, ' + hr.b.storeys + ' storey' + (hr.b.storeys > 1 ? 's' : '')));
-  var model = ['Travel lane widths: the Section editor\'s travel-lane segments, assessed against EDM Table 8-10 (' + DM.lanes.map(function(a) { return RPT.fx(a.width) + ' m'; }).join(', ') + ').',
-    'Deck area: the ' + DM.parklet.shape + ' footprint (' + RPT.fx(DM.parklet.area, 2) + ' m²).',
-    'Compliance status and text: each check\'s own result for the inputs above; a check with an input not entered is not confirmed.',
-    'Seats, utilisation, entry turning spaces and the accessible route: the generator\'s metrics of the current layout.'];
-  var assume = ['Furniture positions are the model\'s; they are not field-measured.',
-    'Building heights and depths are entered estimates for context only.',
-    hr && !hr.entered ? 'Host building programme not entered: the default (' + hr.b.use + ', ' + hr.b.frontage + ' frontage) is used for the renders, the prompts and the Generate bias.' : null,
-    'Library dimensions marked DI are interpreted, not source data.',
-    'The Section is a schematic cross-section, not a construction drawing. No structural or construction feasibility is assessed.'].filter(Boolean);
-  var body = "<div class='flow'>" + RPT.group('Standards and data', li(std)) + RPT.group('Entered inputs', li(entered.length ? entered : ['None entered.'])) +
-    (typeof SMP !== 'undefined' && SMP.sourcesList().length ? RPT.group('Imported site data (verify on site)', li(SMP.sourcesList().map(RPT.esc))) : '') +
-    (RPT.cityTrees(DM).length ? RPT.group('Street trees (City inventory)', li(RPT.treeRows(DM).map(RPT.esc))) : '') +
-    RPT.group('From the design model', li(model)) + RPT.group('Assumptions', li(assume)) + '</div>';
-  return RPT.sheet('a4', 'X-001', 'Sources', body, '', 'flows');
-};
 
 // ── Drawings: the renderers' own output, drawn offscreen ─────────────────────────────────────
 // The report never measures or changes the live viewport. Each drawing is rendered by its view's
@@ -19059,11 +19054,20 @@ RPT.tblock = function(P, id, title, scaleTxt, d) {
   P.text(x + 113, y + 28.5, 'ISSUED BY', RPT.TX.tag, { c: RPT.MID }); P.text(x + 113, y + 33, 'Curbside ' + RPT.VERSION, RPT.TX.body);
 };
 // a drawing sheet: the pen's drawing, then the band (scale bar + notes on the left, title block right)
+// one caption per drawing, 2.5 mm, word-wrapped to width w (mm), at most max lines
+RPT.caption = function(P, x, y, w, s, max) {
+  var words = String(s).split(/\s+/), line = '', n = 0, lh = RPT.TX.body * 1.35;
+  for (var i = 0; i < words.length && n < max; i++) {
+    var tryL = line ? line + ' ' + words[i] : words[i];
+    if (RPT.tw(tryL, RPT.TX.body) > w && line) { P.text(x, y + n * lh, line, RPT.TX.body, { c: RPT.MID }); n++; line = words[i]; } else line = tryL;
+  }
+  if (line && n < max) P.text(x, y + n * lh, line, RPT.TX.body, { c: RPT.MID });
+};
 RPT.dsheet = function(d, id, title, scale, P, notes) {
   var y = RPT.SH - RPT.BAND;
   P.line(0, y - 2, RPT.SW, y - 2, { w: RPT.LW.obj });
   if (scale) RPT.bar(P, 2, y + 3, scale, scale <= 10 ? 1 : scale <= 50 ? 5 : scale <= 100 ? 10 : 25, 5);
-  (notes || []).slice(0, 5).forEach(function(n, i) { P.text(2, y + (scale ? 14 : 4) + i * 4.2, n, RPT.TX.tag, { c: RPT.MID }); });
+  RPT.caption(P, 2, y + (scale ? 14 : 5), RPT.SW - 150 - 8, (notes || []).join(' '), (scale ? 5 : 7));
   RPT.tblock(P, id, title, scale ? '1:' + scale + ' @ A3' : 'NTS', d);
   return "<section class='sheet dsheet' data-no='" + RPT.esc(id) + "' data-title='" + RPT.esc(title) + "'" + (scale ? " data-scale='" + scale + "'" : '') + '>' + P.svg(RPT.SW, RPT.SH) + '</section>';
 };
@@ -19587,7 +19591,7 @@ RPT.css = function(d) {
     // every drawing's text in the one face too (the live renderers name Helvetica / Barlow; the attribute loses to CSS)
     'svg text, svg tspan { font-family: var(--ui) !important; font-variant-numeric: tabular-nums; stroke: none !important; paint-order: normal !important; }',   // stroked text would print as a Type 3 copy of the face
     // a wide text sheet (compliance): one column, so a rule's title stays on one line
-    '.flows.wide .body > .flow { column-count: 1; } .wide .comp td:nth-child(2) { width: 132mm; }',
+    '.flows.wide .body > .flow { column-count: 1; } .wide .comp td:nth-child(3) { width: 128mm; }',
     '@media screen { body { background: #DADADA; } .sheet { background: #fff; margin: 6mm auto; } }',
     // a sheet is the page's content box (a hair short, so rounding never spills a sheet onto a second page)
     '.sheet { display: grid; grid-template-rows: auto minmax(0, 1fr); row-gap: 5mm; overflow: hidden; width: 390mm; height: 269.5mm; }',
@@ -19607,10 +19611,10 @@ RPT.css = function(d) {
     '.stack { display: grid; row-gap: 6mm; }',
     '.grp { display: grid; row-gap: 1.2mm; min-width: 0; }',
     '.grp h2 { font-size: 7.5pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--mid); padding-bottom: 1mm; border-bottom: 0.2mm solid var(--rule); }',
-    '.kv { display: grid; grid-template-columns: minmax(20mm, 1fr) minmax(0, auto); column-gap: 3mm; align-items: baseline; padding: 0.6mm 0; border-bottom: 0.15mm solid var(--hair); }',
+    '.kv { display: grid; grid-template-columns: minmax(0, 1fr) 40mm; column-gap: 3mm; align-items: baseline; padding: 0.6mm 0; border-bottom: 0.15mm solid var(--hair); }',   // the value in a fixed 40 mm column
     '.kv .k { color: var(--mid); min-width: 0; overflow-wrap: anywhere; }',
     '.kv .v { text-align: right; min-width: 0; overflow-wrap: break-word; }',
-    '.caption, .cond { font-size: 7.5pt; color: var(--mid); }',
+    '.caption, .cond { font-size: 2.5mm; color: var(--mid); }',
     '.caption { margin-top: 4mm; max-width: 190mm; }',
     '.muted { color: var(--mid); }',
     '.pill { display: inline-block; font: 600 7.5pt/1.3 var(--ui); letter-spacing: .04em; text-transform: uppercase; padding: 0.3mm 1.6mm; border: 0.3mm solid currentColor; border-radius: 0.8mm; white-space: nowrap; }',
@@ -19622,8 +19626,11 @@ RPT.css = function(d) {
     '.tbl .mono { white-space: nowrap; }',
     '.tbl tfoot td { border-top: 0.3mm solid var(--ink); border-bottom: 0; font-weight: 600; }',
     '.tbl tr.on td { background: var(--pale); }',
-    '.comp td:nth-child(2) { width: 40mm; } .comp td:nth-child(3) { width: 20mm; } .comp td:nth-child(5) { width: 20mm; }',
-    '.val .ne, .val .cond { display: block; } .ne { color: var(--ink); font-style: italic; }',
+    '.comp td:nth-child(1), .comps td:nth-child(1) { width: 14mm; white-space: nowrap; } .comp td:nth-child(2) { width: 42mm; } .comp td:nth-child(5), .comps td:nth-child(3) { width: 36mm; }',
+    '.sched td:nth-child(1) { width: 12mm; } .sched td:nth-child(3) { width: 34mm; } .sched td:nth-child(5) { width: 14mm; } .trees { font-size: 7.5pt; } .trees td:nth-child(1) { width: 6mm; } .src td:nth-child(1) { width: 34%; }',
+    '.tbl .ne, .tbl .cond { display: block; } .ne { color: var(--ink); font-style: italic; }',
+    // a table no taller than a column moves whole to the next column (no orphaned head); a longer one breaks between rows
+    '.flows .flow .grp-keep { break-inside: avoid; } .flows .flow thead { break-after: avoid; }',
     '.unconf td:nth-child(2) { width: 16mm; } .unconf td:nth-child(3) { width: 28mm; }',
     'ul { list-style: none; display: grid; row-gap: 1.5mm; } li { padding-left: 3mm; text-indent: -3mm; } li::before { content: "- "; color: var(--mid); }',
     '.cover { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); column-gap: 12mm; height: 100%; }',
