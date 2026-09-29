@@ -392,6 +392,17 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   - The PDF keeps ≥ ≤ ± →, since the embedded DM Sans has them (`RPT._hasGlyph` reads its cmap); only characters it lacks are rewritten.
   - A-301 details keep three decimals: a 12 mm gap would read 0.01 at two.
 - **Verified (sample, both modes):** 0 overlaps and 0 outside on every sheet, including A-102 and A-103. At most 2 rows are used on any side (limit 3). On A-103 the wheel-stop chain reads 0.25 + 0.15, both outside on leaders. A synthetic 0.35 m dimension at 1:50 (7 mm) goes outside on a leader. The Plan's clearance strings ("2.00 (≥1.50 C13)", "9.00 (≥6.00 C03)") appear verbatim on A-102. The sample PDFs still extract to identical text except the style line; 11 pages each. Plan consistency check OK, weights monotonic at 3 zooms.
+- **6. Extents, 4b (commit 6).** `DESIGN_MODEL.site.contextZ` is the model extent. It is the import radius (`SMP.R` is now a getter on it) and the scene past each deck end: 20-400 m, default 150.
+  - **Import:** nothing inside the radius is dropped for distance; the old "beyond the context extent" drop is gone. The import caches are keyed by radius (`overpass|ctx3|R|...`, `cov|ds|R|...`). City datasets are fetched a page of 100 at a time, up to 1000 records. Changing the context re-clips from the cache for that radius, or asks for a re-import.
+  - **Plan:** it now has one scale both ways (`PLAN_PX_M` = 20 units/m; it used to squeeze the street into 760 units). It is as wide as the model, pans across it, and FIT / Fit all fit it. Zoom limits are relative to the fitted width, and hit tolerances and small labels hold a steady screen size (`_pvHitU`, `pvZS`).
+  - **Crops:** `SITE_SHEETS` (saved with the design and in local state) holds the user's crops; `sheetCrops()` resolves `DESIGN_MODEL.site.sheets.A101/A102/A103.crop` `{z0, z1, x0, x1}`, snapped to 0.5 m. Defaults: A-103 is the deck plus 3 m. A-101 and A-102 are 78.5 x 55 m and 30.5 x 18 m: the brief's 90 x 55 and 36 x 22 m are 360 mm wide at 1:250 / 1:100, wider than the 340 mm drawing area beside the 60 mm notes column.
+  - **Sheets:** A-101, A-102 and A-103 draw their crop, clip at its edge (clip, don't drop) and show it in the key plan. A crop too big for its scale takes the next scale out (`RPT.fitScale`), and A-103 splits its crop with match lines. The Plan's Extents tool (next to Measure) shows each crop as a dashed, labelled blue rectangle: drag the label to move it, the corner square to resize it.
+- **Verified (Robson import at 150 m):**
+  - The City reports exactly 100 trees within 150 m (checked on its API); 40 are on the parklet's side, and all 40 are kept and in the model. Hydrants 4/4 and bus stops 3/3; nothing dropped for distance.
+  - Fit all shows 354.9 m for a 319.8 m model.
+  - Moving A-102's crop 5 m leaves pkSerialize equal except `sheets` and all 15 check statuses unchanged.
+  - With A-102's crop excluding the far sidewalk and its near edge through a street tree, the tree's canopy is drawn and cut at the edge.
+  - Samples: 11 pages, 0 overlaps, 0 outside. Plan consistency check OK, weights monotonic at 3 zooms.
 
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
