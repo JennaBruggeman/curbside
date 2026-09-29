@@ -5472,6 +5472,10 @@ DRAW_STYLE.SEG_FILL = { 'travel-lane': 'road', 'transit-lane': 'road', 'turn-lan
   'buf-pk': 'planting', 'buf-bl': 'concrete', 'planting': 'planting', 'curb': 'concrete', 'unallocated': 'road', 'sidewalk': 'sidewalk',
   'travel-lane-fail': 'failTint', 'bike-lane-fail': 'failTint' };
 DRAW_STYLE.seg = function(type, mode) { var T = DRAW_STYLE.t(mode); return T.fill[DRAW_STYLE.SEG_FILL[type] || 'road']; };
+// dimension text (Brief 17, 3b): metres, two decimals, no units; a compliance clearance "1.62 (>=1.50 C13)". The Plan's DIM
+// toggle and the report print these same strings.
+DRAW_STYLE.fmt = function(v, dp) { var d = dp == null ? 2 : dp, p = Math.pow(10, d); return (Math.round(v * p) / p).toFixed(d); };
+DRAW_STYLE.fmtClear = function(v, req, id, max) { return DRAW_STYLE.fmt(v) + ' (' + (max ? '≤' : '≥') + DRAW_STYLE.fmt(req) + ' ' + id + ')'; };
 // a check zone's stroke: fine, dashed as 'zone'; fail = zone red; pass = ink at 50% (technical) or zone red at 60% (schematic)
 DRAW_STYLE.zone = function(ctx, st) { var T = ctx.T; return st === 'fail' ? { c: T.fail, op: 1 } : st === 'pass' ? { c: T.pass, op: T.passOp } : { c: T.anno, op: 0.6 }; };
 DRAW_STYLE.zoneSt = function(ctx, st, cls) { var z = DRAW_STYLE.zone(ctx, st); return DRAW_STYLE.st(ctx, cls || 'fine', { c: z.c, op: z.op, dash: 'zone' }); };
@@ -5863,13 +5867,14 @@ function _renderPlanView(o) {
   });
   if (_pvLM.roadRight - _pvLM.allocatedRight > 0.005)
     _rmItems.push({ y1: _yOf(_pvLM.allocatedRight), y2: _yOf(_pvLM.roadRight), w: _pvLM.roadRight - _pvLM.allocatedRight, lbl: 'UNALLOCATED', grp: 'UNALLOC', n: 1 });
-  _rmItems.forEach(function(d) { d.val = `${d.w.toFixed(2)} m`; if (d.grp === 'LANE' && d.n > 1) d.lbl = `LANES \xd7${d.n}`; });
-  const _oppItem = { y1: _pvOppSW0, y2: _pvOppSW1, val: `${_pvLM.sidewalkW.toFixed(2)} m`, lbl: 'OPP. SIDEWALK' };
+  // the report's strings (Brief 17, 3b): two decimals, no units, no labels (the bands carry the names)
+  _rmItems.forEach(function(d) { d.val = DRAW_STYLE.fmt(d.w); d.lbl = ''; });
+  const _oppItem = { y1: _pvOppSW0, y2: _pvOppSW1, val: DRAW_STYLE.fmt(_pvLM.sidewalkW), lbl: '' };
   const _t1 = _rmItems.concat([_oppItem]);
   const _t2 = [
-    { y1: _pvBackNY, y2: _pvFaceNY, val: `${_pvLM.buildingL.depth.toFixed(2)} m`, lbl: 'NEAR BUILDING' },
-    { y1: CURB_Y, y2: ROAD_BOTTOM, val: `${_pvDM.totalRoad.toFixed(2)} m`, lbl: 'CURB–CURB', strong: true },
-    { y1: _pvFaceOY, y2: _pvBackOY, val: `${_pvLM.buildingR.depth.toFixed(2)} m`, lbl: 'OPP. BUILDING' }
+    { y1: _pvBackNY, y2: _pvFaceNY, val: DRAW_STYLE.fmt(_pvLM.buildingL.depth), lbl: '' },
+    { y1: CURB_Y, y2: ROAD_BOTTOM, val: DRAW_STYLE.fmt(_pvDM.totalRoad), lbl: '', strong: true },
+    { y1: _pvFaceOY, y2: _pvBackOY, val: DRAW_STYLE.fmt(_pvLM.buildingR.depth), lbl: '' }
   ].filter(function(d) { return Math.abs(d.y2 - d.y1) > 0.5; });
   const _PX = { val: 11, lbl: 10, gap1: 14, pad: 7, tier: 14, bot1: 28, bot2: 30, top: 44 };
   const _colW = function(list) { return Math.max.apply(null, list.map(function(d) { return Math.max(_pvTW(d.val, _PX.val), _pvTW(d.lbl, _PX.lbl, .06)); })); };
@@ -6046,8 +6051,8 @@ const C13_REQ = 1.5;
   const c13Z = DRAW_STYLE.zoneSt(DK, c13St);
   s += `<rect x="${PK_X-c13Px}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
   s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
-  s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', `≥${C13_REQ} m`, c13St, DK);
-  s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', `≥${C13_REQ} m`, c13St, DK);
+  s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK);
+  s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK);
   // Draggable handles at outer edges of C13 zones
   const c13HY = PK_Y + pvPkH / 2;
   [[PK_X-c13Px, c13HY],[PK_X+PK_W+c13Px, c13HY]].forEach(function(pt) {
@@ -6067,8 +6072,8 @@ const C03_REQ = 6;
   if (c03Px > 4) {
     s += `<rect x="${C03_LX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
     s += `<rect x="${C03_RX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
-    s += dimArrow(C03_LX, C03_LX+c03Px, PK_Y+pvPkH/2, 'C03', `≥${C03_REQ} m`, c03St, DK);
-    s += dimArrow(C03_RX, C03_RX+c03Px, PK_Y+pvPkH/2, 'C03', `≥${C03_REQ} m`, c03St, DK);
+    s += dimArrow(C03_LX, C03_LX+c03Px, PK_Y+pvPkH/2, 'C03', DRAW_STYLE.fmtClear(isNaN(c03Raw) ? C03_REQ : c03Raw, C03_REQ, 'C03'), c03St, DK);
+    s += dimArrow(C03_RX, C03_RX+c03Px, PK_Y+pvPkH/2, 'C03', DRAW_STYLE.fmtClear(isNaN(c03Raw) ? C03_REQ : c03Raw, C03_REQ, 'C03'), c03St, DK);
     // Draggable handles at outer edges of C03 zones
     const c03HY = PK_Y + pvPkH / 2;
     [[C03_LX, c03HY],[C03_RX+c03Px, c03HY]].forEach(function(pt) {
@@ -6281,8 +6286,8 @@ const dvFts = state[`driveways`] || [];
       s += `<line x1='${(bX0+1).toFixed(1)}' y1='${dimY2}' x2='${(bX1-1).toFixed(1)}' y2='${dimY2}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${dvXpx.toFixed(1)}' y1='${(dimY2-pvDTCK).toFixed(1)}' x2='${dvXpx.toFixed(1)}' y2='${(dvY+pvDGAP).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${nearEnd.toFixed(1)}' y1='${(dimY2-pvDTCK).toFixed(1)}' x2='${nearEnd.toFixed(1)}' y2='${(dimY2+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
-      const _dl = _pvClrLbl(dmCX, dimY2 - pvDFS * 0.8, dist.toFixed(1) + ' m');
-      if (_dl) s += `<text x='${_dl.x.toFixed(1)}' y='${_dl.y.toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${pvDFS.toFixed(1)}' fill='${col}' font-weight='600' data-clr='1'>${dist.toFixed(1)} m</text>`;
+      const _dlS = DRAW_STYLE.fmtClear(dist, 1.5, 'C06'), _dl = _pvClrLbl(dmCX, dimY2 - pvDFS * 0.8, _dlS);
+      if (_dl) s += `<text x='${_dl.x.toFixed(1)}' y='${_dl.y.toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${pvDFS.toFixed(1)}' fill='${col}' font-weight='600' data-clr='1'>${_dlS}</text>`;
     }
     s += `<rect x='${(dvXpx-8).toFixed(1)}' y='${(dvY-8).toFixed(1)}' width='16' height='16' fill='${lt}'${K('edge', { c: col })}/>`;
     s += `<text x='${dvXpx.toFixed(1)}' y='${(dvY+4).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='8' fill='${col}' font-weight='800'>D</text>`;
@@ -6311,8 +6316,8 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       const _cfXc = Math.max(0, Math.min(VW, cfX));   // an object beyond the drawing: the tick at its edge
       s += `<line x1='${_cfXc.toFixed(1)}' y1='${(dimY-pvDTCK).toFixed(1)}' x2='${_cfXc.toFixed(1)}' y2='${(dimY+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${nearEnd.toFixed(1)}' y1='${(dimY-pvDTCK).toFixed(1)}' x2='${nearEnd.toFixed(1)}' y2='${(dimY+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
-      const _cl = _pvClrLbl(dmCX, dimY - pvDFS * 0.8, dist.toFixed(1) + ' m');
-      if (_cl) s += `<text x='${_cl.x.toFixed(1)}' y='${_cl.y.toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${pvDFS.toFixed(1)}' fill='${col}' font-weight='600' data-clr='1'>${dist.toFixed(1)} m</text>`;
+      const _clS = DRAW_STYLE.fmtClear(dist, cf.type === 'P' && state.pole_trolley === 'yes' ? 2.4 : def.req, { H: 'C05', P: 'C07', S: 'C08' }[cf.type]), _cl = _pvClrLbl(dmCX, dimY - pvDFS * 0.8, _clS);
+      if (_cl) s += `<text x='${_cl.x.toFixed(1)}' y='${_cl.y.toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${pvDFS.toFixed(1)}' fill='${col}' font-weight='600' data-clr='1'>${_clS}</text>`;
     }
     if (cfX < -2 || cfX > VW + 2) return;   // beyond the drawn stretch: its clearance only (the marker would sit in the dimension margin)
     // Dashed leader: element centre to curb face
@@ -6398,7 +6403,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
         if (Math.abs(b.p - b.c) > 1.5 * U)
           s += `<polyline points='${f1(rx + 2 * U)},${f1(b.c)} ${f1(tx - 5 * U)},${f1(b.c)} ${f1(tx - 2 * U)},${f1(b.p - 4 * U)}' fill='none'${K('fine', { c: 'anno' })}/>`;
         txt(tx, b.p - 2 * U, b.d.val, _PX.val, 'start', INK, b.d.strong ? ` font-weight='600'` : ` font-weight='500'`);
-        txt(tx, b.p + 10 * U, b.d.lbl, _PX.lbl, 'start', MID, ` letter-spacing='${(0.6 * U).toFixed(2)}'`);
+        if (b.d.lbl) txt(tx, b.p + 10 * U, b.d.lbl, _PX.lbl, 'start', MID, ` letter-spacing='${(0.6 * U).toFixed(2)}'`);
       });
     };
     vChain([_rmItems, [_oppItem]], RX1, TX1, true);
@@ -6438,15 +6443,15 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       });
     };
     hChain([
-      { x1: PK_X, x2: PK_X + WS_PX, val: `${WS_M.toFixed(1)} m`, lbl: 'WHEEL STOP' },
-      { x1: PK_X + WS_PX, x2: PK_X + PK_W - WS_PX, val: `${DECK_M.toFixed(1)} m`, lbl: 'DECK' },
-      { x1: PK_X + PK_W - WS_PX, x2: PK_X + PK_W, val: `${WS_M.toFixed(1)} m`, lbl: 'WHEEL STOP' }
+      { x1: PK_X, x2: PK_X + WS_PX, val: DRAW_STYLE.fmt(WS_M), lbl: '' },
+      { x1: PK_X + WS_PX, x2: PK_X + PK_W - WS_PX, val: DRAW_STYLE.fmt(DECK_M), lbl: '' },
+      { x1: PK_X + PK_W - WS_PX, x2: PK_X + PK_W, val: DRAW_STYLE.fmt(WS_M), lbl: '' }
     ], HY1);
     [PK_X, PK_X + PK_W].forEach(function(x) { ext(x, HY1 + 3 * U, x, HY2 + 3 * U); });
     hChain([
-      { x1: 0, x2: PK_X, val: `${CONTEXT_M.toFixed(1)} m`, lbl: 'CONTEXT' },
-      { x1: PK_X, x2: PK_X + PK_W, val: `${PARKLET_M.toFixed(1)} m`, lbl: 'PARKLET' },
-      { x1: PK_X + PK_W, x2: VW, val: `${CONTEXT_M.toFixed(1)} m`, lbl: 'CONTEXT' }
+      { x1: 0, x2: PK_X, val: DRAW_STYLE.fmt(CONTEXT_M), lbl: '' },
+      { x1: PK_X, x2: PK_X + PK_W, val: DRAW_STYLE.fmt(PARKLET_M), lbl: '' },
+      { x1: PK_X + PK_W, x2: VW, val: DRAW_STYLE.fmt(CONTEXT_M), lbl: '' }
     ].filter(function(d) { return d.x2 - d.x1 > 0.5; }), HY2);
     s += `</g>`;
   }
@@ -6462,7 +6467,7 @@ const manholes = state['manholes'] || [];
     // the C09 clearance (a zone line) and DRAW_SYMBOLS.manhole: frame and opening at true size
     s += '<circle cx=\'' + mhX.toFixed(2) + '\' cy=\'' + mhY.toFixed(2) + '\' r=\'' + HS.toFixed(1) + '\' fill=\'none\'' + DRAW_STYLE.zoneSt(DK, ok ? 'pass' : 'fail') + '/>';
     s += _sym(function(P) { DRAW_SYMBOLS.manhole(P, mhX, mhY, mhR, mhCR, { data: ' data-mh=\'' + mh.id + '\'' }); });
-    s += '<text x=\'' + mhX.toFixed(1) + '\' y=\'' + (mhY-mhR-pvDFS*0.6).toFixed(1) + '\' text-anchor=\'middle\' font-family=\'Helvetica Neue,Arial,sans-serif\' font-size=\'' + pvDFS.toFixed(1) + '\' fill=\'' + mc + '\' font-weight=\'600\'>' + distM.toFixed(2) + ' m</text>';
+    s += '<text x=\'' + mhX.toFixed(1) + '\' y=\'' + (mhY-mhR-pvDFS*0.6).toFixed(1) + '\' text-anchor=\'middle\' font-family=\'Helvetica Neue,Arial,sans-serif\' font-size=\'' + pvDFS.toFixed(1) + '\' fill=\'' + mc + '\' font-weight=\'600\'>' + DRAW_STYLE.fmtClear(distM, 1.0, 'C09') + '</text>';
     s += '<g onclick=\'deleteManholeById(' + mh.id + ')\' onmousedown=\'event.stopPropagation()\' style=\'cursor:pointer\'><circle cx=\'' + (mhX+mhR+3).toFixed(1) + '\' cy=\'' + (mhY-mhR-3).toFixed(1) + '\' r=\'5\' fill=\'rgba(50,50,50,0.68)\'/><text x=\'' + (mhX+mhR+3).toFixed(1) + '\' y=\'' + (mhY-mhR+1).toFixed(1) + '\' text-anchor=\'middle\' font-family=\'Helvetica Neue,Arial,sans-serif\' font-size=\'7.5\' fill=\'#fff\' font-weight=\'700\'>×</text></g>';
   });
 
@@ -19062,6 +19067,7 @@ RPT.pen = function(ctx) {
   // the drawing's extent (every shape and text; inside a rect clip, clamped to it): dsheet centres a drawing by it
   var bb = [Infinity, Infinity, -Infinity, -Infinity], clips = [];
   var grow = function(x0, y0, x1, y1) {
+    if (!(isFinite(x0) && isFinite(y0) && isFinite(x1) && isFinite(y1))) { if (RPT._nanLog) RPT._nanLog.push(new Error('extent').stack.split('\n')[3]); return; }
     if (clips.length) { var c = clips[clips.length - 1]; if (c) { x0 = Math.max(x0, c[0]); y0 = Math.max(y0, c[1]); x1 = Math.min(x1, c[2]); y1 = Math.min(y1, c[3]); if (x1 < x0 || y1 < y0) return; } }
     bb[0] = Math.min(bb[0], x0); bb[1] = Math.min(bb[1], y0); bb[2] = Math.max(bb[2], x1); bb[3] = Math.max(bb[3], y1);
   };
@@ -19147,34 +19153,76 @@ RPT.HATCH = {
   route: { ang: -45, gap: 1.0 }
 };
 
-// ── Dimensions: 45 degree ticks, text above the line (horizontal) or beside it (vertical, never rotated) ──
+// ── Dimensions (Brief 17, 3b) ─────────────────────────────────────────────────────────────────────────
+// Chains in rows beside an object: row 0 is 10 mm off the object's edge, rows 8 mm apart, at most 3 a side. Text
+// 2.5 mm, horizontal, two decimals, no units ("DIMENSIONS IN METRES" is in the title block). A value that does not fit
+// its span goes outside on a leader, never shrunk, at the first place that collides with no text already on the sheet
+// (the pen's text boxes: collisions are detected). Extension lines from the model edge: a 1.5 mm gap, 2 mm past the
+// dimension line. Compliance clearances read "1.62 (>=1.50 C13)", in the zone colour (red when failing).
+RPT.DIM = { first: 10, step: 8, rows: 3, gap: 1.5, over: 2, size: 2.5, clear: 4 };   // clear: a value fits its span with 2 mm past each tick
+RPT.fmt = DRAW_STYLE.fmt; RPT.fmtClear = DRAW_STYLE.fmtClear;   // one formatter: the Plan's DIM strings are the report's
+// a value's place: in its span when it fits and is free, else outside on a leader. h: a horizontal dimension line at
+// p (text above it); otherwise a vertical line at p (text beside it on the outer side, out = -1 left / +1 right).
+// end: -1 / +1 the span is the chain's first / last (outside goes beyond that end first). -> 'in' | 'leader' | 'lost'
+RPT.dimText = function(P, h, out, p, a, b, s, o, end) {
+  o = o || {}; s = String(s);
+  var sz = RPT.DIM.size, lo = Math.min(a, b), hi = Math.max(a, b), w = RPT.tw(s, sz), mid = (lo + hi) / 2, C = { c: o.c, op: o.op, data: o.data };
+  var free = function(x0, y0, x1, y1) { return !P.boxes.some(function(q) { return q.text && x0 < q.x1 + 0.3 && q.x0 - 0.3 < x1 && y0 < q.y1 + 0.3 && q.y0 - 0.3 < y1; }); };
+  var boxAt = function(x, y, anc) { var x0 = anc === 'middle' ? x - w / 2 : anc === 'end' ? x - w : x; return [x0, y - sz * 0.74, x0 + w, y + sz * 0.22]; };
+  var put = function(x, y, anc, from) { P.text(x, y, s, sz, Object.assign({ anchor: anc }, C)); if (from) DRAW_SYMBOLS.leader(P, [from, [anc === 'end' ? x + 0.4 : anc === 'start' ? x - 0.4 : x, h ? y + sz * 0.22 : y - sz * 0.3]], { dot: true, c: o.c }); };
+  if (h) {
+    var ty = p - 0.8;
+    if (w + RPT.DIM.clear <= hi - lo) { var b0 = boxAt(mid, ty, 'middle'); if (free(b0[0], b0[1], b0[2], b0[3])) { put(mid, ty, 'middle'); return 'in'; } }
+    var cand = [], ends = end < 0 ? [-1, 1] : [1, -1];
+    ends.forEach(function(e) { cand.push(e < 0 ? [lo - 2.2, ty, 'end'] : [hi + 2.2, ty, 'start']); });
+    [1, 2, 3].forEach(function(n) { cand.push([mid, ty - out * 0 + (out < 0 ? -1 : 1) * 3.4 * n, 'middle']); });
+    ends.forEach(function(e) { cand.push(e < 0 ? [lo - 2.2, ty + (out < 0 ? -3.4 : 3.4), 'end'] : [hi + 2.2, ty + (out < 0 ? -3.4 : 3.4), 'start']); });
+    for (var i = 0; i < cand.length; i++) { var q = cand[i], bx = boxAt(q[0], q[1], q[2]); if (free(bx[0], bx[1], bx[2], bx[3])) { put(q[0], q[1], q[2], [mid, p]); return 'leader'; } }
+  } else {
+    var tx = out < 0 ? p - 1.2 : p + 1.2, anc = out < 0 ? 'end' : 'start';
+    if (sz + RPT.DIM.clear <= hi - lo) { var b1 = boxAt(tx, mid + sz * 0.36, anc); if (free(b1[0], b1[1], b1[2], b1[3])) { put(tx, mid + sz * 0.36, anc); return 'in'; } }
+    var cv = [], ends2 = end < 0 ? [-1, 1] : [1, -1];
+    ends2.forEach(function(e) { cv.push([tx, e < 0 ? lo - 1.6 : hi + 1.6 + sz * 0.74]); });
+    [1, 2].forEach(function(n) { cv.push([tx + out * (w + 2) * n, mid + sz * 0.36]); });
+    for (var j = 0; j < cv.length; j++) { var bv = boxAt(cv[j][0], cv[j][1], anc); if (free(bv[0], bv[1], bv[2], bv[3])) { put(cv[j][0], cv[j][1], anc, [p, mid]); return 'leader'; } }
+  }
+  P.text(h ? mid : (out < 0 ? p - 1.2 : p + 1.2), h ? p - 0.8 : mid + sz * 0.36, s, sz, Object.assign({ anchor: h ? 'middle' : (out < 0 ? 'end' : 'start') }, C));   // nowhere free: in place (the check reports it)
+  return 'lost';
+};
+// A chain on a row beside an object. o = {side: 'top' | 'bottom' | 'left' | 'right', edge: the object's edge on that side
+// (sheet mm), row: 0 .. 2, at: the stops along the chain (sheet mm, in order), from: each stop's model point across the
+// chain (sheet mm; a number for all; default the edge), vals: the text of each span, c / op: colour, data}.
+// Recorded on the pen (P.dims) for the checks.
+RPT.chain = function(P, o) {
+  var D = RPT.DIM, h = o.side === 'top' || o.side === 'bottom', out = o.side === 'top' || o.side === 'left' ? -1 : 1;
+  var p = o.edge + out * (D.first + D.step * o.row), st = { cls: 'context', c: o.c, op: o.op }, at = o.at, n = at.length;
+  var rec = { side: o.side, row: o.row, vals: o.vals.slice(), placed: [] };
+  (P.dims = P.dims || []).push(rec);
+  at.forEach(function(s, i) {
+    var f = Array.isArray(o.from) ? o.from[i] : (o.from != null ? o.from : o.edge), a = f + out * D.gap, b = p + out * D.over;
+    if ((b - a) * out < 0.5) return;
+    if (h) P.line(s, a, s, b, { cls: 'fine', c: o.c, op: o.op }); else P.line(a, s, b, s, { cls: 'fine', c: o.c, op: o.op });
+  });
+  if (h) P.line(at[0], p, at[n - 1], p, st); else P.line(p, at[0], p, at[n - 1], st);
+  at.forEach(function(s) { if (h) DRAW_SYMBOLS.tick(P, s, p, { c: o.c }); else DRAW_SYMBOLS.tick(P, p, s, { c: o.c }); });
+  for (var i = 0; i + 1 < n; i++) rec.placed.push(RPT.dimText(P, h, out, p, at[i], at[i + 1], o.vals[i], { c: o.c, op: o.op, data: o.data }, i === 0 ? -1 : i === n - 2 ? 1 : 0));
+  return p;
+};
+// Single dimensions (the details sheet): the same rules, the dimension line at y (horizontal) or x (vertical), extension
+// lines from o.ext (the model edge), the value placed by RPT.dimText. o.side 'left' / 'right' for a vertical one.
 RPT.dimH = function(P, xa, xb, y, label, o) {
-  o = o || {};
-  var t = 0.9, sz = o.size || (Math.abs(xb - xa) > RPT.tw(label, RPT.TX.body) + 2 ? RPT.TX.body : RPT.TX.tag), c = o.c || RPT.INK;
-  if (o.ext != null) { P.line(xa, o.ext, xa, y + (o.ext < y ? 1.2 : -1.2), { w: RPT.LW.ctx, c: c }); P.line(xb, o.ext, xb, y + (o.ext < y ? 1.2 : -1.2), { w: RPT.LW.ctx, c: c }); }
-  P.line(xa, y, xb, y, { w: RPT.LW.ctx, c: c });
-  [xa, xb].forEach(function(x) { P.line(x - t, y + t, x + t, y - t, { w: RPT.LW.obj, c: c }); });
-  var cx = (xa + xb) / 2, fits = Math.abs(xb - xa) > RPT.tw(label, sz) + 1;
-  P.text(fits ? cx : (o.side === 'left' ? Math.min(xa, xb) - 1 : Math.max(xa, xb) + 1), y - 0.8, label, sz, { anchor: fits ? 'middle' : (o.side === 'left' ? 'end' : 'start'), c: c, data: o.data });
+  o = o || {}; var D = RPT.DIM, out = o.ext != null && o.ext > y ? -1 : 1;   // out: from the object toward the line
+  if (o.ext != null) [xa, xb].forEach(function(x) { P.line(x, o.ext + out * D.gap, x, y + out * D.over, { cls: 'fine', c: o.c }); });
+  P.line(xa, y, xb, y, { cls: 'context', c: o.c });
+  [xa, xb].forEach(function(x) { DRAW_SYMBOLS.tick(P, x, y, { c: o.c }); });
+  return RPT.dimText(P, true, out, y, xa, xb, label, { c: o.c, data: o.data }, o.side === 'left' ? -1 : 1);
 };
 RPT.dimV = function(P, ya, yb, x, label, o) {
-  o = o || {};
-  var t = 0.9, sz = o.size || RPT.TX.body, c = o.c || RPT.INK, left = o.side !== 'right';
-  if (o.ext != null) { P.line(o.ext, ya, x + (o.ext < x ? 1.2 : -1.2), ya, { w: RPT.LW.ctx, c: c }); P.line(o.ext, yb, x + (o.ext < x ? 1.2 : -1.2), yb, { w: RPT.LW.ctx, c: c }); }
-  P.line(x, ya, x, yb, { w: RPT.LW.ctx, c: c });
-  [ya, yb].forEach(function(y) { P.line(x - t, y + t, x + t, y - t, { w: RPT.LW.obj, c: c }); });
-  P.text(left ? x - 1.2 : x + 1.2, (ya + yb) / 2 + sz * 0.35, label, sz, { anchor: left ? 'end' : 'start', c: c, data: o.data });
-};
-// a running chain (sorted stops, each span labelled with its length in m) plus the overall one step further out
-RPT.chainH = function(P, xs, y, metres, o) {
-  o = o || {}; var dy = o.up ? -6 : 6;
-  for (var i = 0; i + 1 < xs.length; i++) RPT.dimH(P, xs[i], xs[i + 1], y, (o.labels && o.labels[i]) || metres[i].toFixed(2), { ext: o.ext, side: i === 0 ? 'left' : 'right' });
-  if (xs.length > 2 && o.overall !== false) RPT.dimH(P, xs[0], xs[xs.length - 1], y + dy, (o.overallLabel || metres.reduce(function(a, b) { return a + b; }, 0).toFixed(2)) + (o.overallSuffix || ''), { ext: o.ext });
-};
-RPT.chainV = function(P, ys, x, metres, o) {
-  o = o || {}; var dx = o.side === 'right' ? 16 : -16;
-  for (var i = 0; i + 1 < ys.length; i++) RPT.dimV(P, ys[i], ys[i + 1], x, (o.labels && o.labels[i]) || metres[i].toFixed(2), { ext: o.ext, side: o.side, size: Math.abs(ys[i + 1] - ys[i]) < 3 ? RPT.TX.tag : RPT.TX.body });
-  if (ys.length > 2 && o.overall !== false) RPT.dimV(P, ys[0], ys[ys.length - 1], x + dx, metres.reduce(function(a, b) { return a + b; }, 0).toFixed(2), { ext: o.ext, side: o.side });
+  o = o || {}; var D = RPT.DIM, out = o.side === 'right' ? 1 : -1, dir = o.ext != null && o.ext > x ? -1 : 1;
+  if (o.ext != null) [ya, yb].forEach(function(y) { P.line(o.ext + dir * D.gap, y, x + dir * D.over, y, { cls: 'fine', c: o.c }); });
+  P.line(x, ya, x, yb, { cls: 'context', c: o.c });
+  [ya, yb].forEach(function(y) { DRAW_SYMBOLS.tick(P, x, y, { c: o.c }); });
+  return RPT.dimText(P, false, out, x, ya, yb, label, { c: o.c, data: o.data }, 1);
 };
 
 // ── Symbols ──────────────────────────────────────────────────────────────────────────────────────
@@ -19274,7 +19322,7 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   var by = RPT.SH - 13;
   if (ext && ext.north) RPT.northSym(P, 10, by + 1.5, 4.5);
   if (scale) RPT.bar(P, ext && ext.north ? 26 : 0, by - 2, scale);
-  return { id: id, title: title, scale: scale, ext: ext || null, draw: function(Q) { Q.merge(P); } };
+  return { id: id, title: title, scale: scale, ext: ext || null, dims: D.dims || [], draw: function(Q) { Q.merge(P); } };
 };
 
 // ── What every drawing reads, once per report ───────────────────────────────────────────────────
@@ -19441,9 +19489,9 @@ RPT.sheetSite = function(d) {
   P.text(pc[0], pc[1] + 0.9, 'Parklet', RPT.TX.tag, { anchor: 'middle', bold: true });
   // the section cut and the key dimensions
   RPT.secMarker(P, F.sx(G.sec.z), F.sy(LM.sidewalkL.x0) - 1, F.sy(LM.roadRight) + 1, G.sec.dir === 1);
-  RPT.dimV(P, F.sy(0), F.sy(LM.roadRight), xb + 3, G.DM.totalRoad.toFixed(2), { side: 'right', ext: xb });
-  RPT.dimV(P, F.sy(LM.sidewalkL.x0), F.sy(0), xb + 3, (0 - LM.sidewalkL.x0).toFixed(2), { side: 'right', ext: xb, size: RPT.TX.tag });
-  RPT.dimH(P, F.sx(G.L), F.sx(0), F.sy(LM.deckX1) + 3.5, G.L.toFixed(2), { ext: F.sy(LM.deckX1) });
+  // across, right of the drawing: the sidewalk and curb to curb; along, under the deck: its length
+  RPT.chain(P, { side: 'right', edge: xb, row: 0, at: [F.sy(LM.sidewalkL.x0), F.sy(0), F.sy(LM.roadRight)], from: xb, vals: [RPT.fmt(0 - LM.sidewalkL.x0), RPT.fmt(G.DM.totalRoad)] });
+  RPT.chain(P, { side: 'bottom', edge: F.sy(LM.deckX1), row: 0, at: [F.sx(G.L), F.sx(0)], vals: [RPT.fmt(G.L)] });
   var gl = {}, tree = null; G.trees.forEach(function(v) { if (v.genus && v.z >= zA && v.z <= zB) { gl[v.genus.slice(0, 2).toUpperCase()] = v.genus; if (!tree) tree = [F.sx(v.z), F.sy(v.x)]; } });
   var keys = [
     { t: 'Parklet, ' + G.L.toFixed(2) + ' m: layout A-102, deck A-103.', at: [pc[0], pc[1] - 4] },
@@ -19488,17 +19536,35 @@ RPT.sheetLayout = function(d) {
   G.mh.forEach(function(m) { var z = DRAW_STYLE.zone(P.ctx, zst('c9')), r = 1 + (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47); P.circle(F.sx(m.z), F.sy(m.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='c9'" }); DRAW_SYMBOLS.lozenge(P, F.sx(m.z) + r * k + 4, F.sy(m.x) - 2, 'C09', zst('c9')); });
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
-  // across: the running chain of segments (frontage .. far curb) and the overall, left of the drawing
+  // across, left of the drawing: the running chain of segments (frontage .. far curb), the overall on the next row
   var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0];
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk') return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
   if (LM.roadRight - stops[stops.length - 1] > 0.005) { m.push(LM.roadRight - stops[stops.length - 1]); stops.push(LM.roadRight); }
-  RPT.chainV(P, stops.map(function(x) { return F.sy(x); }), xa - 12, m, { ext: xa, side: 'left' });
-  // along: the deck from the host building's frontage line (the nearer end of its frontage), and its length
+  RPT.chain(P, { side: 'left', edge: xa, row: 0, at: stops.map(function(x) { return F.sy(x); }), from: xa, vals: m.map(function(v) { return RPT.fmt(v); }) });
+  RPT.chain(P, { side: 'left', edge: xa, row: 1, at: [F.sy(stops[0]), F.sy(stops[stops.length - 1])], from: xa, vals: [RPT.fmt(stops[stops.length - 1] - stops[0])] });
+  // along, over the deck: the deck from the host building's frontage line (the nearer end of its frontage), and its length
   var host = G.DM.site.host && G.DM.buildings.L[G.DM.site.host.index], hz = host && host.footprint ? (Math.abs(host.footprint.z0) <= Math.abs(host.footprint.z1 - G.L) ? host.footprint.z0 : host.footprint.z1) : null;
-  var ay = F.sy(xTop) - 7, zs = [0, G.L];
+  var zs = [0, G.L], dTop = F.sy(LM.deckX0), ay = dTop - RPT.DIM.first;
   if (hz != null && hz >= zA && hz <= zB && Math.abs(hz) > 0.05 && Math.abs(hz - G.L) > 0.05) { zs.push(hz); }
   zs.sort(function(a, b) { return b - a; });
-  RPT.chainH(P, zs.map(function(z) { return F.sx(z); }), ay, zs.slice(1).map(function(z, i) { return zs[i] - z; }), { ext: F.sy(LM.sidewalkL.x0), up: true });
+  RPT.chain(P, { side: 'top', edge: dTop, row: 0, at: zs.map(function(z) { return F.sx(z); }), vals: zs.slice(1).map(function(z, i) { return RPT.fmt(zs[i] - z); }) });
+  // under the deck: the compliance clearances as dimensions, in the zone colour: row 0 C13 and C03 at both ends; row 1
+  // (and 2) the site objects' clearances from the nearer deck end (hydrant C05, pole C07, signal C08)
+  var dBot = F.sy(LM.deckX1), zc = function(id) { var z = DRAW_STYLE.zone(P.ctx, zst(id)); return { c: z.c, op: z.op }; };
+  var clearDim = function(row, zNear, zFar, v, req, id) {
+    var a = Math.max(F.zA, Math.min(F.zB, zNear)), b = Math.max(F.zA, Math.min(F.zB, zFar)); if (Math.abs(b - a) < 0.05) return;
+    var q = zc(id.toLowerCase().replace(/^c0/, 'c')), s = [F.sx(a), F.sx(b)].sort(function(u, w) { return u - w; });
+    RPT.chain(P, { side: 'bottom', edge: dBot, row: row, at: s, vals: [RPT.fmtClear(v, req, id)], c: q.c, op: q.op, data: " data-clear='" + id + "'" });
+  };
+  clearDim(0, 0, -G.c13, G.c13, 1.5, 'C13'); clearDim(0, -G.c13, -G.c13 - G.c03, G.c03, 6, 'C03');
+  clearDim(0, G.L, G.L + G.c13, G.c13, 1.5, 'C13'); clearDim(0, G.L + G.c13, G.L + G.c13 + G.c03, G.c03, 6, 'C03');
+  var sideRow = { lo: 1, hi: 1 };
+  G.cf.slice().sort(function(a, b) { return Math.abs(a.z - G.L / 2) - Math.abs(b.z - G.L / 2); }).forEach(function(c) {
+    var req = c.type === 'H' ? 5 : c.type === 'P' ? (G.trolley ? 2.4 : 1) : c.type === 'S' ? 2 : 0, id = c.type === 'H' ? 'C05' : c.type === 'P' ? 'C07' : 'C08';
+    if (!req || (c.z >= 0 && c.z <= G.L)) return;
+    var near = c.z < 0 ? 0 : G.L, sd = c.z < 0 ? 'lo' : 'hi'; if (sideRow[sd] > 2) return;
+    clearDim(sideRow[sd]++, near, c.z, Math.abs(c.z - near), req, id);
+  });
   RPT.secMarker(P, F.sx(G.sec.z), F.sy(LM.sidewalkL.x0) - 1, F.sy(LM.roadRight) + 1, G.sec.dir === 1);
   var keys = [
     { t: 'Segments from the Section editor, chained with the overall, frontage to far curb.', at: [xa - 20, (F.sy(0) + F.sy(LM.roadRight)) / 2] },
@@ -19549,14 +19615,15 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
     if (e.kind === 'end-planter') { P.hatch("<rect x='" + sx(e.z1) + "' y='" + sy(e.x0) + "' width='" + ((e.z1 - e.z0) * k) + "' height='" + ((e.x1 - e.x0) * k) + "'/>", [sx(e.z1), sy(e.x0), sx(e.z0), sy(e.x1)], 'planting'); plAt = [sx((e.z0 + e.z1) / 2), sy(e.x0) - 3]; }
     else wsAt = [sx((e.z0 + e.z1) / 2), sy(e.x1) + 6]; });
   // railing along the road-side edge: its line, a post square at every post, a grid line through each post
-  var R = G.rail, rx = LM.deckX1 - R.postW / 2, posts = [];
+  var R = G.rail, rx = LM.deckX1 - R.postW / 2, posts = [], dTop = sy(LM.deckX0), dBot = sy(LM.deckX1);
+  var yBub = dTop - RPT.DIM.first - RPT.DIM.step * 2 - 10;   // the grid bubbles above the dimension rows over the deck
   for (var z = R.firstPost; z < L - 0.1; z += R.post) posts.push(z);
   P.line(sx(Math.max(0, za)), sy(rx), sx(Math.min(L, zb)), sy(rx), { cls: 'edge' });
   posts.forEach(function(z, n) {
     if (z < za - 1e-6 || z > zb + 1e-6) return;
     P.rect(sx(z) - R.postW * k / 2, sy(rx) - R.postW * k / 2, R.postW * k, R.postW * k, { fill: RPT.INK, w: 0 });
-    P.line(sx(z), ya - 7, sx(z), yb + 2, { cls: 'fine', dash: 'centre', c: RPT.MID });
-    RPT.sym.grid(P, sx(z), ya - 12, String(n + 1));
+    P.line(sx(z), yBub + 4, sx(z), yb + 2, { cls: 'fine', dash: 'centre', c: RPT.MID });
+    RPT.sym.grid(P, sx(z), yBub, String(n + 1));
   });
   RPT.planFurn(P, G, F, d);
   P.clipClose();
@@ -19569,20 +19636,22 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
     DRAW_SYMBOLS.matchLine(P, mx, ya - 4, yb + 12, 'Match line z ' + mz.toFixed(2) + ' m, see A-103-' + (idx === 0 ? 2 : 1), idx === 0 ? 'left' : 'right');   // its label below the section marker
     mlAt = null;
   }
-  // dimensions: the deck length on this sheet (and overall), width, wheel stops and planters
-  var dy = yb + 16, lenHere = Math.min(L, zb) - Math.max(0, za);
-  RPT.dimH(P, sx(Math.min(L, zb)), sx(Math.max(0, za)), dy, lenHere.toFixed(2) + (nParts > 1 ? ' (of ' + L.toFixed(2) + ' overall)' : ''), { ext: sy(LM.deckX1), data: " data-deck-len='" + lenHere.toFixed(3) + "'" });
-  RPT.dimV(P, sy(LM.deckX0), sy(LM.deckX1), xb + 14, (LM.deckX1 - LM.deckX0).toFixed(2), { side: 'right', ext: sx(Math.max(0, za)) });
-  if (posts.length > 1) { var pa = posts.filter(function(z) { return z >= za && z <= zb; }); if (pa.length > 1) RPT.dimH(P, sx(pa[1]), sx(pa[0]), ya - 18, R.post.toFixed(2) + ' typ.', { ext: ya - 16 }); }
+  // dimensions. Over the deck: row 0 the end planters, row 1 the post spacing. Under it: row 0 each wheel stop from the
+  // deck end (the gap, the stop), row 1 the deck length on this sheet. Right: the deck width.
+  var lenHere = Math.min(L, zb) - Math.max(0, za);
   G.ends.forEach(function(e) {
     if (e.z1 < zA || e.z0 > zB) return;
     if (e.kind === 'wheel-stop') {
-      var dzg = e.end ? e.z0 - L : 0 - e.z1, gz0 = e.end ? L : e.z1, gz1 = e.end ? e.z0 : 0;
-      RPT.dimH(P, sx(Math.max(gz0, gz1)), sx(Math.min(gz0, gz1)), sy(e.x1) + 5, dzg.toFixed(2), { ext: sy(e.x1), side: e.end ? 'left' : 'right' });
+      var zs = e.end ? [L, e.z0, e.z1] : [0, e.z1, e.z0];
+      var pts = [[sx(zs[0]), dBot], [sx(zs[1]), sy(e.x1)], [sx(zs[2]), sy(e.x1)]].sort(function(u, w) { return u[0] - w[0]; });
+      RPT.chain(P, { side: 'bottom', edge: dBot, row: 0, at: pts.map(function(q) { return q[0]; }), from: pts.map(function(q) { return q[1]; }), vals: [RPT.fmt((pts[1][0] - pts[0][0]) / k), RPT.fmt((pts[2][0] - pts[1][0]) / k)], data: " data-ws-dim='1'" });
     } else {
-      RPT.dimH(P, sx(e.z1), sx(e.z0), ya - 3, (e.z1 - e.z0).toFixed(2), { ext: sy(e.x0) });
+      RPT.chain(P, { side: 'top', edge: dTop, row: 0, at: [sx(e.z1), sx(e.z0)], vals: [RPT.fmt(e.z1 - e.z0)] });
     }
   });
+  if (posts.length > 1) { var pa = posts.filter(function(z) { return z >= za && z <= zb; }); if (pa.length > 1) RPT.chain(P, { side: 'top', edge: dTop, row: 1, at: [sx(pa[1]), sx(pa[0])], vals: [RPT.fmt(R.post) + ' typ.'] }); }
+  RPT.chain(P, { side: 'bottom', edge: dBot, row: 1, at: [sx(Math.min(L, zb)), sx(Math.max(0, za))], vals: [RPT.fmt(lenHere) + (nParts > 1 ? ' (of ' + RPT.fmt(L) + ')' : '')], data: " data-deck-len='" + lenHere.toFixed(3) + "'" });
+  RPT.chain(P, { side: 'right', edge: sx(Math.max(0, za)), row: 0, at: [dTop, dBot], vals: [RPT.fmt(LM.deckX1 - LM.deckX0)] });
   var ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; });
   var keys = [
     { t: 'Grid lines 1, 2, 3 ... at the railing posts, ' + R.post.toFixed(2) + ' m apart, the first at ' + R.firstPost.toFixed(2) + ' m.', at: null },
@@ -19636,24 +19705,25 @@ RPT.sheetSection = function(d) {
   P.clipClose();
   // datum (top of curb) and levels
   P.line(X0 - 4, Y(lv.curbTop), X0 + W + 4, Y(lv.curbTop), { cls: 'context', dash: 'centre' });
-  var lx = mir ? X0 - 8 : X0 + W + 8, right = !mir;
-  RPT.sym.level(P, lx, Y(lv.deckTop), 'Deck +' + (lv.deckTop - lv.curbTop).toFixed(3), right);
-  RPT.sym.level(P, lx, Y(lv.curbTop) + 6, 'Top of curb ±0.000 (datum)', right);
-  RPT.sym.level(P, lx, Y(0) + 12, 'Road ' + (0 - lv.curbTop).toFixed(3), right);
-  // heights at the railing: railing height above the deck, planter height, the deck above the datum
-  var rX = X(LM.deckX1) + (mir ? -10 : 10);
-  RPT.dimV(P, Y(lv.deckTop + R.h), Y(lv.deckTop), rX, R.h.toFixed(3) + ' railing', { side: mir ? 'left' : 'right', ext: X(LM.deckX1), data: " data-dim='rail-h'" });
-  if (ep) RPT.dimV(P, Y(lv.deckTop + ph), Y(lv.deckTop), X(ep.x0) + (mir ? 6 : -6), ph.toFixed(3) + ' planter', { side: mir ? 'right' : 'left', size: RPT.TX.tag });
-  // clearance from the railing to the adjacent travel lane
-  if (lane) RPT.dimH(P, Math.min(X(LM.deckX1), X(lane.x0)), Math.max(X(LM.deckX1), X(lane.x0)), Y(lv.deckTop + R.h + 0.35), (lane.x0 - LM.deckX1).toFixed(2) + ' to lane', { ext: Y(lv.deckTop + R.h), data: " data-dim='lane-clear'" });
-  // across: the running chain to the end of the first lane, and the overall
+  // levels from the datum, the top of the curb 0.00: on the sidewalk side the datum, on the road side the deck, the
+  // planter and the railing tops, and the road
+  var lxS = mir ? X0 + W + 8 : X0 - 8, lxR = mir ? X0 - 8 : X0 + W + 8, sgn = function(v) { return (v > 0.004 ? '+' : v < -0.004 ? '' : '±') + RPT.fmt(v); };
+  RPT.sym.level(P, lxS, Y(lv.curbTop), '±0.00 top of curb (datum)', mir);
+  RPT.sym.level(P, lxR, Y(lv.deckTop), sgn(lv.deckTop - lv.curbTop) + ' deck', !mir);
+  if (ep) RPT.sym.level(P, lxR, Y(lv.deckTop + ph), sgn(lv.deckTop + ph - lv.curbTop) + ' planter', !mir);
+  RPT.sym.level(P, lxR, Y(lv.deckTop + R.h), sgn(lv.deckTop + R.h - lv.curbTop) + ' railing', !mir);
+  RPT.sym.level(P, lxR, Y(0), sgn(0 - lv.curbTop) + ' road', !mir);
+  // one vertical chain at the railing: the sidewalk (top of curb) to the deck to the railing top
+  RPT.chain(P, { side: mir ? 'left' : 'right', edge: X(LM.deckX1), row: 0, at: [Y(lv.deckTop + R.h), Y(lv.deckTop), Y(lv.curbTop)], vals: [RPT.fmt(R.h), RPT.fmt(lv.deckTop - lv.curbTop)], data: " data-dim='rail-chain'" });
+  // across, under the ground: the running chain to the end of the first lane, the overall on the next row; the segments' names
   var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0];
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk' || (lane && sg.x0 >= lane.x1 - 1e-6)) return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
-  var ys = Y(-0.45) + 8, xs = stops.map(X);
+  var gb = Y(-0.45), xs = stops.map(X);
   if (mir) { xs.reverse(); m.reverse(); }
-  RPT.chainH(P, xs, ys, m, { ext: Y(-0.45) });
   stops.slice(0, -1).forEach(function(x, i) { var sg = i === 0 ? { type: 'sidewalk' } : G.segs.find(function(s) { return Math.abs(s.x0 - x) < 1e-6 && s.type !== 'sidewalk'; }); if (!sg) return;
-    var cx = (X(x) + X(stops[i + 1])) / 2; P.text(cx, Y(-0.45) + 24, RPT.SEG[sg.type] || sg.type, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); });
+    var cx = (X(x) + X(stops[i + 1])) / 2; P.text(cx, gb + RPT.DIM.first + RPT.DIM.step * 2 + 3, RPT.SEG[sg.type] || sg.type, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); });
+  RPT.chain(P, { side: 'bottom', edge: gb, row: 0, at: xs, vals: m.map(function(v) { return RPT.fmt(v); }) });
+  RPT.chain(P, { side: 'bottom', edge: gb, row: 1, at: [xs[0], xs[xs.length - 1]], vals: [RPT.fmt(stops[stops.length - 1] - stops[0])] });
   var keys = [
     { t: 'Section A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ': the cut drawn in the cut weight, ' + G.sec.depth.toFixed(1) + ' m beyond in elevation.', at: null },
     { t: 'Deck board ' + (lv.deckThk * 1000).toFixed(0) + ' mm, cut; deck +' + lv.deckTop.toFixed(3) + ' m above the road.', at: [X((LM.deckX0 + LM.deckX1) / 2), Y(lv.deckTop) - 5] },
@@ -19937,7 +20007,10 @@ if (window.PK_SAMPLE) window.addEventListener('load', function() { setTimeout(RP
 // Characters the embedded face (DM Sans, latin subset) does not carry would pull a fallback font into the
 // PDF: every one the report prints is written with the subset's own glyphs instead.
 RPT.GLYPHS = { '⌀': 'dia. ', '\u2265': '>=', '\u2264': '<=', '\u2192': '->', '\u2190': '<-', '\u2713': 'OK', '\u2714': 'OK', '\u2717': 'x', '\u2718': 'x', '\u2248': '~', '\u2260': '!=', '\u26A0': '!', '\u2194': '<->', '\u2195': '', '\u25B2': '', '\u25BC': '' };
-RPT.glyphSafe = function(html) { return html.replace(/[←-⏿■-➿]/g, function(c) { return RPT.GLYPHS[c] != null ? RPT.GLYPHS[c] : ''; }); };
+// only a character the embedded face lacks (its cmap, once the engine is loaded) is written another way: DM Sans has
+// the comparison signs, arrows and the plus-minus, so the PDF prints the Plan's own strings
+RPT._hasGlyph = function(c) { try { var m = RPT._measure && RPT._measure.getFont().metadata.cmap.unicode.codeMap; return !!(m && m[c.charCodeAt(0)]); } catch (e) { return false; } };
+RPT.glyphSafe = function(html) { return html.replace(/[←-⏿■-➿]/g, function(c) { return RPT._hasGlyph(c) ? c : RPT.GLYPHS[c] != null ? RPT.GLYPHS[c] : ''; }); };
 // ── Report engine (Brief 17): jsPDF + svg2pdf, every sheet one SVG page in millimetres ─────────────────
 // Page: 17 x 11 in landscape (431.8 x 279.4 mm = 1224 x 792 pt), margins 12 / 12 / 10 / 12 mm, for every
 // sheet of both reports. Each sheet is ONE svg the size of the page, 1 unit = 1 mm, rendered by svg2pdf as
