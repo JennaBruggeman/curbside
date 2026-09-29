@@ -14713,8 +14713,11 @@ async function pkSignOut() {
   pkCurrentDesignMeta = null;
   pkAllDesigns     = [];
   pkUpdateAccountUI();
-  pkShowAuthModal();
+  window.location.assign(pkLandingURL());   // signed out: back to the landing page
 }
+
+// the landing page: the server's / (index.html); a file:// copy has no server root, so the file next to this one
+function pkLandingURL() { return window.location.protocol === 'file:' ? 'index.html' : '/'; }
 
 async function pkForgotPassword(email) {
   if (!pkSB) return;
@@ -14922,6 +14925,17 @@ async function pkNewDesign(name, address) {
 async function pkInitApp() {
   pkInjectUI();
 
+  // ?auth=signin | ?auth=signup (the landing page, index.html): open the sign-in dialog on that tab when
+  // there is no session; the param leaves the address at once either way (a signed-in visitor just lands here)
+  var _authAsked = /[?&]auth=/.test(window.location.search);   // came from the landing page's Sign in / Create account
+  var _authTab = (function() {
+    try {
+      var p = new URLSearchParams(window.location.search), a = p.get('auth'); if (!a) return null;
+      p.delete('auth'); history.replaceState(null, '', window.location.pathname + (p.toString() ? '?' + p.toString() : '') + window.location.hash);
+      return a === 'signin' || a === 'signup' ? a : null;
+    } catch (e) { return null; }
+  })();
+
   // ?noauth or ?offline in URL → skip session entirely (useful for local testing)
   var _skipAuth = (window.location.search.indexOf('noauth') >= 0 ||
                    window.location.search.indexOf('offline') >= 0);
@@ -14978,10 +14992,14 @@ async function pkInitApp() {
         if (event === 'TOKEN_REFRESHED' && sess) { pkCurrentUser = sess.user; }
       });
 
+    } else if (!_authAsked) {
+      // signed out and not asking to sign in: the landing page is the signed-out state
+      window.location.replace(pkLandingURL());
     } else {
       pkHideLoading();
       pkUpdateAccountUI();
       pkShowAuthModal();
+      if (_authTab) pkAuthTab(_authTab);
     }
   } catch(e_) {
     console.error('[pk] init error:', e_);

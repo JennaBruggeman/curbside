@@ -335,7 +335,7 @@ while ($l.IsListening) {
     } elseif ($c.Request.HttpMethod -ne 'GET') {
       $c.Response.StatusCode = 405
     } else {
-      $rel = $path.TrimStart('/'); if ($rel -eq '') { $rel = 'parklet-checker.html' }
+      $rel = $path.TrimStart('/'); if ($rel -eq '') { $rel = $(if (Test-Path (Join-Path $Root 'index.html')) { 'index.html' } else { 'parklet-checker.html' }) }   # / = the landing page
       $f = [IO.Path]::GetFullPath((Join-Path $Root $rel))
       $leaf = Split-Path -Leaf $f
       if (-not $f.StartsWith($Root + '\') -or $leaf -eq '.render-key' -or $leaf -eq 'render-proxy.log' -or -not (Test-Path $f -PathType Leaf)) { $c.Response.StatusCode = 404 }
