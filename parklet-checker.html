@@ -10469,6 +10469,7 @@ function fl3DRenderTray() {
 function appSetMode(mode) {
   // leaving the Export tab stops the axon preview (it lives in the Export panel)
   if (mode !== 'export' && window.AXE && AXE.previewing) AXE.stop();
+  if (mode === 'export' && window.RPT && RPT.syncCard) setTimeout(RPT.syncCard, 0);   // the Report card lists this design's renders
   // Top nav tabs
   document.querySelectorAll('.ttab').forEach(function(t) { t.classList.remove('active'); });
   var tab = document.querySelector('.ttab[onclick*="' + mode + '"]');
@@ -18698,7 +18699,10 @@ RPT.cover = function(d, drw) {
     "<p class='cover-addr'>" + RPT.esc(DM.project.address || 'Address not entered') + ', Vancouver, BC</p>' +
     "<div class='cover-meta'>" + RPT.kv('Date', d.date) + RPT.kv('Checks', d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + d.n.unclear + ' not confirmed') +
     "<div class='kv'><span class='k'>Status</span><span class='v'>" + RPT.pill(d.overall) + '</span></div></div></div>';
-  var img = drw && drw.axon ? "<figure class='cover-axon'><img src='" + drw.axon.url + "' alt='Axonometric of the parklet'></figure>" : "<figure class='cover-axon'></figure>";
+  // the cover image: the first ticked Street or Corner render of this design, else the axonometric
+  var cr = (d.renders || []).find(function(r) { return r.preset === 'street' || r.preset === 'corner'; });
+  var img = cr ? "<figure class='cover-axon'><img src='" + cr.url + "' alt='Photoreal view of the parklet'><figcaption class='caption'>AI-assisted visualisation \u2014 indicative (" + RPT.esc(RPT.PRESET_LBL[cr.preset]) + ' view, ' + RPT.esc(cr.provider) + ').</figcaption></figure>'
+    : drw && drw.axon ? "<figure class='cover-axon'><img src='" + drw.axon.url + "' alt='Axonometric of the parklet'><figcaption class='caption'>Axonometric, from the design model.</figcaption></figure>" : "<figure class='cover-axon'></figure>";
   return RPT.sheet('a4', 'G-001', 'Cover', "<div class='cover'>" + t + img + '</div>', '', 'is-cover');
 };
 
@@ -19479,13 +19483,14 @@ RPT.sheetAxon = function(d, drw) {
 
 // ── The sheets each report prints, in order (the builders are shared; each reads d.mode) ────────────
 RPT.SHEETS = {
-  schematic: ['cover', 'site', 'layout', 'section', 'axon', 'schedule', 'compliance'],
+  schematic: ['cover', 'site', 'layout', 'section', 'axon', 'renders', 'schedule', 'compliance'],
   technical: ['title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 RPT.sheetList = function(d) {
   var out = [];
   RPT.SHEETS[d.mode].forEach(function(k) {
+    if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.parklet.length); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:50' }); }); return; }
     var M = { cover: ['G-001', 'Cover', 'NTS'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:250'], layout: ['A-102', d.mode === 'technical' ? 'Layout plan' : 'Coloured plan', '1:100'],
       section: ['A-201', 'Section A-A', '1:50'], details: ['A-301', 'Details', '1:10'], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
@@ -19503,6 +19508,7 @@ RPT.BUILDERS = {
   section: function(d) { return RPT.sheetSection(d); },
   details: function(d) { return RPT.sheetDetails(d); },
   axon: function(d, drw) { return RPT.sheetAxon(d, drw); },
+  render: function(d, drw, s) { return RPT.sheetRender(d, s.r, s.i); },
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
   lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); }
 };
@@ -19567,6 +19573,54 @@ RPT.sheetTitle = function(d) {
   P.text(ax, 10, 'ABBREVIATIONS', TX.head, { bold: true });
   ab.forEach(function(q) { P.text(ax, ay, q[0], TX.tag, { bold: true }); P.text(ax + 20, ay, q[1], TX.tag); ay += 4.6; });
   return RPT.dsheet(d, 'A-000', 'Title sheet', 0, P, ['Dimensions in metres unless noted. All drawings at the scale stated @ A3 (420 x 297 mm).', 'Generated from the design model; imported site data is indicative and must be verified on site.']);
+};
+
+// ── Renders in the schematic report (Brief 12b): only the current design's photoreal images ─────────────
+// The Report card lists every cached photoreal image whose design hash is the current design's (thumbnail,
+// preset, provider, date, a checkbox, ticked by default); images of any other design are never listed and
+// can never print. None: the card says so, the cover is the axon and there are no render sheets. Technical
+// reports carry no photoreal image at all.
+RPT._renderSel = {}; RPT._thumbs = [];
+RPT.PRESET_LBL = { street: 'Street', sidewalk: 'Sidewalk', corner: 'Corner', aerial: 'Aerial' };
+RPT.providerLabel = function(m) { var p = typeof RVZP !== 'undefined' && RVZP.PROVIDERS ? RVZP.PROVIDERS.find(function(q) { return q[0] === m; }) : null; return p ? p[1] : (m || 'photoreal'); };
+RPT.renderList = async function() {
+  var host = document.getElementById('rptRenders'); if (!host) return;
+  RPT._thumbs.forEach(function(u) { URL.revokeObjectURL(u); }); RPT._thumbs = [];
+  if (RPT.mode() === 'technical') { host.innerHTML = "<p class='rpt-rn-note'>Technical: no photoreal renders in the drawing set.</p>"; return; }
+  var list = typeof RVZP !== 'undefined' && RVZP.reportRenders ? await RVZP.reportRenders() : [];
+  if (!list.length) { host.innerHTML = "<p class='rpt-rn-note' id='rptNoRenders'>No renders of this design yet — Visualize › Photoreal › Render 4</p>"; return; }
+  host.innerHTML = "<p class='rpt-rn-note'>Renders of this design (ticked ones print, each on its own sheet):</p>" + list.map(function(e) {
+    var url = URL.createObjectURL(e.blobs.final), on = RPT._renderSel[e.key] !== false, dt = new Date(e.created); RPT._thumbs.push(url);
+    return "<label class='rpt-rn'><input type='checkbox' data-key='" + RPT.esc(e.key) + "'" + (on ? ' checked' : '') + "><img src='" + url + "' alt=''>" +
+      '<span><b>' + RPT.esc(RPT.PRESET_LBL[e.preset] || e.preset) + '</b><br>' + RPT.esc(RPT.providerLabel((e.meta || {}).model)) + ' · ' + dt.toISOString().slice(0, 10) + '</span></label>';
+  }).join('');
+  host.querySelectorAll('input[type=checkbox]').forEach(function(c) { c.onchange = function() { RPT._renderSel[c.getAttribute('data-key')] = c.checked; }; });
+};
+// the ticked renders of the current design, as JPEG data URLs (2400 px wide at most) with their caption facts
+RPT.collectRenders = async function() {
+  if (typeof RVZP === 'undefined' || !RVZP.reportRenders) return [];
+  var list = await RVZP.reportRenders(), out = [], cams = {};
+  try { cams = RVZ.presets(16 / 9); } catch (e) {}
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i]; if (RPT._renderSel[e.key] === false) continue;
+    out.push(await RPT.renderEntry(e.blobs.final, e.preset, (e.meta || {}).model, e.created, (e.meta || {}).contextPhoto, cams[e.preset], e.key));
+  }
+  return out;
+};
+RPT.renderEntry = async function(blob, preset, model, created, cp, cam, key) {
+  var bmp = await createImageBitmap(blob), W = Math.min(2400, bmp.width), H = Math.round(bmp.height * W / bmp.width), c = document.createElement('canvas');
+  c.width = W; c.height = H; c.getContext('2d').drawImage(bmp, 0, 0, W, H);
+  return { key: key || preset, preset: preset, url: c.toDataURL('image/jpeg', 0.9), w: W, h: H, provider: RPT.providerLabel(model), date: new Date(created).toISOString().slice(0, 10),
+    camera: cam ? (cam.ortho ? 'isometric, as the axonometric' : (cam.mm ? cam.mm + ' mm lens' : '') + (cam.angleDeg != null ? ', ' + Math.round(Math.abs(cam.angleDeg)) + ' deg to the deck axis' : '')) : '',
+    mapillary: cp ? (cp.attribution || ('Mapillary image ' + cp.id + (cp.creator ? ' by ' + cp.creator : '') + (cp.license ? ', ' + cp.license : ''))) : null };
+};
+// V-101 ... one render per sheet, at the full width, with its caption
+RPT.sheetRender = function(d, r, i) {
+  var P = RPT.pen(), w = RPT.DA.w, h = Math.min(RPT.DA.h, w * r.h / r.w), x = (RPT.DA.w - h * r.w / r.h) / 2;
+  P.add("<image href='" + r.url + "' x='" + x.toFixed(2) + "' y='" + ((RPT.DA.h - h) / 2).toFixed(2) + "' width='" + (h * r.w / r.h).toFixed(2) + "' height='" + h.toFixed(2) + "' preserveAspectRatio='xMidYMid meet' data-render='" + RPT.esc(r.key) + "'/>");
+  var cap = 'AI-assisted visualisation — indicative. ' + (RPT.PRESET_LBL[r.preset] || r.preset) + ' view' + (r.camera ? ', ' + r.camera : '') + '; ' + r.provider + ', rendered ' + r.date + '.' +
+    (r.mapillary ? ' Context photo: ' + r.mapillary + ' (Mapillary, CC BY-SA).' : '') + (r.note ? ' ' + r.note : '');
+  return RPT.dsheet(d, 'V-' + (101 + i), 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), 0, P, [cap]);
 };
 
 // ── Document ──────────────────────────────────────────────────────────────────────────────────
@@ -19779,7 +19833,9 @@ RPT.ready = function(doc) {
 // Two frames of the report's own window: layout and paint have run for what was just loaded.
 RPT.frames = function(win) { return new Promise(function(res) { win.requestAnimationFrame(function() { win.requestAnimationFrame(function() { res(); }); }); }); };
 RPT.prepare = async function(mode) {
-  var d = RPT.data(mode || RPT.mode()), drw = RPT.drawings ? await RPT.drawings(d) : {};
+  var d = RPT.data(mode || RPT.mode());
+  d.renders = d.mode === 'schematic' ? await (RPT.renderSource || RPT.collectRenders)() : [];   // the ticked renders of this design (schematic only)
+  var drw = RPT.drawings ? await RPT.drawings(d) : {};
   var old = document.getElementById('rptFrame'); if (old) old.remove();
   // a visible (0-opacity) frame at the page width, so the document is laid out and its frames run
   var f = document.createElement('iframe'); f.id = 'rptFrame'; f.title = 'Report'; f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
@@ -19864,6 +19920,12 @@ RPT.print = async function() {
 .txt-btn { background: none; border: none; padding: var(--sp-1) 0; color: var(--c-text-dim); font: var(--fs-12) var(--font-ui); cursor: pointer; }
 .txt-btn:hover, .txt-btn:focus-visible { color: var(--c-text); text-decoration: underline; outline: none; }
 .txt-btn.danger:hover { color: var(--st-fail); }
+
+/* -- Report card: this design's renders ----------------------------- */
+.rpt-rn-note { font-size: var(--fs-11); color: var(--c-text-dim); line-height: 1.5; margin: 2px 0 6px; }
+.rpt-rn { display: grid; grid-template-columns: 16px 64px 1fr; gap: 6px; align-items: center; margin-bottom: 6px; font-size: var(--fs-11); color: var(--c-text-dim); cursor: pointer; }
+.rpt-rn img { width: 64px; height: 36px; object-fit: cover; border-radius: 2px; display: block; }
+.rpt-rn b { color: var(--c-text); font-weight: 600; }
 
 /* -- Library (furniture + entourage + street components) ------------ */
 .lib-search { width: 100%; box-sizing: border-box; height: 28px; padding: 0 var(--sp-2); margin-bottom: var(--sp-2); background: var(--c-bg);
@@ -21897,7 +21959,7 @@ RVZP.runPreset = async function(preset, prompt, strength) {
   var L = { W: P.W, H: P.H, colour: P.colour, depth: P.depth, zdist: P.zdist, mask: P.mask, aiDesign: await RVZP._img(got[0]), aiContext: await RVZP._img(got[1]) };
   var fin = RVZP.composite(L, RVZP.o.fidelity), dsgCv = RVZP._copy(L.aiDesign, P.W, P.H);
   var al = RVZP.alignment(dsgCv, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(fin, P), dc = RVZP.designCheck(fin, P);
-  var e = { key: key, preset: preset, design: hash, strength: strength, prompt: prompt.text, negative: prompt.negative, created: Date.now(), W: P.W, H: P.H, useInReport: false,
+  var e = { key: key, preset: preset, design: hash, strength: strength, prompt: prompt.text, negative: prompt.negative, created: Date.now(), W: P.W, H: P.H,
     meta: { strengths: [sD, sC], depthRange: P.depthRange, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, model: RVZP.o.provider, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
     blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), zdist: await RVZP._blob(P.zdist), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), aiDesign: got[0], aiContext: got[1], final: await RVZP._blob(fin) } };
   await RVZP.dbPut(e);
@@ -21933,7 +21995,7 @@ RVZP._runEdit = async function(preset, prompt, P, hash, key) {
   var ref = RVZP.ref(), nx = nat.getContext('2d'); nx.drawImage(bmp, 0, 0); RVZP._caption(nx, nat.width, nat.height, ref ? ref.attribution : '');
   var al = RVZP.alignment(frame, P.colour, P.edges, P.mask), benches = RVZP.benchCount(P), bk = RVZP.benchKept(frame, P);
   var attempts = tries.map(function(t) { return { jobId: t.job.id, framing: t.fr, design: t.dc ? t.dc.card + (t.dc.pass ? ' PASS' : ' FAIL') : null, kept: t === a }; });
-  var e = { key: key, preset: preset, design: hash, strength: null, prompt: prompt.text, negative: '', created: Date.now(), W: bmp.width, H: bmp.height, useInReport: false,
+  var e = { key: key, preset: preset, design: hash, strength: null, prompt: prompt.text, negative: '', created: Date.now(), W: bmp.width, H: bmp.height,
     meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, framing: fr, pass: !!(fr.pass && dc && dc.pass), attempts: attempts, contextPhoto: ref ? { id: ref.id, creator: ref.creator, captured: ref.captured, license: ref.license, attribution: ref.attribution } : null, jobId: a.job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
     blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), output: a.got, final: await RVZP._blob(nat) } };
   await RVZP.dbPut(e);
@@ -21971,19 +22033,12 @@ RVZP.render4 = async function() {
   }
   return res;
 };
-// Report hook (the report's cover and design-views sheets): the photoreal image of a preset when
-// one is marked "Use in report" for the current design, else the Visualize render; never a
-// photoreal image in a technical export.
-RVZP.forReport = async function(preset, opts) {
-  opts = opts || {};
-  var hash = RVZ.designHash();
-  if (!opts.technical) {
-    var all = await RVZP.dbAll().catch(function() { return []; });
-    var e = (all || []).filter(function(x) { return x.design === hash && x.preset === preset && x.useInReport; }).sort(function(a, b) { return b.created - a.created; })[0];
-    if (e) return { kind: 'photoreal', blob: e.blobs.final, caption: RVZP.CAPTION + (e.meta.contextPhoto ? ' | Context photo: ' + e.meta.contextPhoto.attribution : ''), W: e.W, H: e.H };
-  }
-  var r = RVZ.cached(hash, { preset: preset, appearance: 'rendered' });
-  return r ? { kind: 'render', blob: r.blob, caption: 'Rendered view (' + preset + ')', W: r.w, H: r.h } : null;
+// The report's renders (Brief 12b): every cached photoreal image of the current design (its hash), in preset
+// order, newest first; an image of any other design is never offered. The Report card ticks which print.
+RVZP.reportRenders = async function() {
+  var hash = RVZ.designHash(), all = await RVZP.dbAll().catch(function() { return []; }), order = RVZ.PRESETS.map(function(p) { return p[0]; });
+  return (all || []).filter(function(e) { return e && e.design === hash && e.blobs && e.blobs.final; })
+    .sort(function(a, b) { return (order.indexOf(a.preset) - order.indexOf(b.preset)) || (b.created - a.created); });
 };
 
 // ── UI: a Photoreal section on the rail and a gallery over the viewport ──────────────────────
@@ -22063,11 +22118,10 @@ RVZP._gallery = async function() {
         : "<div class='rvz-row'><label for='rvzpF_" + p[0] + "'>Fidelity</label><input type='range' class='rvzp-fid' id='rvzpF_" + p[0] + "' data-preset='" + p[0] + "' min='0' max='1' step='0.05' value='0'></div>") +
       (e.meta.design ? "<ul class='rvzp-objs'>" + e.meta.design.objects.map(function(o) { return "<li class='rvzp-o-" + o.status.replace(/ /g, '-') + "'>" + o.label + ': ' + o.status + (o.shift ? ' (' + o.shift.join(', ') + ' px)' : '') + '</li>'; }).join('') +
         (e.meta.design.deck ? "<li class='rvzp-o-" + e.meta.design.deck.status.replace(/ /g, '-') + "'>deck outline: " + e.meta.design.deck.status + '</li>' : '') + '</ul>' : '') +
-      "<label class='rvz-check'><input type='checkbox' class='rvzp-use' data-preset='" + p[0] + "'" + (e.useInReport ? ' checked' : '') + '> Use in report</label></article>';
+      '</article>';
   });
   gl.innerHTML = "<div class='rvzp-gh'><h3>Photoreal renders</h3><button type='button' class='rvz-btn' id='rvzpGalClose'>Close</button></div><div class='rvzp-grid'>" + cards.join('') + '</div>';
   document.getElementById('rvzpGalClose').onclick = function() { RVZP.showGallery(false); };
-  gl.querySelectorAll('.rvzp-use').forEach(function(c) { c.onchange = async function() { var e = RVZP.entries[c.dataset.preset]; e.useInReport = c.checked; await RVZP.dbPut(e); }; });
   gl.querySelectorAll('.rvzp-fid').forEach(function(sl) {
     sl.oninput = async function() {   // replay the composite from the stored layers: nothing is re-rendered
       var e = RVZP.entries[sl.dataset.preset], im = function(b) { return RVZP._img(b); };
