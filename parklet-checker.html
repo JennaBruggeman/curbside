@@ -4048,12 +4048,21 @@ document.addEventListener('mouseup', function() {
   }
   // The Section pans vertically (Brief 18): the strip is as tall as the section's extent; the viewport is as tall as its
   // panel allows and scrolls, and a new extent scrolls to the ground.
+  // the keyed notes under the Section (Brief 19 E): a collapsible strip, open by default; its open state kept
+  function _seNotes(notes) {
+    var vp = document.getElementById('seViewport'); if (!vp) return;
+    var el = document.getElementById('seNotes');
+    if (!el) { el = document.createElement('details'); el.id = 'seNotes'; el.className = 'se-notes'; el.open = true; vp.parentNode.insertBefore(el, vp.nextSibling); }
+    var esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+    el.innerHTML = '<summary>Notes (' + notes.length + ')</summary><ol>' + notes.map(function(q) { return '<li value="' + q.n + '">' + esc(q.t) + '</li>'; }).join('') + '</ol>';
+  }
   function _vpHeight(f) {
     var vp = document.getElementById('seViewport'), pn = document.getElementById('csPanel'); if (!vp || !pn || !f) return;
-    var pr = pn.getBoundingClientRect(), vr = vp.getBoundingClientRect(), st = document.getElementById('seStats');
-    var avail = Math.floor(pr.bottom - vr.top - (st ? st.offsetHeight : 0) - 8);
-    vp.style.maxHeight = avail > 120 ? avail + 'px' : '';
-    if (vp._seH !== f.stripH) { vp._seH = f.stripH; vp.scrollTop = vp.scrollHeight; }
+    var pr = pn.getBoundingClientRect(), vr = vp.getBoundingClientRect(), st = document.getElementById('seStats'), nt = document.getElementById('seNotes');
+    var avail = Math.floor(pr.bottom - vr.top - (st ? st.offsetHeight : 0) - (nt ? nt.offsetHeight : 0) - 8);
+    var mh = avail > 120 ? avail + 'px' : '';
+    vp.style.maxHeight = mh;
+    if (vp._seH !== f.stripH || vp._seMH !== mh) { vp._seH = f.stripH; vp._seMH = mh; vp.scrollTop = vp.scrollHeight; }   // a new extent or a new height: to the ground
   }
   window.seViewportHeight = function() { _vpHeight(_frame); };
 
@@ -4129,6 +4138,7 @@ document.addEventListener('mouseup', function() {
       strip.insertBefore(svg, strip.firstChild);
     }
     var r = renderCrossSection(svg, { pxPerM: (f || {}).SC || SECTION_PX_PER_M, minWidth: _vpWidth(), labels: 'screen' });
+    _seNotes(r.notes || []);
     _frame = r.frame;
     window._seFrame = _frame;
     window._seX = function(wx) { return worldToSection(wx, 0, _frame).px; };
@@ -4733,6 +4743,29 @@ var SECTION_POCHE_PX = 24, SECTION_H = 260, SECTION_GROUND_Y = 228;
 // The Section's height above the road (Brief 18), m: the tallest building the cut passes through or sees within its
 // depth (on the sidewalk) or the tallest tree in the depth, plus 2 m; at least 8 m. The screen strip and the report's
 // A-201 both take it.
+// a tree's depth tier in the schematic section (Brief 19 E): the cut, near (0-8 m), mid (8-20 m), far
+function SECTION_TIER(d, cut) { return cut ? 1 : d <= 8 ? 0.8 : d <= 20 ? 0.5 : 0.25; }
+// The section's keyed notes (Brief 19 E): from the model and the archetypes, never written by hand: the deck, the
+// railing, an end planter, each furniture piece in the section (archetype, main material, size; one note for the same
+// piece), the building at the cut. Each {n, t, at: [world x, height above the road]}: its key's place on the drawing.
+function sectionNotes(scene, DM) {
+  var LM = DM.landmarks, lv = (DM.parklet && DM.parklet.levels) || PARKLET_LEVELS, R = (DM.parklet && DM.parklet.railing) || PARKLET_RAIL, out = [], seen = {};
+  var fm = function(v) { return (+v).toFixed(2); }, mat = function(id) { var m = flMatInfo(id); return String((m && m.label) || id).toLowerCase(); };
+  out.push({ t: 'Deck, timber boards 145 mm wide, ' + Math.round(lv.deckThk * 1000) + ' mm, on indicative supports; top +' + fm(lv.deckTop) + ' m above the road', at: [(LM.deckX0 + LM.deckX1) / 2, lv.deckTop] });
+  out.push({ t: 'Railing, ' + mat(R.mat) + ', ' + fm(R.h) + ' m above the deck, rails at ' + R.rails.map(fm).join(' and ') + ' m', at: [LM.deckX1 - 0.05, lv.deckTop + R.h] });
+  scene.cut.concat(scene.beyond).forEach(function(it) {
+    if (it.kind === 'end-planter' && !seen.ep && it.data && it.data.end) { seen.ep = 1; var e = it.data.end; out.push({ t: 'Planter at the deck end, ' + fm(e.x1 - e.x0) + ' x ' + fm(e.z1 - e.z0) + ' m, ' + fm(e.y1 - e.y0) + ' m high', at: [(e.x0 + e.x1) / 2, lv.deckTop + (e.y1 - e.y0)] }); return; }
+    if (it.kind !== 'furniture' || !it.data || !it.data.inst || typeof flInstSpec !== 'function') return;
+    var inst = it.data.inst, sp = flInstSpec(inst); if (!sp || !FL_ARCHETYPES[sp.type]) return;
+    var A = FL_ARCHETYPES[sp.type], dm = flInstDims(inst), role = ['seat', 'top', 'body', 'frame'].find(function(r) { return A.parts[r]; }) || Object.keys(A.parts)[0];
+    var key = sp.type + '|' + JSON.stringify(sp.mats || {}) + '|' + [dm.l, dm.d, dm.h].map(fm).join(); if (seen[key]) return; seen[key] = 1;
+    var on = it.x0 >= LM.deckX0 - 0.01 && it.x1 <= LM.deckX1 + 0.01, base = on ? lv.deckTop : it.x1 <= 0 ? lv.curbTop : 0;
+    out.push({ t: A.label + ', ' + mat(flPartMat(sp.type, role, sp.mats)) + ', ' + fm(dm.l) + ' x ' + fm(dm.d) + ' x ' + fm(dm.h) + ' m' + (scene.cut.indexOf(it) >= 0 ? ', cut' : ''), at: [(it.x0 + it.x1) / 2, base + dm.h] });
+  });
+  var cb = sectionCutBuildingL(DM);
+  if (cb && cb.footprint) out.push({ t: 'Building at the cut: ' + (cb.address || 'no address point') + (cb.name ? ', ' + cb.name : ''), at: [cb.footprint.faceX - 0.6, lv.curbTop + Math.min(cb.height || 8, 3)] });
+  return out.slice(0, 12).map(function(q, i) { q.n = i + 1; return q; });
+}
 function sectionExtentM(DM) {
   var L = DM.parklet.length, sec = DM.section || { z: L / 2, zFar: L / 2 }, lo = Math.min(sec.z, sec.zFar), hi = Math.max(sec.z, sec.zFar);
   var cb = (typeof PARKLET_LEVELS !== 'undefined' && PARKLET_LEVELS.curbTop) || 0.15, top = 0;
@@ -4756,7 +4789,8 @@ function sectionFrame(DM, o) {
   var W = Math.max(o.minWidth || 0, SECTION_POCHE_PX + (xR - xL) * SC);
   var mir = !!(DM.section && DM.section.dir === 1);
   // the vertical extent (Brief 18): 14 px of headroom over sectionExtentM, the ground, 32 px below it
-  var extM = sectionExtentM(DM), gY = Math.round(14 + extM * SC), stripH = gY + (SECTION_H - SECTION_GROUND_Y);
+  // (below the ground: at least 0.9 m, so the ground's hatch band and its stipple below 0.5 m show: Brief 19 E)
+  var extM = sectionExtentM(DM), gY = Math.round(14 + extM * SC), stripH = gY + Math.max(SECTION_H - SECTION_GROUND_Y, Math.round(0.9 * SC));
   return { SC: SC, xL: xL, xR: xR, W: W, H: stripH + (o.labels === 'paper' ? 44 : 0), groundY: gY, stripH: stripH, extM: extM,
     mir: mir, xs: mir ? -1 : 1, x0: mir ? W - SECTION_POCHE_PX + xL * SC : SECTION_POCHE_PX - xL * SC,
     poche: SECTION_POCHE_PX, minWidth: o.minWidth || 0, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
@@ -4947,6 +4981,8 @@ function _drawSection(svgEl, o) {
  ss = s; })();
     arch += ss;
   }
+  // schematic (Brief 19 E): the ground fades from its hatch band to a light stipple below 0.5 m
+  if (!isTech) arch += '<rect x="0" y="' + f2(GROUND_Y + m(0.5)) + '" width="' + f2(W) + '" height="' + f2(Math.max(0, STRIP_H - GROUND_Y - m(0.5))) + '" fill="url(#' + DK.pid + '-stipple)" data-stipple="1"/>';
   arch += '<line x1="0" y1="' + GROUND_Y + '" x2="' + f2(W) + '" y2="' + GROUND_Y + '"' + K('cut') + '/>';
   arch += '</g>';
   // ── objects at the cut and beyond it (Brief 08), in the mirror-aware frame; no entourage ────
@@ -4982,14 +5018,29 @@ function _drawSection(svgEl, o) {
     // a post on a wider base (pole, hydrant) as one outline: shaft half-width a to height h, base half-width b to height hb (px)
     function postXY(sx, y0, a, h, b, hb) { return polyXY([[sx - b, y0], [sx - b, y0 - hb], [sx - a, y0 - hb], [sx - a, y0 - h], [sx + a, y0 - h], [sx + a, y0 - hb], [sx + b, y0 - hb], [sx + b, y0]], SIL); }
     var bv = '';
+    // the far tier (Brief 19 E, schematic): street trees past the section's depth, up to 40 m more, first (farthest first)
+    if (!isTech && scene.section) {
+      var _sz = scene.section.z, _sd = scene.section.dir, _dep = scene.section.depth;
+      (DM.vegetation || []).map(function(v) { return { v: v, d: (v.z - _sz) * _sd }; }).filter(function(q) { return q.v.type === 'tree' && q.d > _dep + (q.v.canopyR || 0) && q.d <= _dep + 40; })
+        .sort(function(a, b) { return b.d - a.d; }).forEach(function(q) {
+          var seg = q.v.segId != null ? DM.crossSection.find(function(s) { return s.id === q.v.segId; }) : null;
+          bv += "<g data-sec='far'>" + _treeSec(q.v, !!(seg && seg.x0 >= DM.parklet.width - 0.001), BINK, true, { d: q.d }) + '</g>';
+        });
+    }
     // a tree crown in section (Brief 18): the form outline at 'context'; no fill (technical), 35 % planting (schematic)
     // a tree in section (Brief 19 D): DRAW_SYMBOLS.treeElev at this strip's scale; an imported tree by its form, a planted
     // one 2 m to its crown; technical line-art, schematic its crown in 35 % sage (the depth tiers: Brief 19 E)
+    // Schematic (Brief 19 E): each tree at its depth tier's opacity, fill and strokes alike, no gradients: the cut 1.0,
+    // near (to 8 m beyond) 0.8, mid (to 20 m) 0.5, far (past that, or past the section's depth) 0.25; its crown the
+    // season's colour (else the sage) at that opacity, overlapping translucently; trunk and branches ink at it.
     function _treeSec(v, atRoad, c, trunk, it) {
-      var gy = atRoad ? GROUND_Y : SW_TOP, P2 = DRAW_STYLE.pen(DK), form = !!v.form, r = Math.max(0.15, v.canopyR || 0.4);
+      var gy = atRoad ? GROUND_Y : SW_TOP, P2 = DRAW_STYLE.pen(DK), form = !!v.form, r = Math.max(0.15, v.canopyR || 0.4), bare = v.segId === null && treeBare(v, treeSeasonNow());
+      var tier = SECTION_TIER(trunk === false ? 0 : (it && it.d != null ? it.d : 0), trunk === false), sch = !isTech;
+      var col = sch ? ((v.segId === null && typeof treeColor === 'function' && treeColor(v, treeSeasonNow())) || T.fill.planting) : null;
       DRAW_SYMBOLS.treeElev(P2, X(v.x), gy, { sc: SC, clearH: form ? v.clearH : 2.0, top: form ? Math.max(v.heightM, v.clearH + 1) : 2.0 + 1.12 * r, canopyR: r, trunkR: form ? v.trunkR : 0.06,
-        conifer: v.leaf === 'conifer', bare: v.segId === null && treeBare(v, treeSeasonNow()), seed: treeSeed(v), trunk: trunk, c: c,
-        fill: isTech ? null : 'fill.planting', fop: isTech ? null : 0.35, data: " data-canopy='1'" });
+        conifer: v.leaf === 'conifer', bare: bare, seed: treeSeed(v), trunk: trunk, c: sch ? T.ink : c,
+        fill: sch ? col : null, fop: sch ? tier : null, op: sch ? tier : null, crownC: sch ? T.fill.plantingDark : null, crownCls: sch ? 'fine' : null,
+        data: " data-canopy='1'" + (sch ? " data-tier='" + tier + "'" : '') });
       return P2.body();
     }
     function _crown(c, q) {
@@ -5122,12 +5173,27 @@ function _drawSection(svgEl, o) {
   }
   // every colour above is a DRAW_STYLE token (the old remaps, DS.restyleSectionObjects / achromatic, are gone)
   function finishObjects(q) { return q; }
+  // the keyed notes (Brief 19 E, both modes): a numbered hex key at each noted thing; the notes in the strip under the Section
+  var notes = [], keysSvg = '';
+  try {
+    notes = sectionNotes(scene, DM);
+    var PK = DRAW_STYLE.pen(DK);
+    // each key above its thing, else beside it, else higher: clear of the keys already placed (6 mm apart)
+    var kp = [], ks = 6 * DK.k;
+    notes.forEach(function(q) {
+      var kx = X(q.at[0]), ky = GROUND_Y - Y(q.at[1]) - 3.4 * DK.k;
+      var tries = [[0, 0], [ks, 0], [-ks, 0], [2 * ks, 0], [-2 * ks, 0], [ks, -ks], [-ks, -ks], [0, -ks], [2 * ks, -ks], [-2 * ks, -ks], [0, -2 * ks], [ks, -2 * ks], [-ks, -2 * ks]], at = null;
+      for (var g = 0; g < tries.length && !at; g++) { var tx2 = kx + tries[g][0], ty2 = ky + tries[g][1]; if (!kp.some(function(p) { return Math.abs(p[0] - tx2) < ks && Math.abs(p[1] - ty2) < ks; })) at = [tx2, ty2]; }
+      at = at || [kx, ky - 3 * ks]; kp.push(at); DRAW_SYMBOLS.hexKey(PK, at[0], at[1], q.n);
+    });
+    keysSvg = '<g data-layer="keys">' + PK.body() + '</g>';
+  } catch (e) { console.warn('[section] notes', e); }
   var cutArch = bg + s + arch;
   svgEl.setAttribute('width', f2(W)); svgEl.setAttribute('height', String(H));
   svgEl.setAttribute('viewBox', '0 0 ' + f2(W) + ' ' + H);
   svgEl.innerHTML = cutArch.replace('<g data-layer="cut-drawing"', finishObjects('<g data-layer="beyond">' + bv + '</g>') + '<g data-layer="cut-drawing"') +
-    finishObjects('<g data-layer="cut-objects">' + sv + '</g>') + lab;
-  return { frame: f, W: W, H: H, pxPerM: SC };
+    finishObjects('<g data-layer="cut-objects">' + sv + '</g>') + lab + keysSvg;
+  return { frame: f, W: W, H: H, pxPerM: SC, notes: notes };
 }
 
 // ─────────────────────────────────────────────
@@ -5555,7 +5621,8 @@ var DRAW_STYLE = {
     fill: { sidewalk: '#E9E2D3', deck: '#C8A97A', planting: '#9DB58E', plantingDark: '#56704B', bike: '#B7CDA0', road: '#D9D5CF', parking: '#E4DFD6', water: '#CFE0E6', park: '#D3E0C8', sea: '#CFE0E6',
             building: '#F1EDE5', ground: '#E9E2D3', furniture: '#F7F4EE', concrete: '#E9E2D3', gravel: '#D8CFBD', steel: '#2B2B2B', cut: '#2B2B2B', failTint: '#EBCFC9' },
     // the same names as flat fills: no hatch but the solid cut
-    hatch: { concrete: null, asphalt: null, timber: null, planting: null, gravel: null, cut: { solid: true }, earth: { gap: 0.8, ang: 45 }, poche: null }
+    hatch: { concrete: null, asphalt: null, timber: null, planting: null, gravel: null, cut: { solid: true }, earth: { gap: 0.8, ang: 45 }, poche: null,
+      stipple: { dots: 1.2, r: 0.08 } }   // the section's ground below 0.5 m (Brief 19 E)
   },
   UI: { sel: '#0696D7', accent: '#3AA8E4', guide: '#0696D7', snapGrid: '#0696D7', snapPk: '#C03030', snap: '#E68A00', measure: '#FF6B00',
         axisX: '#C03030', axisZ: '#0696D7', halo: '#FFFFFF', chip: 'rgba(50,50,50,0.68)', chipInk: '#FFFFFF', secFill: 'rgba(58,168,228,0.07)', handle: '#3AA8E4', grid: 'rgba(0,0,0,0.10)', gridMaj: 'rgba(0,0,0,0.20)' }
@@ -5663,6 +5730,7 @@ DRAW_STYLE.hatchDefs = function(ctx) {
   if (H.planting) { s += lines(pid + '-plantA', H.planting.cross, H.planting.ang); s += lines(pid + '-plantB', H.planting.cross, -H.planting.ang); }
   if (H.earth) s += lines(pid + '-earth', H.earth.gap, H.earth.ang);
   if (H.poche) s += lines(pid + '-poche', H.poche.gap, H.poche.ang);
+  if (H.stipple) s += dots(pid + '-stipple', H.stipple.dots, H.stipple.r);
   return s;
 };
 // A hatch band inside a shape's boundary (hatch only at material boundaries): shape(attrs) returns the shape's
@@ -5756,12 +5824,14 @@ var DRAW_SYMBOLS = {
     if (label) P.text(x + s * 1.5 * k, y1 + 3 * k, label, P.fs('tag'), { anchor: s < 0 ? 'end' : 'start', c: 'anno' });
   },
   // level datum: a half-filled triangle on the line, the line 8 mm, the value (and a name) beside it
-  level: function(P, x, y, value, name, right) {
+  // (dy: the label moved off its line by that much, when levels are too close to read: Brief 19 E)
+  level: function(P, x, y, value, name, right, dy) {
     var k = P.ctx.k, h = 2 * k, s = right === false ? -1 : 1;
     P.poly([[x, y], [x - 1.3 * k, y - h], [x, y - h]], { fill: 'ink', cls: 'none' });
     P.poly([[x, y], [x, y - h], [x + 1.3 * k, y - h]], { fill: 'paper', cls: 'general' });
     P.line(x - 4 * k, y, x + 4 * k, y, { cls: 'general' });
-    P.text(x + s * 5 * k, y - 0.6 * k, value + (name ? '  ' + name : ''), P.fs('tag'), { anchor: s > 0 ? 'start' : 'end', c: 'ink' });
+    if (dy) P.line(x + s * 4 * k, y, x + s * 4.8 * k, y - 0.6 * k + dy - 0.6 * k, { cls: 'fine' });
+    P.text(x + s * 5 * k, y - 0.6 * k + (dy || 0), value + (name ? '  ' + name : ''), P.fs('tag'), { anchor: s > 0 ? 'start' : 'end', c: 'ink' });
   },
   // tree in plan (Brief 18): exactly one path and one dot. Technical: the canopy circle at 'context' and, in the same
   // path, one 3 mm radial tick across the rim at the NE (up-right on the sheet); a conifer is a short dash, a bare tree
@@ -5824,7 +5894,7 @@ var DRAW_SYMBOLS = {
         var pts = L2.concat([[cx, gy - top * sc]], R2.reverse());
         crown = 'M' + pts.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L') + 'Z';
       } else crown = DRAW_SYMBOLS.canopyPath(cx, cy, rx, ry, o.seed || 1, n, true);
-      P.path(crown, Object.assign(stroke('context'), { fill: o.fill || 'none', fop: o.fop, bb: [cx - rx, gy - top * sc, cx + rx, gy - ch * sc], data: o.data }));
+      P.path(crown, Object.assign(stroke(o.crownCls || 'context'), { c: o.crownC || c, fill: o.fill || 'none', fop: o.fop, bb: [cx - rx, gy - top * sc, cx + rx, gy - ch * sc], data: o.data }));
     }
     // the trunk: to the crown's underside, then on into it
     var t0 = gy, t1 = gy - ch * sc, t2 = gy - (ch + (top - ch) * 0.35) * sc;
@@ -19838,7 +19908,7 @@ RPT.pen = function(ctx) {
 };
 // the report's hatch kinds -> DRAW_STYLE materials (ds); the accessible route is the report's own (not a material)
 RPT.HATCH = {
-  cut: { ds: 'cut' }, earth: { ds: 'earth' }, poche: { ds: 'poche' }, concrete: { ds: 'concrete' }, asphalt: { ds: 'asphalt' }, timber: { ds: 'timber' }, timberCut: { ds: 'timber' },
+  cut: { ds: 'cut' }, earth: { ds: 'earth' }, poche: { ds: 'poche' }, stipple: { ds: 'stipple' }, concrete: { ds: 'concrete' }, asphalt: { ds: 'asphalt' }, timber: { ds: 'timber' }, timberCut: { ds: 'timber' },
   planting: { ds: 'planting' }, gravel: { ds: 'gravel' }, steel: { ds: 'cut' },
   route: { ang: -45, gap: 1.0 }
 };
@@ -19930,7 +20000,7 @@ RPT.sym = {
   signal: function(P, x, y, w, h) { DRAW_SYMBOLS.signal(P, x, y, w || 0, h || 0); },
   manhole: function(P, x, y, r) { DRAW_SYMBOLS.manhole(P, x, y, r, r * 609.6 / 939.8); },
   bus: function(P, x, y) { DRAW_SYMBOLS.busStop(P, x, y); P.text(x + 2.4, y + 0.65, 'Bus stop', RPT.TX.tag, { c: 'anno' }); },
-  level: function(P, x, y, label, right) { DRAW_SYMBOLS.level(P, x, y, label, '', right); },
+  level: function(P, x, y, label, right, dy) { DRAW_SYMBOLS.level(P, x, y, label, '', right, dy); },
   grid: function(P, x, y, label) { DRAW_SYMBOLS.bubble(P, x, y, label); }
 };
 
@@ -19981,8 +20051,15 @@ RPT.tblock = function(P, id, title, scaleTxt, d, ext) {
 // paragraphs. -> a page object the engine renders (title block with the key plan of ext, header, footer per page).
 RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   var P = RPT.pen(), DA = RPT.DA, AC = RPT.AC, bb = D.bbox(), dx = 0, dy = DA.y, TX = RPT.TX;
+  // ext.notesStrip (Brief 19 E): the notes in a strip of three columns under the drawing instead of the column
+  var strip = ext && ext.notesStrip, SC3 = 3, scw = (DA.w - 8) / SC3, sRows = [], stripH = 0;
+  if (strip) {
+    var cells = (keys || []).map(function(q) { return { q: q, lines: RPT.wrap(q.t, scw - 10, TX.body) }; });
+    for (var ri = 0; ri < cells.length; ri += SC3) { var row = cells.slice(ri, ri + SC3); sRows.push({ cells: row, h: Math.max.apply(null, row.map(function(c) { return c.lines.length; })) * TX.body * RPT.GRID.lh + 2.4 }); }
+    stripH = 10 + sRows.reduce(function(a, r) { return a + r.h; }, 0);
+  }
   if (isFinite(bb[0])) {
-    dx = DA.x + (DA.w - (bb[2] - bb[0])) / 2 - bb[0]; dy = DA.y + (DA.h - (bb[3] - bb[1])) / 2 - bb[1];
+    dx = DA.x + (DA.w - (bb[2] - bb[0])) / 2 - bb[0]; dy = DA.y + (DA.h - stripH - (bb[3] - bb[1])) / 2 - bb[1];
     var tbx = RPT.SW - RPT.TB.w - 3, tby = RPT.SH - RPT.TB.h - 3;   // clear of the title block: up as far as the area allows
     if (bb[2] + dx > tbx && bb[3] + dy > tby) dy -= Math.min(bb[3] + dy - tby, Math.max(0, bb[1] + dy - DA.y));
   }
@@ -20000,7 +20077,21 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
     for (var i = 0; i < st.length; i++) if (clear(x + st[i][0], y + st[i][1])) return [x + st[i][0], y + st[i][1]];
     return [x, y];
   };
-  P.text(AC.x, ky, 'Notes', TX.body, { bold: true }); P.line(AC.x, ky + 1.6, AC.x + AC.w, ky + 1.6, { cls: 'general' }); ky += 7;
+  if (strip) {
+    var sy = Math.min(DA.y + DA.h - stripH, (isFinite(bb[3]) ? bb[3] + dy : DA.y) + 6) + 4;
+    P.text(DA.x, sy, 'Notes', TX.body, { bold: true }); P.line(DA.x, sy + 1.6, DA.x + DA.w, sy + 1.6, { cls: 'general' }); sy += 7;
+    sRows.forEach(function(r) {
+      r.cells.forEach(function(c, ci) {
+        var x = DA.x + ci * (scw + 4), num = c.q.at ? ++n : null;
+        if (num) { var at = place(c.q.at); DRAW_SYMBOLS.hexKey(P, at[0], at[1], num); used.push({ x0: at[0] - 3, y0: at[1] - 3, x1: at[0] + 3, y1: at[1] + 3 }); DRAW_SYMBOLS.hexKey(P, x + 2.6, sy - 0.9, num); }
+        else P.text(x + 2.6, sy, '-', TX.body, { anchor: 'middle', c: RPT.MID });
+        c.lines.forEach(function(l, i) { P.text(x + 8, sy + i * TX.body * RPT.GRID.lh, l, TX.body, { data: i ? '' : " data-note='" + (num || 0) + "'" }); });
+      });
+      sy += r.h;
+    });
+    keys = [];
+  }
+  if (!strip) { P.text(AC.x, ky, 'Notes', TX.body, { bold: true }); P.line(AC.x, ky + 1.6, AC.x + AC.w, ky + 1.6, { cls: 'general' }); ky += 7; }
   (keys || []).forEach(function(q) {
     var lines = RPT.wrap(q.t, w, TX.body), num = q.at ? ++n : null;
     if (num) { var at = place(q.at); DRAW_SYMBOLS.hexKey(P, at[0], at[1], num); used.push({ x0: at[0] - 3, y0: at[1] - 3, x1: at[0] + 3, y1: at[1] + 3 }); DRAW_SYMBOLS.hexKey(P, AC.x + 2.6, ky - 0.9, num); }
@@ -20418,7 +20509,7 @@ RPT.sheetSection = function(d) {
   var lane = G.segs.find(function(s) { return s.type === 'travel-lane'; }), xL = Math.min(LM.sidewalkL.x0 - 0.4, cbf ? cbf.faceX - 1.0 : Infinity), xR = (lane ? lane.x1 : LM.roadRight) + 0.4;
   // up (Brief 18): the Section's extent (sectionExtentM, as on screen); 1:50, or the next scale out when the drawing and
   // its rows do not fit the drawing area, never shrunk
-  var ext = sectionExtentM(G.DM), sc = RPT.fitScale({ z0: xL, z1: xR, x0: -0.45, x1: ext }, 50, 70, 52), k = 1000 / sc;
+  var ext = sectionExtentM(G.DM), sc = RPT.fitScale({ z0: xL, z1: xR, x0: -0.9, x1: ext }, 50, 70, 52 + 34), k = 1000 / sc;   // (+34 mm: the notes strip under it, Brief 19 E)
   var mir = G.sec.dir === 1, W = (xR - xL) * k, X0 = (RPT.DA.w - W) / 2, ROAD = 8 + ext * k;
   var X = function(x) { return mir ? X0 + W - (x - xL) * k : X0 + (x - xL) * k; }, Y = function(y) { return ROAD - y * k; };
   var box = function(x0, x1, y0, y1) { var a = X(x0), b = X(x1); return [Math.min(a, b), Y(y1), Math.abs(b - a), (y1 - y0) * k]; };
@@ -20427,7 +20518,7 @@ RPT.sheetSection = function(d) {
   var hat = function(q, kind, o) { P.hatch(shape(q), [q[0], q[1], q[0] + q[2], q[1] + q[3]], kind, o); };
   // a cut building's poche (no black fields): a 45 degree hatch 4 mm apart (technical) or a 25 % warm grey (schematic)
   var poche = function(x0, x1, y0, y1) { var q = rectXY(x0, x1, y0, y1, { fill: '#FFFFFF', w: 0 }); if (tech) hat(q, 'poche', { band: false }); else rectXY(x0, x1, y0, y1, { fill: T.mid, fop: 0.25, w: 0 }); return q; };
-  P.clipOpen("<rect x='" + X0 + "' y='8' width='" + W + "' height='" + (ROAD + 0.5 * k - 8) + "'/>");
+  P.clipOpen("<rect x='" + X0 + "' y='8' width='" + W + "' height='" + (ROAD + 0.95 * k - 8) + "'/>");
   // Beyond the cut first (Brief 18), far to near (getSectionScene's order): silhouettes at 'context' with an opaque paper
   // fill, so a nearer one hides a farther one; furniture as its outline only (flSectionArchetype's silhouette); a tree as
   // its trunk and its crown outline (no fill / 35 %). The cut is drawn over them.
@@ -20447,14 +20538,20 @@ RPT.sheetSection = function(d) {
     if (cut && 2 * tr <= 0.2) rectXY(v.x - tr, v.x + tr, base, base + ch, { fill: RPT.INK, cls: 'object' });   // thin: solid
     else if (cut) { poche(v.x - tr, v.x + tr, base, base + ch); rectXY(v.x - tr, v.x + tr, base, base + ch, { cls: 'cut' }); }
     // Brief 19 D: DRAW_SYMBOLS.treeElev, as the screen's Section draws it
+    // schematic (Brief 19 E): the depth tier's opacity on the crown's fill (the season's colour, else the sage) and every stroke
+    var tier = SECTION_TIER(it.d != null ? it.d : 0, !!cut), col = !tech ? ((v.segId === null && typeof treeColor === 'function' && treeColor(v, treeSeasonNow())) || DRAW_STYLE.schematic.fill.planting) : null;
     DRAW_SYMBOLS.treeElev(P, X(v.x), Y(base), { sc: k, clearH: ch, top: top, canopyR: Math.max(0.15, v.canopyR || 0.4), trunkR: v.form ? v.trunkR : 0.06, conifer: v.leaf === 'conifer',
       bare: v.segId === null && typeof treeBare === 'function' && treeBare(v, treeSeasonNow()), seed: treeSeed(v), trunk: !cut, c: 'ink',
-      fill: tech ? null : 'fill.planting', fop: tech ? null : 0.35, data: " data-canopy='1'" });
+      fill: col, fop: tech ? null : tier, op: tech ? null : tier, crownC: tech ? null : 'fill.plantingDark', crownCls: tech ? null : 'fine', data: " data-canopy='1'" + (tech ? '' : " data-tier='" + tier + "'") });
   };
   var endPiece = function(it, cut) {
     var e = it.data.end, pl = it.kind === 'end-planter', q = pl ? rectXY(e.x0, e.x1, lv.deckTop, lv.deckTop + (e.y1 - e.y0), cut ? { fill: FI.planter, cls: 'object' } : SIL) : rectXY(e.x0, e.x1, 0, e.y1, cut ? { fill: FI.ws, cls: 'object' } : SIL);
     if (cut && pl) hat(q, 'planting');
   };
+  // the far tier (Brief 19 E, schematic): street trees past the section's depth, up to 40 m more, farthest first
+  if (!tech) (G.DM.vegetation || []).map(function(v) { return { v: v, d: (v.z - G.sec.z) * (G.sec.dir === 1 ? 1 : -1) }; })
+    .filter(function(q) { return q.v.type === 'tree' && q.d > G.sec.depth + (q.v.canopyR || 0) && q.d <= G.sec.depth + 40; }).sort(function(a, b) { return b.d - a.d; })
+    .forEach(function(q) { tree({ data: { v: q.v }, d: q.d }, false); });
   scn.beyond.forEach(function(it) {
     if (it.kind === 'building') { var bf = it.data.f; rectXY(Math.min(bf.faceX, bf.backX), Math.max(bf.faceX, bf.backX), lv.curbTop, lv.curbTop + (it.y1 || 8), Object.assign({ data: " data-bldg-beyond='1'" }, SIL)); }
     else if (it.kind === 'furniture') furn(it, false);
@@ -20464,7 +20561,8 @@ RPT.sheetSection = function(d) {
   // the cut: the ground, the sidewalk slab (from the building face), curb, road; an earth hatch in a 2 mm band under each
   // surface; the building the cut passes through, its poche to its roof and its wall lines at 'cut'
   var sx0 = cbf ? cbf.faceX : xL, eb = 2 / k, eFill = tech ? '#FFFFFF' : FI.earth;
-  rectXY(xL, xR, -0.45, -0.1, { fill: FI.earth, w: 0 });
+  rectXY(xL, xR, -0.9, -0.1, { fill: FI.earth, w: 0 });
+  if (!tech) hat(rectXY(xL, xR, -0.9, -0.5, { fill: FI.earth, w: 0, data: " data-stipple='1'" }), 'stipple', { band: false });   // Brief 19 E: a light stipple below 0.5 m
   var sw = rectXY(sx0, -0.15, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', cls: 'object' }); hat(sw, 'concrete');
   rectXY(xL, -0.15, -0.1, lv.curbTop - 0.1, { fill: FI.earth, w: 0 });
   var cbq = rectXY(-0.15, 0, -0.3, lv.curbTop, { fill: '#FFFFFF', cls: 'cut' }); hat(cbq, 'concrete');
@@ -20497,31 +20595,26 @@ RPT.sheetSection = function(d) {
   // planter and the railing tops, and the road
   var lxS = mir ? X0 + W + 8 : X0 - 8, lxR = mir ? X0 - 8 : X0 + W + 8, sgn = function(v) { return (v > 0.004 ? '+' : v < -0.004 ? '' : '±') + RPT.fmt(v); };
   RPT.sym.level(P, lxS, Y(lv.curbTop), '±0.00 top of curb (datum)', mir);
-  RPT.sym.level(P, lxR, Y(lv.deckTop), sgn(lv.deckTop - lv.curbTop) + ' deck', !mir);
-  if (ep) RPT.sym.level(P, lxR, Y(lv.deckTop + ph), sgn(lv.deckTop + ph - lv.curbTop) + ' planter', !mir);
-  RPT.sym.level(P, lxR, Y(lv.deckTop + R.h), sgn(lv.deckTop + R.h - lv.curbTop) + ' railing', !mir);
-  RPT.sym.level(P, lxR, Y(0), sgn(0 - lv.curbTop) + ' road', !mir);
+  // the road side's levels, their labels at least 3 mm apart (at 1:250 the deck and the road are under 1 mm apart)
+  var lvR = [[Y(lv.deckTop), sgn(lv.deckTop - lv.curbTop) + ' deck'], [Y(lv.deckTop + R.h), sgn(lv.deckTop + R.h - lv.curbTop) + ' railing'], [Y(0), sgn(0 - lv.curbTop) + ' road']].concat(ep ? [[Y(lv.deckTop + ph), sgn(lv.deckTop + ph - lv.curbTop) + ' planter']] : []).sort(function(a, b) { return a[0] - b[0]; });
+  var tyP = -Infinity; lvR.forEach(function(q) { var ty = Math.max(q[0] - 0.6, tyP + 3.0); tyP = ty; RPT.sym.level(P, lxR, q[0], q[1], !mir, ty - (q[0] - 0.6)); });
   // one vertical chain at the railing: the sidewalk (top of curb) to the deck to the railing top
   RPT.chain(P, { side: mir ? 'left' : 'right', edge: X(LM.deckX1), row: 0, at: [Y(lv.deckTop + R.h), Y(lv.deckTop), Y(lv.curbTop)], vals: [RPT.fmt(R.h), RPT.fmt(lv.deckTop - lv.curbTop)], data: " data-dim='rail-chain'" });
   // across, under the ground: the running chain to the end of the first lane, the overall on the next row; the segments' names
   var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0];
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk' || (lane && sg.x0 >= lane.x1 - 1e-6)) return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
-  var gb = Y(-0.45), xs = stops.map(X);
+  var gb = Y(-0.9), xs = stops.map(X);
   if (mir) { xs.reverse(); m.reverse(); }
   stops.slice(0, -1).forEach(function(x, i) { var sg = i === 0 ? { type: 'sidewalk' } : G.segs.find(function(s) { return Math.abs(s.x0 - x) < 1e-6 && s.type !== 'sidewalk'; }); if (!sg) return;
     var cx = (X(x) + X(stops[i + 1])) / 2; P.text(cx, gb + RPT.DIM.first + RPT.DIM.step * 2 + 3, RPT.SEG[sg.type] || sg.type, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); });
   RPT.chain(P, { side: 'bottom', edge: gb, row: 0, at: xs, vals: m.map(function(v) { return RPT.fmt(v); }) });
   RPT.chain(P, { side: 'bottom', edge: gb, row: 1, at: [xs[0], xs[xs.length - 1]], vals: [RPT.fmt(stops[stops.length - 1] - stops[0])] });
-  var keys = [
-    { t: 'Section A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ': the cut drawn in the cut weight, ' + G.sec.depth.toFixed(1) + ' m beyond in elevation.', at: null },
-    { t: 'Deck board ' + (lv.deckThk * 1000).toFixed(0) + ' mm, cut; deck +' + lv.deckTop.toFixed(3) + ' m above the road.', at: [X((LM.deckX0 + LM.deckX1) / 2), Y(lv.deckTop) - 5] },
-    { t: 'Supports indicative, not a structural design.', at: [X(LM.deckX0 + 0.3), Y(0.05) - 1] },
-    { t: 'Railing ' + R.h.toFixed(3) + ' m above the deck, rails at ' + R.rails.map(function(h) { return h.toFixed(2); }).join(' and ') + ' m: details A-301.', at: [X(LM.deckX1) + (mir ? 6 : -6), Y(lv.deckTop + R.h) - 3] },
-    { t: 'Beyond the cut: silhouettes, the nearer in front; trees as their crown outline.', at: furnAt }
-  ];
-  // the building the cut passes through: its address (Brief 19 C)
-  if (cbf) keys.push({ t: 'Building at the cut: ' + (cb.address || 'no address point (City of Vancouver property-addresses)') + (cb.name ? ', ' + cb.name : '') + '.', at: [X(cbf.faceX) + (mir ? 3 : -3), Y(lv.curbTop + Math.min(cb.height || 8, 4))] });
-  return RPT.dsheet(d, 'A-201', 'Section A-A', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: xL, xBot: xR });
+  // the keyed notes (Brief 19 E): generated from the model and the archetypes (sectionNotes, as the screen's Section), in a
+  // strip under the section; the section's own note first, how the beyond reads last
+  var keys = [{ t: 'Section A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ', ' + G.sec.depth.toFixed(1) + ' m beyond in elevation; details A-301.', at: null }]
+    .concat(sectionNotes(scn, G.DM).map(function(q) { return { t: q.t + '.', at: [X(q.at[0]), Y(q.at[1]) - 3] }; }))
+    .concat([{ t: tech ? 'Beyond the cut: silhouettes, the nearer in front; trees as their outline.' : 'Trees by depth: the cut 100 %, to 8 m 80 %, to 20 m 50 %, farther 25 %.', at: null }]);
+  return RPT.dsheet(d, 'A-201', 'Section A-A', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: xL, xBot: xR, notesStrip: true });
 };
 
 // ── A-301 Details, 1:10: railing elevation and section, deck edge at the curb, wheel stop ───────────
@@ -21180,6 +21273,10 @@ RPT.print = async function() {
 #seTrash { position: absolute; top: 0; left: 0; right: 0; height: 22px; display: flex; align-items: center; justify-content: center;
   font: var(--fs-11) var(--font-ui); color: var(--st-fail-ink); background: #FBEDED; border-bottom: 1px dashed var(--st-fail-ink);
   opacity: 0; pointer-events: none; transition: opacity .2s; }
+.se-notes { padding: 4px 12px 6px; font: var(--fs-11)/1.45 var(--font-ui); color: var(--d-mid); }
+.se-notes summary { cursor: pointer; font-weight: 600; color: var(--d-ink, inherit); }
+.se-notes ol { margin: 4px 0 0; padding-left: 22px; columns: 2; column-gap: 24px; }
+.se-notes li { break-inside: avoid; }
 #seViewport { overflow-x: auto; overflow-y: auto; width: 100%; padding: 0 12px 4px; box-sizing: border-box; overscroll-behavior-x: contain;
   scrollbar-width: thin; scrollbar-color: var(--d-lt) transparent; }
 #seStrip .se-seg { position: absolute; top: 0; height: 100%; box-sizing: border-box; background: transparent; border-right: 1px solid rgba(26,26,26,.08); }
@@ -24063,10 +24160,10 @@ SMP.applyAddresses = function(rows, at, rep) {
   return { matched: matched, none: none, points: pts.length };
 };
 // the parklet's host frontage's address (Brief 19 C): the report's site address line
-// (a parklet in front of a gap: the nearest frontage within 15 m)
+// (a parklet in front of a gap: the nearest frontage within 50 m)
 function pkHostAddress() {
   var i = typeof pkHostIdx === 'function' ? pkHostIdx() : -1;
-  if (i < 0 && typeof pkFrontages === 'function') { var c = pkZNow(), n = pkFrontages().map(function(q) { return { i: q.i, d: Math.min(Math.abs(c - q.s0), Math.abs(c - q.s1)) }; }).filter(function(q) { return q.d <= 15 && (BLDG_L.buildings[q.i] || {}).address; }).sort(function(a, b) { return a.d - b.d; })[0]; if (n) i = n.i; }
+  if (i < 0 && typeof pkFrontages === 'function') { var c = pkZNow(), n = pkFrontages().map(function(q) { return { i: q.i, d: Math.min(Math.abs(c - q.s0), Math.abs(c - q.s1)) }; }).filter(function(q) { return q.d <= 50 && (BLDG_L.buildings[q.i] || {}).address; }).sort(function(a, b) { return a.d - b.d; })[0]; if (n) i = n.i; }
   var b = i >= 0 ? (BLDG_L.buildings || [])[i] : null; return b && b.address ? b.address : null;
 }
 SMP.progress = function(st, tail) {

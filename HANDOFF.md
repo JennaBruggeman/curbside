@@ -610,6 +610,41 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - A-102 at 1:100, cropped to the densest 30.5 m: 11 / 18 / 9 trees, 0 overlaps. The trees' path data was identical on a second export.
     - Robson: the "outside" count was 0. At Commercial and W 41st, 10 and 21 texts land outside the page with the moved crop. Not tree tags (A-102 draws none); to be traced in E's runs.
   - **Against the references:** the plan outline reads as a lobed, crinkled ring like the plan reference, but closed (the brief asks for a closed outline) and without the reference's loose flecks. The elevation has the reference's lobed crown, inner lobe lines, branches and two-line trunk; its lobes are smoother and larger than the reference's fine leaf fringe, within the 8–14 % amplitude and the 300-point budget.
+- **E. Schematic section, soft layered trees (commit 5).** The second E: trees only, no people, vehicles or entourage.
+  - **Depth tiers (`SECTION_TIER(d, cut)`):** the cut 1.0; near (up to 8 m beyond) 0.8; mid (8–20 m) 0.5; far (past 20 m, or past the section's depth) 0.25. One opacity per tier, applied to each tree's fill and strokes; no gradients.
+  - **Schematic trees (`_treeSec` on screen, `tree()` in A-201):**
+    - The D crown filled with the season's colour (`treeColor`, else the sage) at the tier opacity, overlapping translucently.
+    - The crown's edge in `fill.plantingDark` at `fine`; trunk and branches in ink at the tier's opacity. Winter: branches only.
+    - The far tier adds street trees up to 40 m past the section's depth, drawn first (`data-sec='far'`).
+    - Built elements are unchanged: drawn as the technical section, with the schematic fills.
+  - **Ground (schematic):** the hatch band under the surface (17/18), then a light stipple below 0.5 m (a new `stipple` material, `data-stipple`). There is at least 0.9 m under the ground on screen; A-201's ground goes to -0.9 m and its chains sit under it.
+  - **Keyed notes, both modes (`sectionNotes(scene, DM)`):** generated from the model and the archetypes:
+    - the deck (boards, thickness, level);
+    - the railing (material, height, rails);
+    - an end planter (size);
+    - each piece in the section (archetype label, main material, l × d × h, "cut"; the same piece once);
+    - the building at the cut (address, name).
+  - **On screen:** hex keys on the drawing, placed above each noted thing, else beside it, else higher, 6 mm clear of each other. The notes sit in a collapsible `<details id='seNotes'>` strip under the Section, open, in 2 columns. The viewport scrolls to the ground when its height changes.
+  - **A-201:** `RPT.dsheet` `ext.notesStrip` lays the notes in 3 columns under the drawing instead of the side column; `fitScale` reserves 34 mm for it.
+  - **A-201 levels:** the road-side level labels (deck, planter, railing, road) are spread at least 3 mm apart with a short leader (`DRAW_SYMBOLS.level` `dy`). At 1:250 they collided.
+  - **Site address:** `pkHostAddress` falls back to the nearest frontage within 50 m. At W 41st the parklet faces a gap; it now reads "3535 W 41st Av".
+  - **Verified (section cut at a deck end, looking the way with trees in all three tiers, 20 m deep):**
+
+    | Site | Schematic tiers (crowns) | Overlapping filled crown pairs | Far trees | Screen keys / notes | A-201 |
+    |---|---|---|---|---|---|
+    | Robson & Burrard | 0.8 ×3, 0.5 ×1, 0.25 ×4 | 28 | 4 | 9 / 9 | 1:100, 11 notes, 0 overlaps |
+    | Commercial & 1st | 0.8 ×1, 0.5 ×1, 0.25 ×15 | 136 | 15 | 3 / 3 | 1:100, 5 notes, 0 overlaps |
+    | W 41st & Dunbar | cut 1.0 ×2, 0.5 ×2, 0.25 ×7 (the near trees straddle the cut) | 55 | 5 | 2 / 2 | 1:250 (tall trees at 20 m depth), 4 notes, 0 overlaps |
+
+    - **Technical, all three:** no tier fills, crowns `fill='none'`, no stipple; keys and notes as in schematic.
+    - **People and vehicles:** 0 everywhere.
+  - **Full reports (section at the deck's middle looking -z, 12 m deep), both modes, 0 overlaps and 0 texts outside at every site:**
+    - Robson: 15 pages each, 1631 texts; site address 1001 Robson St.
+    - Commercial: 16 pages, 1798 texts; 1622 Commercial Drive.
+    - W 41st: 14 pages, 1488 texts; 3535 W 41st Av.
+  - **Known:**
+    - An A-102 crop moved away from the parklet (the tests' densest-trees crops) pushes the parklet's own annotations (section mark, deck chain, hex keys) off the page: 10 texts at Commercial, 21 at W 41st. Real crops contain the parklet.
+    - `checkLandmarkConsistency` can warn during an import (mid-render); at rest W 41st checks clean: 31/31 vegetation, 3/3 stops.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
