@@ -541,6 +541,36 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - 12 px/m (near): 66 texts, 0 overlaps.
     - Smallest text 9 px at all three.
     - Samples: both modes 11 pages, 0 overlaps.
+- **B. City context to about 1 km (commit 2).**
+  - **Radius:** `siteContextZ` runs 20–1000 m, 600 by default. `SMP.R`, the inner ring, is `min(150, contextZ)`, so the inner import and its caches are unchanged.
+  - **Step 0, City catalog:** it has `building-footprints-2015` (polygons; 498 within 600 m of Robson & Burrard), `public-streets` (block centre lines with `hblock` and `streetuse`; 215), `parks-polygon-representation`, `property-addresses` (civic_number and std_street points), `street-intersections` and `shoreline-2002`.
+    - The shoreline is two city-wide LineStrings with no side convention, so it can't be filled. Water comes from OSM instead.
+  - **`SMP.importOuter()`:**
+    - Footprints, streets and parks are one City GeoJSON export each (`/exports/geojson?limit=-1&where=within_distance(...)`), cached as `covx|...`.
+    - If the City footprints fail, Overpass `way[building]` in 300 m tiles takes over.
+    - Water comes from Overpass: `natural=coastline` chained, clipped to the context square and closed along its edge with the water on its right (`SMP.waterRings`); islands are holes and lakes are rings, drawn even-odd. It retries across the three Overpass servers.
+    - Everything is stored in local metres from the located point (e, n). It lives in `CTX_OUTER` (= `DESIGN_MODEL.context.outer`, with sources, counts and times); `state.__outer` keeps the summary, and a reload rebuilds from the cache only. No check reads it.
+    - It runs after every import (a failure is a note, not a failed import) and on a radius change.
+  - **Plan (`_pvOuterLayer`):**
+    - It gets its own paper out to the radius. Water uses `fill.sea`, parks `fill.park`, and footprints are fill-only (technical #000 at 8 %, schematic warm grey at 12 %).
+    - Streets are `context` centre lines at far and paired curb lines nearer (half widths by `streetuse`, estimates).
+    - Footprints whose centre is inside the inner strip, and the host street itself, are left out.
+    - Each layer is one path, and the string is cached. At the far tier the same paths are painted once into a canvas image (2 px per screen px), so panning moves a picture.
+    - The Plan's grid step now follows the zoom (the snap spacing, else 1/5/10/50/100 m at 6 px or more apart); before, it drew about 5,000 lines at fit.
+  - **A-101:** a 1:10 000 locator (60 × 52 mm: 600 × 520 m) in the notes column, with water, parks, footprints, street centre lines, the sheet's crop dashed and the parklet filled (`RPT.locator`, via `dsheet ext.inset`).
+  - **Map picker:** `SM.snap` now prefers a named street over a service way or an unnamed one up to 20 m nearer. At W 41st & Dunbar a click beside the avenue had picked a service lane.
+  - **Verified (600 m; import times include Overpass waits; pan = 60 rAF frames of viewBox panning):**
+
+    | Site | Footprints (inner / outer) | Street blocks | Parks | Water rings | City footprints / water fetch | Pan fit, mean / p95 | Pan 5,000, p95 |
+    |---|---|---|---|---|---|---|---|
+    | Robson & Burrard | 506 (29 / 477) | 215 | 5 | 8 (ponds) | 0.6 s / 14 s | 16.7 / 18.2 ms | 19.6 ms |
+    | Commercial & 1st | 2003 (108 / 1895) | 273 | 5 | 0 | 1.2 s / 17 s | 16.7 / 17.0 ms | 17.8 ms |
+    | W 41st & Dunbar | 1610 (93 / 1517) | 166 | 2 | 0 | 0.9 s / 77 s (two 504s) | 18.9 / 17.4 ms | 17.8 ms |
+
+    - **Empty layers:** water at Commercial and at W 41st (no shoreline within 600 m, a true empty). At Robson the only water within 600 m is ponds: Coal Harbour is about 680 m north and False Creek about 770 m south.
+    - **Robson at 1000 m:** 1,359 footprints, 561 streets, 17 parks, 19 water rings in 3.6 s; the Fit-all screenshot shows the harbour and Lost Lagoon filled.
+    - **Rendering:** Fit-all renders in 8–17 ms, and the far-tier image takes 100–230 ms to build (once per import or zoom).
+    - **Report:** A-101 has its locator at all three sites.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

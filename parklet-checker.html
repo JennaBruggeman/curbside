@@ -1551,8 +1551,9 @@ var SITE_ORIENT = Object.assign({}, SITE_DEFAULT);
 // The model extent (Brief 17, 4b): DESIGN_MODEL.site.contextZ is the import radius and how far the street scene runs
 // past each deck end, 20-400 m in 5 m steps, 150 by default. The landmarks' scene extent, the Plan (it pans across all
 // of it; FIT fits it), the 3D ground and buildings and the import (SMP.R: nothing inside it is dropped) read it.
-var SITE_CONTEXT_Z = 150;
-function siteContextZ(v) { v = Math.round((+v || 150) / 5) * 5; return Math.max(20, Math.min(400, v)); }
+var SITE_CONTEXT_Z = 600;
+// (Brief 19 B: up to 1000 m, 600 by default; the inner ring, SMP.R, stays at most 150 m)
+function siteContextZ(v) { v = Math.round((+v || 600) / 5) * 5; return Math.max(20, Math.min(1000, v)); }
 // Sheet extents (Brief 17, 4b): each plan sheet's crop rectangle in world metres {z0, z1, x0, x1} (z along the street,
 // x across), snapped to 0.5 m. SITE_SHEETS holds the user's ({A101: {crop}, ...}, set with the Plan's Extents tool); a
 // sheet without one takes its default. DESIGN_MODEL.site.sheets is the resolved set: a sheet clips its drawing at its
@@ -2543,6 +2544,8 @@ function buildDesignModel() {
     DESIGN_MODEL.vegetation = veg;
     DESIGN_MODEL.vegetationCounts = { segment: nSeg, imported: veg.length - nSeg };
     DESIGN_MODEL.site.sheets = sheetCrops(DESIGN_MODEL);   // the sheets' crops (Brief 17, 4b), from the landmarks
+    // the city context (Brief 19 B): the outer ring, local metres from the located point, with its provenance; no check reads it
+    DESIGN_MODEL.context = { outer: typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null };
     // Transit stops (Site import: OSM bus stops, CoV rapid transit stations: state.transit_stops), same
     // frame and extent. Plan and 3D draw DESIGN_MODEL.transit; no view reads state.transit_stops to draw.
     DESIGN_MODEL.transit = ((typeof state !== 'undefined' && state.transit_stops) || [])
@@ -5542,7 +5545,7 @@ var DRAW_STYLE = {
   technical: {
     ink: '#1A1A1A', anno: '#5A5A5A', mid: '#8C8C8C', light: '#D4D4D4', paper: '#FFFFFF',
     fail: '#C0392B', pass: '#1A1A1A', passOp: 0.5,
-    fill: { sidewalk: '#FFFFFF', deck: '#FFFFFF', planting: '#FFFFFF', plantingDark: '#1A1A1A', bike: '#FFFFFF', road: '#FFFFFF', parking: '#FFFFFF', water: '#FFFFFF',
+    fill: { sidewalk: '#FFFFFF', deck: '#FFFFFF', planting: '#FFFFFF', plantingDark: '#1A1A1A', bike: '#FFFFFF', road: '#FFFFFF', parking: '#FFFFFF', water: '#FFFFFF', park: '#E3EBDC', sea: '#DCE8EE',
             building: '#FFFFFF', ground: '#FFFFFF', furniture: '#FFFFFF', concrete: '#FFFFFF', gravel: '#FFFFFF', steel: '#1A1A1A', cut: '#1A1A1A', failTint: '#FFFFFF' },
     // concrete: random dots per mm2; timber: lines along the boards; planting: a cross-hatch at +-ang; gravel: stipple; cut: solid
     // earth: 45 degree lines 0.8 mm apart (the ground's 2 mm band); poche: 45 degree lines 4 mm apart (a cut building, Brief 18)
@@ -5552,7 +5555,7 @@ var DRAW_STYLE = {
   schematic: {
     ink: '#2B2B2B', anno: '#5A5A5A', mid: '#8A857D', light: '#CFC9BE', paper: '#FFFFFF',
     fail: '#C0392B', pass: '#C0392B', passOp: 0.6,
-    fill: { sidewalk: '#E9E2D3', deck: '#C8A97A', planting: '#9DB58E', plantingDark: '#56704B', bike: '#B7CDA0', road: '#D9D5CF', parking: '#E4DFD6', water: '#CFE0E6',
+    fill: { sidewalk: '#E9E2D3', deck: '#C8A97A', planting: '#9DB58E', plantingDark: '#56704B', bike: '#B7CDA0', road: '#D9D5CF', parking: '#E4DFD6', water: '#CFE0E6', park: '#D3E0C8', sea: '#CFE0E6',
             building: '#F1EDE5', ground: '#E9E2D3', furniture: '#F7F4EE', concrete: '#E9E2D3', gravel: '#D8CFBD', steel: '#2B2B2B', cut: '#2B2B2B', failTint: '#EBCFC9' },
     // the same names as flat fills: no hatch but the solid cut
     hatch: { concrete: null, asphalt: null, timber: null, planting: null, gravel: null, cut: { solid: true }, earth: { gap: 0.8, ang: 45 }, poche: null }
@@ -6182,7 +6185,12 @@ function _renderPlanView(o) {
   if (_clipD) _defsStr += `<clipPath id='pkSC'><path d='` + _clipD + `'/></clipPath>`;
   _defsStr += `</defs>`;
   s += _defsStr;
-  s += `<rect width='${VW}' height='${VH}' fill='${DK.T.paper}'/>`;
+  // the city context (Brief 19 B): the outer ring under the street, one cached group (its own paper out to the radius)
+  const _iR = typeof SMP !== 'undefined' ? SMP.R : 150;   // the inner ring (the import script may not have run yet)
+  const _oc = _pvOuterLayer({ far: LODn < 1, U: U, L: PARKLET_M, DK: DK,
+    x0: Math.min(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px), x1: Math.max(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px),
+    y0: -CTX_TOP, y1: OPP_BOTTOM, ry0: SW_Y - 1, ry1: _pvOppSW1 + 1 });
+  s += _oc.paper + `<rect width='${VW}' height='${VH}' fill='${DK.T.paper}'/>` + _oc.svg;
   { const _swSeg = _pvXS.find(function(sg){ return sg.type === 'sidewalk'; });
     const _swR = function(a) { return `<rect x='0' y='${SW_Y.toFixed(2)}' width='${VW}' height='${SW_H.toFixed(2)}'${a}/>`; };
     s += _swR(` fill='${DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`) + _band('concrete', _swR); }
@@ -6367,7 +6375,10 @@ const C03_REQ = 6;
   else s += `<rect x='${PK_X}' y='${PK_Y}' width='${PK_W}' height='${pvPkH}' fill='${DRAW_STYLE.c(DK, _iTch ? 'light' : 'fill.deck')}' stroke='none' data-pk-far='1'/>`;
   // ── Metric world-space grid (covers full viewBox — extends with zoom/pan) ─
   if (_gridEnabled && !paper) {
-    var _gS = _gridSpacing, _gMaj = 1.0;
+    // the drawn grid's step follows the zoom (Brief 19 B): the snap spacing, else the first of 1, 5, 10, 50, 100 m whose
+    // lines are 6 px apart on screen; the major lines every 4 or 5 steps (snapping keeps _gridSpacing)
+    var _gS = _gridSpacing, _gMaj = 1.0, _gPpm = PLAN_PX_M / U;
+    if (_gS * _gPpm < 6) { _gS = [1, 5, 10, 50, 100, 500].find(function(v) { return v * _gPpm >= 6; }) || 500; _gMaj = _gS * (_gS === 1 || _gS === 10 || _gS === 100 ? 5 : 2); }
     // Derive world bounds from current viewBox (supports pan/zoom)
     var _vbX0 = VB.x, _vbY0 = VB.y, _vbX1 = VB.x + VB.w, _vbY1 = VB.y + VB.h;
     // Along-street (Z) grid lines: SVG vertical; world-Z range of the viewBox via planToWorld
@@ -11480,6 +11491,75 @@ function pvHandleClick(e) {
   if (x>=PK_X&&x<=PK_X+PK_W&&y>=PK_Y&&y<=PK_Y+pvPkH){setSelection('parklet','parklet',null);return;}
   clearSelection();
 }
+
+// ── The city context in the Plan (Brief 19 B) ──────────────────────────────────────────────────────
+// CTX_OUTER (local metres from the located point) through the site frame (the bearing, pkZ) and worldToPlan: the water
+// (even-odd) and the parks as fills, the footprints as fill-only silhouettes (technical 8 % grey, schematic warm grey
+// 12 %, no outline), the streets as 'context' centre lines at the far tier and as paired curb lines (each side its
+// use's half width) nearer. Footprints whose centre is in the inner strip (g.x0..x1, g.y0..y1: the inner ring's
+// buildings are the strip's own) and the host street (every point in its band g.ry0..ry1) are left out. One path per
+// layer, the string cached until the import, the frame or the tier changes: the Plan pans without rebuilding it.
+var _pvOuterCache = null;
+function _pvOuterLayer(g) {
+  var o = typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null; if (!o) { window._pvOuterCheck = null; return { paper: '', svg: '' }; }
+  var DK = g.DK, T = DK.T, LM = DESIGN_MODEL.landmarks, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
+  var W = function(e, n) { return worldToPlan(LM.roadCenterX + e * E.x + n * N.x, g.L / 2 - pk + e * E.z + n * N.z); };
+  var p0 = W(0, 0), pe = W(1, 0), pn = W(0, 1), ax = pe.px - p0.px, ay = pe.py - p0.py, bx = pn.px - p0.px, by = pn.py - p0.py, sc = Math.hypot(ax, ay);
+  var key = [o.stamp, g.far ? (2 / g.U).toFixed(4) : '', pk, g.L, p0.px.toFixed(2), p0.py.toFixed(2), ax.toFixed(5), ay.toFixed(5), bx.toFixed(5), by.toFixed(5), g.far ? 1 : 0, DK.mode, g.x0.toFixed(1), g.x1.toFixed(1), g.y0.toFixed(1), g.y1.toFixed(1)].join('|');
+  if (_pvOuterCache && _pvOuterCache.key === key) { window._pvOuterCheck = _pvOuterCache.check; return _pvOuterCache.out; }
+  var t0 = performance.now(), f = function(v) { return v.toFixed(1); };
+  var P = function(p) { return [p0.px + ax * p[0] + bx * p[1], p0.py + ay * p[0] + by * p[1]]; };
+  var ring = function(r) { return 'M' + r.map(function(p) { var q = P(p); return f(q[0]) + ' ' + f(q[1]); }).join('L') + 'Z'; };
+  var cen = function(r) { var s = [0, 0]; r.forEach(function(p) { s[0] += p[0]; s[1] += p[1]; }); return P([s[0] / r.length, s[1] / r.length]); };
+  var inStrip = function(q) { return q[0] >= g.x0 && q[0] <= g.x1 && q[1] >= g.y0 && q[1] <= g.y1; };
+  var bd = '', nb = 0, skipped = 0;
+  o.bldg.forEach(function(r) { if (inStrip(cen(r))) { skipped++; return; } bd += ring(r); nb++; });
+  var pd = o.parks.map(ring).join(''), wd = o.water.map(ring).join('');
+  var sd = '', ns = 0;
+  o.streets.forEach(function(st) {
+    var q = st.pts.map(P); if (q.length < 2 || q.every(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; })) return;
+    ns++;
+    if (g.far) { sd += 'M' + q.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L'); return; }
+    var h = st.half * sc;
+    [-1, 1].forEach(function(sd2) {
+      sd += 'M' + q.map(function(p, i) {
+        var a = q[Math.max(0, i - 1)], b = q[Math.min(q.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+        return f(p[0] - dy / l * h * sd2) + ' ' + f(p[1] + dx / l * h * sd2);
+      }).join('L');
+    });
+  });
+  var R = o.R, cs = [W(-R, -R), W(R, -R), W(R, R), W(-R, R)], xs = cs.map(function(c) { return c.px; }), ys = cs.map(function(c) { return c.py; });
+  var paper = "<rect x='" + f(Math.min.apply(null, xs)) + "' y='" + f(Math.min.apply(null, ys)) + "' width='" + f(Math.max.apply(null, xs) - Math.min.apply(null, xs)) + "' height='" + f(Math.max.apply(null, ys) - Math.min.apply(null, ys)) + "' fill='" + T.paper + "' data-layer='city-paper'/>";
+  var tech = DK.mode === 'technical';
+  // the far tier: the same paths painted once into a canvas (2 px per screen px) and placed as one image, so panning
+  // moves a picture instead of repainting thousands of footprints; nearer, vector
+  if (g.far && g.U > 0 && typeof Path2D !== 'undefined') {
+    var bx0 = Math.min.apply(null, xs), by0 = Math.min.apply(null, ys), bw = Math.max.apply(null, xs) - bx0, bh = Math.max.apply(null, ys) - by0;
+    var k2 = Math.min(2 / g.U, 4096 / bw, 4096 / bh), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(bw * k2)); cv.height = Math.max(1, Math.round(bh * k2));
+    var cx2 = cv.getContext('2d'); cx2.setTransform(k2, 0, 0, k2, -bx0 * k2, -by0 * k2);
+    if (wd) { cx2.fillStyle = T.fill.sea; cx2.fill(new Path2D(wd), 'evenodd'); }
+    if (pd) { cx2.fillStyle = T.fill.park; cx2.fill(new Path2D(pd)); }
+    if (bd) { cx2.globalAlpha = tech ? 0.08 : 0.12; cx2.fillStyle = tech ? '#000000' : T.mid; cx2.fill(new Path2D(bd)); cx2.globalAlpha = 1; }
+    if (sd) { cx2.strokeStyle = T.mid; cx2.lineWidth = Math.max(DRAW_STYLE.sw(DK, 'context'), 0.75 / k2); cx2.stroke(new Path2D(sd)); }
+    var img = "<g data-layer='city' pointer-events='none'><image x='" + f(bx0) + "' y='" + f(by0) + "' width='" + f(bw) + "' height='" + f(bh) + "' preserveAspectRatio='none' href='" + cv.toDataURL('image/png') + "' data-city='raster'/></g>";
+    var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height] };
+    _pvOuterCache = { key: key, out: { paper: paper, svg: img }, check: chk };
+    window._pvOuterCheck = chk;
+    return _pvOuterCache.out;
+  }
+  var svg = "<g data-layer='city' pointer-events='none'>" +
+    (wd ? "<path d='" + wd + "' fill='" + T.fill.sea + "' fill-rule='evenodd' stroke='none' data-city='water'/>" : '') +
+    (pd ? "<path d='" + pd + "' fill='" + T.fill.park + "' stroke='none' data-city='parks'/>" : '') +
+    (bd ? "<path d='" + bd + "' fill='" + (tech ? '#000000' : T.mid) + "' fill-opacity='" + (tech ? 0.08 : 0.12) + "' stroke='none' data-city='bldg'/>" : '') +
+    (sd ? "<path d='" + sd + "' fill='none'" + DRAW_STYLE.st(DK, 'context', { c: 'mid' }) + " data-city='streets'/>" : '') + '</g>';
+  var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far };
+  _pvOuterCache = { key: key, out: { paper: paper, svg: svg }, check: check };
+  window._pvOuterCheck = check;
+  return _pvOuterCache.out;
+}
+window.addEventListener('load', function() {   // the outer ring from the cache (no request) after a reload
+  setTimeout(function() { try { if (state.__outer && state.__siteMap && state.__siteMap.lat && typeof SMP !== 'undefined' && !CTX_OUTER) SMP.importOuter({ cacheOnly: true }); } catch (e) {} }, 1200);
+});
 
 // ── Parklet placement (Brief 18 D) ─────────────────────────────────────────────────────────────────
 // The model is parklet-anchored: the deck at world z 0..L. Along the street the parklet sits at pkZ, its centre in the
@@ -19846,6 +19926,12 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
     lines.forEach(function(l, i) { P.text(AC.x + 8, ky + i * TX.body * RPT.GRID.lh, l, TX.body); });
     ky += lines.length * TX.body * RPT.GRID.lh + 2.4;
   });
+  // an inset (ext.inset {h, draw(P, x, y, w, h)}: A-101's locator) at the foot of the column, clear of the notes and
+  // the title block; left out when they leave it no room
+  if (ext && ext.inset) {
+    var ih = ext.inset.h, ib = RPT.SH - RPT.TB.h - 6, iy = ib - ih;
+    if (iy >= ky + 4) ext.inset.draw(P, AC.x, iy, AC.w, ih);
+  }
   // the band: north on a plan, the scale bar and the scale
   var by = RPT.SH - 13;
   if (ext && ext.north) RPT.northSym(P, 10, by + 1.5, 4.5);
@@ -20050,7 +20136,32 @@ RPT.sheetSite = function(d) {
     { t: 'Buildings from OpenStreetMap, cut at the sheet\'s extent (' + RPT.fmt(zB - zA) + ' x ' + RPT.fmt(xBot - xTop) + ' m); name and use where known.', at: hostAt },
     { t: 'Site objects from City of Vancouver open data: indicative, confirm on site.', at: null }
   ];
-  return RPT.dsheet(d, 'A-101', 'Site plan', sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: xBot, north: true });
+  var ins = typeof CTX_OUTER !== 'undefined' && CTX_OUTER ? { h: 52, draw: function(Q, x, y, w, h) { RPT.locator(Q, x, y, w, h, G, cr, d.mode); } } : null;
+  return RPT.dsheet(d, 'A-101', 'Site plan', sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: xBot, north: true, inset: ins });
+};
+// A-101's locator (Brief 19 B): the city context at 1:10 000 around the parklet in the sheet's own orientation (sheet x
+// = -z, y = +x): the water, the parks, every footprint, the streets' centre lines, the sheet's crop dashed and the
+// parklet filled; framed, titled under it.
+RPT.locator = function(P, x, y, w, h, G, cr, mode) {
+  var o = CTX_OUTER, k = 0.1, T = DRAW_STYLE.t(mode), LM = G.LM, L = G.L, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
+  var cx = x + w / 2, cy = y + h / 2;
+  var S = function(wx, wz) { return [cx - (wz - L / 2) * k, cy + wx * k]; };
+  var Q = function(p) { return S(LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z); };
+  var f = function(v) { return v.toFixed(2); };
+  var ring = function(r) { return 'M' + r.map(function(p) { var q = Q(p); return f(q[0]) + ' ' + f(q[1]); }).join('L') + 'Z'; };
+  P.clipOpen("<rect x='" + f(x) + "' y='" + f(y) + "' width='" + f(w) + "' height='" + f(h) + "'/>");
+  P.rect(x, y, w, h, { fill: '#FFFFFF', w: 0 });
+  if (o.water.length) P.path(o.water.map(ring).join(''), { fill: T.fill.sea, w: 0, data: " fill-rule='evenodd' data-loc='water'" });
+  if (o.parks.length) P.path(o.parks.map(ring).join(''), { fill: T.fill.park, w: 0, data: " data-loc='parks'" });
+  if (o.bldg.length) P.path(o.bldg.map(ring).join(''), { fill: mode === 'technical' ? '#000000' : T.mid, fop: mode === 'technical' ? 0.14 : 0.2, w: 0, data: " data-loc='bldg'" });
+  if (o.streets.length) P.path(o.streets.map(function(s) { return 'M' + s.pts.map(function(p) { var q = Q(p); return f(q[0]) + ' ' + f(q[1]); }).join('L'); }).join(''), { cls: 'fine', c: 'mid', data: " data-loc='streets'" });
+  var c0 = S(cr.x0, cr.z0), c1 = S(cr.x1, cr.z1);
+  P.rect(Math.min(c0[0], c1[0]), Math.min(c0[1], c1[1]), Math.abs(c1[0] - c0[0]), Math.abs(c1[1] - c0[1]), { cls: 'general', dash: 'hidden' });
+  var d0 = S(LM.deckX0, 0), d1 = S(LM.deckX1, L);
+  P.rect(Math.min(d0[0], d1[0]) - 0.4, Math.min(d0[1], d1[1]) - 0.4, Math.abs(d1[0] - d0[0]) + 0.8, Math.abs(d1[1] - d0[1]) + 0.8, { fill: 'ink', w: 0 });
+  P.clipClose();
+  P.rect(x, y, w, h, { cls: 'general' });
+  P.text(x, y + h + 3.2, 'Locator 1:10 000 - ' + Math.round(w / k) + ' x ' + Math.round(h / k) + ' m of the ' + o.R + ' m context', RPT.TX.tag, { c: 'anno' });
 };
 
 // ── A-102 Layout plan, 1:100 ────────────────────────────────────────────────────────────────────────
@@ -23259,7 +23370,9 @@ SM.snap = function(ways, lat, lon) {
     for (var i = 1; i < g.length; i++) {
       var a = g[i - 1], b = g[i], dx = b.e - a.e, dy = b.n - a.n, l2 = dx * dx + dy * dy; if (l2 < 1e-6) continue;
       var t = Math.max(0, Math.min(1, -(a.e * dx + a.n * dy) / l2)), pe = a.e + t * dx, pn = a.n + t * dy, d = Math.hypot(pe, pn);
-      if (!best || d < best.dist) best = { way: w, seg: i, e: pe, n: pn, dist: d, bearing: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI, 180), dir: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI), len: Math.sqrt(l2) };
+      // a named street is preferred to a service way or an unnamed one 20 m nearer (a lane beside the avenue clicked)
+      var tg = w.tags || {}, sc = d + (!tg.name || tg.highway === 'service' ? 20 : 0);
+      if (!best || sc < best.score) best = { score: sc, way: w, seg: i, e: pe, n: pn, dist: d, bearing: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI, 180), dir: siteNorm(Math.atan2(dx, dy) * 180 / Math.PI), len: Math.sqrt(l2) };
     }
   });
   if (best) { var ll = T.from(best.e, best.n); best.lat = ll.lat; best.lon = ll.lon; }
@@ -23422,7 +23535,10 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && doc
 // ════════════════════════════════════════════════════════════════════════════════════════════
 var SMP = { COV: 'https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/' };
 // the import radius is the model extent, DESIGN_MODEL.site.contextZ (Brief 17, 4b)
-Object.defineProperty(SMP, 'R', { get: function() { return siteContextZ(SITE_CONTEXT_Z); } });
+// the inner ring's radius (Brief 19 B): the full import (buildings with their programme, POIs, the City's objects) to
+// at most 150 m; the outer ring (SMP.importOuter) runs from there to the context radius
+SMP.INNER_R = 150;
+Object.defineProperty(SMP, 'R', { get: function() { return Math.min(SMP.INNER_R, siteContextZ(SITE_CONTEXT_Z)); } });
 SMP.prov = function() { if (!state.__prov || typeof state.__prov !== 'object') state.__prov = {}; return state.__prov; };
 SMP.set = function(key, source, id, at, note) { if (SMP._touched && SMP._touched.indexOf(key) < 0) SMP._touched.push(key); SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; };
 SMP.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
@@ -23636,6 +23752,7 @@ SMP.setContext = async function(v) {
   try { syncDesignModel('site-context'); } catch (e) {}
   var rr = await SMP.reclip();
   if (!rr && state.__siteMap && state.__siteMap.importedAt) SMP.msg('The context is now ' + cz + ' m: import again to fetch the street within ' + cz + ' m.');
+  if (state.__siteMap && state.__siteMap.importedAt) { try { await SMP.importOuter(); } catch (e) { console.warn('[site-map] city context', e); } }   // the outer ring to the new radius
   try { window.checkLandmarkConsistency(true); } catch (e) {}
 };
 // ── Fetch ────────────────────────────────────────────────────────────────────────────────────
@@ -23652,6 +23769,159 @@ SMP.cov = async function(ds, field, lat, lon, signal) {
     if (page.length < 100 || (j && j.total_count != null && rows.length >= j.total_count)) break;
   }
   return { rows: rows, at: at };
+};
+// ── The city context to ~1 km (Brief 19 B): the outer ring ──────────────────────────────────────────
+// Past the inner ring the context is footprints and streets only, with the parks and the water, queried around the
+// located point to the context radius: City of Vancouver building-footprints-2015, public-streets and
+// parks-polygon-representation, one GeoJSON export each (no Overpass load); the water from OpenStreetMap (the coastline
+// in the context square, closed with the water on its right, and the water polygons). When the City's footprints fail
+// they come from Overpass in 300 m tiles (building=* only). Kept in local metres from the located point (e east, n
+// north) so it follows pkZ: CTX_OUTER, the model's DESIGN_MODEL.context.outer, with its provenance; no check reads it.
+// state.__outer keeps its summary (radius, point, sources, counts, time); on load it is rebuilt from the cache only.
+var CTX_OUTER = null;
+SMP.OUTER_DS = { bldg: 'building-footprints-2015', streets: 'public-streets', parks: 'parks-polygon-representation' };
+SMP.covExport = function(ds, lat, lon, R, signal, cacheOnly) {
+  var key = 'covx|' + ds + '|' + R + '|' + SM.round(lat) + ',' + SM.round(lon);
+  if (cacheOnly) return SM.cacheGet(key);
+  var w = 'within_distance(geom, geom\'POINT(' + lon + ' ' + lat + ')\', ' + R + 'm)';
+  return SM.fetchJSON('cov', key, SMP.COV + ds + '/exports/geojson?limit=-1&where=' + encodeURIComponent(w), null, signal);
+};
+// GeoJSON geometry -> its rings / lines in local metres (rounded to 0.1 m)
+SMP._rings = function(g, T) {
+  var q = function(c) { var v = T.to(c[1], c[0]); return [Math.round(v.e * 10) / 10, Math.round(v.n * 10) / 10]; }, out = [];
+  if (!g) return out;
+  if (g.type === 'Polygon') out.push(g.coordinates[0].map(q));
+  else if (g.type === 'MultiPolygon') g.coordinates.forEach(function(p) { out.push(p[0].map(q)); });
+  else if (g.type === 'LineString') out.push(g.coordinates.map(q));
+  else if (g.type === 'MultiLineString') g.coordinates.forEach(function(l) { out.push(l.map(q)); });
+  return out;
+};
+// a street's half width by its use (an estimate for the paired curb lines)
+SMP.STREET_HALF = { 'Arterial': 7.5, 'Secondary Arterial': 6.5, 'Collector': 5.5, 'Residential': 4.5, 'Leisure': 4.5, 'Local': 4.5 };
+// The water in the square [-S, S] (local metres): the coastline chains clipped to it and closed along its edge with the
+// water on their right (OSM's rule), islands as holes, lakes as their own rings; drawn even-odd.
+SMP.waterRings = function(chains, lakes, S) {
+  var inBox = function(p) { return p[0] >= -S && p[0] <= S && p[1] >= -S && p[1] <= S; };
+  var tOf = function(p) {   // clockwise from the top-left corner (y up)
+    var x = p[0], y = p[1], e = 1e-6;
+    if (Math.abs(y - S) < e) return x + S; if (Math.abs(x - S) < e) return 2 * S + (S - y); if (Math.abs(y + S) < e) return 4 * S + (S - x); return 6 * S + (y + S);
+  };
+  var corner = [[S, S], [S, -S], [-S, -S], [-S, S]], cornerT = [2 * S, 4 * S, 6 * S, 8 * S];
+  var clip = function(a, b) {   // Liang-Barsky: the part of segment ab in the square, or null
+    var t0 = 0, t1 = 1, dx = b[0] - a[0], dy = b[1] - a[1], ps = [-dx, dx, -dy, dy], qs = [a[0] + S, S - a[0], a[1] + S, S - a[1]];
+    for (var i = 0; i < 4; i++) { if (ps[i] === 0) { if (qs[i] < 0) return null; } else { var t = qs[i] / ps[i]; if (ps[i] < 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t); } }
+    if (t0 > t1) return null;
+    return [[a[0] + t0 * dx, a[1] + t0 * dy], [a[0] + t1 * dx, a[1] + t1 * dy], t0 > 0, t1 < 1];
+  };
+  var pieces = [], rings = [];
+  chains.forEach(function(c) {
+    if (c.length < 2) return;
+    var closed = Math.hypot(c[0][0] - c[c.length - 1][0], c[0][1] - c[c.length - 1][1]) < 0.5;
+    if (closed && c.every(inBox)) { rings.push(c); return; }
+    var run = null;
+    for (var i = 1; i < c.length; i++) {
+      var k = clip(c[i - 1], c[i]); if (!k) { run = null; continue; }
+      if (!run) run = { pts: [k[0]], entry: k[2] };   // entry: it came in across the edge (a chain starting inside is incomplete: dropped)
+      run.pts.push(k[1]);
+      if (k[3]) { if (run.entry) pieces.push({ pts: run.pts, tIn: tOf(run.pts[0]), tOut: tOf(k[1]) }); run = null; }
+    }
+  });
+  var area = function(r) { var a = 0; for (var i = 0; i < r.length; i++) { var p = r[i], q = r[(i + 1) % r.length]; a += p[0] * q[1] - q[0] * p[1]; } return a / 2; };
+  var out = [], used = pieces.map(function() { return false; });
+  var along = function(from, to) { var d = to - from; return d < 0 ? d + 8 * S : d; };
+  for (var s0 = 0; s0 < pieces.length; s0++) {
+    if (used[s0]) continue;
+    var ring = [], cur = s0, guard = 0;
+    while (guard++ < 200) {
+      used[cur] = true; ring = ring.concat(pieces[cur].pts);
+      var tO = pieces[cur].tOut, best = -1, bd = Infinity;
+      pieces.forEach(function(p, j) { var d = along(tO, p.tIn); if (d < bd && (!used[j] || j === s0)) { bd = d; best = j; } });
+      if (best < 0) break;
+      cornerT.map(function(t, ci) { return { d: along(tO, t % (8 * S)), p: corner[ci] }; }).filter(function(c) { return c.d > 0 && c.d < bd; }).sort(function(a, b) { return a.d - b.d; }).forEach(function(c) { ring.push(c.p); });
+      if (best === s0) break;
+      cur = best;
+    }
+    if (ring.length > 2) out.push(ring);
+  }
+  // rings inside: clockwise (y up) is water (a bay closed on itself), counter-clockwise an island; with no crossing
+  // coastline and an island, the square is water around it
+  var isl = rings.filter(function(r) { return area(r) > 0; });
+  out = out.concat(rings.filter(function(r) { return area(r) < 0; }), isl);
+  if (!pieces.length && isl.length) out.push([[-S, S], [S, S], [S, -S], [-S, -S]]);
+  return out.concat(lakes);
+};
+SMP.importOuter = async function(opts) {
+  opts = opts || {};
+  var sm = state.__siteMap; if (!sm || !sm.lat) return null;
+  var R = siteContextZ(SITE_CONTEXT_Z), la = +sm.lat, lo = +sm.lon, T = SM.enu(la, lo), t0 = Date.now(), co = !!opts.cacheOnly;
+  var o = { R: R, lat: la, lon: lo, at: new Date().toISOString(), source: {}, counts: {}, bldg: [], streets: [], parks: [], water: [], notes: [] };
+  // footprints: the City's, else Overpass tiles
+  try {
+    var tb = Date.now(), fb = await SMP.covExport(SMP.OUTER_DS.bldg, la, lo, R, null, co); o.msBldg = Date.now() - tb;
+    if (!fb && co) return null;
+    (fb.features || []).forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2) o.bldg.push(r); }); });
+    o.source.bldg = 'City of Vancouver ' + SMP.OUTER_DS.bldg;
+  } catch (e) {
+    if (co) return null;
+    o.notes.push('City footprints failed (' + e.message + '): OpenStreetMap tiles');
+    var n0 = Math.ceil(R / 300);
+    for (var i = -n0; i < n0; i++) for (var j = -n0; j < n0; j++) {
+      var a = T.from(i * 300, j * 300), b = T.from((i + 1) * 300, (j + 1) * 300);
+      var jt = await SM.overpass('ctxbldg|' + [a.lat, a.lon, b.lat, b.lon].map(function(v) { return v.toFixed(5); }).join(','), '[out:json][timeout:40];way[building](' + a.lat + ',' + a.lon + ',' + b.lat + ',' + b.lon + ');out geom;');
+      ((jt && jt.elements) || []).forEach(function(w) { if (w.geometry && w.geometry.length > 3) o.bldg.push(w.geometry.map(function(p) { var v = T.to(p.lat, p.lon); return [Math.round(v.e * 10) / 10, Math.round(v.n * 10) / 10]; })); });
+    }
+    o.source.bldg = 'OpenStreetMap building=* (Overpass, 300 m tiles)';
+  }
+  try {
+    var fs = await SMP.covExport(SMP.OUTER_DS.streets, la, lo, R, null, co);
+    ((fs && fs.features) || []).forEach(function(f) { var p = f.properties || {}, h = SMP.STREET_HALF[p.streetuse] || 4.5; SMP._rings(f.geometry, T).forEach(function(l) { if (l.length > 1) o.streets.push({ half: h, use: p.streetuse || '', pts: l }); }); });
+    o.source.streets = fs ? 'City of Vancouver ' + SMP.OUTER_DS.streets : 'none (not cached)';
+  } catch (e) { o.notes.push('City streets failed: ' + e.message); o.source.streets = 'none'; }
+  try {
+    var fp = await SMP.covExport(SMP.OUTER_DS.parks, la, lo, R, null, co);
+    ((fp && fp.features) || []).forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2) o.parks.push(r); }); });
+    o.source.parks = fp ? 'City of Vancouver ' + SMP.OUTER_DS.parks : 'none (not cached)';
+  } catch (e) { o.notes.push('City parks failed: ' + e.message); o.source.parks = 'none'; }
+  // the water: OpenStreetMap's coastline and water polygons in the context square
+  try {
+    var a2 = T.from(-R, -R), b2 = T.from(R, R), bb = a2.lat + ',' + a2.lon + ',' + b2.lat + ',' + b2.lon, key = 'ctxwater|' + R + '|' + SM.round(la) + ',' + SM.round(lo), jw;
+    var tw = Date.now();
+    if (co) jw = await SM.cacheGet('overpass|' + key);
+    else for (var tri = 0; tri < 3 && !jw; tri++) {   // a busy Overpass server hands over to the next
+      try { jw = await SM.overpass(key, '[out:json][timeout:40];(way["natural"="coastline"](' + bb + ');way["natural"="water"](' + bb + ');relation["natural"="water"](' + bb + '););out geom;'); }
+      catch (e2) { if (e2 && e2.offline) throw e2; o.notes.push('water: ' + SM.overpassHost() + ' ' + e2.message); SM.nextOverpass(); if (tri === 2) throw e2; }
+    }
+    o.msWater = Date.now() - tw;
+    var pts = function(g) { return g.map(function(p) { var v = T.to(p.lat, p.lon); return [v.e, v.n]; }); };
+    var coast = [], lakes = [];
+    ((jw && jw.elements) || []).forEach(function(e) {
+      if (e.type === 'way' && e.geometry && e.tags && e.tags.natural === 'coastline') coast.push(pts(e.geometry));
+      else if (e.type === 'way' && e.geometry && e.geometry.length > 3) lakes.push(pts(e.geometry));
+      else if (e.type === 'relation' && e.members) e.members.forEach(function(m) { if (m.role === 'outer' && m.geometry && m.geometry.length > 3) { var g = pts(m.geometry); if (Math.hypot(g[0][0] - g[g.length - 1][0], g[0][1] - g[g.length - 1][1]) < 1) lakes.push(g); } });
+    });
+    // chain the coastline ways end to start
+    var chains = [];
+    coast.forEach(function(w) { chains.push(w.slice()); });
+    for (var merged = true; merged; ) {
+      merged = false;
+      for (var x = 0; x < chains.length && !merged; x++) for (var y = 0; y < chains.length && !merged; y++) {
+        if (x === y) continue; var A = chains[x], B = chains[y], ae = A[A.length - 1], bs = B[0];
+        if (Math.hypot(ae[0] - bs[0], ae[1] - bs[1]) < 0.5) { chains[x] = A.concat(B.slice(1)); chains.splice(y, 1); merged = true; }
+      }
+    }
+    o.water = SMP.waterRings(chains, lakes, R).map(function(r) { return r.map(function(p) { return [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; }); });
+    o.source.water = jw ? 'OpenStreetMap natural=coastline / water' : 'none (not cached)';
+  } catch (e) { o.notes.push('Water failed: ' + e.message); o.source.water = 'none'; }
+  var dOf = function(r) { var c = r.reduce(function(s, p) { return [s[0] + p[0], s[1] + p[1]]; }, [0, 0]); return Math.hypot(c[0] / r.length, c[1] / r.length); };
+  o.counts = { bldg: o.bldg.length, bldgInner: o.bldg.filter(function(r) { return dOf(r) <= SMP.INNER_R; }).length, bldgOuter: o.bldg.filter(function(r) { return dOf(r) > SMP.INNER_R; }).length,
+    streets: o.streets.length, parks: o.parks.length, waterRings: o.water.length };
+  o.ms = Date.now() - t0; o.stamp = Date.now();
+  CTX_OUTER = o;
+  state.__outer = { R: R, lat: la, lon: lo, at: o.at, source: o.source, counts: o.counts, ms: o.ms, msBldg: o.msBldg, msWater: o.msWater, notes: o.notes };
+  try { saveSettings(); } catch (e) {}
+  try { syncDesignModel('city-context'); } catch (e) {}
+  console.log('[site-map] city context to ' + R + ' m: ' + o.counts.bldg + ' footprints (' + o.counts.bldgOuter + ' past ' + SMP.INNER_R + ' m, ' + o.source.bldg + '), ' + o.counts.streets + ' street blocks, ' + o.counts.parks + ' parks, ' + o.counts.waterRings + ' water rings; ' + o.ms + ' ms' + (co ? ' (cache)' : '') + (o.notes.length ? '; ' + o.notes.join('; ') : ''));
+  return o;
 };
 SMP.pt = function(r) { var g = r.geo_point_2d || (r.geom && r.geom.geometry && { lon: r.geom.geometry.coordinates[0], lat: r.geom.geometry.coordinates[1] }); return g && isFinite(g.lat) ? g : null; };
 SMP.rowId = function(r) { var k = ['id', 'hydrant_id', 'asset_id', 'object_id', 'objectid', 'facilityid', 'station']; for (var i = 0; i < k.length; i++) if (r[k[i]] != null) return String(r[k[i]]); return null; };
@@ -23730,6 +24000,11 @@ SMP.importContext = async function() {
     SMP.applyBuildings(P.blds, P.pois, data.osm.at, rep);
     SMP.applyObjects(cov, P.stops, data.osm.at, rep);
     SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString();
+    // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import
+    cur = 'city'; st.city = 'run'; show();
+    try { var oc = await SMP.importOuter(); st.city = 'ok'; if (oc) rep.notes.push('city context to ' + oc.R + ' m: ' + oc.counts.bldg + ' footprints, ' + oc.counts.streets + ' streets, ' + oc.counts.parks + ' parks, ' + oc.counts.waterRings + ' water rings (' + (oc.ms / 1000).toFixed(1) + ' s)'); }
+    catch (e) { st.city = 'fail'; rep.notes.push('the city context failed: ' + (e && e.message ? e.message : e)); }
+    cur = 'apply';
     SMP.refresh();
     try { syncDesignModel('site-import'); } catch (e) {}
     var n = SMP._touched.length + rep.buildings.L + rep.buildings.R + rep.hydrants + rep.trees + rep.transit, s = rep.street, same = before === SMP.snapshot();
