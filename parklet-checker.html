@@ -564,6 +564,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button class='ctx-btn' id='axePrevBtn' onclick='AXE.preview()' style='flex:1'>&#9654; Preview</button>
     <button class='ctx-btn' id='axeExpBtn' onclick='AXE.export()' style='flex:1'>&#8595; Export</button>
   </div>
+  <canvas id='axePreviewCanvas' width='16' height='9' aria-label='Axonometric preview' style='display:block;width:100%;aspect-ratio:16/9;margin-top:8px;border-radius:4px;background:var(--c-panel,#202328)'></canvas>
   <div id='axeStatus' style='font-size:11px;color:var(--text-mu);margin-top:6px;line-height:1.5;min-height:12px'></div>
   <div style='font-size:11px;color:var(--text-mu);margin-top:4px;opacity:.7;line-height:1.5'>Vehicles on the travel lanes, bikes in bike lanes, people on the sidewalks and through the parklet. Follows the Schematic / Technical appearance; far-side buildings are cut away so the street reads. MP4 is not available: browsers can only record WebM &mdash; convert with HandBrake or ffmpeg if you need MP4. Nothing in the design is changed.</div>
 </div>
@@ -7681,7 +7682,8 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   if (carLW > 0.001) {
     // Each lane's own width (lanes can differ: LANE_ENVELOPE caps by role).
     const dispLW = assessLanes(_dm3d.crossSection).map(function(a){ return a.width.toFixed(2); }).join(' + ');
-    const dirLbl = ROAD_DIR === 'twoway' ? LANES_A + '+' + LANES_B + ' lanes (two-way): ' : _tlov + ' lane' + (_tlov > 1 ? 's' : '') + ': ';
+    const _tlTw = LANES_A + LANES_B;   // "N lanes" is always the total: "6 lanes (two-way, 3+3)"
+    const dirLbl = ROAD_DIR === 'twoway' ? _tlTw + ' lane' + (_tlTw > 1 ? 's' : '') + ' (two-way, ' + LANES_A + '+' + LANES_B + '): ' : _tlov + ' lane' + (_tlov > 1 ? 's' : '') + ': ';
     _ov.textContent = dirLbl + dispLW + ' m  ' + (passing ? '✓ OK' : '✗ < ' + reqLane.toFixed(1) + ' m');
     _ov.style.background = passing ? 'rgba(22,80,44,.85)' : 'rgba(140,20,20,.85)';
     _ov.style.color = '#fff';
@@ -8962,11 +8964,9 @@ function ensure3DReady() {
     }
     (function _e3loop() {
       requestAnimationFrame(_e3loop);
-      if (window.AXE && AXE.previewing) { AXE.previewFrame(); }          // animated axon preview: axon camera + agents
-      else {
-        if (_3d && _3d.controls) _3d.controls.update();
-        if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
-      }
+      // (the axon preview draws on its own offscreen renderer into the Export panel: never here)
+      if (_3d && _3d.controls) _3d.controls.update();
+      if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
       if (typeof _3dUpdateCompass === 'function') _3dUpdateCompass();
       if (typeof _3dCaptureHome === 'function') _3dCaptureHome();
     })();
@@ -10437,6 +10437,8 @@ function fl3DRenderTray() {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function appSetMode(mode) {
+  // leaving the Export tab stops the axon preview (it lives in the Export panel)
+  if (mode !== 'export' && window.AXE && AXE.previewing) AXE.stop();
   // Top nav tabs
   document.querySelectorAll('.ttab').forEach(function(t) { t.classList.remove('active'); });
   var tab = document.querySelector('.ttab[onclick*="' + mode + '"]');
@@ -16882,8 +16884,10 @@ AXE.sleepUntil = function(t) {
   });
 };
 
-// Preview: the 3D viewport shows the axon camera and the agents (wall-clock time, looping)
-// until Stop, which puts the interactive camera, controls and layout back.
+// Preview: the axon camera and the agents (wall-clock time, looping), drawn by the export's own offscreen
+// renderer into #axePreviewCanvas in the Export panel. The live 3D viewport -- its renderer, camera,
+// controls and layout -- is never touched. It stops on Stop, on leaving the Export tab (appSetMode) and
+// when an export starts, and blanks its canvas.
 // Scene state at the start of a preview / export (diagnostics for the empty-axon report).
 AXE.diag = function(where) {
   var g = (typeof _3d !== 'undefined' && _3d && _3d.group) ? _3d.group : null, vis = 0;
@@ -16899,50 +16903,43 @@ AXE.preview = function() {
   AXE.diag('preview');
   if (AXE.previewing) { AXE.stop(); return; }
   if (AXE.busy) return;
-  var o = AXE.opts(), ws = document.getElementById('workspaceExport'), grid = document.getElementById('viewportGrid');
-  AXE._pvState = { ws: ws ? ws.style.display : null, grid: grid ? grid.style.display : null, layout: VIEWPORT_LAYOUT.mode === 'max' ? VIEWPORT_LAYOUT.max : 'three', before: null };
-  if (_3d) { var _sz = new THREE.Vector2(); _3d.renderer.getSize(_sz); AXE._pvState.size = [_sz.x, _sz.y]; AXE._pvState.aspect = _3d.camera.aspect; }
-  if (ws && ws.style.display !== 'none') { ws.style.display = 'none'; if (grid) grid.style.display = ''; }
-  setViewportLayout('max', '3d', { silent: true });
+  if (!document.getElementById('axePreviewCanvas')) return;
+  var o = AXE.opts();
   flush3DScene();     // the scene must be complete before the first preview frame
   if (!_3d) { AXE.status('3D view is not available.'); return; }
-  _vpSizeAll();
-  AXE._pvState.before = AXE.snapshot();
+  AXE._pvBefore = AXE.snapshot();
   AXE.build(o);
-  AXE._pvAspect = 0;
-  AXE._pvOpts = o;
-  _3d.controls.enabled = false;
-  AXE._pv0 = performance.now();
+  AXE._pvOpts = o; AXE._pvSize = null; AXE._pv0 = performance.now();
   AXE.previewing = true;
+  (function loop() { if (!AXE.previewing) return; AXE._pvRaf = requestAnimationFrame(loop); AXE.previewFrame(); })();
   var b = document.getElementById('axePrevBtn'); if (b) b.innerHTML = '&#9632; Stop';
   AXE.status('Previewing ' + AXE.built.agents + ' agents (' + AXE.built.seated + ' seated), ' + o.T + ' s loop.');
 };
-// Called by the 3D render loop instead of the interactive render while previewing.
-AXE.previewFrame = function() {
-  var w = document.getElementById('threeWrap'), asp = w.clientWidth / Math.max(1, w.clientHeight);
-  if (Math.abs(asp - AXE._pvAspect) > 1e-3) { AXE._pvCam = AXE.camera(AXE._pvOpts.cam, asp); AXE._pvAspect = asp; }
-  var t = ((performance.now() - AXE._pv0) / 1000) % AXE.T;
-  AXE.draw(_3d.renderer, AXE._pvCam, Math.floor(t * AXE.fps) / AXE.fps);
+// One preview frame at t seconds (default: the wall clock, looping, on the export's 1 / fps grid): the
+// export's own offscreen renderer (AXE.renderer) at the preview canvas's pixel size, the axon camera for
+// that aspect, AXE.draw (the export's frame), then copied 1:1 into the canvas.
+AXE.previewFrame = function(t) {
+  var cv = document.getElementById('axePreviewCanvas'), o = AXE._pvOpts;
+  if (!cv || !o) return;
+  var W = Math.round(cv.clientWidth * (window.devicePixelRatio || 1)); if (!W) return;   // Export panel hidden: nothing to draw
+  var H = Math.round(W * o.H / o.W);
+  if (!AXE._pvSize || AXE._pvSize[0] !== W || AXE._pvSize[1] !== H) { cv.width = W; cv.height = H; AXE._pvSize = [W, H]; AXE._pvCam = AXE.camera(o.cam, W / H); }
+  if (t == null) t = Math.floor((((performance.now() - AXE._pv0) / 1000) % AXE.T) * AXE.fps) / AXE.fps;
+  var rr = AXE.renderer(W, H);
+  AXE.draw(rr, AXE._pvCam, t);
+  var x = cv.getContext('2d'); x.clearRect(0, 0, W, H); x.drawImage(rr.domElement, 0, 0);
+  AXE._pvT = t;
 };
 AXE.stop = function() {
   if (!AXE.previewing) return;
   AXE.previewing = false;
+  if (AXE._pvRaf) cancelAnimationFrame(AXE._pvRaf);
+  AXE._pvRaf = null;
   AXE.clear();
-  _3d.controls.enabled = true;
-  var st = AXE._pvState || {}, ws = document.getElementById('workspaceExport'), grid = document.getElementById('viewportGrid');
-  if (ws && st.ws !== null) ws.style.display = st.ws;
-  if (grid && st.grid !== null) grid.style.display = st.grid;
-  setViewportLayout(st.layout === 'three' ? 'three' : 'max', st.layout, { silent: true });
-  _vpSizeAll();
-  // back in Export mode the viewport is hidden, so nothing resizes it: put back the size and aspect
-  if (st.size) {
-    var _now = new THREE.Vector2(); _3d.renderer.getSize(_now);
-    if (_now.x !== st.size[0] || _now.y !== st.size[1]) { _3d.renderer.setSize(st.size[0], st.size[1], false); _3d.camera.aspect = st.aspect; _3d.camera.updateProjectionMatrix(); }
-  }
-  _3d.renderer.render(_3d.scene, _3d.camera);
+  var cv = document.getElementById('axePreviewCanvas'); if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);   // blank, never a stale frame
   var b = document.getElementById('axePrevBtn'); if (b) b.innerHTML = '&#9654; Preview';
-  var c = st.before ? AXE.check(st.before) : null;
-  AXE.status('Preview stopped' + (c ? (c.ok ? '; interactive camera and viewport restored.' : '; CHECK FAILED ' + JSON.stringify(c)) : '.'));
+  var c = AXE._pvBefore ? AXE.check(AXE._pvBefore) : null;
+  AXE.status('Preview stopped' + (c ? (c.ok ? '; the 3D view and the design are unchanged.' : '; CHECK FAILED ' + JSON.stringify(c)) : '.'));
 };
 
 // Export: N = T x fps frames at a fixed timestep (frame i shows t = i / fps), rendered
@@ -22037,7 +22034,7 @@ SMP.importContext = async function() {
     try { syncDesignModel('site-import'); } catch (e) {}
     var n = SMP._touched.length + rep.buildings.L + rep.buildings.R + rep.hydrants + rep.trees + rep.transit, s = rep.street, same = before === SMP.snapshot();
     show('done (' + n + ' items)');
-    SMP.msg(SMP.progress(st, 'done (' + n + ' items)') + "<br><span class='smp-sum'><b>Imported:</b> " + SM.esc((s.name || 'the street') + ', ' + (s.lanes || '?') + ' lanes, ' + (s.route === 'bus_truck' ? 'bus / truck route' : 'standard route') +
+    SMP.msg(SMP.progress(st, 'done (' + n + ' items)') + "<br><span class='smp-sum'><b>Imported:</b> " + SM.esc((s.name || 'the street') + ', ' + (s.lanes || '? lanes') + ', ' + (s.route === 'bus_truck' ? 'bus / truck route' : 'standard route') +
       ', ' + (rep.buildings.L + rep.buildings.R) + ' buildings' + (rep.host ? ' (host ' + rep.host + ')' : '') + ', ' + rep.hydrants + ' hydrant' + (rep.hydrants === 1 ? '' : 's') + ', ' + rep.trees + ' tree' + (rep.trees === 1 ? '' : 's') + ', ' + rep.transit + ' transit stop' + (rep.transit === 1 ? '' : 's') +
       '; curb to curb ' + (s.roadWidth ? s.roadWidth.toFixed(2) + ' m (estimate)' : 'unchanged') + '; sidewalk ' + (rep.sidewalk ? rep.sidewalk.value.toFixed(1) + ' m (estimate, nearest building face)' : 'unchanged') +
       (same ? '. Nothing changed: the same data as the design already holds.' : '. Tags mark each value; confirm them in the Check tab.') + (rep.notes.length ? ' Notes: ' + rep.notes.join('; ') + '.' : '')) + '</span>');
@@ -22158,10 +22155,10 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
   SMP.set('roadWidth', 'estimate', plan.ids, at, total + ' lanes x 3.2 m + ' + (1 + farPark) + ' parking lane' + (farPark ? 's' : '') + ' x 2.4 m' + (bikeW(nearBike) + bikeW(farBike) ? ' + bike lane' + (farBike ? 's ' : ' ') + (bikeW(nearBike) + bikeW(farBike)) + ' m' : '') + (plan.farPark ? ' (far parking tag: ' + plan.farPark + ')' : ' (far-side parking assumed)') + (extra ? ' + ' + extra.toFixed(2) + ' m of Section segments you added' : '') + (pair ? '; median not modelled' : '') + ': measure it');
   onRoadDirChange(plan.oneway ? 'oneway' : 'twoway'); SMP.set('roadDir', 'osm', plan.ids, at, pair ? 'two one-way carriageways merged' : 'oneway=' + (t.oneway || 'no'));
   var src = plan.est ? 'estimate' : 'osm', lnote = plan.est ? 'no lanes tag; typical for highway=' + (t.highway || '?') : plan.lanesNote;
-  if (plan.oneway) { var lc = document.getElementById('laneCount'); if (lc) lc.value = near; onLaneCountChange(); SMP.set('lanes', src, plan.ids, at, lnote); s.lanes = near + ' (one-way)'; }
+  if (plan.oneway) { var lc = document.getElementById('laneCount'); if (lc) lc.value = near; onLaneCountChange(); SMP.set('lanes', src, plan.ids, at, lnote); s.lanes = near + ' lane' + (near > 1 ? 's' : '') + ' (one-way)'; }
   else {
     var a = document.getElementById('lanesA'), b = document.getElementById('lanesB'); if (a) a.value = near; if (b) b.value = far; onLanesAChange(); onLanesBChange();
-    ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, src, plan.ids, at, lnote); }); s.lanes = near + ' near + ' + far + ' far';
+    ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, src, plan.ids, at, lnote); }); s.lanes = (near + far) + ' lanes (two-way, ' + near + '+' + far + ')';   // the total first: '6 lanes (two-way, 3+3)'
   }
   onBikeLaneType(nearBike || 'none'); if (plan.bike.v) SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : plan.ids, bsrc === 'cov' ? bikeways.at : at, plan.bike.note); s.bike = nearBike || 'none';
   var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), rt = /^(trunk|primary|secondary)$/.test(hw) || bus.length ? 'bus_truck' : 'standard';
@@ -22171,7 +22168,7 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
   // 2. the far side as segments (after the last travel lane): a bike lane, then the parking lane at the curb
   SMP.applyFar(farBike, farPark ? 2.4 : 0, plan, at, rep);
   s.roadWidth = w;
-  s.summary = (t.name || 'the street') + ' (' + (t.highway || '?') + (pair ? ', dual carriageway' : '') + '): ' + s.lanes + ' lanes, ' + (plan.oneway ? 'one-way' : 'two-way') + ', route ' + (rt === 'bus_truck' ? 'bus / truck' : 'standard') + ', bike lane ' + (nearBike || 'none') + (farBike ? ' (far side ' + farBike + ')' : '') + (t.maxspeed ? ', ' + t.maxspeed + ' km/h' : '') + ', curb to curb ' + w.toFixed(2) + ' m (estimate' + (farPark ? ', incl. a far-side parking lane' : '') + ')';
+  s.summary = (t.name || 'the street') + ' (' + (t.highway || '?') + (pair ? ', dual carriageway' : '') + '): ' + s.lanes + ', route ' + (rt === 'bus_truck' ? 'bus / truck' : 'standard') + ', bike lane ' + (nearBike || 'none') + (farBike ? ' (far side ' + farBike + ')' : '') + (t.maxspeed ? ', ' + t.maxspeed + ' km/h' : '') + ', curb to curb ' + w.toFixed(2) + ' m (estimate' + (farPark ? ', incl. a far-side parking lane' : '') + ')';
 };
 // Far-side segments after the last travel lane, added only when that side has none of the type
 // (so a re-import or a hand-added one is never doubled); tagged in the provenance as imported.
