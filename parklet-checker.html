@@ -2625,8 +2625,10 @@ ENC.worldParts = function(DM, base) {
 };
 // the widest buffer that leaves the accessible route (GEN.ROUTE_W) beside the generator's edge band inside the enclosure
 ENC.routeMaxBuffer = function(W, depthT) {
-  var rw = typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92, eb = typeof GEN !== 'undefined' ? GEN.EDGE_BAND : 0.45;
-  return Math.max(0, Math.min(ENC.BUF_MAX, Math.floor((W - depthT - eb - rw) * 100 + 1e-6) / 100));
+  // (Brief 21c) the geometric bound: the usable width must still hold an entry's turning square; ENC.bufMax then asks the
+  // generator for the widest buffer that keeps a layout with its accessible route
+  var tn = typeof GEN !== 'undefined' ? GEN.TURN : 1.5;
+  return Math.max(0, Math.min(ENC.BUF_MAX, Math.floor((W - depthT - tn) * 100 + 1e-6) / 100));
 };
 // the generator's footprint fields for the enclosure: its inset on the traffic side, the ends' inner faces
 ENC.fpFields = function(DM) {
@@ -10095,7 +10097,9 @@ const FL_ARCHETYPES = {
   living_wall_panel:{label:'Living wall panel', cat:'planter', params:{l:[1.2,0.6,2.4], d:[0.2,0.15,0.3], h:[2.0,1.2,2.4]},
                    adjust:['l','d','h'], parts:{frame:'metal powder wood|black_steel', plant:'fixed|foliage'}},
   // -- Shade / shelter ----------------------------------------------------------------------
-  umbrella:       {label:'Umbrella', cat:'shelter', params:{l:[2.5,1.5,4], h:[2.4,2.1,2.8], shape:{def:'round', opts:['round','square']}},
+  // the one umbrella (Brief 21c): the generator places this definition as it is. h is overall; the canopy is 0.5 m deep,
+  // so h >= 2.60 keeps its edge 2.10 m clear (Parklet Manual E5, C19)
+  umbrella:       {label:'Umbrella', cat:'shelter', params:{l:[1.5,1.5,4], h:[2.6,2.6,2.8], shape:{def:'round', opts:['round','square']}},
                    adjust:['l','h','shape'], parts:{pole:'metal powder wood|aluminium', canopy:'other|fabric_canvas', base:'mineral metal|precast_grey'}},
   pergola:        {label:'Pergola', cat:'shelter', params:{l:[3.0,2.0,6], d:[2.4,1.5,4], h:[2.6,2.2,3.2], slat:[0.3,0.15,0.6]},
                    adjust:['l','d','h','slat'], parts:{post:'metal powder wood|galvanized', slat:'wood metal powder|thermowood'}},
@@ -20828,6 +20832,8 @@ GEN.edgeAt = function(fp, z0, z1) {
   zs.forEach(function(zq) { var w = shapeWidthAtLength(fp.shape, Math.min(fp.L - 1e-3, Math.max(1e-3, zq))); if (w) m = Math.min(m, w[1]); });
   return Math.min(m, lim);
 };
+// the deck footprint's traffic-side edge over [z0, z1], the enclosure ignored (overhead pieces: C19)
+GEN.deckAt = function(fp, z0, z1) { return GEN.edgeAt(Object.assign({}, fp, { inset: 0 }), z0, z1); };
 // a footprint's enclosure fields for a deck W x L (the design's enclosure on it)
 GEN.encFields = function(W, L) {
   var DM = { landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L, width: W } }; DM.enclosure = ENC.resolve(DM);
@@ -20878,8 +20884,8 @@ GEN.materialsFor = function(type, pal) {
 
 // ── Placement rules (the one place) ──────────────────────────────────────────────────────
 // Deck frame: x = across (0 curb edge .. W traffic edge), z = along (0 .. L). Rules:
-//  - the traffic edge always gets screens / planters (edge band: the outer 0.45 m);
-//  - nothing else within 0.45 m of any deck edge (incl. notches and the curve);
+//  - the traffic edge is the enclosure (Brief 21 §12): pieces stand anywhere from the sidewalk edge to its inner face (Brief 21c:
+//    no edge band); edge planters only where no seat stands; the generator adds no screens of its own;
 //  - the usable length is clear of the 1.1 m wheel-stop / end-planter zones;
 //  - access model (GEN.access): entries from the sidewalk edge with a 1.5 x 1.5 m clear turning
 //    space (one, plus one per 8 m of deck), and from each a continuous route >= GEN.ROUTE_W clear
@@ -20889,7 +20895,7 @@ GEN.materialsFor = function(type, pal) {
 //    their table (0.6 m per seat, 0.9 m pull-back); bike racks at the ends; no entourage.
 // Rotation u (userRotation): a seat faces (cos u, 0, -sin u): u = PI faces the sidewalk,
 // u = PI/2 faces -z, u = -PI/2 faces +z. Pieces are modelled with their length along z at u = 0.
-GEN.EDGE_BAND = 0.45; GEN.END = 1.1;
+GEN.END = 1.1;
 // access model constants (GEN.access below)
 GEN.ROUTE_W = 0.92;   // clear route width, m: BCBC 3.8 clear width - Jenna to confirm the Parklet Manual value
 GEN.TURN = 1.5;       // entry turning space, m (square)
@@ -20906,15 +20912,22 @@ GEN.ZONES = {};
     var p = flResolveParams(type, params || {}, { placing: true }), d = flEnvelope(flParts(type, p));
     ctx.items.push({ type: type, x: GEN.r3(x), z: GEN.r3(z), u: +(u || 0).toFixed(6), params: p, l: d.l, d: d.d, h: d.h });
   }
+  // the library's umbrella (Brief 21c: one definition, its own defaults), its pole at x unless the canopy would pass the
+  // deck's footprint there; then as far out as the canopy allows (the pole may miss the table)
+  function umbrellaAt(ctx, x, z) {
+    var r = flResolveParams('umbrella', {}).l / 2, xe = GEN.deckAt(ctx.fp, z - r, z + r);
+    put(ctx, 'umbrella', Math.max(r + 0.01, Math.min(x, xe - r - 0.01)), z, 0, {});
+  }
   // footprint of an item in the deck frame (rotations are multiples of 90 degrees)
   GEN.aabb = function(it) {
     var q = Math.round(it.u / (P / 2)) % 2 !== 0, hx = (q ? it.l : it.d) / 2, hz = (q ? it.d : it.l) / 2;
     if (it.type === 'bike_rack') hx = Math.max(hx, 0.3);           // parked bikes: 0.6 m handlebars
     return { x0: it.x - hx, x1: it.x + hx, z0: it.z - hz, z1: it.z + hz };
   };
-  // traffic-edge line element behind a z-range
+  // planters along the enclosure's inner face over a z-range, where no seat stands (planting intensity); screens and glass
+  // are the enclosure's job now (Brief 21c), so those kinds place nothing
   function edgeRun(ctx, z0, z1, kind) {
-    var len = z1 - z0; if (len < 0.6) return;
+    var len = z1 - z0; if (len < 0.6 || kind !== 'planters') return;
     if (kind === 'planters') {
       var n = Math.max(1, Math.floor(len / 1.3)), l = Math.min(1.2, len / n - 0.1);
       for (var i = 0; i < n; i++) { var zc = z0 + (i + 0.5) * len / n, xe = GEN.edgeAt(ctx.fp, zc - l / 2, zc + l / 2);
@@ -20925,8 +20938,8 @@ GEN.ZONES = {};
         put(ctx, t, xs - 0.05, zs, 0, { l: Math.max(0.6, Math.min(3, ls)), d: 0.05, h: 1.1 }); }
     }
   }
-  // x of the inner face of the edge band over [z0, z1] (seats and tables sit inside it)
-  function bandX(ctx, z0, z1) { return GEN.edgeAt(ctx.fp, z0 - GEN.EDGE_BAND, z1 + GEN.EDGE_BAND) - GEN.EDGE_BAND; }
+  // x of the usable deck's traffic side over [z0, z1]: the enclosure's inner face (Brief 21c: no edge band)
+  function bandX(ctx, z0, z1) { return GEN.edgeAt(ctx.fp, z0, z1); }
   // depth a piece may take from the band and still leave a turning space on the curb side
   function cap(ctx, z0, z1) { return bandX(ctx, z0, z1) - ctx.target; }
   function gaps(ctx, z0, z1) {   // edge planting where no seat stands (planting intensity)
@@ -20939,9 +20952,7 @@ GEN.ZONES = {};
     var arms = ctx.access >= 2;
     for (var i = 0; i < n; i++, zc += step) {
       var dpt = type === 'planter_bench' ? 1.0 : 0.55, xb = bandX(ctx, zc - bl / 2, zc + bl / 2) - dpt / 2;
-      put(ctx, type, xb, zc, P, type === 'bench' ? { l: bl, d: 0.55, back: true, arms: arms } : { l: bl });
-      if (ctx.edge !== 'planters') edgeRun(ctx, zc - bl / 2, zc + bl / 2, ctx.edge === 'glass' ? 'glass' : 'screens');
-      else edgeRun(ctx, zc - bl / 2, zc + bl / 2, 'planters');
+      put(ctx, type, xb, zc, P, type === 'bench' ? { l: bl, d: 0.55, back: true, arms: arms } : { l: bl });   // its back against the enclosure
       if (i < n - 1) gaps(ctx, zc + bl / 2, zc + step - bl / 2);
     }
   };
@@ -20953,8 +20964,7 @@ GEN.ZONES = {};
       put(ctx, 'cafe_table', xt, zc, 0, { l: 0.6 });
       put(ctx, 'chair', xt, zc - 0.3 - 0.45, -P / 2, {});           // faces +z, toward the table
       put(ctx, 'chair', xt, zc + 0.3 + 0.45, P / 2, {});            // faces -z
-      if (ctx.shade >= 2) put(ctx, 'umbrella', xt, zc, 0, { l: 1.5, h: 2.6 });   // pole through the table, canopy over the deck; its edge 2.1 m clear (E5, C19)
-      edgeRun(ctx, zc - set / 2, zc + set / 2, ctx.edge === 'planters' ? 'planters' : ctx.edge === 'glass' ? 'glass' : 'screens');
+      if (ctx.shade >= 2) umbrellaAt(ctx, xt, zc);   // the library's umbrella, its canopy over the deck (E5, C19)
     }
   };
   GEN.ZONES.cluster = function(ctx, z0, z1) {
@@ -20963,14 +20973,13 @@ GEN.ZONES = {};
     put(ctx, 'game_table', xt, zc, 0, { l: 0.6, d: 0.6 });
     put(ctx, 'armchair', xt, zc - 0.3 - 0.45, -P / 2, { l: 0.6, d: 0.6 });
     put(ctx, 'armchair', xt, zc + 0.3 + 0.45, P / 2, { l: 0.6, d: 0.6 });
-    edgeRun(ctx, zc - len / 2, zc + len / 2, 'planters');
     gaps(ctx, z0, zc - len / 2 - 0.2); gaps(ctx, zc + len / 2 + 0.2, z1);
   };
   GEN.ZONES.green = function(ctx, z0, z1) {
     edgeRun(ctx, z0, z1, 'planters');
     // one backless bench per 5 m facing the sidewalk, in front of the planting
     var n = Math.floor((z1 - z0) / 5);
-    for (var i = 0; i < n; i++) { var zc = z0 + (i + 0.5) * (z1 - z0) / n; put(ctx, 'backless_bench', bandX(ctx, zc - 0.9, zc + 0.9) - 0.225, zc, P, { l: 1.8, d: 0.45 }); }
+    for (var i = 0; i < n; i++) { var zc = z0 + (i + 0.5) * (z1 - z0) / n; put(ctx, 'backless_bench', bandX(ctx, zc - 0.9, zc + 0.9) - 0.5 - 0.225, zc, P, { l: 1.8, d: 0.45 }); }   // in front of the 0.4 m planters
   };
   GEN.ZONES.bike = function(ctx, z0, z1) {
     var n = Math.max(1, Math.min(4, Math.floor((z1 - z0) / 1.9)));
@@ -20982,7 +20991,6 @@ GEN.ZONES = {};
     for (var i = 0; i < n; i++) {
       var zc = z0 + (i + 0.5) * (z1 - z0) / n, xl = bandX(ctx, zc - 0.8, zc + 0.8) - 0.3;
       put(ctx, 'lounge', xl, zc, i % 2 ? P / 2 : -P / 2, { l: 0.6, d: 1.6 });
-      edgeRun(ctx, zc - 1.0, zc + 1.0, 'planters');
     }
   };
   GEN.ZONES.play = function(ctx, z0, z1) {
@@ -20996,7 +21004,7 @@ GEN.ZONES = {};
   // How a zone uses the deck width. Each zone takes the scheme's pattern if that pattern hosts
   // the zone's kind and fits its width and length (with the access model's ROUTE_W and turning
   // squares), else traffic_band. All in the deck frame (x across from the sidewalk edge, z along).
-  var KO = GEN.EDGE_BAND, OPEN = GEN.TURN + 0.1, GROUP = 6.0 - OPEN;   // openings >= 1.6 m, every <= 6 m
+  var KO = 0, OPEN = GEN.TURN + 0.1, GROUP = 6.0 - OPEN;   // openings >= 1.6 m, every <= 6 m
   function edgeKind(ctx) { return ctx.edge === 'planters' ? 'planters' : ctx.edge === 'glass' ? 'glass' : 'screens'; }
   // groups between openings: an opening at both ends and one at least every 6 m (centres)
   function groups(z0, z1, minG) {
@@ -21075,10 +21083,9 @@ GEN.ZONES = {};
               put(ctx, 'chair', bx - 0.3, cz, benchLo ? P / 2 : -P / 2, {});
               zm = tz;
             } else put(ctx, 'table', bx - 0.3, zm, 0, { l: tl, d: 0.6, h: 0.75 });
-            if (ctx.shade >= 2 && kind === 'cafe') put(ctx, 'umbrella', bx - 0.3, zm, 0, { l: 1.5 });
+            if (ctx.shade >= 2 && kind === 'cafe') umbrellaAt(ctx, bx - 0.3, zm);
           }
         }
-        edgeRun(ctx, z0, z1, green ? 'planters' : edgeKind(ctx));
       } },
     // one long table centred, benches (or chairs) both sides, planters at the traffic edge
     communal: { label: 'Communal table', kinds: { cafe: 1, cluster: 1, bench_row: 1 },
@@ -21094,7 +21101,6 @@ GEN.ZONES = {};
           put(ctx, 'backless_bench', xc - 0.45 - 0.025 - 0.175, zc, P, { l: lt - 0.6, d: 0.35 });
           put(ctx, 'backless_bench', xc + 0.45 + 0.025 + 0.175, zc, P, { l: lt - 0.6, d: 0.35 });
         }
-        edgeRun(ctx, z0, z1, 'planters');
       } },
     // seating on three sides of a bay (a back bench on the traffic band, cross benches at its
     // ends), open to the walk; bays repeat with openings between
@@ -21110,7 +21116,6 @@ GEN.ZONES = {};
           put(ctx, 'bench', xc, z + lb + u - t / 2, P / 2, { l: lc, d: t, back: true, arms: false });
           z += lb + u + 0.6;
         }
-        edgeRun(ctx, z0, z1, kind === 'green' ? 'planters' : edgeKind(ctx));
       } },
     // a raised second level (a deck_step) at the deck's end with lounges on it, one step up to
     // it; the rest of the zone and the deck stay level (the access model keeps a level seat)
@@ -21123,7 +21128,6 @@ GEN.ZONES = {};
         put(ctx, 'platform_step', xc, zs, P / 2, { l: w, steps: 1, tread: 0.3, rise: 0.1 });
         var n = Math.min(3, Math.floor((dp - 0.2) / 0.8));
         for (var i = 0; i < n; i++) put(ctx, 'lounge', xc, l0 + dp / 2 + (i - (n - 1) / 2) * 0.8, P, { l: 0.6, d: 1.6 });
-        edgeRun(ctx, l0, l1, 'planters');
         var r0 = hi ? z0 : zs + 0.25, r1 = hi ? zs - 0.25 : z1;   // the level rest of the zone
         if (r1 - r0 >= 2.0) GEN.ZONES.bench_row(ctx, r0, r1); else gaps(ctx, r0, r1);
       } }
@@ -21182,9 +21186,8 @@ GEN.layout = function(tpl, fp, opt) {
   var ctx = { items: [], fp: fp, r: opt.r, edge: opt.edge, planting: opt.planting, green: opt.green, access: opt.access, shade: opt.shade, target: GEN.TURN,
     plantKind: opt.planting >= 3 ? 'tree' : opt.planting >= 2 ? 'shrub' : 'grass' };
   var z0 = GEN.END + 0.1, z1 = fp.L - GEN.END - 0.1, len = z1 - z0, zones = opt.flip ? tpl.zones.slice().reverse() : tpl.zones, cur = z0;
-  // Notches: no programme within them or 0.45 m of their sides - only thin screens along the
-  // edge, so the curb-side route keeps its width there.
-  var keepOut = (fp.notch || []).map(function(n) { return [n[0] - GEN.EDGE_BAND, n[1] + GEN.EDGE_BAND]; });
+  // Notches: no programme within them, so the curb-side route keeps its width there.
+  var keepOut = (fp.notch || []).map(function(n) { return [n[0], n[1]]; });
   function pieces(a, b) {
     var out = [[a, b]];
     keepOut.forEach(function(k) {
@@ -21218,18 +21221,18 @@ GEN.layout = function(tpl, fp, opt) {
 };
 // Validate a layout: inside the deck, the 0.45 m rule, no overlaps, then the access model.
 GEN.validate = function(items, fp) {
-  var reasons = [], EB = GEN.EDGE_BAND - 0.001;
+  var reasons = [];
   var edgeTypes = { screen: 1, glass_screen: 1, railing: 1, planter: 1, planter_barrier: 1 };
   // a piece wholly on a deck_step stands on it (flSupportTop lifts it in every view)
   function onLevel(lv, lb, it, ib) {
     return lv.type === 'deck_step' && it.type !== 'deck_step' && ib.x0 >= lb.x0 - 0.005 && ib.x1 <= lb.x1 + 0.005 && ib.z0 >= lb.z0 - 0.005 && ib.z1 <= lb.z1 + 0.005;
   }
   items.forEach(function(it, i) {
-    var b = GEN.aabb(it), inner = GEN.edgeAt(fp, b.z0 - 0.45, b.z1 + 0.45);
+    var b = GEN.aabb(it), inner = GEN.edgeAt(fp, b.z0, b.z1);
     if (b.z0 < GEN.END - 0.001 || b.z1 > fp.L - GEN.END + 0.001) reasons.push(it.type + ' in an end zone');
-    if (it.type === 'umbrella') { if (b.x0 < 0 || b.x1 > GEN.edgeAt(fp, b.z0, b.z1) + 0.001) reasons.push('umbrella canopy off the deck'); }
-    else if (edgeTypes[it.type]) { if (b.x1 > GEN.edgeAt(fp, b.z0, b.z1) + 0.001 || b.x0 < 0) reasons.push(it.type + ' off the deck'); }
-    else if (b.x0 < EB || b.x1 > inner - EB) reasons.push(it.type + ' within 0.45 m of the deck edge');
+    if (it.type === 'umbrella') { if (b.x0 < -0.001 || b.x1 > GEN.deckAt(fp, b.z0, b.z1) + 0.001) reasons.push('umbrella canopy off the deck'); }   // the deck footprint (C19), not the enclosure
+    else if (edgeTypes[it.type]) { if (b.x1 > GEN.edgeAt(fp, b.z0, b.z1) + 0.001 || b.x0 < -0.001) reasons.push(it.type + ' off the deck'); }
+    else if (b.x0 < -0.001 || b.x1 > inner + 0.001) reasons.push(it.type + ' off the usable deck');
     if (it.type === 'umbrella') return;                  // overhead: the canopy is not a floor footprint
     for (var j = i + 1; j < items.length; j++) {
       if (items[j].type === 'umbrella') continue;
@@ -28055,7 +28058,19 @@ ENC.fastApply = function() {
 ENC.bufMax = function(E) {
   E = E || ENC.norm(ENCLOSURE);
   var DM = DESIGN_MODEL && DESIGN_MODEL.landmarks ? DESIGN_MODEL : _dmCurrent(), W = DM.landmarks.deckX1 - DM.landmarks.deckX0, id = E.sides.traffic;
-  return ENC.routeMaxBuffer(W, ENCLOSURE_ARCHETYPES[id].depth(ENC.params(E, id)));
+  var geo = ENC.routeMaxBuffer(W, ENCLOSURE_ARCHETYPES[id].depth(ENC.params(E, id)));
+  if (typeof GEN === 'undefined' || !GEN.layout || !DM.parklet) return geo;
+  // (Brief 21c) the widest buffer, to 0.01 m, at which the generator still lays out a scheme with its entry squares and its
+  // accessible route (GEN.ROUTE_W) in the usable width; cached per deck and archetype
+  var key = JSON.stringify([W, DM.parklet.length, DM.parklet.outline ? DM.parklet.outline.verts : null, E.sides, E.params]);
+  ENC._bm = ENC._bm || {}; if (ENC._bm[key] != null) return ENC._bm[key];
+  var ok = function(b) { var e2 = JSON.parse(JSON.stringify(E)); e2.bufferDepth = b; return !!ENC.capacity(DM, e2).tpl; }, res = geo;
+  if (!ok(geo) && ok(0)) {
+    var lo = 0, hi = geo;
+    while (hi - lo > 0.0101) { var mid = Math.round((lo + hi) * 50) / 100; if (mid <= lo || mid >= hi) break; if (ok(mid)) lo = mid; else hi = mid; }
+    res = lo;
+  }
+  return (ENC._bm[key] = res);
 };
 // The seats the generator fits beside this enclosure: the best of its templates and patterns (one seed) on the design's
 // deck with the enclosure's inset -> {seats, route, tpl, pattern}. A buffer only ever takes width away.
@@ -28064,7 +28079,7 @@ ENC.capacity = function(DM, E) {
   var En = E ? ENC.resolve(DM, E) : DM.enclosure, D2 = { enclosure: En, parklet: DM.parklet, landmarks: DM.landmarks };
   var fp = Object.assign({ id: 'cap', W: DM.parklet.width, L: DM.parklet.length, shape: DM.parklet.outline }, ENC.fpFields(D2));
   var key = JSON.stringify([fp.W, fp.L, fp.inset, fp.zA, fp.zBd, fp.shape ? fp.shape.verts : null]);
-  if (ENC._capK === key) return ENC._cap;
+  ENC._capM = ENC._capM || {}; if (ENC._capM[key]) return ENC._capM[key];
   var best = null;
   GEN.TEMPLATES.forEach(function(tpl) {
     GEN.PATTERN_IDS.forEach(function(pat) {
@@ -28074,8 +28089,7 @@ ENC.capacity = function(DM, E) {
       if (!best || m.seats > best.seats) best = { seats: m.seats, route: lay.route, tpl: tpl.id, pattern: pat };
     });
   });
-  ENC._capK = key; ENC._cap = best || { seats: 0, route: 0, tpl: null, pattern: null };
-  return ENC._cap;
+  return (ENC._capM[key] = best || { seats: 0, route: 0, tpl: null, pattern: null });
 };
 // C17 - C19's rows in the Check tab follow the model (they have no input of their own)
 ENC.refreshChecks = function(now) {
@@ -28138,7 +28152,7 @@ ENC.renderCard = function() {
   }).join('') + '<p>' + esc(A.note) + '.</p></details>';
   var lines = [];
   lines.push('Usable width <b>' + EN.usableW.toFixed(2) + ' m</b> of ' + DM.parklet.width.toFixed(2) + " m &middot; seats the generator fits <b id='encSeats'>&hellip;</b>");
-  if (mx < ENC.BUF_MAX - 1e-9) lines.push("<span class='enc-stop' id='encStop'>The buffer stops at " + mx.toFixed(2) + ' m: wider leaves the accessible route under ' + GEN.ROUTE_W.toFixed(2) + ' m beside the ' + GEN.EDGE_BAND.toFixed(2) + ' m edge band.</span>');
+  if (mx < ENC.BUF_MAX - 1e-9) lines.push("<span class='enc-stop' id='encStop'>The buffer stops at " + mx.toFixed(2) + ' m: wider, no layout keeps a ' + GEN.TURN.toFixed(1) + ' m entry space and a ' + GEN.ROUTE_W.toFixed(2) + ' m accessible route in the usable width.</span>');
   EN.flags.forEach(function(f) { lines.push("<span class='enc-flag' data-enc-flag='" + f.k + "'>" + esc(f.t) + '</span>'); });
   h += "<div class='enc-read' aria-live='polite'>" + lines.map(function(l) { return '<div>' + l + '</div>'; }).join('') + '</div>';
   host.innerHTML = h;
