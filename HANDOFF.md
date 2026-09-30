@@ -785,6 +785,28 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - A full-width rectangle stores no outline.
   - **One source:** `DESIGN_MODEL.parklet.outline` (from `pkAppliedOutline()`) is read by Plan, 3D, Section, the report (`RPT.geo`, which no longer adds `deckX0`), the renders, the generator's metrics and the Design tab's dimensions.
     - `DESIGN_MODEL.parklet.area` is now exact (`pkShapeArea`: polygon plus arc segments).
+- **§6 User furniture (commit 8):**
+  - **Module `FLU`** (beside the archetype code).
+    - Each user piece is a record registered as archetype `u_<id>` (`FLU.register`), with fixed `l` / `d` / `h`, one material role per mesh group (`g0`…) or region (`r0`…), and `roleNames` for display.
+    - `flSemType` maps it to a generic kind for `GEN.metrics` (a seat ≥ 1 m is a bench).
+  - **New part kinds:**
+    - `prism`: a traced region, extruded; used in `_flPartMesh`, `flPlanShapes` and `flSectionArchetype`.
+    - `mesh`: an imported model (`FLU.mesh3D`). The plan uses `rec.plan`; the section uses `rec.front` or `rec.end`.
+  - **Import (A):**
+    - `FLU.readFile`: GLB, glTF or OBJ up to 20 MB. Loaders come from jsDelivr, three@0.128.0 `examples/js`.
+    - `FLU.build` scales to metres (`guessUnits`), stands the model up (`up`), puts the origin at the bottom centre, applies `decimate` (≤ 50k triangles) and `silhouette` (≤ 300 points), and assigns materials (`matFor`).
+    - Dialog: `FLU.openImport`.
+  - **Traced (B):** `FLU.openTrace`.
+    - Regions on a 50 mm grid, each with a height and a base.
+    - Underlay: PDF (pdf.js from cdnjs), image, or DXF (`FLU.dxfToSVG`).
+    - Cut sheet via the Assistant (`FLU.cutSheet`), with values "suggested" until confirmed.
+  - **Library (D):**
+    - The "My furniture" category (`cat: 'mine'` in `flLibraryItems`). Buttons under the Library's preset toggle.
+    - `FLU.openManage`: rename, duplicate, export GLB (GLTFExporter), delete.
+  - **Storage:** records in localStorage `pkt_userfurn` (per account). Triangles in IndexedDB `pkt-userfurn`. Signed in, the Supabase bucket `user-furniture/<uid>/<id>.json` (`cloudPut` / `cloudGet` / `cloudSync`).
+  - **Designs** carry the placed pieces' definitions in `furniture.userDefs`; `pkApplyDesignState` registers them before placing.
+  - **Schedule:** "user model — <file>" or "user furniture — <name>" (`FLU.label`).
+  - **Photoreal:** type and size only (`FLU.describe`).
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
