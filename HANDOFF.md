@@ -824,6 +824,17 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - `supabase/schema.sql` checks the code in a trigger on `auth.users` against `app_settings.invite_code`. The code is set with SQL, never in the client; `invite_only` is the one-line toggle.
   - **Schema:** `supabase/schema.sql` covers `profiles`, `designs` (RLS, owner-only for select, insert, update and delete), `app_settings`, and the `user-furniture` bucket with owner-folder policies.
   - **Docs:** `README.md` (setup, keys, own backend, invite), `LICENSE` (MIT), `THIRD_PARTY.md`.
+- **§8 Report: renders first (commit 10):**
+  - **Sheet order:** `RPT.SHEETS` (both modes) is cover, renders, title, then the drawings, schedules, compliance and sources.
+  - **Bleed pages (`page.bleed`):** they draw on the whole sheet, with no margins, header or title block. `RPT.pageSVG(P, bleed)`, `checkPages` and `RPT.render` (`draw(P, {n, N})`) handle them.
+  - **Cover:** `RPT.sheetCover(d, drw, op)` (V-000).
+    - The hero is `RPT.hero(d)`: the first ticked Street, else Corner, render. Otherwise `drw.cover`, the axon as a JPEG.
+    - The panel's opacity is `RPT.COVER_OP` (0.92).
+    - `RPT.coverPNG(d, drw, op, px)` renders a PNG for comparison.
+  - **Render sheets:** `RPT.sheetRender(d, r, id)` (V-101 onwards), each with a caption strip.
+    - `RPT.collectRenders` prefers `blobs.output`, which has no baked caption.
+    - `renderEntry` writes JPEG q85.
+  - **Neighbourhood:** `DM.site.neighbourhood`, from the tree import's `local_area` (`state.__neighbourhood`).
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

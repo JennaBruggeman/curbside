@@ -2758,6 +2758,7 @@ function buildDesignModel() {
     DM.parklet.area = +A.toFixed(3);
     DM.parklet.shape = sh ? 'sketched' : 'rectangle';
     var st = (typeof state !== 'undefined') ? state : {}, cf = st.curb_features || [];
+    DM.site.neighbourhood = typeof st.__neighbourhood === 'string' ? st.__neighbourhood : '';   // City local area, from the tree import
     var nOf = function(t) { return cf.filter(function(f) { return f.type === t; }).length; };
     DM.siteObjects = { hydrants: nOf('H'), poles: nOf('P'), signalBoxes: nOf('S'), manholes: (st.manholes || []).length, driveways: (st.driveways || []).length };
     // distances measured from placed site objects (updateCurbFeatureDists / updateDrivewayDist / updateManholeCrit)
@@ -21134,7 +21135,15 @@ RPT.axonImg = function(wMm, hMm) {
 // the plans, section and details are drawn in millimetres by the sheet builders; only the axon is a render
 RPT.drawings = async function(d) {
   var out = {};
-  if (d.mode !== 'technical') out.axon = RPT.axonImg(RPT.DA.w, RPT.DA.h);
+  // the cover without a Street or Corner render: the axonometric, full-sheet, as a JPEG (Brief 21 §8)
+  if (!RPT.hero(d)) {
+    var ax = RPT.axonImg(RPT.PG.W, RPT.PG.H);
+    if (ax) {
+      var im = new Image(); im.src = ax.url; await new Promise(function(r) { im.onload = r; im.onerror = r; });
+      var c = document.createElement('canvas'); c.width = ax.w; c.height = ax.h; var x = c.getContext('2d'); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, ax.w, ax.h); x.drawImage(im, 0, 0);
+      out.cover = { url: c.toDataURL('image/jpeg', 0.85), w: ax.w, h: ax.h, key: 'axon' };
+    }
+  }
   return out;
 };
 // ── Report v2 drawings (Brief 12b): SVG in millimetres at true scale ────────────────────────────
@@ -22124,9 +22133,11 @@ RPT.sheetDetails = function(d) {
 // ── The sheets each report prints, in order (the builders are shared; each reads d.mode) ────────────
 // Brief 17: both reports print the same sheets with the same information; the mode is only the style token, and the
 // schematic shows the renders (or the axonometric) on the title sheet
+// Brief 21 §8: renders first, in both modes: the cover (the hero render full-bleed), one full-bleed sheet per ticked
+// render, then the drawing sheets, schedules, compliance and sources; the modes differ only in drawing style
 RPT.SHEETS = {
-  schematic: ['title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources'],
-  technical: ['title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources']
+  schematic: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources'],
+  technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 RPT.sheetList = function(d) {
@@ -22135,7 +22146,7 @@ RPT.sheetList = function(d) {
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     // (Brief 19b: each drawing's scale from RPT.SCALE_OF, the value its sheet draws at and its title block prints)
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
-    var M = { title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
+    var M = { cover: ['V-000', 'Cover', 'NTS'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
       section: ['A-201', 'Section A-A', '1:' + RPT.SCALE_OF.section(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
       compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
@@ -22143,6 +22154,8 @@ RPT.sheetList = function(d) {
   return out;
 };
 RPT.BUILDERS = {
+  cover: function(d, drw) { return RPT.sheetCover(d, drw); },
+  render: function(d, drw, s) { return RPT.sheetRender(d, s.r, s.id); },
   title: function(d, drw) { return RPT.sheetTitle(d, drw); },
   site: function(d) { return RPT.sheetSite(d); },
   layout: function(d) { return RPT.sheetLayout(d); },
@@ -22188,16 +22201,25 @@ RPT.sheetTitle = function(d, drw) {
   var ty = y + 60;
   P.text(x, ty, 'Drawing list', TX.head, { bold: true }); ty += 3;
   P.line(x, ty + 1.5, x + 180, ty + 1.5, { cls: 'edge' });
-  P.text(x, ty + 5.5, 'Sheet', TX.tag, { c: RPT.MID }); P.text(x + 26, ty + 5.5, 'Title', TX.tag, { c: RPT.MID }); P.text(x + 180, ty + 5.5, 'Scale', TX.tag, { c: RPT.MID, anchor: 'end' });
+  P.text(x, ty + 5.5, 'Sheet', TX.tag, { c: RPT.MID }); P.text(x + 30, ty + 5.5, 'Title', TX.tag, { c: RPT.MID }); P.text(x + 180, ty + 5.5, 'Scale', TX.tag, { c: RPT.MID, anchor: 'end' });
   ty += 7;
-  list.forEach(function(s) { ty += 5.2; P.text(x, ty, s.id, TX.body, { bold: true }); P.text(x + 26, ty, s.title, TX.body); P.text(x + 180, ty, s.scale === '-' ? '' : s.scale, TX.body, { anchor: 'end' }); P.line(x, ty + 1.6, x + 180, ty + 1.6, { cls: 'fine', c: RPT.LT }); });
+  // the render sheets (Brief 21 §8) are one row: "V-101 to V-104  Renders: Street, Sidewalk, ..."
+  var rs = list.filter(function(s) { return s.k === 'render'; }), rows = [];
+  list.forEach(function(s) {
+    if (s.k !== 'render') { rows.push(s); return; }
+    if (s !== rs[0]) return;
+    rows.push({ id: rs.length > 1 ? rs[0].id + ' to ' + rs[rs.length - 1].id : s.id, title: 'Renders: ' + rs.map(function(q) { return RPT.PRESET_LBL[q.r.preset] || q.r.preset; }).join(', '), scale: 'NTS' });
+  });
+  rows.forEach(function(s) { ty += 5.2; P.text(x, ty, s.id, TX.body, { bold: true }); P.text(x + 30, ty, s.title, TX.body); P.text(x + 180, ty, s.scale === '-' ? '' : s.scale, TX.body, { anchor: 'end' }); P.line(x, ty + 1.6, x + 180, ty + 1.6, { cls: 'fine', c: RPT.LT }); });
   // revisions
   ty += 12; P.text(x, ty, 'Revisions', TX.head, { bold: true }); ty += 3; P.line(x, ty + 1.5, x + 180, ty + 1.5, { cls: 'edge' });
   P.text(x, ty + 5.5, 'Rev', TX.tag, { c: RPT.MID }); P.text(x + 14, ty + 5.5, 'Date', TX.tag, { c: RPT.MID }); P.text(x + 40, ty + 5.5, 'Description', TX.tag, { c: RPT.MID });
   ty += 12.7; P.text(x, ty, 'A', TX.body, { bold: true }); P.text(x + 14, ty, d.date, TX.body); P.text(x + 40, ty, 'Preliminary issue for the Parklet Manual pre-application (generated by Curbside ' + RPT.VERSION + ')', TX.body);
   // the visual panel
-  var px = x, py = ty + 10, pw = 180, ph = 64;
-  var ims = d.mode === 'schematic' ? ((d.renders || []).length ? d.renders.slice(0, 4) : (drw && drw.axon ? [drw.axon] : [])) : [];
+  // the panel takes the room the list leaves: the whole sheet (from its first line, y 3) must fit the drawing area's height,
+  // or dsheet's centring would push the top into the header strip
+  var px = x, py = ty + 10, pw = 180, ph = Math.max(24, Math.min(64, RPT.DA.h - 2 - (py - 3)));
+  var ims = [];   // Brief 21 §8: the renders have their own sheets (and the cover); the panel is the key plan in both reports
   if (ims.length) {
     var n = ims.length, cols = n > 2 ? 2 : n, rows = Math.ceil(n / cols), gap = 3, cw = (pw - gap * (cols - 1)) / cols, ch = (ph - gap * (rows - 1)) / rows;
     ims.forEach(function(im, i) {
@@ -22251,7 +22273,6 @@ RPT.renderList = async function() {
   var list = typeof RVZP !== 'undefined' && RVZP.reportRenders ? await RVZP.reportRenders() : [];
   hosts.forEach(function(host) {
     var exp = host.id === 'rptRenders';
-    if (exp && RPT.mode() === 'technical') { host.innerHTML = "<p class='rpt-rn-note'>Technical: the renders are listed on X-001; their images print in the schematic report.</p>"; return; }
     // no Replicate key (Brief 21 §7): renders are the user's own account; the list says so, with the way in
     var nokey = typeof CONN !== 'undefined' && !CONN.has('replicate') ? "<p class='rpt-rn-note'>" + CONN.gate('replicate') + '</p>' : '';
     if (!list.length) { host.innerHTML = (exp ? "<p class='rpt-rn-note' id='rptNoRenders'>No renders of this design yet &mdash; Visualize &rsaquo; Render</p>" : "<p class='rpt-rn-note'>No renders of this design yet: Render makes one for each camera preset.</p>") + nokey; return; }
@@ -22274,14 +22295,16 @@ RPT.collectRenders = async function() {
   try { cams = RVZ.presets(16 / 9); } catch (e) {}
   for (var i = 0; i < list.length; i++) {
     var e = list[i]; if (RPT._renderSel[e.key] === false) continue;
-    out.push(await RPT.renderEntry(e.blobs.final, e.preset, (e.meta || {}).model, e.created, (e.meta || {}).contextPhoto, cams[e.preset], e.key));
+    // the provider's own image where it is kept (edit models): the report prints its own caption, so not the one baked into final
+    out.push(await RPT.renderEntry(e.blobs.output || e.blobs.final, e.preset, (e.meta || {}).model, e.created, (e.meta || {}).contextPhoto, cams[e.preset], e.key));
   }
   return out;
 };
 RPT.renderEntry = async function(blob, preset, model, created, cp, cam, key) {
   var bmp = await createImageBitmap(blob), W = Math.min(2400, bmp.width), H = Math.round(bmp.height * W / bmp.width), c = document.createElement('canvas');
   c.width = W; c.height = H; c.getContext('2d').drawImage(bmp, 0, 0, W, H);
-  return { key: key || preset, preset: preset, url: c.toDataURL('image/jpeg', 0.9), w: W, h: H, provider: RPT.providerLabel(model), date: new Date(created).toISOString().slice(0, 10),
+  // JPEG q85 at the cached resolution (Brief 21 §8)
+  return { key: key || preset, preset: preset, url: c.toDataURL('image/jpeg', 0.85), w: W, h: H, provider: RPT.providerLabel(model), date: new Date(created).toISOString().slice(0, 10),
     camera: cam ? (cam.ortho ? 'isometric, as the axonometric' : (cam.mm ? cam.mm + ' mm lens' : '') + (cam.angleDeg != null ? ', ' + Math.round(Math.abs(cam.angleDeg)) + ' deg to the deck axis' : '')) : '',
     mapillary: cp ? (cp.attribution || ('Mapillary image ' + cp.id + (cp.creator ? ' by ' + cp.creator : '') + (cp.license ? ', ' + cp.license : ''))) : null };
 };
@@ -22415,9 +22438,9 @@ RPT.page = function(d, meta, P) {
   RPT.tblock(P, meta.id, meta.title, meta.scale ? '1:' + meta.scale : 'NTS', d, meta.ext);
 };
 // the full page svg: the content box offset by the margins
-RPT.pageSVG = function(P) {
+RPT.pageSVG = function(P, bleed) {   // bleed (Brief 21 §8): the page draws on the whole sheet, margins and all
   return "<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='" + RPT.PG.W + "mm' height='" + RPT.PG.H + "mm' viewBox='0 0 " + RPT.PG.W + ' ' + RPT.PG.H + "'>" +
-    "<rect x='0' y='0' width='" + RPT.PG.W + "' height='" + RPT.PG.H + "' fill='#FFFFFF'/><g font-family='" + RPT.FONT + "' transform='translate(" + RPT.PG.ml + ' ' + RPT.PG.mt + ")'>" + P.inner() + '</g></svg>';
+    "<rect x='0' y='0' width='" + RPT.PG.W + "' height='" + RPT.PG.H + "' fill='#FFFFFF'/><g font-family='" + RPT.FONT + "'" + (bleed ? '' : " transform='translate(" + RPT.PG.ml + ' ' + RPT.PG.mt + ")'") + '>' + P.inner() + '</g></svg>';
 };
 
 // ── Text sheets: blocks laid into a known grid ────────────────────────────────────────────────────────
@@ -22509,6 +22532,80 @@ RPT.textSheet = function(id, title, note, blocks, wide) {
   });
 };
 // ── Build, check, render ──────────────────────────────────────────────────────────────────────────────
+// ── The cover and the render sheets (Brief 21 §8): full-bleed, in both reports ─────────────────────────
+// A bleed page draws on the whole 17 x 11 sheet (no margins, no header strip, no title block): the image scaled to
+// cover it (centred; what overhangs the sheet is cut by the page edge, never stretched), with a paper panel over it.
+RPT.COVER_OP = 0.92;   // the cover panel's paper opacity; 0.85 was the other candidate (Jenna chooses)
+// the hero: the first ticked Street or Corner render, else none (the cover shows the axonometric)
+RPT.hero = function(d) {
+  var r = d.renders || [];
+  return r.find(function(e) { return e.preset === 'street'; }) || r.find(function(e) { return e.preset === 'corner'; }) || null;
+};
+RPT.bleedImage = function(P, im) {
+  var W = RPT.PG.W, H = RPT.PG.H, s = Math.max(W / im.w, H / im.h), w = im.w * s, h = im.h * s, x = (W - w) / 2, y = (H - h) / 2;
+  P.add("<image href='" + im.url + "' xlink:href='" + im.url + "' x='" + x.toFixed(2) + "' y='" + y.toFixed(2) + "' width='" + w.toFixed(2) + "' height='" + h.toFixed(2) + "' preserveAspectRatio='none'" + (im.key ? " data-render='" + RPT.esc(im.key) + "'" : '') + " data-bleed='1'/>");
+};
+RPT.panel = function(P, x, y, w, h, op) { P.add("<rect x='" + x.toFixed(2) + "' y='" + y.toFixed(2) + "' width='" + w.toFixed(2) + "' height='" + h.toFixed(2) + "' fill='#FFFFFF' fill-opacity='" + (op == null ? RPT.COVER_OP : op) + "' data-panel='1'/>"); };
+// the cover: the hero across the whole sheet; the title block as a translucent paper panel, bottom left
+RPT.sheetCover = function(d, drw, op) {
+  var hero = RPT.hero(d), im = hero || (drw && drw.cover) || null, DM = d.DM, TX = RPT.TX;
+  return { id: 'V-000', title: 'Cover', scale: 0, bleed: true, draw: function(P) {
+    var W = RPT.PG.W, H = RPT.PG.H, pw = 200, pad = 9, x = 12 + pad, iw = pw - 2 * pad;
+    if (im) RPT.bleedImage(P, im); else P.rect(0, 0, W, H, { w: 0, fill: '#E9E8E4' });
+    // lay the panel out first, then draw it at its height from the bottom edge
+    var rows = [], y = 0, add = function(t, size, o, gap) { rows.push({ t: t, s: size, o: o || {}, y: y + size * 0.8 }); y += size * 1.25 + (gap || 0); };
+    if (d.sample) add(RPT.SAMPLE_BAND, TX.tag, { bold: true }, 1.5);
+    add('CURBSIDE', 4.4, { bold: true });
+    add('Schematic parklet design for Vancouver streets', TX.tag, { c: RPT.MID }, 5);
+    RPT.wrap(DM.project.name || 'Untitled parklet', iw, 10, true).slice(0, 2).forEach(function(l) { add(l, 10, { bold: true }); });
+    y += 2; add(RPT.addr(DM), TX.head, {}, 0.5);
+    if (DM.site.neighbourhood) add(DM.site.neighbourhood + ', Vancouver', TX.body, { c: RPT.MID });
+    add(d.date, TX.body, { c: RPT.MID }, 5);
+    var stampY = y; y += 12 + 4;
+    var ai = hero ? ['AI-assisted visualisation — indicative.'].concat(d.sample ? [RPT.SAMPLE_KEY_NOTE] : []) : ['Axonometric of the design model.'];
+    RPT.wrap(ai.join(' '), iw, TX.tag).forEach(function(l) { add(l, TX.tag, { c: RPT.MID }); });
+    // flush to the sheet's bottom-left corner: it also covers the caption baked into the render's corner
+    var ph = y + 2 * pad - 2 + 12, py = H - ph, oy = py + pad + 3;
+    RPT.panel(P, 0, py, pw + 12, ph, op);
+    rows.forEach(function(r) { P.text(x, oy + r.y, r.t, r.s, Object.assign({}, r.o, { data: " data-cover='1'" })); });
+    var sy = oy + stampY;
+    P.rect(x, sy, 96, 12, { cls: 'cut' }); P.rect(x + 1.2, sy + 1.2, 93.6, 9.6, { cls: 'fine' });
+    P.text(x + 48, sy + 7.6, 'Preliminary: not for construction', TX.body, { anchor: 'middle', bold: true, data: " data-cover='1'" });
+    P.text(x + 102, sy + 4.8, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail,', TX.body, { data: " data-cover='1'" });
+    P.text(x + 102, sy + 9.8, d.n.unclear + ' not confirmed' + (d.provisional ? ' (provisional)' : ''), TX.body, { data: " data-cover='1'" });
+  } };
+};
+// a render sheet: the render across the whole sheet, a caption strip along the bottom (the sheet id, the view,
+// camera, provider, date, the Mapillary credit)
+RPT.sheetRender = function(d, r, id) {
+  var TX = RPT.TX, view = (RPT.PRESET_LBL[r.preset] || r.preset) + ' view';
+  return { id: id, title: 'Render: ' + view, scale: 0, bleed: true, draw: function(P, meta) {
+    var W = RPT.PG.W, H = RPT.PG.H, x = 12, rw = 110, lw = W - 24 - rw - 10;
+    var facts = [r.camera ? 'Camera: ' + r.camera : null, r.provider, 'rendered ' + r.date, r.mapillary ? 'context photo: ' + r.mapillary : null].filter(Boolean).join('  ·  ');
+    var lines = RPT.wrap(facts, lw, TX.tag).concat(r.note ? RPT.wrap(r.note, lw, TX.tag) : []), sh = 9 + lines.length * TX.tag * 1.4 + 3;
+    RPT.bleedImage(P, r);
+    RPT.panel(P, 0, H - sh, W, sh);
+    var y0 = H - sh + 6.2;
+    P.text(x, y0, id, TX.head, { bold: true, c: RPT.MID });
+    P.text(x + RPT.tw(id, TX.head, true) + 4, y0, view, TX.head, { bold: true });
+    lines.forEach(function(l, i) { P.text(x, y0 + 4.4 + i * TX.tag * 1.4, l, TX.tag, { c: RPT.MID }); });
+    P.text(W - 12, y0, 'AI-assisted visualisation — indicative', TX.tag, { anchor: 'end', c: RPT.MID });
+    P.text(W - 12, y0 + 4.4, (d.sample ? 'Sample  ·  ' : '') + 'page ' + (meta ? meta.n + '/' + meta.N : ''), TX.tag, { anchor: 'end', c: RPT.MID });
+  } };
+};
+// the cover as a PNG (for choosing the panel opacity): its SVG drawn onto a canvas
+RPT.coverPNG = async function(d, drw, op, px) {
+  await RPT.loadEngine();
+  var pg = RPT.sheetCover(d, drw, op), P = RPT.pen(); pg.draw(P);
+  var svg = RPT.glyphSafe(RPT.pageSVG(P, true)), W = px || 2400, H = Math.round(W * RPT.PG.H / RPT.PG.W);
+  // the canvas sees only fonts inside the SVG: the report's two DM Sans faces, embedded under the names the pages use
+  var ff = "<defs><style>@font-face{font-family:'" + RPT.FONT + "';src:url(data:font/ttf;base64," + RPT._eng.regular + ")}@font-face{font-family:'" + RPT.FONT_B + "';src:url(data:font/ttf;base64," + RPT._eng.semibold + ")}</style></defs>";
+  svg = svg.replace(/(<svg[^>]*>)/, '$1' + ff);
+  var img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await new Promise(function(res, rej) { img.onload = res; img.onerror = function() { rej(new Error('the cover SVG did not render')); }; });
+  var c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(img, 0, 0, W, H);
+  return c.toDataURL('image/png');
+};
 // every page object: {id, title, scale, draw(P)} (drawing sheets return one; text sheets as many as they flow to)
 RPT.pages = function(d, drw) {
   var out = []; RPT._mode = d.mode;
@@ -22520,9 +22617,10 @@ RPT.checkPages = function(pens, pages) {
   var out = { overlaps: [], outside: [], texts: 0 };
   pens.forEach(function(P, pi) {
     var B = P.boxes.filter(function(b) { return b.text; }); out.texts += B.length;
+    var bl = pages[pi].bleed, bw = bl ? RPT.PG.W : RPT.SW, bh = bl ? RPT.PG.H : RPT.SH;   // a bleed page: the whole sheet
     for (var i = 0; i < B.length; i++) {
       var a = B[i];
-      if (a.x0 < -0.5 || a.y0 < -0.5 || a.x1 > RPT.SW + 0.5 || a.y1 > RPT.SH + 0.5) out.outside.push(pages[pi].id + ': "' + a.t + '"');
+      if (a.x0 < -0.5 || a.y0 < -0.5 || a.x1 > bw + 0.5 || a.y1 > bh + 0.5) out.outside.push(pages[pi].id + ': "' + a.t + '"');
       for (var j = i + 1; j < B.length; j++) { var b = B[j]; if (Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0.2 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.2) out.overlaps.push(pages[pi].id + ': "' + a.t + '" x "' + b.t + '"'); }
     }
   });
@@ -22535,9 +22633,9 @@ RPT.render = async function(d, drw) {
   try {
     for (var i = 0; i < N; i++) {
       var pg = pages[i], P = RPT.pen(); pens.push(P);
-      pg.draw(P);
-      RPT.page(d, { id: pg.id, title: pg.title, scale: pg.scale, ext: pg.ext, n: i + 1, N: N }, P);
-      host.innerHTML = RPT.glyphSafe(RPT.pageSVG(P));
+      pg.draw(P, { n: i + 1, N: N });
+      if (!pg.bleed) RPT.page(d, { id: pg.id, title: pg.title, scale: pg.scale, ext: pg.ext, n: i + 1, N: N }, P);   // a bleed sheet carries its own caption
+      host.innerHTML = RPT.glyphSafe(RPT.pageSVG(P, pg.bleed));
       if (i) doc.addPage([RPT.PG.W, RPT.PG.H], 'landscape');
       await doc.svg(host.firstElementChild, { x: 0, y: 0, width: RPT.PG.W, height: RPT.PG.H });
     }
@@ -25939,6 +26037,10 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   });
   if (notTree) rep.notes.push(notTree + ' stump' + (notTree > 1 ? 's' : '') + ' or vacant planting site' + (notTree > 1 ? 's' : '') + ' in the City tree inventory left out');
   state.street_trees = tr; rep.trees = tr.length;
+  // the neighbourhood (the report cover, Brief 21 §8): the City local area most of the imported tree records name
+  var la = {}; (cov['public-trees'].rows || []).forEach(function(r) { var a = String(r.local_area || '').trim(); if (a) la[a] = (la[a] || 0) + 1; });
+  var laTop = Object.keys(la).sort(function(a, b) { return la[b] - la[a]; })[0];
+  if (laTop) state.__neighbourhood = laTop;
   var outT = (cov['public-trees'].rows || []).filter(function(r) { var g = SMP.pt(r); if (!g) return false; var w = F.w(g.lat, g.lon); return near(w) && (w.x > LM.roadLeft + 0.01 || w.x < LM.bufferL.x0 - 0.01); }).length;
   if (outT) rep.notes.push(outT + ' street tree' + (outT > 1 ? 's fall' : ' falls') + ' outside the sidewalk (curb to frontage) as imported: not moved'); 
   // transit stops: OSM bus stops, CoV rapid transit stations (C01: a bus zone)
