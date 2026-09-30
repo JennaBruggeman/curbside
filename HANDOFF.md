@@ -922,6 +922,22 @@ Decisions for every item are in the session's decisions log; the essentials:
 - **10 Landing images:** `tools/screenshots.js` (Playwright) with `tools/fixtures/commercial/` (recorded site data, replayed byte for byte; `--record` refreshes). Kept in Brief 22 because its record / replay part is reusable as Brief 24's three-site fixtures.
 - **11 moved:** the demo walkthrough is now **Brief 26** (`briefs/26-demo-walkthrough.md`), after Brief 25. Its draft is on the local branch `demo-draft`.
 
+## Brief 24 (v2): GIS cells, Part A (the `curbside-data` repository, 2026-09-30)
+- **Repository:** `JennaBruggeman/curbside-data`, public. Pages at <https://jennabruggeman.github.io/curbside-data/> (JSON, `Access-Control-Allow-Origin: *`). Local clone beside this folder (`..\curbside-data`).
+- **Build:** `node build/build.js [--fresh] [--only=cov,osm,gtfs]` then `node build/check.js --sites`. It needs Node 24 and no npm package; the PBF and zip readers use zlib. One script per source (`build/cov.js`, `osm.js`, `gtfs.js`), each with its mapping table at the top.
+- **Output:** 12 layers in 253 cells, 463,028 features. The largest file is 105 kB gzipped (limit 200 kB, so none split). A full build takes about 65 s.
+- **Workflow:** `refresh.yml`, Mondays at 13:00 UTC (06:00 PDT, 05:00 PST) and on demand. It downloads fresh, builds, checks, and commits and publishes (a Pages build request) only when a cell changed. Two manual runs were green; the second found "No cell changed."
+- **Decisions (approved 2026-09-30):**
+  1. OpenStreetMap from BBBike's weekly Vancouver extract (62 MB) instead of Geofabrik's BC extract (1.2 GB, and its URL was failing).
+  2. `row-width` is points (the City's label points), in metres converted from feet.
+  3. Lines are clipped per cell with one id (Part B joins the pieces by id).
+  4. Buildings are written whole into every cell they touch.
+  5. `index.json` holds no run timestamps.
+  6. Stations without a record id get a record-hash id.
+  7. The cron is in UTC.
+  8. The fixtures are 27 cells, 33 MB of JSON (about 3 MB packed).
+- **Determinism:** the City's export order differs between fetches, and one `site_id` sits at two points (525 W 2nd Av). A build must not depend on either, so address points are all kept, duplicate ids are resolved by content, ties are broken by text, and cell files are ordered by id. A build of unchanged data rewrites no file.
+- **Part B not started:** the app (`GIS.LAYERS`, the loader, the Layers tab, the Plan context toggles, Overpass demoted, import from cells). It waits for Jenna's review of Part A. Out of scope for Brief 24 (candidates for a later brief): parking regulations, zoning, existing-parklet layers, an imagery underlay on the Plan, 3D context from cells.
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase and `CONFIG.INVITE_ONLY = false` in the page. **After October 9, set both back to true** (the page's comment says so) and make codes with `supabase/invite-codes.sql`; also put back the README's step 2.
 
