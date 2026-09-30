@@ -190,6 +190,29 @@
 #viewportGrid > #mvPanel { grid-area:view3d; }
 /* Each viewport's drawing takes whatever height its header leaves. */
 #viewportGrid #planTabPlan, #viewportGrid #planTabShape { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:auto; }
+/* Brief 21 §5b: the shape editor */
+#viewportGrid #planTabShape { overflow: hidden; }
+#planTabShape .ske-head, #planTabShape .ske-tools { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; flex-shrink: 0; background: var(--card); }
+#planTabShape .ske-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-right: 4px; }
+#planTabShape .ske-read { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+#planTabShape .ske-fld, #planTabShape .ske-opt label { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+#planTabShape .ske-fld select, #planTabShape .ske-opt input { font-family: var(--mono); font-size: 12px; height: 24px; border: 1px solid var(--rule); border-radius: 2px; background: var(--card); color: var(--ink); }
+#planTabShape .ske-opt input { width: 66px; padding: 0 4px; }
+#planTabShape .ske-btn, #planTabShape .ske-tool { font-family: inherit; font-size: 12px; height: 26px; padding: 0 9px; border: 1px solid var(--rule); border-radius: 3px; background: var(--card); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+#planTabShape .ske-btn:hover:not(:disabled), #planTabShape .ske-tool:hover { border-color: var(--ink); }
+#planTabShape .ske-btn:disabled { opacity: .45; cursor: default; }
+#planTabShape .ske-tool.on { background: var(--ink); border-color: var(--ink); color: var(--card); }
+#planTabShape .ske-tool svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
+#planTabShape .ske-apply { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+#planTabShape .ske-apply:disabled { background: var(--card); border-color: var(--rule); color: var(--muted); opacity: 1; }
+#planTabShape .ske-sp { flex: 1 1 auto; }
+#planTabShape .ske-opt { display: none; align-items: center; gap: 10px; margin-left: 8px; }
+#planTabShape .ske-opt.on { display: inline-flex; }
+#planTabShape .ske-msg { font-size: 12px; padding: 4px 10px; min-height: 24px; color: var(--muted); flex-shrink: 0; border-bottom: 1px solid var(--rule); background: var(--card); }
+#planTabShape .ske-msg.bad { color: var(--fail); font-weight: 600; }
+#planTabShape .ske-msg.note { color: var(--ink); }
+#planTabShape .ske-canvas { flex: 1 1 auto; min-height: 170px; position: relative; }
+#skeSVG { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; user-select: none; }
 #viewportGrid #planTabPlan .svg-wrap { flex:1 1 auto; min-height:0; overflow:hidden; padding:0; }
 #viewportGrid #planView { width:100%; height:100%; }
 #viewportGrid #seRoot { flex:1 1 auto; min-height:0; overflow:auto; }
@@ -587,7 +610,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
 <div id='viewportGrid' data-layout='three'>
 <div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div>    </div>    <!-- Drawing 02: Plan -->    
-<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fits the Plan to the whole drawing.'>Fit view</button><button class='drw-tb-toggle' id='secTogglePV' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
+<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fits the Plan to the whole drawing.'>Fit view</button><button class='drw-tb-toggle' id='secTogglePV' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id='planTabShape' style='display:none'><div class='ske-head'><span class='ske-title' title='The deck outline, drawn on the parking segment between the curb and the lane edge. Nothing in the design changes until you press Apply.'>Shape editor</span><span class='ske-read' id='skeReadout' title='The outline being edited: its area, and its length along the curb by its width across.'></span><label class='ske-fld' title='The grid step the editor snaps to: the app grid step, shared with the Plan.'>Grid <select id='skeGrid' onchange='cadSetSpacing(this);skeRender()'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></label><button type='button' class='ske-btn' id='skeUndo' onclick='skeUndo()' title='Undoes the last change in the editor (Ctrl+Z).'>Undo</button><button type='button' class='ske-btn' id='skeRedo' onclick='skeRedo()' title='Redoes the change just undone (Ctrl+Y).'>Redo</button><button type='button' class='ske-btn' id='skeFit' onclick='skeFit()' title='Fits the whole parking segment in the canvas. The mouse wheel zooms; Shift+wheel or the middle button pans.'>Fit</button><span class='ske-sp'></span><button type='button' class='ske-btn' id='skeCancel' onclick='skeClose()' title='Closes the editor and discards the changes made in it.'>Cancel</button><button type='button' class='ske-btn ske-apply' id='skeApply' onclick='skeApply()' title='Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'>Apply</button></div><div class='ske-tools' id='skeTools' role='toolbar' aria-label='Shape tools'><button type='button' class='ske-tool' data-tool='rect' onclick='skeSetTool(&quot;rect&quot;)' title='Rectangle: drag across the parking segment. The length and width show as you drag; type them in the fields to set them exactly.'><svg viewBox='0 0 16 16' aria-hidden='true'><rect x='2.5' y='4.5' width='11' height='7'/></svg><span>Rectangle</span></button><button type='button' class='ske-tool' data-tool='poly' onclick='skeSetTool(&quot;poly&quot;)' title='Polygon: click each corner; click the first corner or press Enter to close. Corners snap to the grid; hold Shift for 90&deg; and 45&deg; edges. Esc cancels.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 12.5 L4 4 L10 2.5 L13.5 8 L8 13.5 Z'/></svg><span>Polygon</span></button><button type='button' class='ske-tool' data-tool='edit' onclick='skeSetTool(&quot;edit&quot;)' title='Edit: drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected corner. Hover an edge to read its length; click the length to type one.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.5 2.5 L3.5 12.5 L6.2 10 L8.2 13.8 L10 12.9 L8 9.2 L11.8 8.9 Z'/></svg><span>Edit</span></button><button type='button' class='ske-tool' data-tool='notch' onclick='skeSetTool(&quot;notch&quot;)' title='Notch: press on a corner of the outline and drag inward to cut a rectangular notch.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 4.5 H13.5 V11.5 H6.5 V8 H2.5 Z'/></svg><span>Notch</span></button><button type='button' class='ske-tool' id='skeReset' onclick='skeReset()' title='Reset to rectangle: the deck&rsquo;s length, the full width of the parking segment. Undo brings the outline back.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.6 8.5 A4.6 4.6 0 1 0 5.2 4.4'/><path d='M3 2.6 V5.2 H5.6'/></svg><span>Reset to rectangle</span></button><span class='ske-opt' id='skeOptRect'><label title='The rectangle&rsquo;s length along the curb, m. Type a value to set it exactly.'>Length <input id='skeRL' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label><label title='The rectangle&rsquo;s width across, from the curb side, m. Type a value to set it exactly.'>Width <input id='skeRW' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label></span><span class='ske-opt' id='skeOptEdge'><label title='The selected edge&rsquo;s length, m. Type a value to set it: the edge&rsquo;s end corner moves along it, and a square next edge moves with it.'>Edge <b id='skeEdgeNo'>-</b> <input id='skeEL' type='number' step='0.05' min='0.25' onchange='skeSetEdgeLen()'></label></span></div><div class='ske-msg' id='skeMsg' role='status' aria-live='polite'></div><div class='ske-canvas'><svg id='skeSVG' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='The parking segment and the deck outline'></svg></div></div>    </div>    <!-- Drawing 03: 3D View -->    
 <div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"><button class='drw-tb-toggle on' id='secToggle3D' title='Shows or hides the section box, its cut plane and fill in the 3D view.' aria-pressed='true' onclick='_3dSectionOn=!_3dSectionOn;syncToolbarStates();_3dSectionHelper()'>Section box</button></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
 <div id='workspaceVisualize' style='display:none'><div id='rvzView'><p class='rvz-info' id='rvzViewInfo' aria-live='polite'></p></div><aside id='rvzRail' aria-label='Render controls'></aside></div>
@@ -2399,7 +2422,8 @@ function buildDesignModel() {
     parkletSide: _so.side.name, sideBearing: _so.sideBearing, roadBearing: _so.roadBearing, northDeg: _so.northDeg, contextZ: siteContextZ(SITE_CONTEXT_Z) };
   DESIGN_MODEL.crossSection = segs;
   DESIGN_MODEL.segments  = segs;
-  DESIGN_MODEL.parklet   = { width: designParkletWidth, length: designParkletLength };
+  // outline: the applied deck outline (Brief 21 §5b), or null for the plain rectangle -- every view reads it here
+  DESIGN_MODEL.parklet   = { width: designParkletWidth, length: designParkletLength, outline: typeof pkAppliedOutline === 'function' ? pkAppliedOutline() : null };
   DESIGN_MODEL.totalRoad = TOTAL_ROAD;
   var road = segs.filter(function(s){ return s.type !== 'sidewalk'; });
   DESIGN_MODEL.allocated = parseFloat(road.reduce(function(a,s){ return a + s.width; }, 0).toFixed(4));
@@ -2595,8 +2619,8 @@ function buildDesignModel() {
     if (LM.sidewalkR && LM.sidewalkR.x1 - LM.sidewalkR.x0 > 0.5) add('walk-far', 'sidewalk', null, (LM.sidewalkR.x0 + LM.sidewalkR.x1) / 2, 0);
     // Deck: centroid line of the deck polygon (sketch vertex {x, y} = world {z: x, x: y}).
     var dx = (LM.deckX0 + LM.deckX1) / 2, dz0 = 0, dz1 = DESIGN_MODEL.parklet.length;
-    var sk = (typeof state !== 'undefined') ? state.pkShape : null;
-    if (sk && sk.active && sk.verts && sk.verts.length >= 3) {
+    var sk = DESIGN_MODEL.parklet.outline;
+    if (sk) {
       var A = 0, cx = 0, v = sk.verts;
       for (var i = 0; i < v.length; i++) {
         var p = v[i], q = v[(i + 1) % v.length], k = p.x * q.y - q.x * p.y;
@@ -2631,12 +2655,9 @@ function buildDesignModel() {
       buffers: segs.filter(function(s) { return s.type === 'buf-pk' || s.type === 'buf-bl' || s.type === 'planting'; })
         .map(function(s) { return { id: s.id, type: s.type, width: s.width, variant: s.variant || null }; })
     };
-    var sh = (typeof state !== 'undefined') ? state.pkShape : null, L = DM.parklet.length, A = DM.parklet.width * L;
-    if (sh && sh.active && sh.verts && sh.verts.length >= 3 && typeof shapeWidthAtLength === 'function') {
-      A = 0; for (var z = 0.005; z < L; z += 0.01) { var w = shapeWidthAtLength(sh, z); if (w) A += (w[1] - w[0]) * 0.01; }
-    }
+    var sh = DM.parklet.outline, L = DM.parklet.length, A = sh ? pkShapeArea(sh) : DM.parklet.width * L;   // exact, arcs included
     DM.parklet.area = +A.toFixed(3);
-    DM.parklet.shape = sh && sh.active ? 'sketched' : 'rectangle';
+    DM.parklet.shape = sh ? 'sketched' : 'rectangle';
     var st = (typeof state !== 'undefined') ? state : {}, cf = st.curb_features || [];
     var nOf = function(t) { return cf.filter(function(f) { return f.type === t; }).length; };
     DM.siteObjects = { hydrants: nOf('H'), poles: nOf('P'), signalBoxes: nOf('S'), manholes: (st.manholes || []).length, driveways: (st.driveways || []).length };
@@ -4766,7 +4787,7 @@ function getSectionScene(sec) {
     });
   });
   // the deck beyond: its end edge within the depth, and, for a sketched deck, its outline there
-  var shp = st.pkShape, useShape = shp && shp.active && shp.closed && shp.verts && shp.verts.length >= 3;
+  var shp = DM.parklet.outline, useShape = !!shp;
   [0, L].forEach(function(ze, i) {
     add({ kind: 'deck', key: 'deck:end' + i, x0: LM.deckX0, x1: LM.deckX1, y0: 0, y1: 0.215, z0: ze, z1: ze, data: { end: i } }, false);
   });
@@ -6428,8 +6449,8 @@ function _renderPlanView(o) {
   const WOOD= _iTch?'#D0CECC':'#c8a45c';
   const SAGE= _iTch?'#E4E3DE':'#9ab4a0';
   const BC2=`font-family="'Barlow Condensed','Helvetica Neue',Arial,sans-serif"`;
-  const _pkShp = state.pkShape;
-  const _useCS = _pkShp && _pkShp.active && _pkShp.closed && _pkShp.verts && _pkShp.verts.length >= 3;
+  const _pkShp = DESIGN_MODEL.parklet.outline;
+  const _useCS = !!_pkShp;
   let _clipD = '';
   if (_useCS) _clipD = buildPlanShapePath(_pkShp);
   // the technical hatches (DRAW_STYLE's patterns), drawn only in bands at material boundaries
@@ -8315,8 +8336,8 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
   _expLayer = 'Parklet';
   // Parklet deck â€” custom shape or default planks
-  const _3dSh = state.pkShape;
-  const _3dUse = _3dSh && _3dSh.active && _3dSh.closed && _3dSh.verts && _3dSh.verts.length >= 3;
+  const _3dSh = DESIGN_MODEL.parklet.outline;
+  const _3dUse = !!_3dSh;
   const DECK_H = 0.065;
   if (_3dUse) {
     const _sv = _3dSh.verts, _ss = _3dSh.segs || [], _sn = _sv.length;
@@ -8633,81 +8654,42 @@ syncRouteToggle();
 renderVerdictCompact();
 
 // =====================================================================
-// SKETCH EDITOR -- Parklet Footprint Shape Tool
+// SHAPE EDITOR (Brief 21 §5b). The deck outline, drawn on the whole parking segment: curb to lane
+// edge, as long as the host frontage (else the block between the corners). The editor works on a
+// copy of the outline; nothing reaches the design until Apply. Sketch vertex {x, y} = world
+// {z: x, x: y}: x along the curb from the deck's start, y across from the curb (world x).
 // =====================================================================
-let skTool = 'draw';
-let skSel  = null;
-let skDrag = null;
-let skPrev = null;
-let skHoverEdge = null;
+var SKE = { open: false, tool: 'edit', shape: null, base: '', applied: null, undo: [], redo: [], sel: null, hover: null,
+  drag: null, draft: null, zoom: 1, pan: 0, layout: null, bound: false, issues: null, note: '', unapplied: false };
+var SKE_MIN_EDGE = 0.25, SKE_WS = 1.1;
+var SKE_HINT = {
+  rect: 'Drag across the parking segment. Type the length and width to set them exactly.',
+  poly: 'Click each corner; click the first corner or press Enter to close. Shift keeps edges at 90° or 45°. Esc cancels.',
+  edit: 'Drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected one. Hover an edge for its length; click the length to type one.',
+  notch: 'Press on a corner of the outline and drag inward to cut a rectangular notch.'
+};
 
 function setPlanTab(tab) {
   const pEl = document.getElementById('planTabPlan');
   const sEl = document.getElementById('planTabShape');
-  const bP  = document.getElementById('tabBtnPlan');
-  const bS  = document.getElementById('tabBtnShape');
   if (!pEl || !sEl) return;
   if (tab === 'shape') {
+    if (!SKE.open) skeOpen();
     pEl.style.display = 'none'; sEl.style.display = '';
-    if (bP) bP.classList.remove('active');
-    if (bS) bS.classList.add('active');
-    if (!state.pkShape || !state.pkShape.verts || state.pkShape.verts.length === 0) initDefaultSkShape();
-    renderSketchEditor(); updateSkHint();
+    skeBind(); skeRender();
+    setTimeout(function() { if (SKE.open) skeRender(); }, 60);   // after the enlarged view has its size
   } else {
     pEl.style.display = ''; sEl.style.display = 'none';
-    if (bP) bP.classList.add('active');
-    if (bS) bS.classList.remove('active');
+    SKE.open = false; SKE.draft = null; SKE.drag = null;
   }
 }
 
-function setSkTool(tool) {
-  skTool = tool; skSel = null;
-  const dB = document.getElementById('skToolDraw'), sB = document.getElementById('skToolSel');
-  if (dB) dB.classList.toggle('active', tool === 'draw');
-  if (sB) sB.classList.toggle('active', tool === 'select');
-  const sb = document.getElementById('segBar');
-  if (sb) sb.style.display = 'none';
-  updateSkHint(); renderSketchEditor();
-}
-
-function updateSkHint() {
-  const h = document.getElementById('skHint'); if (!h) return;
-  const sh = state.pkShape || {}, n = sh.verts ? sh.verts.length : 0;
-  if (skTool === 'draw') {
-    if (n === 0) h.textContent = 'Click to place first vertex.';
-    else if (!sh.closed) h.textContent = n + ' vertices â€” click first vertex or press Close Shape.';
-    else h.textContent = 'Shape closed. Switch to Select to move vertices or toggle arc segments.';
-  } else {
-    h.textContent = 'Click vertex to move/delete. Click edge to insert vertex. Click diamond to toggle arc; drag to curve.';
-  }
-}
-
-function getSkShape() {
-  if (!state.pkShape) state.pkShape = {active:false, verts:[], segs:[], closed:false};
-  return state.pkShape;
-}
-
-function initDefaultSkShape() {
-  const L = designParkletLength, W = designParkletWidth;
-  state.pkShape = {
-    active: false,
-    verts: [{x:0,y:0},{x:L,y:0},{x:L,y:W},{x:0,y:W}],
-    segs:  [{arc:false,sag:0},{arc:false,sag:0},{arc:false,sag:0},{arc:false,sag:0}],
-    closed: true
-  };
-}
-
-// Deck sketch editor canvas. It is a top-down view like Plan, so it uses the same
-// worldToPlan/planToWorld mapping with its own frame (skF): world z=0 at the right edge
-// of the deck box, uniform scale sc. Sketch vertex {x, y} = world {z: x, x: y}.
-function sketchTransform() {
-  const L = _dmCurrent().parklet.length, W = _dmCurrent().parklet.width;
-  const SW = 760, SH = 280, PL = 56, PR = 34, PT = 36, PB = 44;
-  const avW = SW - PL - PR, avH = SH - PT - PB;
-  const sc = Math.min(avW / L, avH / W);
-  const cW = L * sc, cH = W * sc;
-  const ox = PL + (avW-cW)/2, oy = PT + (avH-cH)/2;
-  return {ox, oy, sc, SW, SH, L, W, skF: {x0: ox + cW, y0: oy, hs: sc, vs: sc}};
+// the applied outline: a closed polygon of three or more corners, or null for the plain deck rectangle
+function pkAppliedOutline() {
+  var sh = typeof state !== 'undefined' ? state.pkShape : null;
+  if (!(sh && sh.active && sh.closed && sh.verts && sh.verts.length >= 3)) return null;
+  return { closed: true, verts: sh.verts.map(function(v) { return { x: +v.x, y: +v.y }; }),
+    segs: sh.verts.map(function(v, i) { var s = (sh.segs && sh.segs[i]) || {}; return { arc: !!s.arc, sag: +s.sag || 0 }; }) };
 }
 
 // Arc control point of a sketch segment, in sketch-local metres. Same construction the
@@ -8717,9 +8699,9 @@ function shapeArcCtrl(v1, v2, sag) {
   return { x: (v1.x + v2.x) / 2 - (dy / ln) * sag, y: (v1.y + v2.y) / 2 + (dx / ln) * sag };
 }
 
-// Outline of the custom deck on a top-down canvas (Plan when f is omitted, the sketch
-// editor when f = skF). Every point -- vertices and arc control points -- is projected
-// through worldToPlan, so Plan, sketch editor and 3D all show the same shape.
+// Outline of the custom deck on a top-down canvas (Plan when f is omitted, the shape editor
+// with its own frame). Every point -- vertices and arc control points -- is projected through
+// worldToPlan, so Plan, the editor and 3D all show the same shape.
 function buildPlanShapePath(shape, f) {
   if (!shape.verts || shape.verts.length < 2) return '';
   const n = shape.verts.length;
@@ -8742,362 +8724,578 @@ function buildPlanShapePath(shape, f) {
   return d;
 }
 
-// Screen position of a segment's mid handle (halfway to the arc control point).
-function _skSegHandle(v1, v2, seg, skF) {
-  const sag = (seg.arc && Math.abs(seg.sag||0) > 0.001) ? seg.sag * 0.5 : 0;
-  const c = shapeArcCtrl(v1, v2, sag);
-  return worldToPlan(c.y, c.x, skF);
+// The outline's area, exact: the polygon through the corners plus each arc's parabolic segment
+// (two thirds of the triangle between its chord and control point). m².
+function pkShapeArea(sh) {
+  if (!sh || !sh.verts || sh.verts.length < 3) return 0;
+  var v = sh.verts, n = v.length, A2 = 0;
+  for (var i = 0; i < n; i++) {
+    var a = v[i], b = v[(i + 1) % n], sg = sh.segs && sh.segs[i];
+    A2 += a.x * b.y - b.x * a.y;
+    if (sg && sg.arc && Math.abs(sg.sag || 0) > 0.001) { var c = shapeArcCtrl(a, b, sg.sag); A2 += (2 / 3) * ((c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x)); }
+  }
+  return Math.abs(A2 / 2);
 }
 
-function renderSketchEditor() {
-  const el = document.getElementById('sketchSVG'); if (!el) return;
-  const shape = getSkShape();
-  const {ox, oy, sc, SW, SH, L, W, skF} = sketchTransform();
-  const cW = L*sc, cH = W*sc;
-  let s = '';
-  const q = "'";
-
-  s += '<defs>';
-  s += '<pattern id=' + q + 'skG' + q + ' patternUnits=' + q + 'userSpaceOnUse' + q + ' width=' + q + sc.toFixed(1) + q + ' height=' + q + sc.toFixed(1) + q + '>';
-  s += '<line x1=' + q + sc.toFixed(1) + q + ' y1=' + q + '0' + q + ' x2=' + q + sc.toFixed(1) + q + ' y2=' + q + sc.toFixed(1) + q + DRAW_STYLE.ui(null, +('0.5'), 'rgba(0,0,0,.06)', { q: q }) + '/>';
-  s += '<line x1=' + q + '0' + q + ' y1=' + q + sc.toFixed(1) + q + ' x2=' + q + sc.toFixed(1) + q + ' y2=' + q + sc.toFixed(1) + q + DRAW_STYLE.ui(null, +('0.5'), 'rgba(0,0,0,.06)', { q: q }) + '/>';
-  s += '</pattern>';
-  if (shape.closed && shape.verts && shape.verts.length >= 3) {
-    const cd = buildPlanShapePath(shape, skF);
-    s += '<clipPath id=' + q + 'skC' + q + '><path d=' + q + cd + q + '/></clipPath>';
-  }
-  s += '</defs>';
-
-  s += '<rect width=' + q + SW + q + ' height=' + q + SH + q + ' fill=' + q + '#f0ede8' + q + '/>';
-  s += '<rect x=' + q + ox.toFixed(1) + q + ' y=' + q + oy.toFixed(1) + q + ' width=' + q + cW.toFixed(1) + q + ' height=' + q + cH.toFixed(1) + q + ' fill=' + q + 'white' + q + DRAW_STYLE.ui(null, +('1'), '#ccc', { q: q }) + '/>';
-  s += '<rect x=' + q + ox.toFixed(1) + q + ' y=' + q + oy.toFixed(1) + q + ' width=' + q + cW.toFixed(1) + q + ' height=' + q + cH.toFixed(1) + q + ' fill=' + q + 'url(#skG)' + q + '/>';
-
-  // Rulers
-  for (let m = 0; m <= L + 1e-6; m++) {
-    const px = worldToPlan(0, m, skF).px;
-    s += '<line x1=' + q + px.toFixed(1) + q + ' y1=' + q + (oy+cH).toFixed(1) + q + ' x2=' + q + px.toFixed(1) + q + ' y2=' + q + (oy+cH+5).toFixed(1) + q + DRAW_STYLE.ui(null, +('1'), '#aaa', { q: q }) + '/>';
-    s += '<text x=' + q + px.toFixed(1) + q + ' y=' + q + (oy+cH+14).toFixed(1) + q + ' text-anchor=' + q + 'middle' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '8' + q + ' fill=' + q + '#999' + q + '>' + m + '</text>';
-  }
-  s += '<text x=' + q + (ox+cW/2).toFixed(1) + q + ' y=' + q + (oy+cH+26).toFixed(1) + q + ' text-anchor=' + q + 'middle' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '7.5' + q + ' fill=' + q + '#ccc' + q + ' letter-spacing=' + q + '.1em' + q + '>LENGTH (m)</text>';
-  for (let m = 0; m <= W + 1e-6; m++) {
-    const py = worldToPlan(m, 0, skF).py;
-    s += '<line x1=' + q + ox.toFixed(1) + q + ' y1=' + q + py.toFixed(1) + q + ' x2=' + q + (ox-5).toFixed(1) + q + ' y2=' + q + py.toFixed(1) + q + DRAW_STYLE.ui(null, +('1'), '#aaa', { q: q }) + '/>';
-    s += '<text x=' + q + (ox-9).toFixed(1) + q + ' y=' + q + (py+3).toFixed(1) + q + ' text-anchor=' + q + 'end' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '8' + q + ' fill=' + q + '#999' + q + '>' + m + '</text>';
-  }
-
-  // Zone labels
-  s += '<text x=' + q + (ox+5).toFixed(1) + q + ' y=' + q + (oy+11).toFixed(1) + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '7' + q + ' fill=' + q + 'rgba(0,0,0,.22)' + q + ' letter-spacing=' + q + '.08em' + q + '>BUILDING</text>';
-  s += '<text x=' + q + (ox+5).toFixed(1) + q + ' y=' + q + (oy+cH-3).toFixed(1) + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '7' + q + ' fill=' + q + 'rgba(0,0,0,.22)' + q + ' letter-spacing=' + q + '.08em' + q + '>CURB</text>';
-
-  // Shape
-  if (shape.verts && shape.verts.length >= 2) {
-    const pd = buildPlanShapePath(shape, skF);
-    if (shape.closed) {
-      s += '<path d=' + q + pd + q + ' fill=' + q + 'rgba(200,164,92,0.16)' + q + '/>';
-      const sp = Math.max(8, Math.round(sc*0.14));
-      s += '<g clip-path=' + q + 'url(#skC)' + q + '>';
-      for (let wx = ox; wx < ox+cW+sp; wx += sp)
-        s += '<line x1=' + q + wx.toFixed(1) + q + ' y1=' + q + oy.toFixed(1) + q + ' x2=' + q + wx.toFixed(1) + q + ' y2=' + q + (oy+cH).toFixed(1) + q + DRAW_STYLE.ui(null, +('0.8'), 'rgba(180,140,70,.14)', { q: q }) + '/>';
-      s += '</g>';
-    }
-    s += '<path d=' + q + pd + q + ' fill=' + q + 'none' + q + DRAW_STYLE.ui(null, +((shape.closed?'2':'1.5')), '#b8a45c', { q: q }) + ' stroke-linejoin=' + q + 'round' + q + '/>';
-    if (!shape.closed && skPrev && skTool === 'draw' && shape.verts.length > 0) {
-      const lv = shape.verts[shape.verts.length-1], lp = worldToPlan( lv.y,lv.x,skF), pp = worldToPlan( skPrev.my,skPrev.mx,skF);
-      s += '<line x1=' + q + lp.px.toFixed(1) + q + ' y1=' + q + lp.py.toFixed(1) + q + ' x2=' + q + pp.px.toFixed(1) + q + ' y2=' + q + pp.py.toFixed(1) + q + DRAW_STYLE.ui(null, +('1'), '#bbb', { q: q }) + ' stroke-dasharray=' + q + '4,3' + q + '/>';
-    }
-  }
-
-  // Segment handles (select mode + closed)
-  if (shape.closed && shape.verts && shape.verts.length >= 3 && skTool === 'select') {
-    const n = shape.verts.length;
-    for (let i = 0; i < n; i++) {
-      const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
-      const seg = (shape.segs && shape.segs[i]) || {arc:false,sag:0};
-      const _mh = _skSegHandle(v1, v2, seg, skF), msx = _mh.px, msy = _mh.py;
-      const isSel = skSel && skSel.kind === 'seg' && skSel.idx === i;
-      const hc = isSel ? '#c03030' : (seg.arc ? '#2a7aaa' : '#aaa');
-      const hf = isSel ? '#fdf0f0' : (seg.arc ? '#cce8f4' : '#f0f0ee');
-      const sw = isSel ? '2' : '1.2';
-      s += '<path d=' + q + 'M ' + (msx-5).toFixed(1) + ' ' + msy.toFixed(1) + ' L ' + msx.toFixed(1) + ' ' + (msy-5).toFixed(1) + ' L ' + (msx+5).toFixed(1) + ' ' + msy.toFixed(1) + ' L ' + msx.toFixed(1) + ' ' + (msy+5).toFixed(1) + ' Z' + q + ' fill=' + q + hf + q + DRAW_STYLE.ui(null, +(sw), hc, { q: q }) + ' data-seg=' + q + i + q + '/>';
-    }
-  }
-
-  // Vertex handles
-  if (shape.verts) shape.verts.forEach(function(v, i) {
-    const {px,py} = worldToPlan( v.y,v.x,skF);
-    const isSel = skSel && skSel.kind === 'vert' && skSel.idx === i;
-    const isFirst = i === 0 && !shape.closed && skTool === 'draw';
-    const hc = isSel ? '#c03030' : (isFirst ? '#2a7aaa' : '#333');
-    const hf = isSel ? '#fdf0f0' : (isFirst ? '#cce8f4' : 'white');
-    const r  = isSel ? '7' : (isFirst ? '6' : '5'), sw2 = isSel ? '2' : '1.5';
-    const cur = skTool === 'select' ? 'move' : 'crosshair';
-    s += '<circle cx=' + q + px.toFixed(1) + q + ' cy=' + q + py.toFixed(1) + q + ' r=' + q + r + q + ' fill=' + q + hf + q + DRAW_STYLE.ui(null, +(sw2), hc, { q: q }) + ' data-vert=' + q + i + q + ' style=' + q + 'cursor:' + cur + q + '/>';
-    s += '<text x=' + q + px.toFixed(1) + q + ' y=' + q + (py-9).toFixed(1) + q + ' text-anchor=' + q + 'middle' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '7' + q + ' fill=' + q + '#aaa' + q + '>' + (i+1) + '</text>';
-  });
-
-  // Edge-hover insert indicator
-  if (skHoverEdge && skTool === 'select' && shape.closed) {
-    const he = skHoverEdge, hn = shape.verts.length;
-    const hv1 = shape.verts[he.idx], hv2 = shape.verts[(he.idx+1)%hn];
-    const hseg = (shape.segs && shape.segs[he.idx]) || {};
-    let phx, phy;
-    if (hseg.arc && Math.abs(hseg.sag||0) > 0.001) {
-      const hdx=hv2.x-hv1.x,hdy=hv2.y-hv1.y,hln=Math.sqrt(hdx*hdx+hdy*hdy)||1;
-      const hcpX=(hv1.x+hv2.x)/2+(-hdy/hln)*hseg.sag,hcpY=(hv1.y+hv2.y)/2+(hdx/hln)*hseg.sag;
-      const ht=he.t;
-      const hbx=(1-ht)*(1-ht)*hv1.x+2*ht*(1-ht)*hcpX+ht*ht*hv2.x;
-      const hby=(1-ht)*(1-ht)*hv1.y+2*ht*(1-ht)*hcpY+ht*ht*hv2.y;
-      const hpp=worldToPlan(hby,hbx,skF); phx=hpp.px; phy=hpp.py;
-    } else {
-      const hp1=worldToPlan(hv1.y,hv1.x,skF),hp2=worldToPlan(hv2.y,hv2.x,skF);
-      phx=hp1.px+he.t*(hp2.px-hp1.px); phy=hp1.py+he.t*(hp2.py-hp1.py);
-    }
-    s += '<circle cx=' + q + phx.toFixed(1) + q + ' cy=' + q + phy.toFixed(1) + q + ' r=' + q + '7' + q + ' fill=' + q + '#2d6a4f' + q + DRAW_STYLE.ui(null, +('1.5'), 'white', { q: q }) + ' pointer-events=' + q + 'none' + q + '/>';
-    s += '<text x=' + q + phx.toFixed(1) + q + ' y=' + q + (phy+4).toFixed(1) + q + ' text-anchor=' + q + 'middle' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '10' + q + ' font-weight=' + q + '700' + q + ' fill=' + q + 'white' + q + ' pointer-events=' + q + 'none' + q + '>+</text>';
-  }
-
-  // Title
-  s += '<text x=' + q + (SW/2).toFixed(1) + q + ' y=' + q + '20' + q + ' text-anchor=' + q + 'middle' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '9' + q + ' font-weight=' + q + '600' + q + ' letter-spacing=' + q + '.1em' + q + ' fill=' + q + '#aaa' + q + '>FOOTPRINT SKETCH  \u00B7  ' + L.toFixed(1) + 'm \u00D7 ' + W.toFixed(2) + 'm</text>';
-  if (shape.closed && state.pkShape && state.pkShape.active)
-    s += '<text x=' + q + (SW-12) + q + ' y=' + q + '20' + q + ' text-anchor=' + q + 'end' + q + ' font-family=' + q + 'Helvetica Neue,Arial,sans-serif' + q + ' font-size=' + q + '8' + q + ' fill=' + q + '#2d6a4f' + q + ' font-weight=' + q + '700' + q + '>\u2713 APPLIED</text>';
-
-  el.innerHTML = s;
-  el.removeEventListener('mousedown', onSkMD);
-  el.removeEventListener('mousemove', onSkMM);
-  el.removeEventListener('mouseup',   onSkMU);
-  el.removeEventListener('mouseleave',onSkML);
-  el.addEventListener('mousedown', onSkMD);
-  el.addEventListener('mousemove', onSkMM);
-  el.addEventListener('mouseup',   onSkMU);
-  el.addEventListener('mouseleave',onSkML);
+function skeR4(v) { return Math.round(v * 1e4) / 1e4; }
+function skeRect(z0, z1, y0, y1) {
+  return { closed: true, verts: [{ x: skeR4(z0), y: skeR4(y0) }, { x: skeR4(z1), y: skeR4(y0) }, { x: skeR4(z1), y: skeR4(y1) }, { x: skeR4(z0), y: skeR4(y1) }],
+    segs: [0, 1, 2, 3].map(function() { return { arc: false, sag: 0 }; }) };
+}
+function skeClone(sh) { return JSON.parse(JSON.stringify(sh)); }
+function skeArc(sh, i) { var s = sh.segs && sh.segs[i]; return !!(s && s.arc && Math.abs(s.sag || 0) > 0.001); }
+// the points along edge i (the two corners, or a polyline along an arc)
+function skeEdgePts(sh, i) {
+  var n = sh.verts.length, a = sh.verts[i], b = sh.verts[(i + 1) % n];
+  if (!skeArc(sh, i)) return [a, b];
+  var c = shapeArcCtrl(a, b, sh.segs[i].sag), out = [];
+  for (var k = 0; k <= 16; k++) { var t = k / 16; out.push({ x: (1 - t) * (1 - t) * a.x + 2 * t * (1 - t) * c.x + t * t * b.x, y: (1 - t) * (1 - t) * a.y + 2 * t * (1 - t) * c.y + t * t * b.y }); }
+  return out;
+}
+function skeEdgeLen(sh, i) { var n = sh.verts.length, a = sh.verts[i], b = sh.verts[(i + 1) % n]; return Math.hypot(b.x - a.x, b.y - a.y); }
+function skeBBox(sh) {
+  var z0 = Infinity, z1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  (sh && sh.verts ? sh.verts.map(function(v, i) { return skeEdgePts(sh, i); }) : []).forEach(function(P) { P.forEach(function(p) { z0 = Math.min(z0, p.x); z1 = Math.max(z1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }); });
+  return { z0: z0, z1: z1, y0: y0, y1: y1 };
+}
+function skeIsRect(sh) {
+  if (!sh || sh.verts.length !== 4) return false;
+  for (var i = 0; i < 4; i++) { if (skeArc(sh, i)) return false; var a = sh.verts[i], b = sh.verts[(i + 1) % 4]; if (Math.abs(a.x - b.x) > 1e-6 && Math.abs(a.y - b.y) > 1e-6) return false; }
+  var b2 = skeBBox(sh); return Math.abs(pkShapeArea(sh) - (b2.z1 - b2.z0) * (b2.y1 - b2.y0)) < 1e-6;
 }
 
-function skEC(evt) {
-  const el = document.getElementById('sketchSVG'), r = el.getBoundingClientRect();
-  return {svgX: (evt.clientX-r.left)*(760/r.width), svgY: (evt.clientY-r.top)*(280/r.height)};
+// The canvas: the parking segment across (curb to lane edge) and, along, the host frontage -- else
+// the block between the curb returns, else the deck with 8 m each side. Deck-local z.
+function skeExtent() {
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, c = pkZNow(), toZ = function(s) { return s - c + L / 2; };
+  var hi = pkHostIdx(), host = hi < 0 ? null : pkFrontages().find(function(f) { return f.i === hi; }), z0, z1, src;
+  if (host) { z0 = toZ(host.s0); z1 = toZ(host.s1); src = 'frontage'; }
+  else {
+    var up = null, dn = null;
+    pkPlace().corners.forEach(function(k) { if (k.s > c) { var r = k.s - k.half; if (up === null || r < up) up = r; } else { var r2 = k.s + k.half; if (dn === null || r2 > dn) dn = r2; } });
+    z0 = dn !== null ? toZ(dn) : -8; z1 = up !== null ? toZ(up) : L + 8; src = up !== null && dn !== null ? 'block' : 'deck';
+  }
+  return { z0: Math.min(z0, 0), z1: Math.max(z1, L), xc: LM.deckX0, xl: LM.deckX1, L: L, src: src,
+    host: host ? [toZ(host.s0), toZ(host.s1)] : null, hostName: host ? host.name : '' };
 }
 
-function onSkMD(evt) {
-  skHoverEdge = null;
-  const svgEl = document.getElementById('sketchSVG');
-  if (svgEl) svgEl.style.cursor = 'default';
-  const {svgX, svgY} = skEC(evt), {skF} = sketchTransform(), _skW = planToWorld(svgX, svgY, skF), mx = _skW.z, my = _skW.x;
-  const shape = getSkShape();
-  if (skTool === 'draw') {
-    if (shape.closed) return;
-    if (shape.verts.length >= 3) {
-      const v0 = shape.verts[0], p0 = worldToPlan( v0.y,v0.x,skF);
-      if (Math.sqrt((svgX-p0.px)**2+(svgY-p0.py)**2) < 14) { sketchCloseShape(); return; }
-    }
-    shape.verts.push({x:parseFloat(mx.toFixed(3)), y:parseFloat(my.toFixed(3))});
-    if (!shape.segs) shape.segs = [];
-    shape.segs.push({arc:false,sag:0});
-    skPrev = {mx, my}; renderSketchEditor(); updateSkHint(); saveSettings(); return;
+// what is wrong with the outline, edge by edge: shown in red with one line each, never fixed silently
+function skeIssues(sh, E) {
+  var res = { edge: {}, list: [] }, n = sh && sh.verts ? sh.verts.length : 0, eps = 1e-6, i, j;
+  var bad = function(k, why) { if (!res.edge[k]) res.edge[k] = why; if (res.list.indexOf(why) < 0) res.list.push(why); };
+  if (n < 3) { res.list.push('The outline needs at least three corners.'); return res; }
+  for (i = 0; i < n; i++) {
+    var len = skeEdgeLen(sh, i), P = skeEdgePts(sh, i);
+    if (len < SKE_MIN_EDGE - eps) bad(i, 'Edge ' + (i + 1) + ' is ' + len.toFixed(2) + ' m long; the shortest edge allowed is ' + SKE_MIN_EDGE.toFixed(2) + ' m.');
+    if (P.some(function(p) { return p.y < E.xc - eps; })) bad(i, 'Edge ' + (i + 1) + ' crosses the curb.');
+    if (P.some(function(p) { return p.y > E.xl + eps; })) bad(i, 'Edge ' + (i + 1) + ' enters the lane.');
+    if (P.some(function(p) { return p.x < E.z0 - eps || p.x > E.z1 + eps; })) bad(i, 'Edge ' + (i + 1) + ' runs past the end of the parking segment.');
   }
-  if (skTool === 'select') {
-    const n = shape.verts ? shape.verts.length : 0;
-    for (let i = 0; i < n; i++) {
-      const v = shape.verts[i], p = worldToPlan( v.y,v.x,skF);
-      if (Math.sqrt((svgX-p.px)**2+(svgY-p.py)**2) < 12) {
-        skSel = {kind:'vert',idx:i}; skDrag = {kind:'vert',idx:i};
-        renderSketchEditor(); updateSegBar(); return;
-      }
-    }
-    if (shape.closed) {
-      for (let i = 0; i < n; i++) {
-        const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
-        const seg = (shape.segs && shape.segs[i]) || {arc:false,sag:0};
-        const _mh = _skSegHandle(v1, v2, seg, skF), msx = _mh.px, msy = _mh.py;
-        if (Math.sqrt((svgX-msx)**2+(svgY-msy)**2) < 12) {
-          skSel = {kind:'seg',idx:i}; skDrag = seg.arc ? {kind:'seg',idx:i} : null;
-          renderSketchEditor(); updateSegBar(); return;
-        }
-      }
-    }
-    // Edge hit → insert vertex at click point
-    if (shape.closed) {
-      const eh = findEdgeHit(svgX, svgY, shape, skF);
-      if (eh) { insertVertexOnSeg(eh.idx, eh.t); return; }
-    }
-    skSel = null; skDrag = null; renderSketchEditor(); updateSegBar();
+  for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) {
+    if (j === i + 1 || (i === 0 && j === n - 1)) continue;   // neighbours share a corner
+    if (skePolyCross(skeEdgePts(sh, i), skeEdgePts(sh, j))) { var w = 'The outline crosses itself: edges ' + (i + 1) + ' and ' + (j + 1) + '.'; bad(i, w); bad(j, w); }
   }
+  if (!res.list.length && pkShapeArea(sh) < 0.5) res.list.push('The outline has almost no area.');
+  return res;
+}
+function skeSegX(a, b, c, d) {
+  var o = function(p, q, r) { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); }, e = 1e-9;
+  var d1 = o(c, d, a), d2 = o(c, d, b), d3 = o(a, b, c), d4 = o(a, b, d);
+  if (((d1 > e && d2 < -e) || (d1 < -e && d2 > e)) && ((d3 > e && d4 < -e) || (d3 < -e && d4 > e))) return true;
+  if (Math.abs(d1) <= e && Math.abs(d2) <= e) {   // collinear: overlapping runs cross
+    var ax = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? 'x' : 'y', lo = Math.max(Math.min(a[ax], b[ax]), Math.min(c[ax], d[ax])), hi = Math.min(Math.max(a[ax], b[ax]), Math.max(c[ax], d[ax]));
+    return hi - lo > 1e-6;
+  }
+  return false;
+}
+function skePolyCross(P, Q) {
+  for (var i = 0; i < P.length - 1; i++) for (var j = 0; j < Q.length - 1; j++) if (skeSegX(P[i], P[i + 1], Q[j], Q[j + 1])) return true;
+  return false;
 }
 
-function onSkMM(evt) {
-  const {svgX, svgY} = skEC(evt), {skF} = sketchTransform(), _skW = planToWorld(svgX, svgY, skF), mx = _skW.z, my = _skW.x;
-  if (skTool === 'draw') { skPrev = {mx, my}; renderSketchEditor(); return; }
-  if (skTool === 'select' && !skDrag) {
-    const shape = getSkShape();
-    const eh = findEdgeHit(svgX, svgY, shape, skF);
-    const prevIdx = skHoverEdge ? skHoverEdge.idx : -1;
-    const newIdx  = eh ? eh.idx : -1;
-    skHoverEdge = eh;
-    const svgEl = document.getElementById('sketchSVG');
-    if (svgEl) svgEl.style.cursor = eh ? 'cell' : 'default';
-    if (prevIdx !== newIdx) renderSketchEditor();
-    else if (eh) renderSketchEditor();
-    return;
-  }
-  if (!skDrag) return;
-  const shape = getSkShape();
-  if (skDrag.kind === 'vert') {
-    const v = shape.verts[skDrag.idx];
-    if (v) { v.x = parseFloat(mx.toFixed(3)); v.y = parseFloat(my.toFixed(3)); renderSketchEditor(); }
-  } else if (skDrag.kind === 'seg') {
-    const i = skDrag.idx, n = shape.verts.length;
-    const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
-    const seg = shape.segs && shape.segs[i];
-    // Sag = cursor offset from the chord midpoint along the local perpendicular, in metres.
-    if (seg && seg.arc) { seg.sag = computeSag(v1.x, v1.y, mx, my, v2.x, v2.y); renderSketchEditor(); }
-  }
+// the canvas frame: the segment fits the canvas at zoom 1; z runs right to left, as in the Plan
+function skeView() {
+  var svg = document.getElementById('skeSVG'), r = svg ? svg.getBoundingClientRect() : null;
+  var W = r && r.width > 60 ? r.width : 900, H = r && r.height > 60 ? r.height : 300;
+  var E = skeExtent(), pl = 40, pr = 40, pt = 30, pb = 30, m = 0.9, aw = W - pl - pr, ah = H - pt - pb;
+  var spanZ = E.z1 - E.z0 + 2.4, spanX = E.xl - E.xc + 2 * m;
+  var s0 = Math.max(1, Math.min(aw / spanZ, ah / spanX)), kMax = Math.max(1, (ah / spanX) / s0 * 2);
+  SKE.zoom = Math.min(Math.max(1, SKE.zoom), kMax);
+  var s = s0 * SKE.zoom, half = aw / 2 / s, zMid = (E.z0 + E.z1) / 2, zc = zMid + SKE.pan;
+  var lo = E.z0 - 1.2 + half, hi = E.z1 + 1.2 - half;
+  zc = lo > hi ? zMid : Math.min(hi, Math.max(lo, zc)); SKE.pan = zc - zMid;
+  var f = { x0: pl + aw / 2 + zc * s, y0: pt + (ah - (E.xl - E.xc) * s) / 2 - E.xc * s, hs: s, vs: s };
+  return { W: W, H: H, s: s, f: f, E: E, m: m, pl: pl, aw: aw };
+}
+function skeEvt(ev, V) {
+  var svg = document.getElementById('skeSVG'), r = svg.getBoundingClientRect(), px = ev.clientX - r.left, py = ev.clientY - r.top, w = planToWorld(px, py, V.f);
+  return { px: px, py: py, p: { x: w.z, y: w.x } };
+}
+function skePx(V, v) { return worldToPlan(v.y, v.x, V.f); }
+// the nearest of the grid step and -- within 8 px -- the curb, the lane edge and the deck ends
+function skeSnap(p, V) {
+  var g = cadStep(), E = V.E, tol = 8 / V.s, x = Math.round(p.x / g) * g, y = Math.round(p.y / g) * g;
+  [E.xc, E.xl].forEach(function(t) { if (Math.abs(p.y - t) < tol && Math.abs(p.y - t) < Math.abs(p.y - y)) y = t; });
+  [0, E.L, E.z0, E.z1].forEach(function(t) { if (Math.abs(p.x - t) < tol && Math.abs(p.x - t) < Math.abs(p.x - x)) x = t; });
+  return { x: skeR4(x), y: skeR4(y) };
+}
+
+function skeOpen() {
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, sh = state.pkShape;
+  var ok = sh && sh.closed && sh.verts && sh.verts.length >= 3;
+  // a stored outline opens as it is -- arcs, corners and all
+  SKE.shape = ok ? { closed: true, verts: sh.verts.map(function(v) { return { x: +v.x, y: +v.y }; }),
+    segs: sh.verts.map(function(v, i) { var s = (sh.segs && sh.segs[i]) || {}; return { arc: !!s.arc, sag: +s.sag || 0 }; }) }
+    : skeRect(0, L, LM.deckX0, LM.deckX1);
+  SKE.unapplied = !!(ok && !sh.active);
+  SKE.applied = pkAppliedOutline();
+  SKE.base = JSON.stringify(SKE.shape);
+  SKE.undo = []; SKE.redo = []; SKE.sel = null; SKE.hover = null; SKE.drag = null; SKE.draft = null; SKE.note = '';
+  SKE.zoom = 1; SKE.pan = 0; SKE.tool = 'edit'; SKE.open = true;
+}
+function skeVisible() { var e = document.getElementById('planTabShape'); return SKE.open && !!e && e.style.display !== 'none' && e.offsetWidth > 0; }
+function skeClose() {
+  var lay = SKE.layout; SKE.layout = null;
+  setPlanTab('plan');
+  if (lay) { if (lay.mode === 'max' && lay.max) setViewportLayout('max', lay.max); else setViewportLayout('three'); }
+}
+
+function skePush(snap) { SKE.undo.push(snap || JSON.stringify(SKE.shape)); if (SKE.undo.length > 200) SKE.undo.shift(); SKE.redo = []; }
+function skeUndo() {
+  if (SKE.draft) { SKE.draft = null; skeRender(); return; }
+  if (!SKE.undo.length) return;
+  SKE.redo.push(JSON.stringify(SKE.shape)); SKE.shape = JSON.parse(SKE.undo.pop()); SKE.sel = null; SKE.note = ''; skeRender();
+}
+function skeRedo() {
+  if (!SKE.redo.length) return;
+  SKE.undo.push(JSON.stringify(SKE.shape)); SKE.shape = JSON.parse(SKE.redo.pop()); SKE.sel = null; SKE.note = ''; skeRender();
+}
+function skeSetTool(t) {
+  if (t === SKE.tool) return;
+  SKE.tool = t; SKE.draft = null; SKE.drag = null; SKE.hover = null; SKE.note = '';
+  if (t !== 'edit') SKE.sel = null;
+  skeRender();
+}
+function skeFit() { SKE.zoom = 1; SKE.pan = 0; skeRender(); }
+function skeReset() {
+  var DM = _dmCurrent(), LM = DM.landmarks;
+  skePush(); SKE.shape = skeRect(0, DM.parklet.length, LM.deckX0, LM.deckX1); SKE.sel = null; SKE.draft = null; SKE.note = ''; skeRender();
+}
+
+// Rectangle: the typed length along the curb and width across, from the outline's corner nearest the
+// deck start and the curb
+function skeSetRect() {
+  var l = parseFloat((document.getElementById('skeRL') || {}).value), w = parseFloat((document.getElementById('skeRW') || {}).value);
+  if (!(l >= SKE_MIN_EDGE) || !(w >= SKE_MIN_EDGE)) { SKE.note = 'The length and width must each be at least ' + SKE_MIN_EDGE.toFixed(2) + ' m.'; skeRender(); return; }
+  var b = skeBBox(SKE.shape);
+  skePush(); SKE.shape = skeRect(b.z0, b.z0 + l, b.y0, b.y0 + w); SKE.sel = null; SKE.note = ''; skeRender();
+}
+// Edit: the typed length of edge i. Its end corner moves along the edge; when the next edge is
+// square to it, that edge moves with it (so a rectangle stays a rectangle).
+function skeSetEdgeLen(i, len) {
+  var sh = SKE.shape, n = sh.verts.length;
+  if (i == null) { if (!SKE.sel || SKE.sel.kind !== 'edge') return; i = SKE.sel.i; }
+  if (len == null) len = parseFloat((document.getElementById('skeEL') || {}).value);
+  if (!(len >= SKE_MIN_EDGE)) { SKE.note = 'An edge must be at least ' + SKE_MIN_EDGE.toFixed(2) + ' m long.'; skeRender(); return; }
+  var a = sh.verts[i], j = (i + 1) % n, b = sh.verts[j], L0 = Math.hypot(b.x - a.x, b.y - a.y); if (L0 < 1e-9) return;
+  var ux = (b.x - a.x) / L0, uy = (b.y - a.y) / L0, dl = len - L0, k = (i + 2) % n, c = sh.verts[k];
+  var nx = c.x - b.x, ny = c.y - b.y, ln = Math.hypot(nx, ny), square = n >= 4 && ln > 1e-9 && Math.abs((nx * ux + ny * uy) / ln) < 1e-6;
+  skePush();
+  sh.verts[j] = { x: skeR4(b.x + ux * dl), y: skeR4(b.y + uy * dl) };
+  if (square) sh.verts[k] = { x: skeR4(c.x + ux * dl), y: skeR4(c.y + uy * dl) };
+  SKE.note = ''; skeRender();
+}
+function skeDeleteVert(i) {
+  var sh = SKE.shape;
+  if (sh.verts.length <= 3) { SKE.note = 'The outline needs at least three corners.'; skeRender(); return; }
+  skePush(); sh.verts.splice(i, 1); sh.segs.splice(i, 1); SKE.sel = null; SKE.hover = null; skeRender();
+}
+// a corner on edge i at parameter t (an arc splits into two arcs on the same curve)
+function skeInsertVert(i, t, pt) {
+  var sh = SKE.shape, n = sh.verts.length, v1 = sh.verts[i], v2 = sh.verts[(i + 1) % n], nv, s1 = { arc: false, sag: 0 }, s2 = { arc: false, sag: 0 };
+  if (skeArc(sh, i)) {
+    var c = shapeArcCtrl(v1, v2, sh.segs[i].sag), q1 = { x: (1 - t) * v1.x + t * c.x, y: (1 - t) * v1.y + t * c.y }, q3 = { x: (1 - t) * c.x + t * v2.x, y: (1 - t) * c.y + t * v2.y };
+    nv = { x: skeR4((1 - t) * q1.x + t * q3.x), y: skeR4((1 - t) * q1.y + t * q3.y) };
+    var sag = function(a, cp, b) { var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1; return (cp.x - mx) * (-dy / l) + (cp.y - my) * (dx / l); };
+    var g1 = sag(v1, q1, nv), g2 = sag(nv, q3, v2);
+    s1 = { arc: Math.abs(g1) > 0.001, sag: +g1.toFixed(4) }; s2 = { arc: Math.abs(g2) > 0.001, sag: +g2.toFixed(4) };
+  } else nv = pt;
+  skePush(); sh.verts.splice(i + 1, 0, nv); sh.segs.splice(i, 1, s1, s2);
+  SKE.sel = { kind: 'vert', i: i + 1 }; skeRender();
+}
+
+// Polygon: the next corner (grid; with Shift, the edge from the last corner at 0/45/90 degrees)
+function skePolyPoint(D, p, V, shift) {
+  var last = D.pts.length ? D.pts[D.pts.length - 1] : null;
+  if (!shift || !last) return skeSnap(p, V);
+  var dx = p.x - last.x, dy = p.y - last.y, a = Math.atan2(dy, dx), k = Math.round(a / (Math.PI / 4)) * Math.PI / 4, g = cadStep();
+  var r = Math.hypot(dx, dy) * Math.cos(a - k), cx = Math.round(Math.cos(k) * 1e6) / 1e6, cy = Math.round(Math.sin(k) * 1e6) / 1e6;
+  if (cx === 0 || cy === 0) { var m = Math.round(r / g) * g; return { x: skeR4(last.x + cx * m), y: skeR4(last.y + cy * m) }; }
+  var m2 = Math.round(Math.abs(r) * Math.SQRT1_2 / g) * g * Math.sign(r);
+  return { x: skeR4(last.x + Math.sign(cx) * m2), y: skeR4(last.y + Math.sign(cy) * m2) };
+}
+function skeClosePoly() {
+  var D = SKE.draft; if (!D || D.kind !== 'poly') return;
+  if (D.pts.length < 3) { SKE.note = 'Place at least three corners, then close the outline.'; skeRender(); return; }
+  skePush(); SKE.shape = { closed: true, verts: D.pts.map(function(p) { return { x: p.x, y: p.y }; }), segs: D.pts.map(function() { return { arc: false, sag: 0 }; }) };
+  SKE.draft = null; SKE.tool = 'edit'; SKE.sel = null; skeRender();
+}
+
+// Notch: from corner i, a rectangle cut back along both of its edges (both straight, the corner convex)
+function skeNotchStart(i) {
+  var sh = SKE.shape, n = sh.verts.length, ip = (i - 1 + n) % n, c = sh.verts[i], p = sh.verts[ip], q = sh.verts[(i + 1) % n];
+  if (skeArc(sh, ip) || skeArc(sh, i)) return { err: 'A notch needs straight edges on both sides of the corner.' };
+  var lu = Math.hypot(p.x - c.x, p.y - c.y), lw = Math.hypot(q.x - c.x, q.y - c.y);
+  if (lu < 2 * SKE_MIN_EDGE || lw < 2 * SKE_MIN_EDGE) return { err: 'The edges at this corner are too short for a notch.' };
+  var A2 = 0; for (var k = 0; k < n; k++) { var a = sh.verts[k], b = sh.verts[(k + 1) % n]; A2 += a.x * b.y - b.x * a.y; }
+  var turn = (c.x - p.x) * (q.y - c.y) - (c.y - p.y) * (q.x - c.x);
+  if (turn * A2 <= 0) return { err: 'Pick an outside corner: a notch cuts into the deck.' };
+  return { kind: 'notch', i: i, c: { x: c.x, y: c.y }, u: { x: (p.x - c.x) / lu, y: (p.y - c.y) / lu }, w: { x: (q.x - c.x) / lw, y: (q.y - c.y) / lw }, lu: lu, lw: lw, a: 0, b: 0 };
+}
+function skeNotchMove(D, p) {
+  var dx = p.x - D.c.x, dy = p.y - D.c.y;
+  D.a = skeR4(Math.max(0, Math.min(D.lu - SKE_MIN_EDGE, dx * D.u.x + dy * D.u.y)));
+  D.b = skeR4(Math.max(0, Math.min(D.lw - SKE_MIN_EDGE, dx * D.w.x + dy * D.w.y)));
+}
+function skeNotchPts(D) {
+  var c = D.c, u = D.u, w = D.w;
+  return [{ x: skeR4(c.x + u.x * D.a), y: skeR4(c.y + u.y * D.a) }, { x: skeR4(c.x + u.x * D.a + w.x * D.b), y: skeR4(c.y + u.y * D.a + w.y * D.b) }, { x: skeR4(c.x + w.x * D.b), y: skeR4(c.y + w.y * D.b) }];
+}
+function skeNotchApply(D) {
+  var sh = SKE.shape, s = function() { return { arc: false, sag: 0 }; };
+  sh.verts.splice.apply(sh.verts, [D.i, 1].concat(skeNotchPts(D)));
+  sh.segs.splice(D.i, 1, s(), s(), s());
+}
+// "1.50 x 1.00 m": along the curb first
+function skeNotchDims(D) { var alongU = Math.abs(D.u.x) >= Math.abs(D.u.y); return (alongU ? D.a : D.b).toFixed(2) + ' × ' + (alongU ? D.b : D.a).toFixed(2) + ' m'; }
+
+// Apply: the outline into the design. A deck that starts or ends somewhere new takes that length and
+// place along the curb: the street stays put, the deck frame (and everything placed on it) follows.
+function skeApply() {
+  var E = skeExtent(), iss = skeIssues(SKE.shape, E);
+  if (iss.list.length) { SKE.issues = iss; skeSyncUI(); return false; }
+  var sh = SKE.shape, b = skeBBox(sh), L = designParkletLength, dz0 = b.z0, newL = b.z1 - b.z0;
+  var out = { active: true, closed: true, verts: sh.verts.map(function(v) { return { x: skeR4(v.x - dz0), y: skeR4(v.y) }; }),
+    segs: sh.segs.map(function(s) { return { arc: !!s.arc, sag: +(+s.sag || 0).toFixed(4) }; }) };
+  var plain = skeIsRect(out) && Math.abs(b.y0 - E.xc) < 1e-6 && Math.abs(b.y1 - E.xl) < 1e-6;   // the full-width rectangle is the plain deck
+  if (Math.abs(dz0) > 1e-6 || Math.abs(newL - L) > 1e-6) skeReanchor(dz0, newL);
+  state.pkShape = plain ? null : out;
+  skeClose();
+  syncDesignModel('shape-apply');
+  try { if (typeof uiDesignDims === 'function') uiDesignDims(); } catch (e) {}
+  try { if (typeof pkPanelRefresh === 'function') pkPanelRefresh(); } catch (e) {}
   saveSettings();
+  return true;
 }
-function onSkMU() { if (skDrag) { skDrag = null; saveSettings(); } }
-function onSkML() {
-  skPrev = null; skHoverEdge = null;
-  const svgEl = document.getElementById('sketchSVG');
-  if (svgEl) svgEl.style.cursor = 'default';
-  if (skDrag) { skDrag = null; saveSettings(); }
-  renderSketchEditor();
+function skeReanchor(dz0, newL) {
+  var L = designParkletLength, p = pkPlace();
+  designParkletLength = +newL.toFixed(4);
+  p.pkZ = +(p.pkZ + dz0 + (designParkletLength - L) / 2).toFixed(6);   // the street frame: s = z - L/2 + pkZ stays put
+  if (Math.abs(dz0) > 1e-9) {
+    ['manholes', 'curb_features', 'driveways', 'street_trees', 'transit_stops'].forEach(function(k) {
+      (state[k] || []).forEach(function(o) { if (o && o.xM != null && isFinite(+o.xM)) o.xM = +o.xM - dz0; });
+    });
+    [BLDG_L, BLDG_R].forEach(function(B) { (B.buildings || []).forEach(function(bd) { if (bd.zOffset != null && isFinite(+bd.zOffset)) bd.zOffset = +bd.zOffset - dz0; }); });
+    if (window.FL3D && FL3D.placed) FL3D.placed.forEach(function(inst) {
+      if (inst.stateKey && inst.stateId != null) return;   // street objects: moved with their records above
+      inst.z = (+inst.z || 0) - dz0; if (inst.mesh) inst.mesh.position.z = inst.z;
+    });
+    if (typeof SECTION !== 'undefined' && typeof SECTION.z === 'number') SECTION.z -= dz0;
+  }
+  var ls = document.querySelector("[oninput*='onLengthSlider']"); if (ls) ls.value = designParkletLength;
 }
 
-function updateSegBar() {
-  const sb = document.getElementById('segBar'); if (!sb) return;
-  const bDV = document.getElementById('btnDelVert');
-  if (skSel && skSel.kind === 'seg') {
-    sb.style.display = 'flex';
-    const sh = getSkShape(), seg = sh.segs && sh.segs[skSel.idx];
-    if (seg) {
-      document.getElementById('segTypeLine').classList.toggle('active', !seg.arc);
-      document.getElementById('segTypeArc').classList.toggle('active', seg.arc);
-      const sh2 = document.getElementById('segSagHint');
-      if (sh2) sh2.style.display = seg.arc ? 'inline' : 'none';
+// ── the canvas ──
+function skeRender() {
+  var svg = document.getElementById('skeSVG'); if (!svg || !SKE.open || !SKE.shape) return;
+  var V = skeView(), f = V.f, E = V.E, s = V.s, sh = SKE.shape, n = sh.verts.length, g = cadStep();
+  var X = function(z) { return f.x0 - z * s; }, Y = function(x) { return f.y0 + x * s; }, P = function(v) { return skePx(V, v); };
+  var r1 = function(v) { return (+v).toFixed(1); }, o = [], FT = " font-family='Helvetica Neue,Arial,sans-serif'";
+  var esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  var rect = function(x, y, w, h, fill, extra) { return "<rect x='" + r1(x) + "' y='" + r1(y) + "' width='" + r1(Math.max(0, w)) + "' height='" + r1(Math.max(0, h)) + "' fill='" + fill + "'" + (extra || '') + '/>'; };
+  var line = function(x1, y1, x2, y2, st, w, extra) { return "<line x1='" + r1(x1) + "' y1='" + r1(y1) + "' x2='" + r1(x2) + "' y2='" + r1(y2) + "' stroke='" + st + "' stroke-width='" + w + "'" + (extra || '') + '/>'; };
+  var text = function(x, y, t, sz, fill, anchor, extra) { return "<text x='" + r1(x) + "' y='" + r1(y) + "' font-size='" + sz + "' fill='" + fill + "' text-anchor='" + (anchor || 'start') + "'" + FT + (extra || '') + '>' + esc(t) + '</text>'; };
+  var iss = SKE.issues = skeIssues(sh, E);
+  svg.setAttribute('viewBox', '0 0 ' + r1(V.W) + ' ' + r1(V.H));
+  var yc = Y(E.xc), yl = Y(E.xl), mY = V.m * s, zs = X(E.z1), ze = X(E.z0);
+  o.push("<defs><pattern id='skeWS' patternUnits='userSpaceOnUse' width='7' height='7' patternTransform='rotate(45)'><rect width='7' height='7' fill='#f4f2ee'/><line x1='0' y1='0' x2='0' y2='7' stroke='#d6d1c7' stroke-width='1.2'/></pattern></defs>");
+  o.push(rect(0, 0, V.W, V.H, '#f3f3f1'));
+  // the sidewalk above the curb, the lane below the lane edge, the parking segment between
+  o.push(rect(0, yc - mY, V.W, mY, '#e8e7e3', " data-ske='sidewalk'"), rect(0, yl, V.W, mY, '#dddcd8', " data-ske='lane'"));
+  o.push(rect(0, yc, V.W, yl - yc, '#ecebe8'), rect(zs, yc, ze - zs, yl - yc, '#ffffff', " data-ske='segment'"));
+  if (E.host) {
+    var ha = X(E.host[1]), hb = X(E.host[0]);
+    o.push(rect(ha, yc - mY, hb - ha, mY, 'rgba(58,168,228,.16)', " data-ske='host'"));
+    o.push(text(Math.max(ha, 0) + 6, yc - mY + 12, 'Host frontage' + (E.hostName ? ' · ' + E.hostName : ''), 10.5, '#4d6371'));
+  }
+  // the grid (whole metres a shade darker); too fine to see at this zoom: whole metres only
+  var gs = g * s >= 5 ? g : 1, zg, xg;
+  for (zg = Math.ceil(E.z0 / gs - 1e-9) * gs; zg <= E.z1 + 1e-9; zg += gs) { var wm = Math.abs(zg - Math.round(zg)) < 1e-6; o.push(line(X(zg), yc, X(zg), yl, wm ? '#dcdcd8' : '#efefec', wm ? 1 : 0.8)); }
+  for (xg = Math.ceil(E.xc / gs - 1e-9) * gs; xg <= E.xl + 1e-9; xg += gs) { var wm2 = Math.abs(xg - Math.round(xg)) < 1e-6; o.push(line(zs, Y(xg), ze, Y(xg), wm2 ? '#dcdcd8' : '#efefec', wm2 ? 1 : 0.8)); }
+  // the wheel-stop zones at the outline's two ends
+  var bb = skeBBox(sh);
+  if (bb.z1 - bb.z0 >= 2 * SKE_WS + SKE_MIN_EDGE) [[bb.z0, bb.z0 + SKE_WS], [bb.z1 - SKE_WS, bb.z1]].forEach(function(w) {
+    var a = X(w[1]), c = X(w[0]);
+    o.push("<g data-ske='ws'><title>Wheel-stop zone: 1.10 m at each end of the deck, where the end planters sit</title>" + rect(a, yc, c - a, yl - yc, 'url(#skeWS)') + '</g>');
+    if (c - a > 44) o.push(text((a + c) / 2, yl - 5, 'Wheel stop', 9.5, '#8b877f', 'middle'));
+  });
+  // the segment's ends along the curb
+  [zs, ze].forEach(function(x) { o.push(line(x, yc - mY, x, yl + mY, '#9a9994', 1, " stroke-dasharray='3 3'")); });
+  // the curb and the lane edge
+  o.push(line(0, yc, V.W, yc, '#3b3b39', 1.8, " data-ske='curb'"), line(0, yl, V.W, yl, '#3b3b39', 1.3, " stroke-dasharray='10 3 2 3' data-ske='lane-edge'"));
+  o.push(text(V.W - 8, yc - 4, 'Curb', 10.5, '#3b3b39', 'end'), text(V.W - 8, yl + 13, 'Lane edge · ' + (E.xl - E.xc).toFixed(2) + ' m from the curb', 10.5, '#3b3b39', 'end'));
+  // metres along both edges, from the deck's start
+  var step = [1, 2, 5, 10, 20, 50].find(function(k) { return k * s >= 38; }) || 100, zt;
+  for (zt = Math.ceil(E.z0 - 1e-9); zt <= E.z1 + 1e-9; zt++) {
+    var major = Math.abs(zt % step) < 1e-9, tx = X(zt), tk = major ? 6 : 3;
+    o.push(line(tx, yc - mY - tk, tx, yc - mY, '#8d8c87', 1), line(tx, yl + mY, tx, yl + mY + tk, '#8d8c87', 1));
+    if (major) { var lb = zt === 0 ? '0 m' : String(zt); o.push(text(tx, yc - mY - 9, lb, 10, '#6b6a66', 'middle', " data-ske='ruler'"), text(tx, yl + mY + 17, lb, 10, '#6b6a66', 'middle', " data-ske='ruler'")); }
+  }
+  // the applied outline, when the copy has moved away from it
+  var cur = JSON.stringify(sh);
+  if (SKE.applied && cur !== SKE.base) o.push("<path d='" + buildPlanShapePath(SKE.applied, f) + "' fill='none' stroke='#a3a29d' stroke-width='1' stroke-dasharray='4 3' data-ske='applied'/>");
+  // the outline
+  o.push("<path d='" + buildPlanShapePath(sh, f) + "' fill='rgba(58,168,228,.13)' data-ske='deck'/>");
+  // the accessible route: a dashed lane GEN.ROUTE_W wide down the middle of the deck, between the wheel-stop zones;
+  // red where the deck is narrower
+  var RW = typeof GEN !== 'undefined' && GEN.ROUTE_W ? GEN.ROUTE_W : 0.92, rz0 = bb.z0 + SKE_WS, rz1 = bb.z1 - SKE_WS;
+  if (rz1 - rz0 > 0.3) {
+    var runs = [], run = null, NR = Math.ceil((rz1 - rz0) / 0.1);
+    for (var kr = 0; kr <= NR; kr++) {
+      var zr = rz0 + (rz1 - rz0) * kr / NR, wd = shapeWidthAtLength(sh, zr), ok = !!wd && wd[1] - wd[0] >= RW - 1e-6, mid = wd ? (wd[0] + wd[1]) / 2 : (E.xc + E.xl) / 2;
+      var pa = r1(X(zr)) + ',' + r1(Y(mid - RW / 2)), pb = r1(X(zr)) + ',' + r1(Y(mid + RW / 2));
+      if (!run || run.ok !== ok) { if (run) { run.a.push(pa); run.b.push(pb); } run = { ok: ok, a: [], b: [] }; runs.push(run); }
+      run.a.push(pa); run.b.push(pb);
     }
-    if (bDV) bDV.style.display = 'none';
-  } else if (skSel && skSel.kind === 'vert') {
-    sb.style.display = 'flex';
-    const ln = document.getElementById('segTypeLine'), ar = document.getElementById('segTypeArc');
-    if (ln) ln.classList.remove('active'); if (ar) ar.classList.remove('active');
-    if (bDV) bDV.style.display = 'inline-block';
-  } else { sb.style.display = 'none'; }
+    o.push("<g data-ske='route'><title>Accessible route: " + RW.toFixed(2) + ' m clear (BCBC 3.8; the generator keeps it free of furniture). Red where the deck is narrower.</title>');
+    runs.forEach(function(r) { var st = r.ok ? '#2f7fae' : '#c03030'; o.push("<polyline points='" + r.a.join(' ') + "' fill='none' stroke='" + st + "' stroke-width='1' stroke-dasharray='5 4'/><polyline points='" + r.b.join(' ') + "' fill='none' stroke='" + st + "' stroke-width='1' stroke-dasharray='5 4'/>"); });
+    o.push('</g>');
+    if (runs[0] && runs[0].ok) o.push(text(X(rz0) - 6, Y((shapeWidthAtLength(sh, rz0 + 0.05) || [E.xc, E.xl]).reduce(function(p, q) { return (p + q) / 2; })) + 3.5, 'Route ' + RW.toFixed(2) + ' m', 9.5, '#2f7fae', 'end'));
+  }
+  // the edges: red with their reason when something is wrong
+  for (var i = 0; i < n; i++) {
+    var a = P(sh.verts[i]), b = P(sh.verts[(i + 1) % n]), d = 'M ' + r1(a.px) + ' ' + r1(a.py);
+    if (skeArc(sh, i)) { var cp = P(shapeArcCtrl(sh.verts[i], sh.verts[(i + 1) % n], sh.segs[i].sag)); d += ' Q ' + r1(cp.px) + ' ' + r1(cp.py) + ' ' + r1(b.px) + ' ' + r1(b.py); }
+    else d += ' L ' + r1(b.px) + ' ' + r1(b.py);
+    var bad = iss.edge[i], on = (SKE.hover && SKE.hover.kind === 'edge' && SKE.hover.i === i) || (SKE.sel && SKE.sel.kind === 'edge' && SKE.sel.i === i);
+    o.push("<path d='" + d + "' fill='none' stroke='" + (bad ? '#c03030' : '#1f6f99') + "' stroke-width='" + (on ? 3.2 : 2) + "' stroke-linejoin='round' data-ske-edge='" + i + "'" + (bad ? " data-bad='1'" : '') + '>' + (bad ? '<title>' + esc(bad) + '</title>' : '') + '</path>');
+  }
+  // Edit: corner handles, and the length of the edge under the pointer (or selected), clickable to type
+  if (SKE.tool === 'edit' || SKE.tool === 'notch') sh.verts.forEach(function(v, k) {
+    var p = P(v), sel = SKE.sel && SKE.sel.kind === 'vert' && SKE.sel.i === k, hov = SKE.hover && SKE.hover.kind === 'vert' && SKE.hover.i === k;
+    if (SKE.tool === 'notch') { var ok2 = !skeNotchStart(k).err; o.push("<circle cx='" + r1(p.px) + "' cy='" + r1(p.py) + "' r='" + (hov && ok2 ? 6 : 4) + "' fill='" + (ok2 ? (hov ? '#1f6f99' : '#fff') : '#e4e3df') + "' stroke='" + (ok2 ? '#1f6f99' : '#a3a29d') + "' stroke-width='1.3' data-ske-vert='" + k + "'/>"); return; }
+    var h = sel || hov ? 5 : 4;
+    o.push(rect(p.px - h, p.py - h, 2 * h, 2 * h, sel ? '#1f6f99' : '#ffffff', " stroke='#1f6f99' stroke-width='1.4' data-ske-vert='" + k + "' style='cursor:move'"));
+  });
+  var lenEdge = SKE.tool === 'edit' ? (SKE.hover && SKE.hover.kind === 'edge' ? SKE.hover.i : (SKE.sel && SKE.sel.kind === 'edge' ? SKE.sel.i : null)) : null;
+  if (lenEdge != null && lenEdge < n) {
+    var EP = skeEdgePts(sh, lenEdge), mp = EP.length > 2 ? EP[Math.floor(EP.length / 2)] : { x: (EP[0].x + EP[1].x) / 2, y: (EP[0].y + EP[1].y) / 2 };
+    var m1 = P(mp), e0 = P(EP[0]), e1 = P(EP[EP.length - 1]), ex = e1.px - e0.px, ey = e1.py - e0.py, el = Math.hypot(ex, ey) || 1, nx = ey / el, ny = -ex / el;
+    var inside = skeInsidePx(V, m1.px + nx * 4, m1.py + ny * 4); if (inside) { nx = -nx; ny = -ny; }
+    var lx = m1.px + nx * 16, ly = m1.py + ny * 16, lt = skeEdgeLen(sh, lenEdge).toFixed(2) + ' m', lw = lt.length * 6.4 + 12;
+    o.push("<g data-ske-len='" + lenEdge + "' style='cursor:text'><title>Edge " + (lenEdge + 1) + ': click to type its length</title>' + rect(lx - lw / 2, ly - 9, lw, 18, '#ffffff', " stroke='" + (iss.edge[lenEdge] ? '#c03030' : '#1f6f99') + "' stroke-width='1' rx='2'") + text(lx, ly + 4, lt, 11, '#1f2a30', 'middle', " data-ske='len-text'") + '</g>');
+  }
+  // drafts: the rectangle, the polygon, the notch -- each with its live readout
+  var D = SKE.draft, rd = function(x, y, t) { var w = t.length * 6.3 + 12; return rect(x + 12, y - 26, w, 18, '#1f2a30', " rx='2' opacity='.88'") + text(x + 12 + w / 2, y - 13, t, 11, '#ffffff', 'middle', " data-ske='readout'"); };
+  if (D && D.kind === 'rect') {
+    var ra = P(D.a), rb = P(D.b);
+    o.push(rect(Math.min(ra.px, rb.px), Math.min(ra.py, rb.py), Math.abs(rb.px - ra.px), Math.abs(rb.py - ra.py), 'rgba(31,111,153,.10)', " stroke='#1f6f99' stroke-width='1.4' stroke-dasharray='5 3'"));
+    o.push(rd(rb.px, rb.py, Math.abs(D.b.x - D.a.x).toFixed(2) + ' × ' + Math.abs(D.b.y - D.a.y).toFixed(2) + ' m'));
+  }
+  if (D && D.kind === 'poly' && D.pts.length) {
+    var pts = D.pts.map(P), pl = pts.map(function(p) { return r1(p.px) + ',' + r1(p.py); });
+    o.push("<polyline points='" + pl.join(' ') + "' fill='none' stroke='#1f6f99' stroke-width='2'/>");
+    if (D.cur) { var cq = P(D.cur), lp = pts[pts.length - 1]; o.push(line(lp.px, lp.py, cq.px, cq.py, '#1f6f99', 1.3, " stroke-dasharray='5 3'"));
+      var last = D.pts[D.pts.length - 1]; o.push(rd(cq.px, cq.py, Math.hypot(D.cur.x - last.x, D.cur.y - last.y).toFixed(2) + ' m')); }
+    pts.forEach(function(p, k) { o.push("<circle cx='" + r1(p.px) + "' cy='" + r1(p.py) + "' r='" + (k === 0 && D.pts.length >= 3 ? 7 : 3.5) + "' fill='" + (k === 0 ? '#ffffff' : '#1f6f99') + "' stroke='#1f6f99' stroke-width='1.4'" + (k === 0 ? " data-ske='first'" : '') + '/>'); });
+  }
+  if (D && D.kind === 'notch' && D.a > 0 && D.b > 0) {
+    var nq = [D.c].concat(skeNotchPts(D)).map(P);
+    o.push("<polygon points='" + nq.map(function(p) { return r1(p.px) + ',' + r1(p.py); }).join(' ') + "' fill='rgba(192,48,48,.14)' stroke='#c03030' stroke-width='1.4' stroke-dasharray='4 3'/>");
+    o.push(rd(nq[2].px, nq[2].py, skeNotchDims(D)));
+  }
+  svg.innerHTML = o.join('');
+  svg.style.cursor = SKE.drag ? (SKE.drag.kind === 'pan' ? 'grabbing' : 'move') : (SKE.tool === 'edit' ? (SKE.hover ? (SKE.hover.kind === 'vert' ? 'move' : 'grab') : 'default') : 'crosshair');
+  skeSyncUI();
 }
-
-function setSegType(type) {
-  if (!skSel || skSel.kind !== 'seg') return;
-  const sh = getSkShape(), seg = sh.segs && sh.segs[skSel.idx];
-  if (!seg) return;
-  seg.arc = (type === 'arc'); if (!seg.arc) seg.sag = 0;
-  renderSketchEditor(); updateSegBar(); saveSettings();
+// is a canvas point inside the outline (even-odd over its screen polyline)
+function skeInsidePx(V, x, y) {
+  var sh = SKE.shape, P = [];
+  sh.verts.forEach(function(v, i) { skeEdgePts(sh, i).slice(0, -1).forEach(function(p) { P.push(skePx(V, p)); }); });
+  var c = false;
+  for (var i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i].py > y) !== (P[j].py > y) && x < (P[j].px - P[i].px) * (y - P[i].py) / (P[j].py - P[i].py) + P[i].px) c = !c;
+  return c;
 }
-
-function deleteSelectedVert() {
-  if (!skSel || skSel.kind !== 'vert') return;
-  const sh = getSkShape();
-  if (sh.verts.length > 3) {
-    sh.verts.splice(skSel.idx, 1); sh.segs.splice(skSel.idx, 1);
-    skSel = null; renderSketchEditor(); updateSkHint(); updateSegBar(); saveSettings();
+function skeSyncUI() {
+  var sh = SKE.shape; if (!sh) return;
+  var iss = SKE.issues || { list: [] }, b = skeBBox(sh), A = pkShapeArea(sh), el = function(id) { return document.getElementById(id); };
+  var rr = el('skeReadout'); if (rr) rr.textContent = 'Area ' + A.toFixed(2) + ' m² · ' + (b.z1 - b.z0).toFixed(2) + ' × ' + (b.y1 - b.y0).toFixed(2) + ' m';
+  document.querySelectorAll('#skeTools [data-tool]').forEach(function(t) { var on = t.getAttribute('data-tool') === SKE.tool; t.classList.toggle('on', on); t.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  var oR = el('skeOptRect'), oE = el('skeOptEdge'), edge = SKE.tool === 'edit' && SKE.sel && SKE.sel.kind === 'edge' ? SKE.sel.i : null;
+  if (oR) oR.classList.toggle('on', SKE.tool === 'rect');
+  if (oE) oE.classList.toggle('on', edge != null);
+  var D = SKE.draft, rl = el('skeRL'), rw = el('skeRW'), eL = el('skeEL'), eN = el('skeEdgeNo');
+  if (rl && document.activeElement !== rl) rl.value = (D && D.kind === 'rect' ? Math.abs(D.b.x - D.a.x) : b.z1 - b.z0).toFixed(2);
+  if (rw && document.activeElement !== rw) rw.value = (D && D.kind === 'rect' ? Math.abs(D.b.y - D.a.y) : b.y1 - b.y0).toFixed(2);
+  if (edge != null) { if (eN) eN.textContent = String(edge + 1); if (eL && document.activeElement !== eL) eL.value = skeEdgeLen(sh, edge).toFixed(2); }
+  var u = el('skeUndo'), r = el('skeRedo'), ap = el('skeApply');
+  if (u) u.disabled = !SKE.undo.length && !D; if (r) r.disabled = !SKE.redo.length;
+  if (ap) { ap.disabled = iss.list.length > 0 || !!D; ap.title = iss.list.length ? 'Fix the outline first: ' + iss.list[0] : 'Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'; }
+  var gsel = el('skeGrid'); if (gsel) { var gv = cadStep(); [].forEach.call(gsel.options, function(o) { if (Math.abs(parseFloat(o.value) - gv) < 1e-9) gsel.value = o.value; }); }
+  var msg = el('skeMsg'); if (msg) {
+    var bad = iss.list.length > 0, t = bad ? iss.list[0] + (iss.list.length > 1 ? ' (+' + (iss.list.length - 1) + ' more)' : '') : (SKE.note || SKE_HINT[SKE.tool] || '');
+    if (!bad && !SKE.note && SKE.unapplied && JSON.stringify(sh) === SKE.base) t = 'This outline was saved but never applied: the design still uses the plain rectangle. ' + t;
+    msg.textContent = t; msg.classList.toggle('bad', bad); msg.classList.toggle('note', !bad && !!SKE.note);
   }
 }
 
-function computeSag(x1, y1, cpX, cpY, x2, y2) {
-  const mx = (x1+x2)/2, my = (y1+y2)/2;
-  const dx = x2-x1, dy = y2-y1, len = Math.sqrt(dx*dx+dy*dy)||1;
-  return (cpX-mx)*(-dy/len) + (cpY-my)*(dx/len);
+// ── pointer and keys ──
+function skeBind() {
+  if (SKE.bound) return; var svg = document.getElementById('skeSVG'); if (!svg) return; SKE.bound = true;
+  svg.addEventListener('mousedown', skeDown); svg.addEventListener('dblclick', skeDbl);
+  svg.addEventListener('wheel', skeWheel, { passive: false });
+  svg.addEventListener('mouseleave', function() { if (!SKE.drag && SKE.open) { SKE.hover = null; if (SKE.draft && SKE.draft.kind === 'poly') SKE.draft.cur = null; skeRender(); } });
+  document.addEventListener('mousemove', skeMove); document.addEventListener('mouseup', skeUp);
+  window.addEventListener('keydown', skeKey, true);
+  window.addEventListener('resize', function() { if (skeVisible()) skeRender(); });
 }
-
-function findEdgeHit(svgX, svgY, shape, skF) {
-  if (!shape.closed || !shape.verts || shape.verts.length < 3) return null;
-  const n = shape.verts.length, HITDIST = 8;
-  for (let i = 0; i < n; i++) {
-    const v1 = shape.verts[i], v2 = shape.verts[(i+1)%n];
-    const seg = (shape.segs && shape.segs[i]) || {};
-    const p1 = worldToPlan(v1.y,v1.x,skF), p2 = worldToPlan(v2.y,v2.x,skF);
-    if (Math.sqrt((svgX-p1.px)**2+(svgY-p1.py)**2) < 14) continue;
-    if (Math.sqrt((svgX-p2.px)**2+(svgY-p2.py)**2) < 14) continue;
-    const _mh = _skSegHandle(v1, v2, seg, skF);
-    if (Math.sqrt((svgX-_mh.px)**2+(svgY-_mh.py)**2) < 10) continue;
-    if (seg.arc && Math.abs(seg.sag||0) > 0.001) {
-      const _cp = shapeArcCtrl(v1, v2, seg.sag), cpX = _cp.x, cpY = _cp.y;
-      let bestD = HITDIST, bestT = -1;
-      for (let k = 1; k < 24; k++) {
-        const t = k/24;
-        const bx=(1-t)*(1-t)*v1.x+2*t*(1-t)*cpX+t*t*v2.x;
-        const by=(1-t)*(1-t)*v1.y+2*t*(1-t)*cpY+t*t*v2.y;
-        const pp = worldToPlan(by,bx,skF);
-        const d = Math.sqrt((svgX-pp.px)**2+(svgY-pp.py)**2);
-        if (d < bestD) { bestD = d; bestT = t; }
-      }
-      if (bestT >= 0) return {idx:i, t:bestT};
-    } else {
-      const dx=p2.px-p1.px, dy=p2.py-p1.py, len2=dx*dx+dy*dy;
-      if (len2 < 4) continue;
-      const t = Math.max(0.05, Math.min(0.95, ((svgX-p1.px)*dx+(svgY-p1.py)*dy)/len2));
-      const cx=p1.px+t*dx, cy=p1.py+t*dy;
-      if (Math.sqrt((svgX-cx)**2+(svgY-cy)**2) < HITDIST) return {idx:i, t};
+function skeHit(V, x, y) {
+  var sh = SKE.shape, n = sh.verts.length, best = null, i;
+  for (i = 0; i < n; i++) { var p = skePx(V, sh.verts[i]), d = Math.hypot(x - p.px, y - p.py); if (d < 9 && (!best || d < best.d)) best = { kind: 'vert', i: i, d: d }; }
+  if (best) return best;
+  for (i = 0; i < n; i++) {
+    var P = skeEdgePts(sh, i).map(function(q) { return skePx(V, q); });
+    for (var k = 0; k < P.length - 1; k++) {
+      var ax = P[k].px, ay = P[k].py, bx = P[k + 1].px, by = P[k + 1].py, l2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay); if (l2 < 1e-9) continue;
+      var t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l2)), dd = Math.hypot(x - (ax + t * (bx - ax)), y - (ay + t * (by - ay)));
+      if (dd < 7 && (!best || dd < best.d)) best = { kind: 'edge', i: i, d: dd, t: (k + t) / (P.length - 1) };
     }
   }
-  return null;
+  return best;
 }
-
-function insertVertexOnSeg(segIdx, t) {
-  const sh = getSkShape();
-  const n = sh.verts.length;
-  const v1 = sh.verts[segIdx], v2 = sh.verts[(segIdx+1)%n];
-  const seg = (sh.segs && sh.segs[segIdx]) || {arc:false,sag:0};
-  let newVert, seg1, seg2;
-  if (seg.arc && Math.abs(seg.sag||0) > 0.001) {
-    const dx=v2.x-v1.x, dy=v2.y-v1.y, ln=Math.sqrt(dx*dx+dy*dy)||1;
-    const cpX=(v1.x+v2.x)/2+(-dy/ln)*seg.sag, cpY=(v1.y+v2.y)/2+(dx/ln)*seg.sag;
-    const q1x=(1-t)*v1.x+t*cpX, q1y=(1-t)*v1.y+t*cpY;
-    const q3x=(1-t)*cpX+t*v2.x, q3y=(1-t)*cpY+t*v2.y;
-    const px=(1-t)*q1x+t*q3x,   py=(1-t)*q1y+t*q3y;
-    newVert = {x:parseFloat(px.toFixed(3)), y:parseFloat(py.toFixed(3))};
-    const sag1 = computeSag(v1.x,v1.y, q1x,q1y, px,py);
-    const sag2 = computeSag(px,py, q3x,q3y, v2.x,v2.y);
-    seg1 = {arc:Math.abs(sag1)>0.001, sag:parseFloat(sag1.toFixed(4))};
-    seg2 = {arc:Math.abs(sag2)>0.001, sag:parseFloat(sag2.toFixed(4))};
-  } else {
-    const px=v1.x+t*(v2.x-v1.x), py=v1.y+t*(v2.y-v1.y);
-    newVert = {x:parseFloat(px.toFixed(3)), y:parseFloat(py.toFixed(3))};
-    seg1 = {arc:false,sag:0}; seg2 = {arc:false,sag:0};
+function skeDown(ev) {
+  if (!SKE.open) return;
+  var V = skeView(), e = skeEvt(ev, V), sh = SKE.shape;
+  if (ev.button === 1) { ev.preventDefault(); SKE.drag = { kind: 'pan', px0: e.px, pan0: SKE.pan, moved: true }; return; }
+  if (ev.button !== 0) return;
+  ev.preventDefault(); SKE.note = '';
+  var lab = ev.target && ev.target.closest ? ev.target.closest('[data-ske-len]') : null;
+  if (lab) { SKE.sel = { kind: 'edge', i: +lab.getAttribute('data-ske-len') }; skeRender(); var fe = document.getElementById('skeEL'); if (fe) { fe.focus(); fe.select(); } return; }
+  if (SKE.tool === 'rect') { var a = skeSnap(e.p, V); SKE.draft = { kind: 'rect', a: a, b: a }; skeRender(); return; }
+  if (SKE.tool === 'poly') {
+    var D = SKE.draft && SKE.draft.kind === 'poly' ? SKE.draft : (SKE.draft = { kind: 'poly', pts: [], cur: null });
+    if (D.pts.length >= 3) { var p0 = skePx(V, D.pts[0]); if (Math.hypot(e.px - p0.px, e.py - p0.py) < 10) { skeClosePoly(); return; } }
+    var q = skePolyPoint(D, e.p, V, ev.shiftKey), lst = D.pts[D.pts.length - 1];
+    if (!lst || Math.hypot(q.x - lst.x, q.y - lst.y) > 1e-6) D.pts.push(q);
+    D.cur = q; skeRender(); return;
   }
-  sh.verts.splice(segIdx+1, 0, newVert);
-  sh.segs[segIdx] = seg1;
-  sh.segs.splice(segIdx+1, 0, seg2);
-  skSel = {kind:'vert', idx:segIdx+1};
-  skDrag = null;
-  renderSketchEditor(); updateSegBar(); saveSettings();
+  var h = skeHit(V, e.px, e.py);
+  if (SKE.tool === 'notch') {
+    if (!h || h.kind !== 'vert') { SKE.note = 'Press on a corner of the outline, then drag inward.'; skeRender(); return; }
+    var nd = skeNotchStart(h.i); if (nd.err) { SKE.note = nd.err; skeRender(); return; }
+    SKE.draft = nd; skeRender(); return;
+  }
+  if (!h) { SKE.sel = null; skeRender(); return; }
+  SKE.sel = { kind: h.kind, i: h.i };
+  var orig = JSON.stringify(sh);
+  if (h.kind === 'vert') SKE.drag = { kind: 'vert', i: h.i, orig: orig, px0: e.px, py0: e.py, moved: false };
+  else {
+    var n = sh.verts.length, va = sh.verts[h.i], vb = sh.verts[(h.i + 1) % n], L2 = Math.hypot(vb.x - va.x, vb.y - va.y) || 1;
+    SKE.drag = { kind: 'edge', i: h.i, orig: orig, a: { x: va.x, y: va.y }, b: { x: vb.x, y: vb.y }, nx: -(vb.y - va.y) / L2, ny: (vb.x - va.x) / L2, p0: e.p, px0: e.px, py0: e.py, moved: false };
+  }
+  skeRender();
 }
-
-function sketchCloseShape() {
-  const sh = getSkShape();
-  if (sh.verts && sh.verts.length >= 3) {
-    sh.closed = true;
-    while (sh.segs.length < sh.verts.length) sh.segs.push({arc:false,sag:0});
-    sh.segs = sh.segs.slice(0, sh.verts.length);
-    setSkTool('select');
+function skeMove(ev) {
+  if (!SKE.open) return;
+  var svg = document.getElementById('skeSVG'); if (!svg) return;
+  var inSvg = svg.contains(ev.target);
+  if (!SKE.drag && !SKE.draft && !inSvg) return;
+  var V = skeView(), e = skeEvt(ev, V), sh = SKE.shape, D = SKE.draft, G = SKE.drag;
+  if (D && D.kind === 'rect') { D.b = skeSnap(e.p, V); skeRender(); return; }
+  if (D && D.kind === 'poly') { D.cur = skePolyPoint(D, e.p, V, ev.shiftKey); skeRender(); return; }
+  if (D && D.kind === 'notch') { skeNotchMove(D, skeSnap(e.p, V)); skeRender(); return; }
+  if (G) {
+    if (G.kind === 'pan') { SKE.pan = G.pan0 + (e.px - G.px0) / V.s; skeRender(); return; }
+    if (!G.moved && Math.hypot(e.px - G.px0, e.py - G.py0) < 3) return;
+    if (!G.moved) { G.moved = true; skePush(G.orig); }
+    var n = sh.verts.length;
+    if (G.kind === 'vert') { var q = skeSnap(e.p, V); sh.verts[G.i] = { x: q.x, y: q.y }; }
+    else {
+      var g = cadStep(), dd = Math.round(((e.p.x - G.p0.x) * G.nx + (e.p.y - G.p0.y) * G.ny) / g) * g, tol = 8 / V.s;
+      if (Math.abs(Math.abs(G.ny) - 1) < 1e-9) [V.E.xc, V.E.xl].forEach(function(t) { var raw = G.a.y + G.ny * ((e.p.x - G.p0.x) * G.nx + (e.p.y - G.p0.y) * G.ny), gy = G.a.y + G.ny * dd; if (Math.abs(raw - t) < tol && Math.abs(raw - t) < Math.abs(raw - gy)) dd = (t - G.a.y) / G.ny; });
+      sh.verts[G.i] = { x: skeR4(G.a.x + G.nx * dd), y: skeR4(G.a.y + G.ny * dd) };
+      sh.verts[(G.i + 1) % n] = { x: skeR4(G.b.x + G.nx * dd), y: skeR4(G.b.y + G.ny * dd) };
+    }
+    skeRender(); return;
+  }
+  var h = SKE.tool === 'edit' || SKE.tool === 'notch' ? skeHit(V, e.px, e.py) : null;
+  if (h && SKE.tool === 'notch' && h.kind !== 'vert') h = null;
+  var k1 = h ? h.kind + h.i : '', k0 = SKE.hover ? SKE.hover.kind + SKE.hover.i : '';
+  if (k1 !== k0) { SKE.hover = h ? { kind: h.kind, i: h.i } : null; skeRender(); }
+}
+function skeUp() {
+  if (!SKE.open) return;
+  var D = SKE.draft;
+  if (D && D.kind === 'rect') {
+    SKE.draft = null;
+    if (Math.abs(D.b.x - D.a.x) >= SKE_MIN_EDGE - 1e-9 && Math.abs(D.b.y - D.a.y) >= SKE_MIN_EDGE - 1e-9) {
+      skePush(); SKE.shape = skeRect(Math.min(D.a.x, D.b.x), Math.max(D.a.x, D.b.x), Math.min(D.a.y, D.b.y), Math.max(D.a.y, D.b.y)); SKE.sel = null;
+    } else SKE.note = 'Drag to draw the rectangle: at least ' + SKE_MIN_EDGE.toFixed(2) + ' m each way.';
+    skeRender(); return;
+  }
+  if (D && D.kind === 'notch') {
+    SKE.draft = null;
+    if (D.a >= SKE_MIN_EDGE - 1e-9 && D.b >= SKE_MIN_EDGE - 1e-9) { skePush(); skeNotchApply(D); SKE.sel = null; }
+    else SKE.note = 'Drag inward from the corner: a notch is at least ' + SKE_MIN_EDGE.toFixed(2) + ' m each way.';
+    skeRender(); return;
+  }
+  if (SKE.drag) { SKE.drag = null; skeRender(); }
+}
+function skeDbl(ev) {
+  if (!SKE.open || SKE.tool !== 'edit') return;
+  var V = skeView(), e = skeEvt(ev, V), h = skeHit(V, e.px, e.py);
+  if (!h || h.kind !== 'edge') return;
+  ev.preventDefault();
+  var sh = SKE.shape, n = sh.verts.length, a = sh.verts[h.i], b = sh.verts[(h.i + 1) % n], pt = null, t = h.t;
+  if (!skeArc(sh, h.i)) {   // the point on the edge, on the grid along it when the edge runs square to the street
+    var g = cadStep(), px = a.x + t * (b.x - a.x), py = a.y + t * (b.y - a.y);
+    if (Math.abs(a.y - b.y) < 1e-9) px = Math.round(px / g) * g; else if (Math.abs(a.x - b.x) < 1e-9) py = Math.round(py / g) * g;
+    pt = { x: skeR4(px), y: skeR4(py) };
+    t = Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? (pt.x - a.x) / (b.x - a.x) : (pt.y - a.y) / (b.y - a.y);
+    if (!(t > 1e-6 && t < 1 - 1e-6)) return;
+  }
+  skeInsertVert(h.i, t, pt);
+}
+function skeWheel(ev) {
+  if (!SKE.open) return;
+  ev.preventDefault();
+  var V = skeView(), e = skeEvt(ev, V);
+  if (ev.shiftKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) { SKE.pan += ((ev.shiftKey ? ev.deltaY : ev.deltaX) || 0) / V.s * -0.8; skeRender(); return; }
+  var zAt = e.p.x, k = ev.deltaY < 0 ? 1.2 : 1 / 1.2;
+  SKE.zoom = SKE.zoom * k;
+  var V2 = skeView();   // clamps the zoom
+  SKE.pan = zAt + (e.px - V2.pl - V2.aw / 2) / V2.s - (V2.E.z0 + V2.E.z1) / 2;
+  skeRender();
+}
+function skeKey(ev) {
+  if (!skeVisible()) return;
+  var tag = (ev.target && ev.target.tagName) || '', typing = /^(INPUT|SELECT|TEXTAREA)$/.test(tag), k = ev.key, mod = ev.ctrlKey || ev.metaKey;
+  var stop = function() { ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation(); };
+  if (mod && !typing && (k === 'z' || k === 'Z')) { stop(); if (ev.shiftKey) skeRedo(); else skeUndo(); return; }
+  if (mod && !typing && (k === 'y' || k === 'Y')) { stop(); skeRedo(); return; }
+  if (typing) return;
+  var D = SKE.draft, G = SKE.drag;
+  if (k === 'Enter' && D && D.kind === 'poly') { stop(); skeClosePoly(); return; }
+  if (k === 'Escape' && (D || G)) {
+    stop();
+    if (G && G.moved && G.orig) { SKE.shape = JSON.parse(G.orig); SKE.undo.pop(); }
+    SKE.draft = null; SKE.drag = null; skeRender(); return;
+  }
+  if (k === 'Delete' || k === 'Backspace') {
+    if (D && D.kind === 'poly' && D.pts.length) { stop(); D.pts.pop(); if (!D.pts.length) SKE.draft = null; skeRender(); return; }
+    if (SKE.tool === 'edit' && SKE.sel && SKE.sel.kind === 'vert') { stop(); skeDeleteVert(SKE.sel.i); return; }
   }
 }
-
-function sketchResetRect() {
-  initDefaultSkShape(); skSel = null; skDrag = null; skPrev = null;
-  const sb = document.getElementById('segBar'); if (sb) sb.style.display = 'none';
-  renderSketchEditor(); updateSkHint(); saveSettings();
-}
-
-function applySketch() {
-  const sh = getSkShape();
-  if (!sh.closed || !sh.verts || sh.verts.length < 3) { alert('Close the shape first.'); return; }
-  sh.active = true;
-  setPlanTab('plan'); renderPlanView(); renderMassView(); saveSettings();
-}
-
-document.addEventListener('keydown', function(evt) {
-  if ((evt.key === 'Delete' || evt.key === 'Backspace') && skSel && skSel.kind === 'vert') {
-    const sEl = document.getElementById('planTabShape');
-    if (sEl && sEl.style.display !== 'none') deleteSelectedVert();
-  }
-});
 
 // ===== FURNITURE LIBRARY TAB =====
 function switchMode(mode) {
@@ -10582,6 +10780,7 @@ function _flFmtM(v) { return String(Math.round(v * 100) / 100); }
 function flArchLabel(type, params) {
   var a = FL_ARCHETYPES[type];
   if (!a) return type;
+  if (a.user) return FLU.label(a);   // "user model -- bench.glb" (Brief 21 §6)
   var p = flResolveParams(type, params), e = flEnvelope(flParts(type, p));
   var round = p.shape === 'round' || (a.params.l && !a.params.d && type !== 'ramp');
   var s = a.label + ' ' + (round ? '⌀' : '') + _flFmtM(a.labelDim ? p[a.labelDim] : e.l) + ' m';
@@ -10655,7 +10854,15 @@ function flLibraryItems(opts) {
   var q = (opts.search || '').toLowerCase().trim(), items = [];
   function catIdx(c) { var i = FL_SEC_ORDER.indexOf(c); return i < 0 ? 99 : i; }
   Object.keys(FL_ARCHETYPES).forEach(function(t) {
-    var a = FL_ARCHETYPES[t], label = flArchLabel(t, {});
+    var a = FL_ARCHETYPES[t];
+    if (a.user) {   // My furniture (Brief 21 §6): this account's pieces, with their source and date
+      if (!FLU.lsMine().some(function(r) { return FLU.archId(r.id) === t; })) return;   // a design's embedded piece from another account
+      var src = a.rec.kind === 'mesh' ? a.rec.source : 'traced';
+      items.push({key:'GEN-' + t, label:a.label, sub:'My furniture · ' + src + ' · ' + a.rec.date, cat:'mine', generic:true, archetype:t, user:true,
+        hay:(a.label + ' ' + src + ' my furniture ' + (FLU.TYPES[a.rec.type] || {}).label + ' ' + FL_CATS[a.cat]).toLowerCase()});
+      return;
+    }
+    var label = flArchLabel(t, {});
     items.push({key:'GEN-' + t, label:label, sub:FL_CATS[a.cat], cat:a.cat, generic:true, archetype:t,
       hay:(label + ' ' + t.replace(/_/g, ' ') + ' ' + FL_CATS[a.cat]).toLowerCase()});
   });
@@ -10721,10 +10928,14 @@ function _flPartMesh(q, mat) {
   else if (q.k === 'cone') geo = new THREE.ConeGeometry(0.5, 1, 16);
   else if (q.k === 'sph') geo = new THREE.SphereGeometry(0.5, 12, 8);
   else if (q.k === 'rod') { geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 12); if (q.axis === 'x') geo.rotateZ(Math.PI / 2); else geo.rotateX(Math.PI / 2); }
+  else if (q.k === 'prism') {   // a traced region (Brief 21 §6): its outline in local (x, z), extruded from y0 to y1
+    var shp = new THREE.Shape(); q.pts.forEach(function(p, i) { if (i) shp.lineTo(p[0], -p[1]); else shp.moveTo(p[0], -p[1]); });
+    geo = new THREE.ExtrudeGeometry(shp, { depth: Math.max(0.001, sy), bevelEnabled: false }); geo.rotateX(-Math.PI / 2); geo.translate(0, q.y0, 0);
+  }
   else geo = _flWedgeGeo(q);
   var m = new THREE.Mesh(geo, mat);
-  if (q.k !== 'box' && q.k !== 'wedge') m.scale.set(sx, sy, sz);
-  if (q.k !== 'wedge') m.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2);
+  if (q.k !== 'box' && q.k !== 'wedge' && q.k !== 'prism') m.scale.set(sx, sy, sz);
+  if (q.k !== 'wedge' && q.k !== 'prism') m.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2);
   if (q.yaw) m.rotation.y = q.yaw;
   m.castShadow = true; m.receiveShadow = true;
   return m;
@@ -10733,8 +10944,8 @@ function _flPartMesh(q, mat) {
 function fl3DArchetype(type, params, mats) {
   var inst = {archetype:type, materials:mats || {}}, parts = flParts(type, params), e = flEnvelope(parts), g = new THREE.Group(), ent = flIsEntourage(type);
   parts.forEach(function(q) {
-    var m = _flPartMesh(q, flMat(q.role, inst));
-    m.userData.flRole = q.role;
+    var m = q.k === 'mesh' ? FLU.mesh3D(q, inst) : _flPartMesh(q, flMat(q.role, inst));   // an imported model (Brief 21 §6)
+    if (q.k !== 'mesh') m.userData.flRole = q.role;
     if (q.veg) m.userData.flVeg = true;
     if (ent) m.receiveShadow = false;   // large flat vehicle panels show shadow acne; entourage still casts
     g.add(m);
@@ -10839,7 +11050,8 @@ function flInstPanelHtml(inst) {
   if (roles.length) h += "<div style='" + lab + "'>Finish</div>";
   roles.forEach(function(r) {
     var pt = a.parts[r], cur = sp.mats[r], ci = flMatInfo(cur), custom = /^#/.test(cur);
-    h += "<div style='margin-bottom:4px;'><div style='" + nm + "margin-bottom:2px;'>" + r + " &middot; <span style='color:var(--ink);'>" + ci.label + '</span></div>';
+    var rn = a.roleNames && a.roleNames[r] ? String(a.roleNames[r]).replace(/[<>&'"]/g, '') : r;   // a user piece's group / region name
+    h += "<div style='margin-bottom:4px;'><div style='" + nm + "margin-bottom:2px;'>" + rn + " &middot; <span style='color:var(--ink);'>" + ci.label + '</span></div>';
     h += "<div style='display:flex;flex-wrap:wrap;gap:2px;align-items:center;'>";
     FL_MATERIALS.forEach(function(m) {
       if (m.custom || pt.allow.indexOf(m.group) < 0) return;
@@ -10861,7 +11073,9 @@ var FL_OVERHEAD_Y = 1.8;
 function flPlanShapes(type, params) {
   return flParts(type, params).slice().sort(function(a, b) { return a.y1 - b.y1; }).map(function(q) {
     var sh = { veg: !!q.veg, overhead: !q.veg && q.y0 >= FL_OVERHEAD_Y, role: q.role };
-    if (q.k === 'cyl' || q.k === 'sph' || q.k === 'cone') { sh.k = 'ellipse'; sh.cx = (q.x0 + q.x1) / 2; sh.cy = -(q.z0 + q.z1) / 2; sh.rx = (q.x1 - q.x0) / 2; sh.ry = (q.z1 - q.z0) / 2; }
+    if (q.k === 'prism') { sh.k = 'poly'; sh.pts = q.pts.map(function(v) { return [v[0], -v[1]]; }); }   // user pieces (Brief 21 §6): the traced outline,
+    else if (q.k === 'mesh') { sh.k = 'poly'; sh.pts = (q.plan && q.plan.length > 2 ? q.plan : [[q.x0, q.z0], [q.x1, q.z0], [q.x1, q.z1], [q.x0, q.z1]]).map(function(v) { return [v[0], -v[1]]; }); }   // the model's top projection
+    else if (q.k === 'cyl' || q.k === 'sph' || q.k === 'cone') { sh.k = 'ellipse'; sh.cx = (q.x0 + q.x1) / 2; sh.cy = -(q.z0 + q.z1) / 2; sh.rx = (q.x1 - q.x0) / 2; sh.ry = (q.z1 - q.z0) / 2; }
     else if (q.yaw) { sh.k = 'poly'; sh.pts = _flCorners(q).map(function(v) { return [v[0], -v[1]]; }); }
     else { sh.k = 'rect'; sh.x = q.x0; sh.y = -q.z1; sh.w = q.x1 - q.x0; sh.h = q.z1 - q.z0; }
     return sh;
@@ -10929,6 +11143,16 @@ function flSectionArchetype(type, params, ctx) {
     var cls = " class='" + (q.veg ? 'fl-veg' : 'fl-part') + "'", w = ctx.isBeyond ? (ctx.tech ? 0.4 : 0.35) : (ctx.tech ? 0.7 : 0.5);
     var st = cls + " fill='" + fill + "'" + DRAW_STYLE.stroke(stroke, w) + extra;
     var cn = _flCorners(q), P = [], e = { cls: cls, st: st, veg: !!q.veg, fill: fill === 'none' ? (ctx.paper || '#FFFFFF') : fill, stroke: stroke, w: w };
+    // an imported model (Brief 21 §6): its side projection -- the front (x, y) when the section sees the piece's
+    // length, else the end (z, y) -- drawn as it is, not as a hull
+    if (q.k === 'mesh') {
+      var useFront = Math.abs(sn) >= Math.abs(cs), sil = useFront ? q.front : q.end;
+      if (sil && sil.length > 2) {
+        e.g = "<polygon points='" + sil.map(function(v) { var p = useFront ? pt(v[0], v[1], 0) : pt(0, v[1], v[0]); return p[0].toFixed(2) + ',' + p[1].toFixed(2); }).join(' ') + "'";
+        geo.push(e); return;
+      }
+    }
+    if (q.k === 'prism') { q.pts.forEach(function(v) { P.push(pt(v[0], q.y0, v[1])); P.push(pt(v[0], q.y1, v[1])); }); e.g = "<polygon points='" + _flHull(P).map(function(v) { return v[0].toFixed(2) + ',' + v[1].toFixed(2); }).join(' ') + "'"; geo.push(e); return; }
     if (q.k === 'sph') {
       var xs = cn.map(function(v) { return ctx.xToPx(wx(v[0], v[1])); }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
       e.g = "<ellipse cx='" + ((x0 + x1) / 2).toFixed(2) + "' cy='" + (ctx.yDeck - (q.y0 + q.y1) / 2 * ctx.SC).toFixed(2) + "' rx='" + ((x1 - x0) / 2).toFixed(2) + "' ry='" + ((q.y1 - q.y0) / 2 * ctx.SC).toFixed(2) + "'";
@@ -10952,6 +11176,411 @@ function flSectionArchetype(type, params, ctx) {
   return "<g class='fl-sec' data-arch='" + type + "'" + (ctx.id != null ? " data-inst='" + ctx.id + "'" : '') + " data-sc='" + ctx.SC + "'>" + s + '</g>';
 }
 
+
+// == USER FURNITURE (Brief 21 §6) ====================================================================
+// Pieces the user brings: an imported 3D model (kind 'mesh') or a massing defined from a 2D outline
+// (kind 'traced'). Each registers as a full archetype 'u_<id>', so placement, snapping, collision, the
+// checks, the schedule, 3D and the drawings treat it like any other piece. The record is light
+// (dimensions, silhouettes, regions -- it travels inside a saved design); an imported model's
+// triangles live in this browser's IndexedDB and, when signed in, the user's Supabase bucket.
+// Local frame as every archetype: x along the length (-l/2..l/2), z along the depth, y up from 0.
+var FLU = { recs: {}, geo: {}, _geoP: {}, _libs: {}, LS: 'pkt_userfurn', DB: 'pkt-userfurn', BUCKET: 'user-furniture',
+  MAX_MB: 20, MAX_TRIS: 50000, MAX_SIL: 300,
+  THREE_EX: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/',
+  TYPES: {
+    seat:    { label: 'Seat',    cat: 'seating', sem: 'seat' },
+    table:   { label: 'Table',   cat: 'table',   sem: 'table' },
+    planter: { label: 'Planter', cat: 'planter', sem: 'planter' },
+    screen:  { label: 'Screen',  cat: 'edge',    sem: 'screen' },
+    other:   { label: 'Other',   cat: 'amenity', sem: null }
+  },
+  ALLOW: ['wood', 'metal', 'powder', 'mineral', 'other', 'fixed'],
+  UNITS: { m: 1, cm: 0.01, mm: 0.001, 'in': 0.0254, ft: 0.3048 }
+};
+if (typeof FL_CATS !== 'undefined' && !FL_CATS.mine) { FL_CATS.mine = 'My furniture'; FL_SEC_ORDER.unshift('mine'); }
+
+// What a user piece counts as in the checks and the metrics: a seat 1 m or longer is a bench (seats by
+// length, GEN.SEAT_M each), shorter one chair; a table, a planter, a screen as their generic kinds.
+function flSemType(type, params) {
+  var a = FL_ARCHETYPES[type]; if (!a || !a.user) return type;
+  var ut = a.rec.type, l = (params && params.l) || a.rec.l;
+  if (ut === 'seat') return l >= 1.0 ? 'backless_bench' : 'chair';
+  if (ut === 'table') return 'table';
+  if (ut === 'planter') return 'planter';
+  if (ut === 'screen') return 'screen';
+  return type;
+}
+FLU.archId = function(id) { return 'u_' + id; };
+FLU.newId = function() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
+FLU.owner = function() { return (typeof pkCurrentUser !== 'undefined' && pkCurrentUser && pkCurrentUser.id) || 'local'; };
+FLU.roles = function(rec) {
+  return rec.kind === 'mesh' ? rec.groups.map(function(g, i) { return { role: 'g' + i, mat: g.mat, name: g.name || 'Part ' + (i + 1) }; })
+    : rec.regions.map(function(r, i) { return { role: 'r' + i, mat: r.mat || rec.mat, name: r.name || 'Region ' + (i + 1) }; });
+};
+FLU.bbox = function(pts) {
+  var b = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
+  pts.forEach(function(p) { b.x0 = Math.min(b.x0, p[0]); b.x1 = Math.max(b.x1, p[0]); b.z0 = Math.min(b.z0, p[1]); b.z1 = Math.max(b.z1, p[1]); });
+  return b;
+};
+// the archetype: fixed dimensions (a user piece is what it is), one material role per mesh group / region
+FLU.register = function(rec) {
+  if (!rec || !rec.id) return null;
+  var t = FLU.archId(rec.id), T = FLU.TYPES[rec.type] || FLU.TYPES.other, parts = {}, names = {};
+  FLU.roles(rec).forEach(function(r) { parts[r.role] = { allow: FLU.ALLOW.slice(), def: FL_MAT_BY_ID[r.mat] ? r.mat : 'galvanized', fixed: false }; names[r.role] = r.name; });
+  var num = function(v) { return { type: 'num', def: v, min: v, max: v, step: 0.01 }; };
+  FL_ARCHETYPES[t] = { id: t, label: rec.name, cat: T.cat, user: true, rec: rec, params: { l: num(rec.l), d: num(rec.d), h: num(rec.h) },
+    adjust: [], parts: parts, roleNames: names, builders: typeof FL_ARCH_BUILDERS !== 'undefined' ? FL_ARCH_BUILDERS : undefined };
+  FL_GEOM[t] = function(p, K) { FLU.buildParts(rec, K); };
+  Object.keys(_FL_PARTS_CACHE).forEach(function(k) { if (k.indexOf(t + '{') === 0) delete _FL_PARTS_CACHE[k]; });
+  FLU.recs[rec.id] = rec;
+  return t;
+};
+FLU.registerDefs = function(defs) { (defs || []).forEach(function(r) { if (r && r.id && !FLU.recs[r.id]) FLU.register(r); }); };
+// the definitions a design uses, saved with it so it opens anywhere (the drawings, the checks; 3D falls back
+// to the plan silhouette extruded until the model's triangles are found in this browser or the account)
+FLU.defsFor = function(placed) {
+  var seen = {}, out = [];
+  (placed || []).forEach(function(p) { var a = FL_ARCHETYPES[p.archetype]; if (a && a.user && !seen[a.rec.id]) { seen[a.rec.id] = 1; out.push(a.rec); } });
+  return out;
+};
+FLU.buildParts = function(rec, K) {
+  if (rec.kind === 'mesh') {
+    K.parts.push({ k: 'mesh', role: 'g0', uid: rec.id, x0: -rec.l / 2, x1: rec.l / 2, y0: 0, y1: rec.h, z0: -rec.d / 2, z1: rec.d / 2, plan: rec.plan, front: rec.front, end: rec.end });
+    return;
+  }
+  rec.regions.forEach(function(r, i) {
+    var b = FLU.bbox(r.pts);
+    K.parts.push({ k: 'prism', role: 'r' + i, pts: r.pts, x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, y0: r.y0 || 0, y1: r.h });
+  });
+};
+// the schedule's name for it
+FLU.label = function(a) { return a.rec.kind === 'mesh' ? 'user model — ' + a.rec.source : 'user furniture — ' + a.rec.name; };
+// what the photoreal prompt says of it: its type and size only (its material goes by role, as for any piece)
+FLU.describe = function(a) {
+  var r = a.rec, noun = r.type === 'other' ? 'street furniture piece' : (FLU.TYPES[r.type] || FLU.TYPES.other).label.toLowerCase();
+  return { noun: noun, dims: r.l.toFixed(2) + ' x ' + r.d.toFixed(2) + ' x ' + r.h.toFixed(2) + ' m' };
+};
+
+// -- 3D ---------------------------------------------------------------------------------------------
+// the model's groups, each in its role's material; until the triangles are here, the plan silhouette
+// extruded to the height (and the triangles fetched: the pieces rebuild when they arrive)
+FLU.mesh3D = function(q, inst) {
+  var g = new THREE.Group(), G = FLU.geo[q.uid];
+  if (G) G.groups.forEach(function(gr, i) {
+    var geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(gr.pos, 3)); geo.computeVertexNormals();
+    var m = new THREE.Mesh(geo, flMat('g' + i, inst)); m.castShadow = true; m.receiveShadow = true; m.userData.flRole = 'g' + i; g.add(m);
+  });
+  else {
+    var pts = q.plan && q.plan.length > 2 ? q.plan : [[q.x0, q.z0], [q.x1, q.z0], [q.x1, q.z1], [q.x0, q.z1]];
+    var m2 = _flPartMesh({ k: 'prism', pts: pts, y0: q.y0, y1: q.y1, x0: q.x0, x1: q.x1, z0: q.z0, z1: q.z1 }, flMat('g0', inst)); m2.userData.flRole = 'g0'; g.add(m2);
+    FLU.ensureGeo(q.uid).then(function(ok) { if (ok) FLU.rebuildPlaced(q.uid); });
+  }
+  return g;
+};
+FLU.rebuildPlaced = function(id) {
+  var t = FLU.archId(id);
+  if (window.FL3D && FL3D.placed) FL3D.placed.forEach(function(inst) { if (inst.archetype === t && inst.mesh) flRebuildInstMesh(inst); });
+  try { if (typeof _FPR !== 'undefined' && _FPR.cache) delete _FPR.cache['GEN-' + t]; } catch (e) {}
+};
+
+// -- Import: GLB / glTF / OBJ ------------------------------------------------------------------------
+FLU.lib = function(path, global) {
+  if (global && THREE[global]) return Promise.resolve(THREE[global]);
+  if (!FLU._libs[path]) FLU._libs[path] = new Promise(function(res, rej) {
+    var s = document.createElement('script'); s.src = FLU.THREE_EX + path;
+    s.onload = function() { THREE[global] ? res(THREE[global]) : rej(new Error(global + ' did not load')); };
+    s.onerror = function() { delete FLU._libs[path]; rej(new Error('Could not load ' + path + ' from the CDN')); };
+    document.head.appendChild(s);
+  });
+  return FLU._libs[path];
+};
+// a file -> a draft: every mesh's triangles in the file's own units, grouped by material (else mesh) name
+FLU.readFile = async function(file) {
+  if (file.size > FLU.MAX_MB * 1048576) throw new Error(file.name + ' is ' + (file.size / 1048576).toFixed(1) + ' MB; the limit is ' + FLU.MAX_MB + ' MB.');
+  var ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'obj') return FLU.draftFrom(await FLU.parseOBJ(await file.text()), file.name, 'obj');
+  if (ext === 'glb' || ext === 'gltf') return FLU.draftFrom(await FLU.parseGLTF(ext === 'glb' ? await file.arrayBuffer() : await file.text()), file.name, ext);
+  throw new Error('A 3D model must be a .glb, .gltf or .obj file.');
+};
+FLU.parseGLTF = async function(data) {
+  var L = await FLU.lib('loaders/GLTFLoader.js', 'GLTFLoader');
+  return new Promise(function(res, rej) { new L().parse(data, '', function(g) { res(g.scene || (g.scenes && g.scenes[0])); }, function(e) { rej(new Error('The glTF file could not be read' + (e && e.message ? ': ' + e.message : '.'))); }); });
+};
+FLU.parseOBJ = async function(text) { var L = await FLU.lib('loaders/OBJLoader.js', 'OBJLoader'); return new L().parse(text); };
+FLU.draftFrom = function(root, filename, fmt) {
+  var by = {}, order = [], tris = 0;
+  root.updateMatrixWorld(true);
+  root.traverse(function(o) {
+    if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+    var mats = Array.isArray(o.material) ? o.material : [o.material], g = o.geometry, pa = g.attributes.position, ix = g.index, v = new THREE.Vector3();
+    var groups = g.groups && g.groups.length ? g.groups : [{ start: 0, count: ix ? ix.count : pa.count, materialIndex: 0 }];
+    groups.forEach(function(gr) {
+      var mt = mats[gr.materialIndex || 0] || mats[0] || {}, name = (mt && mt.name) || o.name || 'Part', key = name + '|' + (mt && mt.color ? mt.color.getHexString() : '');
+      if (!by[key]) { by[key] = { name: name, color: mt && mt.color ? '#' + mt.color.getHexString() : null, named: !!(mt && mt.name), pos: [] }; order.push(key); }
+      var P = by[key].pos;
+      for (var k = gr.start; k < gr.start + gr.count; k++) { v.fromBufferAttribute(pa, ix ? ix.getX(k) : k).applyMatrix4(o.matrixWorld); P.push(v.x, v.y, v.z); }
+    });
+  });
+  var groups = order.map(function(k) { var g = by[k]; g.pos = new Float32Array(g.pos.slice(0, g.pos.length - g.pos.length % 9)); tris += g.pos.length / 9; return g; }).filter(function(g) { return g.pos.length; });
+  if (!groups.length) throw new Error(filename + ' has no triangles.');
+  var d = { filename: filename, fmt: fmt, groups: groups, tris: tris };
+  d.units = FLU.guessUnits(d, 'y'); d.up = 'y';
+  return d;
+};
+// the file's extent along x, y, z (after the up axis)
+FLU.rawBox = function(draft, up) {
+  var b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  draft.groups.forEach(function(g) { for (var i = 0; i < g.pos.length; i += 3) { var p = FLU.upXf(g.pos[i], g.pos[i + 1], g.pos[i + 2], up); for (var k = 0; k < 3; k++) { if (p[k] < b[k]) b[k] = p[k]; if (p[k] > b[k + 3]) b[k + 3] = p[k]; } } });
+  return b;
+};
+FLU.upXf = function(x, y, z, up) { return up === 'z' ? [x, z, -y] : [x, y, z]; };
+// Units, pre-decided: the first of metres, centimetres, millimetres that makes the largest extent 0.15-8 m
+// (furniture); otherwise metres. The dialog lets the user switch (inches and feet too).
+FLU.guessUnits = function(draft, up) {
+  var b = FLU.rawBox(draft, up), M = Math.max(b[3] - b[0], b[4] - b[1], b[5] - b[2]);
+  var pick = ['m', 'cm', 'mm'].find(function(u) { var s = M * FLU.UNITS[u]; return s >= 0.15 && s <= 8; });
+  return pick || 'm';
+};
+// draft + choices -> {rec, geo}: metres, Y up, origin at the bottom centre, <= MAX_TRIS triangles,
+// silhouettes <= MAX_SIL points, a material per group
+FLU.build = function(draft, o) {
+  o = o || {};
+  var units = o.units || draft.units, up = o.up || draft.up, s = FLU.UNITS[units] || 1, b = FLU.rawBox(draft, up);
+  var cx = (b[0] + b[3]) / 2, cz = (b[2] + b[5]) / 2, y0 = b[1];
+  var groups = draft.groups.map(function(g) {
+    var P = new Float32Array(g.pos.length);
+    for (var i = 0; i < g.pos.length; i += 3) { var p = FLU.upXf(g.pos[i], g.pos[i + 1], g.pos[i + 2], up); P[i] = (p[0] - cx) * s; P[i + 1] = (p[1] - y0) * s; P[i + 2] = (p[2] - cz) * s; }
+    return { name: g.name, color: g.color, named: g.named, pos: P };
+  });
+  groups = FLU.decimate(groups, FLU.MAX_TRIS);
+  var l = (b[3] - b[0]) * s, h = (b[4] - b[1]) * s, d = (b[5] - b[2]) * s, tris = groups.reduce(function(n, g) { return n + g.pos.length / 9; }, 0);
+  var mats = o.mats || groups.map(function(g, i) { return FLU.matFor(g, i); });
+  var rec = { id: o.id || FLU.newId(), kind: 'mesh', name: o.name || draft.filename.replace(/\.[^.]+$/, ''), type: o.type || 'other', source: draft.filename,
+    date: new Date().toISOString().slice(0, 10), units: units, up: up, l: +l.toFixed(3), d: +d.toFixed(3), h: +h.toFixed(3), tris: tris, trisIn: draft.tris,
+    groups: groups.map(function(g, i) { return { name: g.name, mat: mats[i] }; }),
+    plan: FLU.silhouette(groups, 0, 2), front: FLU.silhouette(groups, 0, 1), end: FLU.silhouette(groups, 2, 1) };
+  return { rec: rec, geo: { groups: groups.map(function(g) { return { pos: g.pos }; }) } };
+};
+// Material: from the file's material name when it names one (wood, steel, concrete ...), else the
+// FL_MATERIALS entry nearest the group's colour; with neither, thermowood and black steel in turn.
+FLU.MAT_WORDS = [[/ipe/, 'ipe'], [/\boak/, 'oak'], [/pine/, 'pine'], [/cedar/, 'weathered_cedar'], [/thermo/, 'thermowood'], [/wood|timber|slat|plank|teak|larch|bamboo/, 'thermowood'],
+  [/corten|weathering/, 'corten'], [/stainless|inox/, 'stainless'], [/alu/, 'aluminium'], [/galv|zinc/, 'galvanized'], [/steel|metal|iron|frame|chrome/, 'black_steel'],
+  [/concrete|cement/, 'concrete'], [/granite|stone|marble/, 'granite'], [/terrazzo/, 'terrazzo'], [/frost|matte glass/, 'glass_frosted'], [/glass/, 'glass_clear'],
+  [/fabric|canvas|textile|cushion|upholster/, 'fabric_canvas'], [/plastic|hdpe|recycled|polymer/, 'recycled_grey'], [/soil|earth/, 'soil'], [/plant|foliage|leaf|grass|shrub/, 'foliage']];
+FLU.matFor = function(g, i) {
+  var n = String(g.name || '').toLowerCase();
+  if (g.named) { var w = FLU.MAT_WORDS.find(function(m) { return m[0].test(n); }); if (w) return w[1]; }
+  if (g.color && !/^#(ffffff|cccccc)$/i.test(g.color)) {
+    var rgb = function(h) { var v = parseInt(h.slice(1), 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; }, c = rgb(g.color), best = null, bd = Infinity;
+    FL_MATERIALS.forEach(function(m) { if (m.custom || m.opacity !== undefined || ['wood', 'metal', 'powder', 'mineral', 'other'].indexOf(m.group) < 0) return; var q = rgb(m.color), dd = Math.pow(q[0] - c[0], 2) + Math.pow(q[1] - c[1], 2) + Math.pow(q[2] - c[2], 2); if (dd < bd) { bd = dd; best = m.id; } });
+    if (best) return best;
+  }
+  return i % 2 ? 'black_steel' : 'thermowood';
+};
+// Vertex clustering: vertices merged on a grid, collapsed triangles dropped; the grid coarsens until the
+// model is within the limit.
+FLU.decimate = function(groups, maxT) {
+  var tot = groups.reduce(function(n, g) { return n + g.pos.length / 9; }, 0);
+  if (tot <= maxT) return groups;
+  var b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  groups.forEach(function(g) { for (var i = 0; i < g.pos.length; i += 3) for (var k = 0; k < 3; k++) { b[k] = Math.min(b[k], g.pos[i + k]); b[k + 3] = Math.max(b[k + 3], g.pos[i + k]); } });
+  var ext = Math.max(b[3] - b[0], b[4] - b[1], b[5] - b[2]) || 1, N = 512, out = groups;
+  while (N >= 4) {
+    var cs = ext / N, sums = {}, cnt = 0;
+    var key = function(P, i) { return Math.floor((P[i] - b[0]) / cs) + ',' + Math.floor((P[i + 1] - b[1]) / cs) + ',' + Math.floor((P[i + 2] - b[2]) / cs); };
+    groups.forEach(function(g) { for (var i = 0; i < g.pos.length; i += 3) { var k = key(g.pos, i), s = sums[k] || (sums[k] = [0, 0, 0, 0]); s[0] += g.pos[i]; s[1] += g.pos[i + 1]; s[2] += g.pos[i + 2]; s[3]++; } });
+    out = groups.map(function(g) {
+      var P = [];
+      for (var i = 0; i < g.pos.length; i += 9) {
+        var k0 = key(g.pos, i), k1 = key(g.pos, i + 3), k2 = key(g.pos, i + 6);
+        if (k0 === k1 || k1 === k2 || k0 === k2) continue;
+        [k0, k1, k2].forEach(function(k) { var s = sums[k]; P.push(s[0] / s[3], s[1] / s[3], s[2] / s[3]); });
+      }
+      cnt += P.length / 9;
+      return { name: g.name, color: g.color, named: g.named, pos: new Float32Array(P) };
+    });
+    if (cnt <= maxT) break;
+    N = Math.floor(N * 0.8);
+  }
+  return out.filter(function(g) { return g.pos.length; });
+};
+// A silhouette: the triangles projected on two axes (0 x, 1 y, 2 z) and filled on a 256-cell grid, the outer
+// boundary traced (marching squares), then simplified (Douglas-Peucker) to <= MAX_SIL points. [[a, b], ...].
+FLU.silhouette = function(groups, ia, ib) {
+  var a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+  groups.forEach(function(g) { for (var i = 0; i < g.pos.length; i += 3) { a0 = Math.min(a0, g.pos[i + ia]); a1 = Math.max(a1, g.pos[i + ia]); b0 = Math.min(b0, g.pos[i + ib]); b1 = Math.max(b1, g.pos[i + ib]); } });
+  if (!isFinite(a0)) return [];
+  var R = 256, cs = Math.max(a1 - a0, b1 - b0, 1e-6) / R, nx = Math.max(1, Math.ceil((a1 - a0) / cs - 1e-9)), ny = Math.max(1, Math.ceil((b1 - b0) / cs - 1e-9));
+  var W = nx + 2, H = ny + 2, G = new Uint8Array(W * H);   // padded by one empty cell all round
+  var mark = function(a, b) { var i = Math.min(nx - 1, Math.max(0, Math.floor((a - a0) / cs))), j = Math.min(ny - 1, Math.max(0, Math.floor((b - b0) / cs))); G[(j + 1) * W + i + 1] = 1; };
+  groups.forEach(function(g) {
+    var P = g.pos;
+    for (var t = 0; t < P.length; t += 9) {
+      var A = [P[t + ia], P[t + ib]], B = [P[t + 3 + ia], P[t + 3 + ib]], C = [P[t + 6 + ia], P[t + 6 + ib]];
+      [[A, B], [B, C], [C, A]].forEach(function(e) { var L = Math.hypot(e[1][0] - e[0][0], e[1][1] - e[0][1]), n = Math.max(1, Math.ceil(L / (cs * 0.5))); for (var k = 0; k <= n; k++) mark(e[0][0] + (e[1][0] - e[0][0]) * k / n, e[0][1] + (e[1][1] - e[0][1]) * k / n); });
+      var den = (B[1] - C[1]) * (A[0] - C[0]) + (C[0] - B[0]) * (A[1] - C[1]); if (Math.abs(den) < 1e-12) continue;
+      var i0 = Math.max(0, Math.floor((Math.min(A[0], B[0], C[0]) - a0) / cs)), i1 = Math.min(nx - 1, Math.floor((Math.max(A[0], B[0], C[0]) - a0) / cs));
+      var j0 = Math.max(0, Math.floor((Math.min(A[1], B[1], C[1]) - b0) / cs)), j1 = Math.min(ny - 1, Math.floor((Math.max(A[1], B[1], C[1]) - b0) / cs));
+      for (var j = j0; j <= j1; j++) for (var i = i0; i <= i1; i++) {
+        var x = a0 + (i + 0.5) * cs, y = b0 + (j + 0.5) * cs, l1 = ((B[1] - C[1]) * (x - C[0]) + (C[0] - B[0]) * (y - C[1])) / den, l2 = ((C[1] - A[1]) * (x - C[0]) + (A[0] - C[0]) * (y - C[1])) / den;
+        if (l1 >= -1e-9 && l2 >= -1e-9 && l1 + l2 <= 1 + 1e-9) G[(j + 1) * W + i + 1] = 1;
+      }
+    }
+  });
+  // marching squares over the padded grid: segments between edge midpoints, stitched into loops
+  var seg = {}, add = function(p, q) { (seg[p] || (seg[p] = [])).push(q); (seg[q] || (seg[q] = [])).push(p); };
+  var v = function(i, j) { return G[j * W + i]; };
+  for (var j = 0; j < H - 1; j++) for (var i = 0; i < W - 1; i++) {
+    var c = v(i, j) | v(i + 1, j) << 1 | v(i + 1, j + 1) << 2 | v(i, j + 1) << 3; if (c === 0 || c === 15) continue;
+    var Bm = (i + 0.5) + ',' + j, Rm = (i + 1) + ',' + (j + 0.5), Tm = (i + 0.5) + ',' + (j + 1), Lm = i + ',' + (j + 0.5);
+    ({ 1: [[Lm, Bm]], 2: [[Bm, Rm]], 3: [[Lm, Rm]], 4: [[Rm, Tm]], 5: [[Lm, Bm], [Rm, Tm]], 6: [[Bm, Tm]], 7: [[Lm, Tm]], 8: [[Tm, Lm]], 9: [[Bm, Tm]], 10: [[Tm, Lm], [Bm, Rm]], 11: [[Rm, Tm]], 12: [[Rm, Lm]], 13: [[Bm, Rm]], 14: [[Lm, Bm]] })[c].forEach(function(s) { add(s[0], s[1]); });
+  }
+  var used = {}, best = null, bestA = 0;
+  Object.keys(seg).forEach(function(k0) {
+    if (used[k0]) return;
+    var loop = [], prev = null, k = k0;
+    while (k && !used[k]) { used[k] = 1; loop.push(k); var nb = seg[k].filter(function(q) { return q !== prev && !used[q]; }); prev = k; k = nb[0]; }
+    var pts = loop.map(function(s) { var u = s.split(','); return [a0 + (+u[0] - 1) * cs + 0.5 * cs, b0 + (+u[1] - 1) * cs + 0.5 * cs]; });
+    var A2 = 0; for (var n = 0; n < pts.length; n++) { var p = pts[n], q = pts[(n + 1) % pts.length]; A2 += p[0] * q[1] - q[0] * p[1]; }
+    if (Math.abs(A2) > bestA) { bestA = Math.abs(A2); best = pts; }
+  });
+  if (!best) return [];
+  var tol = cs * 0.5, out = best;
+  while (true) { out = FLU.simplify(best, tol); if (out.length <= FLU.MAX_SIL) break; tol *= 1.5; }
+  return out.map(function(p) { return [+p[0].toFixed(4), +p[1].toFixed(4)]; });
+};
+// Douglas-Peucker on a closed ring (split at the two points farthest apart)
+FLU.simplify = function(pts, tol) {
+  if (pts.length < 5) return pts.slice();
+  var far = 0, fd = -1; for (var i = 1; i < pts.length; i++) { var d = Math.hypot(pts[i][0] - pts[0][0], pts[i][1] - pts[0][1]); if (d > fd) { fd = d; far = i; } }
+  var dp = function(P) {
+    if (P.length < 3) return P;
+    var a = P[0], b = P[P.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1e-12, im = 0, dm = -1;
+    for (var k = 1; k < P.length - 1; k++) { var dd = Math.abs((b[0] - a[0]) * (a[1] - P[k][1]) - (a[0] - P[k][0]) * (b[1] - a[1])) / L; if (dd > dm) { dm = dd; im = k; } }
+    if (dm <= tol) return [a, b];
+    var l = dp(P.slice(0, im + 1)), r = dp(P.slice(im)); return l.slice(0, -1).concat(r);
+  };
+  var h1 = dp(pts.slice(0, far + 1)), h2 = dp(pts.slice(far).concat([pts[0]]));
+  return h1.slice(0, -1).concat(h2.slice(0, -1));
+};
+FLU.polyArea = function(pts) { var A = 0; for (var i = 0; i < pts.length; i++) { var p = pts[i], q = pts[(i + 1) % pts.length]; A += p[0] * q[1] - q[0] * p[1]; } return Math.abs(A / 2); };
+
+// -- Traced (2D) pieces: regions {pts (local x, z), h, y0, mat, name} -> a record, centred on its footprint --
+FLU.buildTraced = function(o) {
+  var all = []; o.regions.forEach(function(r) { all = all.concat(r.pts); });
+  var b = FLU.bbox(all), cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+  var regions = o.regions.map(function(r) { return { name: r.name || '', h: +(+r.h).toFixed(3), y0: +(+(r.y0 || 0)).toFixed(3), mat: r.mat || o.mat || 'thermowood', pts: r.pts.map(function(p) { return [+(p[0] - cx).toFixed(4), +(p[1] - cz).toFixed(4)]; }) }; });
+  return { id: o.id || FLU.newId(), kind: 'traced', name: o.name || 'New furniture', type: o.type || 'other', source: 'traced', date: new Date().toISOString().slice(0, 10),
+    l: +(b.x1 - b.x0).toFixed(3), d: +(b.z1 - b.z0).toFixed(3), h: +Math.max.apply(null, regions.map(function(r) { return r.h; })).toFixed(3), mat: o.mat || 'thermowood',
+    regions: regions, suggested: o.suggested || null, underlay: o.underlayName || null };
+};
+
+// -- Storage: this browser (IndexedDB for the triangles, localStorage for the light records, both per
+// account) and, signed in, the user's Supabase bucket <user id>/<piece id>.json (RLS: own folder only) --
+FLU._db = function() {
+  if (FLU._dbp) return FLU._dbp;
+  FLU._dbp = new Promise(function(res, rej) {
+    var q = indexedDB.open(FLU.DB, 1);
+    q.onupgradeneeded = function() { q.result.createObjectStore('items', { keyPath: 'id' }); };
+    q.onsuccess = function() { res(q.result); }; q.onerror = function() { rej(q.error); };
+  });
+  return FLU._dbp;
+};
+FLU._tx = async function(mode, fn) {
+  var db = await FLU._db();
+  return new Promise(function(res, rej) { var t = db.transaction('items', mode), r = fn(t.objectStore('items')); t.oncomplete = function() { res(r && r.result); }; t.onerror = function() { rej(t.error); }; });
+};
+FLU.lsAll = function() { try { return JSON.parse(localStorage.getItem(FLU.LS) || '{}') || {}; } catch (e) { return {}; } };
+FLU.lsMine = function() { var all = FLU.lsAll(); return all[FLU.owner()] || []; };
+FLU.lsWrite = function(list) { try { var all = FLU.lsAll(); all[FLU.owner()] = list; localStorage.setItem(FLU.LS, JSON.stringify(all)); } catch (e) { console.warn('[my furniture] could not save the list', e); } };
+FLU.list = function() { return FLU.lsMine(); };
+FLU.save = async function(rec, geo) {
+  FLU.register(rec);
+  var list = FLU.lsMine().filter(function(r) { return r.id !== rec.id; }); list.push(rec); FLU.lsWrite(list);
+  if (geo) { FLU.geo[rec.id] = geo; try { await FLU._tx('readwrite', function(s) { return s.put({ id: rec.id, owner: FLU.owner(), geo: geo }); }); } catch (e) { console.warn('[my furniture] IndexedDB', e); } }
+  var cloud = await FLU.cloudPut(rec, geo || FLU.geo[rec.id] || null);
+  if (typeof lhsFwRender === 'function' && typeof _lhsFwRendered !== 'undefined' && _lhsFwRendered) lhsFwRender();
+  return { rec: rec, where: cloud ? 'account' : 'browser' };
+};
+FLU.remove = async function(id) {
+  FLU.lsWrite(FLU.lsMine().filter(function(r) { return r.id !== id; }));
+  try { await FLU._tx('readwrite', function(s) { return s.delete(id); }); } catch (e) {}
+  delete FLU.geo[id];
+  var used = window.FL3D && FL3D.placed && FL3D.placed.some(function(p) { return p.archetype === FLU.archId(id); });
+  if (!used) { delete FL_ARCHETYPES[FLU.archId(id)]; delete FL_GEOM[FLU.archId(id)]; delete FLU.recs[id]; }   // placed pieces keep their definition
+  await FLU.cloudDel(id);
+  if (typeof lhsFwRender === 'function') lhsFwRender();
+};
+FLU.ensureGeo = function(id) {
+  if (FLU.geo[id]) return Promise.resolve(true);
+  if (!FLU._geoP[id]) FLU._geoP[id] = (async function() {
+    try { var r = await FLU._tx('readonly', function(s) { return s.get(id); }); if (r && r.geo) { FLU.geo[id] = r.geo; return true; } } catch (e) {}
+    var c = await FLU.cloudGet(id); if (c && c.geo) { FLU.geo[id] = c.geo; try { await FLU._tx('readwrite', function(s) { return s.put({ id: id, owner: FLU.owner(), geo: c.geo }); }); } catch (e) {} return true; }
+    delete FLU._geoP[id]; return false;
+  })();
+  return FLU._geoP[id];
+};
+FLU._signedIn = function() { return typeof pkSB !== 'undefined' && pkSB && pkSB.storage && typeof pkCurrentUser !== 'undefined' && pkCurrentUser && pkCurrentUser.id; };
+FLU._b64 = function(f32) { var u8 = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength), s = ''; for (var i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+FLU._f32 = function(b64) { var s = atob(b64), u8 = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return new Float32Array(u8.buffer); };
+FLU.cloudPut = async function(rec, geo) {
+  if (!FLU._signedIn()) return false;
+  try {
+    var body = JSON.stringify({ rec: rec, geo: geo ? { groups: geo.groups.map(function(g) { return { pos: FLU._b64(g.pos) }; }) } : null });
+    var r = await pkSB.storage.from(FLU.BUCKET).upload(pkCurrentUser.id + '/' + rec.id + '.json', new Blob([body], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
+    if (r.error) { console.warn('[my furniture] bucket upload', r.error.message); return false; }
+    return true;
+  } catch (e) { console.warn('[my furniture] bucket upload', e); return false; }
+};
+FLU.cloudGet = async function(id) {
+  if (!FLU._signedIn()) return null;
+  try {
+    var r = await pkSB.storage.from(FLU.BUCKET).download(pkCurrentUser.id + '/' + id + '.json'); if (r.error || !r.data) return null;
+    var o = JSON.parse(await r.data.text());
+    return { rec: o.rec, geo: o.geo ? { groups: o.geo.groups.map(function(g) { return { pos: FLU._f32(g.pos) }; }) } : null };
+  } catch (e) { return null; }
+};
+FLU.cloudDel = async function(id) { if (!FLU._signedIn()) return; try { await pkSB.storage.from(FLU.BUCKET).remove([pkCurrentUser.id + '/' + id + '.json']); } catch (e) {} };
+// signed in: the account's pieces this browser lacks come down (records now, triangles when first drawn)
+FLU.cloudSync = async function() {
+  if (!FLU._signedIn()) return 0;
+  try {
+    var r = await pkSB.storage.from(FLU.BUCKET).list(pkCurrentUser.id, { limit: 500 }); if (r.error) return 0;
+    var have = {}, list = FLU.lsMine(), n = 0; list.forEach(function(x) { have[x.id] = 1; });
+    for (var i = 0; i < (r.data || []).length; i++) {
+      var id = String(r.data[i].name || '').replace(/\.json$/, ''); if (!id || have[id]) continue;
+      var c = await FLU.cloudGet(id); if (!c || !c.rec) continue;
+      list.push(c.rec); FLU.register(c.rec); if (c.geo) FLU.geo[id] = c.geo; n++;
+    }
+    if (n) { FLU.lsWrite(list); if (typeof lhsFwRender === 'function') lhsFwRender(); }
+    return n;
+  } catch (e) { return 0; }
+};
+// the account's (or this browser's) pieces, registered before any design is opened
+FLU.boot = function() { FLU.lsMine().forEach(function(r) { try { FLU.register(r); } catch (e) { console.warn('[my furniture] skipped a record', e); } }); };
+FLU.boot();
+
+// -- Library management: rename, delete, duplicate, export GLB ----------------------------------------
+FLU.rename = async function(id, name) { var r = FLU.recs[id]; if (!r || !String(name || '').trim()) return; r.name = String(name).trim(); await FLU.save(r, null); FLU.rebuildPlaced(id); };
+FLU.duplicate = async function(id) {
+  var r = FLU.recs[id]; if (!r) return null;
+  if (r.kind === 'mesh') await FLU.ensureGeo(id);
+  var c = JSON.parse(JSON.stringify(r)); c.id = FLU.newId(); c.name = r.name + ' (copy)'; c.date = new Date().toISOString().slice(0, 10);
+  var g = FLU.geo[id] ? { groups: FLU.geo[id].groups.map(function(q) { return { pos: new Float32Array(q.pos) }; }) } : null;
+  await FLU.save(c, g); return c;
+};
+FLU.exportGLB = async function(id) {
+  var r = FLU.recs[id]; if (!r) return null;
+  if (r.kind === 'mesh') await FLU.ensureGeo(id);
+  var Ex = await FLU.lib('exporters/GLTFExporter.js', 'GLTFExporter'), g = fl3DArchetype(FLU.archId(id), {}, {});
+  g.traverse(function(o) { if (o.isMesh && o.material) { o.material = o.material.clone(); o.material.name = (FLU.roles(r).find(function(q) { return q.role === o.userData.flRole; }) || {}).mat || 'material'; } });
+  g.name = r.name;
+  var buf = await new Promise(function(res) { new Ex().parse(g, res, { binary: true }); });
+  var blob = new Blob([buf], { type: 'model/gltf-binary' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = (r.name || 'furniture').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') + '.glb';
+  document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  return blob.size;
+};
 // Street objects (manholes, hydrants, poles...) register their own meshes here
 // (_registerStreet3DFactories). Furniture never does: it is all FL_ARCHETYPES.
 var FL3D_FACTORY = {};
@@ -13092,6 +13721,8 @@ window.addEventListener('load', function() { setTimeout(_cadLoadSettings, 700); 
 
 // ── Footprint editor (bridges to existing sketch system) ──────────
 function cadShowFootprintEditor() {
+  // the editor opens in the enlarged Plan; Apply or Cancel puts the views back as they were
+  if (!SKE.open) SKE.layout = { mode: VIEWPORT_LAYOUT.mode, max: VIEWPORT_LAYOUT.max };
   if (typeof setCanvasView === 'function') setCanvasView('plan');
   if (typeof setPlanTab === 'function') setPlanTab('shape');
 }
@@ -15529,7 +16160,9 @@ function pkSerialize() {
         var _rec = { objId: inst.objId, x: inst.x, z: inst.z, rotationY: inst.rotationY||0, userRotation: inst.userRotation||0 };
         if (inst.archetype) { _rec.archetype = inst.archetype; _rec.params = Object.assign({}, inst.params); _rec.materials = Object.assign({}, inst.materials); _rec.meshUrl = inst.meshUrl || null; }
         return _rec;
-      }) : []
+      }) : [],
+      // the user pieces placed (Brief 21 §6): their definitions travel with the design
+      userDefs: (typeof FLU !== 'undefined' && typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? JSON.parse(JSON.stringify(FLU.defsFor(FL3D.placed))) : []
     }
   };
 }
@@ -15696,8 +16329,9 @@ function pkApplyDesignState(raw) {
     }
   }
 
-  // Furniture — clear existing, reconstruct
+  // Furniture — clear existing, reconstruct (user pieces' definitions first, Brief 21 §6)
   pkClearAllFurniture();
+  if (data.furniture && data.furniture.userDefs && typeof FLU !== 'undefined') FLU.registerDefs(data.furniture.userDefs);
   if (data.furniture && data.furniture.placed && data.furniture.placed.length > 0) {
     // Suppress intermediate renders for batch reconstruction
     var _rpvOrig = window.renderPlanView;
@@ -15900,7 +16534,7 @@ var DEFAULT_STATE = Object.freeze({
     platform_gap: '', load_capacity: '' },
   siteObjects: { manholes: [], curb_features: [], driveways: [], pkShape: null, street_trees: [], transit_stops: [], prov: {}, siteMap: null,
     place: { pkZ: 0, corners: [] } },
-  furniture: { placed: [] }
+  furniture: { placed: [], userDefs: [] }
 });
 function pkDefaultState(name, address) {
   var s = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -15911,6 +16545,7 @@ function pkDefaultState(name, address) {
 function pkApplyBlank(s) {
   if (typeof state !== 'undefined') Object.keys(state).forEach(function(k) { delete state[k]; });   // keys the blank lacks are deleted
   if (typeof CTX_OUTER !== 'undefined') CTX_OUTER = null;                                           // the imported city context
+  if (typeof SKE !== 'undefined' && SKE.open) skeClose();                                            // the shape editor's copy is of the old design
   if (typeof SMP !== 'undefined') { SMP.lastReport = null; if (SMP._pending) SMP._pending = null; }
   if (typeof RPT !== 'undefined') RPT._renderSel = {};                                               // the render ticks
   if (typeof GEN !== 'undefined') {                                                                  // the generator: its prefs, seed, results
@@ -19398,7 +20033,7 @@ GEN.SEAT_M = 0.6;
 GEN.metrics = function(lay, fp) {
   var m = { seats: 0, tables: 0, bike: 0, planting: 0, shade: 0, play: 0, pieces: lay.items.length, route: lay.route, access: lay.access, entries: lay.acc ? lay.acc.need : 0, lounges: 0, infill: 0 };
   lay.items.forEach(function(it) {
-    var t = it.type;
+    var t = typeof flSemType === 'function' ? flSemType(it.type, it.params) : it.type;   // a user piece counts as its type (Brief 21 §6)
     if (t === 'bench' || t === 'backless_bench' || t === 'planter_bench' || t === 'seat_wall') m.seats += Math.floor(it.params.l / GEN.SEAT_M + 1e-6) * (it.params.double ? 2 : 1);
     else if (t === 'chair' || t === 'armchair' || t === 'stool') m.seats += 1;
     else if (t === 'lounge') { m.seats += 1; m.lounges += 1; }
@@ -19826,8 +20461,7 @@ RPT.data = function(mode) {
 RPT.genMetrics = function(DM, placed) {
   if (typeof GEN === 'undefined' || !GEN.metrics || !GEN.access) return null;
   try {
-    var sh = state.pkShape && state.pkShape.active ? state.pkShape : null;
-    var fp = { id: 'live', W: DM.parklet.width, L: DM.parklet.length, shape: sh };
+    var fp = { id: 'live', W: DM.parklet.width, L: DM.parklet.length, shape: DM.parklet.outline };
     var items = placed.filter(function(p) { return p.archetype && !flIsEntourage(p.archetype); }).map(function(p) {
       var sp = flInstSpec(p), e = flEnvelope(flParts(sp.type, sp.params));
       return { type: sp.type, x: p.x || 0, z: p.z || 0, u: p.userRotation || 0, params: sp.params, l: e.l, d: e.d, h: e.h };
@@ -20336,9 +20970,9 @@ RPT.SEG = { sidewalk: 'Sidewalk', parklet: 'Parklet', 'travel-lane': 'Travel lan
 RPT.geo = function(d) {
   var DM = d.DM, LM = DM.landmarks, L = DM.parklet.length, rows = {};
   d.rows.forEach(function(r) { rows[r.id] = r; });
-  var sh = typeof state !== 'undefined' ? state.pkShape : null;
-  var deck = sh && sh.active && sh.closed && sh.verts && sh.verts.length > 2
-    ? sh.verts.map(function(v) { return [LM.deckX0 + v.y, v.x]; })                                            // sketch {x, y} = world {z, x}
+  var sh = DM.parklet.outline;
+  var deck = sh
+    ? sh.verts.map(function(v) { return [v.y, v.x]; })                                                        // sketch {x, y} = world {z, x}
     : [[LM.deckX0, 0], [LM.deckX1, 0], [LM.deckX1, L], [LM.deckX0, L]];
   var num = function(k, dflt) { var v = parseFloat(typeof state !== 'undefined' ? state[k] : ''); return isNaN(v) ? dflt : v; };
   return {
@@ -22249,8 +22883,8 @@ RVZ.build = function(o) {
 
   // The parklet: the deck (sketched shape or rectangle) from the road to 0.215 m, the road-side
   // railing, the end planters and wheel stops of DESIGN_MODEL.parklet.ends
-  var sk = typeof state !== 'undefined' ? state.pkShape : null, deckMat = R ? RVZ.mat('pine', 'deck') : RVZ.mat(TOK.deck);
-  if (sk && sk.active && sk.closed && sk.verts && sk.verts.length >= 3) {
+  var sk = DESIGN_MODEL.parklet.outline, deckMat = R ? RVZ.mat('pine', 'deck') : RVZ.mat(TOK.deck);
+  if (sk) {
     var shp = new THREE.Shape(), vv = sk.verts; shp.moveTo(vv[0].y, -vv[0].x);
     for (var k = 0; k < vv.length; k++) {
       var va = vv[k], vb = vv[(k + 1) % vv.length], sg = (sk.segs && sk.segs[k]) || {};
@@ -23091,10 +23725,11 @@ RVZP.prompt = function() {
   (FL3D.placed || []).forEach(function(p) {
     var sp = flInstSpec(p); if (!sp) return;
     if (flIsEntourage(sp.type)) { var e = FL_ARCHETYPES[sp.type].ent; if (e === 'vehicle') ent.car++; else if (sp.type === 'person_cycling') ent.bike++; else if (sp.type === 'person_seated') ent.seated++; else ent.walk++; return; }
-    types[FL_ARCHETYPES[sp.type].label.toLowerCase()] = 1;
+    var ua = FL_ARCHETYPES[sp.type];   // a user piece: its type and size only, never its name (Brief 21 §6)
+    types[ua.user ? FLU.describe(ua).noun + ' (' + FLU.describe(ua).dims + ')' : ua.label.toLowerCase()] = 1;
     Object.keys(sp.mats).forEach(function(role) {
       var m = flMatInfo(sp.mats[role]); if (!m || m.group === 'fixed') return;
-      var k = m.label.toLowerCase().replace(/^ral \d+ /, '') + ' ' + (RVZP.ROLE[role] || role + 's');
+      var k = m.label.toLowerCase().replace(/^ral \d+ /, '') + ' ' + (RVZP.ROLE[role] || (/^[gr]\d+$/.test(role) ? 'parts' : role + 's'));
       counts[k] = (counts[k] || 0) + 1;
     });
   });
@@ -23142,9 +23777,9 @@ RVZP.instruction = function() {
 // What is on the deck, counted from the model: "1 bench, 2 chairs, ... and the railing".
 RVZP.inventory = function() {
   var n = {};
-  (FL3D.placed || []).forEach(function(p) { var sp = flInstSpec(p); if (!sp || flIsEntourage(sp.type)) return; var l = FL_ARCHETYPES[sp.type].label.toLowerCase(); n[l] = (n[l] || 0) + 1; });
+  (FL3D.placed || []).forEach(function(p) { var sp = flInstSpec(p); if (!sp || flIsEntourage(sp.type)) return; var a = FL_ARCHETYPES[sp.type], l = a.user ? FLU.describe(a).noun + '|' + FLU.describe(a).dims : a.label.toLowerCase(); n[l] = (n[l] || 0) + 1; });
   var ends = (_dmCurrent().parklet.ends || []).filter(function(e) { return e.kind === 'end-planter'; }).length;
-  var parts = Object.keys(n).map(function(l) { return n[l] + ' ' + l + (n[l] > 1 ? (/(s|x|ch|sh)$/.test(l) ? 'es' : 's') : ''); });
+  var parts = Object.keys(n).map(function(k) { var l = k.split('|')[0], dm = k.split('|')[1]; return n[k] + ' ' + l + (n[k] > 1 ? (/(s|x|ch|sh)$/.test(l) ? 'es' : 's') : '') + (dm ? ' (' + dm + ')' : ''); });
   if (ends) parts.push(ends + ' end planter' + (ends > 1 ? 's' : ''));
   return parts.join(', ') + ', and the railing along the traffic side';
 };
@@ -25458,11 +26093,8 @@ function chkShowMe(id) {
 // the Design tab: the deck's length x width, read-only, from the applied shape (or the rectangle)
 function uiDesignDims() {
   if (typeof DESIGN_MODEL === 'undefined' || !DESIGN_MODEL.parklet) return;
-  var L = DESIGN_MODEL.parklet.length, W = DESIGN_MODEL.parklet.width, sh = typeof state !== 'undefined' ? state.pkShape : null;
-  if (sh && sh.active && sh.closed && sh.verts && sh.verts.length > 2) {
-    var xs = sh.verts.map(function(v) { return v.x; }), ys = sh.verts.map(function(v) { return v.y; });
-    L = Math.max.apply(null, xs) - Math.min.apply(null, xs); W = Math.max.apply(null, ys) - Math.min.apply(null, ys);
-  }
+  var L = DESIGN_MODEL.parklet.length, W = DESIGN_MODEL.parklet.width, sh = DESIGN_MODEL.parklet.outline;
+  if (sh) { var bb = skeBBox(sh); L = bb.z1 - bb.z0; W = bb.y1 - bb.y0; }
   var lr = document.getElementById('lengthReadout'), wr = document.getElementById('widthReadout');
   if (lr) lr.textContent = (+L).toFixed(2) + ' m'; if (wr) wr.textContent = (+W).toFixed(2) + ' m';
 }

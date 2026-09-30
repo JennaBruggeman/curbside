@@ -762,6 +762,29 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   - **Report:**
     - A-201 draws the same rectangle (the far side, the hidden lines) at `RPT.sectionScale`: 1:50 when it and its height fit, else the next scale whose width fits (1:100, 1:200, 1:250). Its chain runs the whole road.
     - A-101 / A-102 markers span `x0`–`x1` within their crops.
+- **§5b Shape editor (commit 7):**
+  - **Module `SKE`** (replaces the old Draw/Select sketch editor). `cadShowFootprintEditor()` opens it in the enlarged Plan; Apply or Cancel (`skeClose`) restores the previous layout.
+    - It edits a copy (`SKE.shape`, the same `{verts, segs, closed}` format); `state.pkShape` changes only in `skeApply`.
+  - **Canvas (`skeExtent` / `skeView`):**
+    - Across: the parking segment, curb (`deckX0`) to lane edge (`deckX1`). Along: the host frontage, else the block between the curb returns, else the deck ± 8 m.
+    - It draws the grid at `cadStep()` (the header's Grid select calls `cadSetSpacing`), metres along both edges from the deck start, the curb, the lane edge, the wheel-stop zones at the outline's ends, the host-frontage band, and the route lane (`GEN.ROUTE_W`, dashed; red where the deck is narrower).
+    - The mouse wheel zooms; Shift+wheel or the middle button pans.
+  - **Tools (`skeSetTool`):**
+    - Rectangle: drag, with a live `l × w` readout; the Length / Width fields set it exactly.
+    - Polygon: click corners; Enter or the first corner closes; Shift gives 90° / 45° edges; Esc cancels; Backspace removes the last corner.
+    - Edit:
+      - Drag a corner, or drag an edge parallel.
+      - Double-click an edge to add a corner; Delete removes the selected one.
+      - Hover an edge to see its length label. Click the label to type a length (`skeSetEdgeLen`); a square next edge moves with it.
+    - Notch: from a convex corner with straight edges on both sides (`skeNotchStart`).
+    - Reset to rectangle.
+    - Undo and redo (Ctrl-Z, Ctrl-Y, Ctrl-Shift-Z) are captured on `window` while the editor shows.
+  - **Constraints (`skeIssues`):** an edge crossing the curb, entering the lane or running past the segment's ends, an edge under 0.25 m, or a self-crossing outline turns the edge red, shows a one-line reason, and disables Apply.
+  - **Apply (`skeApply`):**
+    - An outline that starts or ends somewhere new re-anchors the deck (`skeReanchor`): it sets the length, and sets `pkZ` so the street frame stays put. Street objects, buildings, furniture and the section cut shift by the start offset.
+    - A full-width rectangle stores no outline.
+  - **One source:** `DESIGN_MODEL.parklet.outline` (from `pkAppliedOutline()`) is read by Plan, 3D, Section, the report (`RPT.geo`, which no longer adds `deckX0`), the renders, the generator's metrics and the Design tab's dimensions.
+    - `DESIGN_MODEL.parklet.area` is now exact (`pkShapeArea`: polygon plus arc segments).
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
