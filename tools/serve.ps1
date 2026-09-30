@@ -1,16 +1,17 @@
 # Curbside local dev server for parklet-checker.html (ASCII only: PowerShell 5.1 reads BOM-less scripts as ANSI).
 #   Static files from -Root (default: the folder above tools\), GET only, never outside -Root.
-#   /render-proxy/*  the photoreal provider proxy. The provider key is read HERE, from the
-#   PROVIDER_KEY environment variable or a git-ignored .render-key file in -Root, and is never sent
-#   to the browser or written to the log: the page only talks to this server; this server talks
-#   to the provider.
+#   /render-proxy/*  the photoreal provider relay. It holds no key: each browser sends its own
+#   Replicate key (entered in Settings > Connections, kept in that browser only) in the
+#   X-Provider-Key header of every call. The relay forwards it to the provider for that one
+#   request and never stores or logs it, nor any request or response header or body.
 #   RENDER_MOCK=1 (or the key "mock"): no outbound calls; a job "succeeds" after ~1.5 s and returns
 #   the submitted colour image. For testing the pipeline, not a render.
 # Endpoints (JSON unless noted):
 #   POST /overpass?server=<host>     relay an Overpass query (body data=...) to one of three allow-listed
 #                                    servers, 45 s limit, upstream status passed through (504 on a timeout, incl. a connection that timed out; 502 on any other failure)
-#   GET  /render-proxy/health        {ok, provider, keyPresent (bool), port, models, mode} -- never the key
-#   GET  /render-proxy/status        {proxy, provider, model, key: present|missing, mode: live|mock}
+#   GET  /render-proxy/health        {ok, provider, keyFrom: 'browser', port, models, mode}
+#   GET  /render-proxy/status        {proxy, provider, model, key: 'browser', mode: live|mock}
+#   GET  /render-proxy/test          one cheap call (GET /account) with the sent key -> {ok} or {ok: false, error}
 #   POST /render-proxy/submit        body {images:{colour, depth, edges} (data URLs), prompt, negative,
 #                                    params:{strength, seed, steps, guidance, depthScale, edgeScale}}
 #                                    -> {id, status, inputs: files|data-urls}
@@ -20,8 +21,8 @@
 #                                    strength, predictTime (s)} (for cost accounting)
 # Requests must come from this origin and carry X-Render-Proxy: 1 (a custom header forces a CORS
 # preflight, which this server never answers, so another site cannot spend the key).
-# Log: this window and render-proxy.log in -Root (git-ignored): every provider call, the input path
-# used, and for failures the request and response bodies (images abbreviated, the key never).
+# Log: this window and render-proxy.log in -Root (git-ignored): one status line per provider call
+# (method, path, HTTP status, prediction id, timings). Never a key, a header or a body.
 param([string]$Root = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)), [int]$Port = 8765)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http, System.Drawing
@@ -74,13 +75,10 @@ function Build-Input($req, $urls) {
   }
 }
 
-function Get-Key {
-  if ($env:PROVIDER_KEY) { return $env:PROVIDER_KEY.Trim() }
-  $f = Join-Path $Root '.render-key'
-  if (Test-Path $f -PathType Leaf) { $k = ([IO.File]::ReadAllText($f)).Trim(); if ($k) { return $k } }
-  return $null
-}
-function Is-Mock { $k = Get-Key; return ($env:RENDER_MOCK -eq '1') -or ($k -eq 'mock') }
+# The key of the request being handled (its X-Provider-Key header), cleared when the request ends.
+$script:reqKey = $null
+function Get-Key { if ($script:reqKey) { return $script:reqKey } return $null }
+function Is-Mock { return ($env:RENDER_MOCK -eq '1') -or ($script:reqKey -eq 'mock') }
 
 # -- Logging (the key is scrubbed from everything written; long base64 runs are abbreviated) -----
 function Redact([string]$s) {
@@ -121,13 +119,11 @@ function Api([string]$method, [string]$path, $body) {
     if ($res.Headers.RetryAfter -and $res.Headers.RetryAfter.Delta) { $wait = [int][Math]::Ceiling($res.Headers.RetryAfter.Delta.TotalSeconds) }
     else { $m = [regex]::Match($txt, 'resets in ~(\d+)s'); if ($m.Success) { $wait = [int]$m.Groups[1].Value } }
     $wait = [Math]::Min(60, $wait + 1)
-    Log ('throttled (429) on ' + $method + ' ' + $path + ', try ' + $try + ': waiting ' + $wait + ' s. ' + $txt.Substring(0, [Math]::Min(200, $txt.Length)))
+    Log ('throttled (429) on ' + $method + ' ' + $path + ', try ' + $try + ': waiting ' + $wait + ' s')
     Start-Sleep -Seconds $wait
   }
   if (-not $res.IsSuccessStatusCode) {
     Log ('FAILED ' + $method + ' ' + $path + ' -> HTTP ' + [int]$res.StatusCode + ' ' + $res.ReasonPhrase)
-    if ($json) { Log ('  request body: ' + $json) }
-    Log ('  response body: ' + $txt)
     throw ('provider ' + [int]$res.StatusCode + ': ' + $txt.Substring(0, [Math]::Min(300, $txt.Length)))
   }
   return ($txt | ConvertFrom-Json)
@@ -164,12 +160,10 @@ function Upload([string]$name, $img) {
   $txt = $res.Content.ReadAsStringAsync().Result
   if (-not $res.IsSuccessStatusCode) {
     Log ('FAILED POST /files (' + $name + $ext + ', ' + $img.type + ', ' + $img.bytes.Length + ' bytes) -> HTTP ' + [int]$res.StatusCode + ' ' + $res.ReasonPhrase)
-    Log ('  request: Content-Type ' + $req.Content.Headers.ContentType + '; part: Content-Disposition: form-data; name="content"; filename="' + $name + $ext + '", Content-Type: ' + $img.type)
-    Log ('  response body: ' + $txt)
     throw ('upload ' + [int]$res.StatusCode + ': ' + $txt.Substring(0, [Math]::Min(300, $txt.Length)))
   }
   $j = $txt | ConvertFrom-Json
-  Log ('uploaded ' + $name + $ext + ' (' + $img.bytes.Length + ' bytes) -> ' + $j.urls.get)
+  Log ('uploaded ' + $name + $ext + ' (' + $img.bytes.Length + ' bytes)')
   return $j.urls.get
 }
 # the control images as data URLs, each under $DataUrlMax: colour JPEG q85, depth / edges PNG
@@ -236,8 +230,7 @@ function Poll([string]$id) {
     return @{ image = $bytes; type = [string]$r.Content.Headers.ContentType }
   }
   if ($p.status -eq 'failed' -or $p.status -eq 'canceled') {
-    Log ('prediction ' + $id + ' ' + $p.status + ': ' + [string]$p.error)
-    if ($p.logs) { Log ('  provider logs (tail): ' + ([string]$p.logs).Substring([Math]::Max(0, ([string]$p.logs).Length - 1500))) }
+    Log ('prediction ' + $id + ' ' + $p.status)
     return @{ status = 'failed'; error = [string]$(if ($p.error) { $p.error } else { $p.status }) }
   }
   return @{ status = [string]$p.status }
@@ -296,8 +289,8 @@ $Types = @{ '.html' = 'text/html; charset=utf-8'; '.js' = 'text/javascript; char
 $l = New-Object System.Net.HttpListener
 $l.Prefixes.Add("http://localhost:$Port/")
 $l.Start()
-$km = if (Get-Key) { if (Is-Mock) { 'mock (no provider calls)' } else { 'present' } } else { 'missing' }
-Log ('Curbside: serving ' + $Root + ' on http://localhost:' + $Port + '/  (render proxy: ' + $Provider.name + ' ' + $Provider.owner + '/' + $Provider.model + ', key ' + $km + ')')
+$km = if ($env:RENDER_MOCK -eq '1') { 'mock (no provider calls)' } else { 'from each browser' }
+Log ('Curbside: serving ' + $Root + ' on http://localhost:' + $Port + '/  (render relay: ' + $Provider.name + ', keys ' + $km + ')')
 while ($l.IsListening) {
   $c = $l.GetContext()
   try {
@@ -311,16 +304,27 @@ while ($l.IsListening) {
     } elseif ($path.StartsWith('/render-proxy/')) {
       $origin = $c.Request.Headers['Origin']
       $ok = ($c.Request.Headers['X-Render-Proxy'] -eq '1') -and (-not $origin -or $origin -eq ('http://localhost:' + $Port))
+      if ($ok) { $hk = [string]$c.Request.Headers['X-Provider-Key']; if ($hk) { $script:reqKey = $hk.Trim() } }   # this request's key only
       if (-not $ok) { Log ('refused ' + $path + ' (origin ' + $origin + ')'); Send-Json $c @{ error = 'forbidden' } 403 }
       elseif ($path -eq '/render-proxy/health') {
-        # what the page needs to explain itself; never the key (keyPresent is a boolean)
-        Send-Json $c @{ ok = $true; provider = $Provider.name; keyPresent = [bool](Get-Key); port = $Port; models = @($Models.Keys | Sort-Object); mode = $(if (Is-Mock) { 'mock' } else { 'live' }) }
+        # what the page needs to explain itself: the relay holds no key; each browser sends its own
+        Send-Json $c @{ ok = $true; provider = $Provider.name; keyFrom = 'browser'; port = $Port; models = @($Models.Keys | Sort-Object); mode = $(if ($env:RENDER_MOCK -eq '1') { 'mock' } else { 'live' }) }
       }
       elseif ($path -eq '/render-proxy/status') {
-        Send-Json $c @{ proxy = $true; provider = $Provider.name; model = ($Provider.owner + '/' + $Provider.model); models = @($Models.Keys | Sort-Object); key = $(if (Get-Key) { 'present' } else { 'missing' }); mode = $(if (Is-Mock) { 'mock' } else { 'live' }) }
+        Send-Json $c @{ proxy = $true; provider = $Provider.name; model = ($Provider.owner + '/' + $Provider.model); models = @($Models.Keys | Sort-Object); key = 'browser'; mode = $(if ($env:RENDER_MOCK -eq '1') { 'mock' } else { 'live' }) }
       }
       elseif ($path -eq '/render-proxy/jobs') { Send-Json $c @{ jobs = @($script:jobs.Values) } }
-      elseif (-not (Get-Key)) { Send-Json $c @{ status = 'failed'; error = 'no provider key: set PROVIDER_KEY or write .render-key next to parklet-checker.html, then restart the server' } 503 }
+      elseif (-not (Get-Key) -and -not (Is-Mock)) { Send-Json $c @{ status = 'failed'; error = 'no key: add your Replicate key in Settings > Connections' } 401 }
+      elseif ($path -eq '/render-proxy/test') {
+        # Connections > Test: one free call with the sent key (the account it belongs to)
+        if (Is-Mock) { Send-Json $c @{ ok = $true; mode = 'mock' } }
+        else {
+          $tr = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Get, [string]($Provider.api + '/account')); Auth $tr
+          $rs = $script:http.SendAsync($tr).Result
+          Log ('key test -> HTTP ' + [int]$rs.StatusCode)
+          if ($rs.IsSuccessStatusCode) { Send-Json $c @{ ok = $true } } else { Send-Json $c @{ ok = $false; error = $(if ([int]$rs.StatusCode -eq 401) { 'Replicate did not accept this key' } else { 'Replicate answered HTTP ' + [int]$rs.StatusCode }) } }
+        }
+      }
       elseif ($path -eq '/render-proxy/submit' -and $c.Request.HttpMethod -eq 'POST') {
         $sr = New-Object IO.StreamReader($c.Request.InputStream, [Text.Encoding]::UTF8)
         $req = $sr.ReadToEnd() | ConvertFrom-Json
@@ -346,7 +350,7 @@ while ($l.IsListening) {
       }
     }
   } catch {
-    Log ('error on ' + $c.Request.HttpMethod + ' ' + $c.Request.Url.AbsolutePath + ': ' + $_.Exception.Message)
+    Log ('error on ' + $c.Request.HttpMethod + ' ' + $c.Request.Url.AbsolutePath + ': ' + ([string]$_.Exception.Message -replace ':[\s\S]*$', ''))   # a provider error's body goes to the page, not the log
     try { Send-Json $c @{ status = 'failed'; error = $_.Exception.Message } 502 } catch {}
-  } finally { try { $c.Response.Close() } catch {} }
+  } finally { $script:reqKey = $null; try { $c.Response.Close() } catch {} }
 }

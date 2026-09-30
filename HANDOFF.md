@@ -7,9 +7,9 @@
 ~785 KB single-file HTML app. All CSS, JS, and HTML are inline — no build step, no dependencies except the Supabase CDN loaded at runtime.
 
 ## Running locally
-**Photoreal notice:** when the proxy check fails, the Visualize panel says why (`RVZP.checkProxy` sets `RVZP.proxy.why`, text in `RVZP.WHY`): opened as `file:` -> "You opened the file directly ... Run tools/start.cmd, or open http://localhost:8766/parklet-checker.html."; served but `/render-proxy/health` does not answer (no local server, e.g. Live Server) -> "The local server isn't running. Run tools/start.cmd."; health OK without a key -> "Server is running but .render-key is missing in the repo root." `GET /render-proxy/health` (serve.ps1) returns `{ok, provider, keyPresent, port, models, mode}`, never the key; a server without `/health` falls back to `/status`.
+**Photoreal notice:** when the proxy check fails, the Visualize panel says why (`RVZP.checkProxy` sets `RVZP.proxy.why`, text in `RVZP.WHY`): opened as `file:` -> "You opened the file directly ... Run tools/start.cmd, or open http://localhost:8766/parklet-checker.html."; served but `/render-proxy/health` does not answer (no local server, e.g. Live Server) -> "The local server isn't running. Run tools/start.cmd."; no Replicate key in this browser -> the Connections prompt in place of the controls (Brief 21 sec. 7). `GET /render-proxy/health` (serve.ps1) returns `{ok, provider, keyFrom: 'browser', port, models, mode}`; a server without `/health` falls back to `/status`.
 
-**Local server (needed for Photoreal):** double-click `tools\start.cmd`. It starts `tools\serve.ps1 -Port 8766` in its own window titled "Curbside server" (unless something already answers on 8766, which it leaves alone), waits up to 10 s for the port, opens `http://localhost:8766/parklet-checker.html` in the default browser and prints one line: started or already running, and whether `.render-key` was found (never its contents; it also notes when `PROVIDER_KEY` is set, which takes precedence). `tools\stop.cmd` stops that server and nothing else: the port is held by http.sys (PID 4), so it finds the PowerShell process whose command line runs `serve.ps1 -Port 8766`; servers on other ports (e.g. the 8765 preview in `.claude/launch.json`) are not touched. Both are CRLF (`*.cmd text eol=crlf` in `.gitattributes`). Test hooks: `PARKLET_PORT` and `PARKLET_NOBROWSER=1` for start.cmd.
+**Local server (needed for Photoreal):** double-click `tools\start.cmd`. It starts `tools\serve.ps1 -Port 8766` in its own window titled "Curbside server" (unless something already answers on 8766, which it leaves alone), waits up to 10 s for the port, opens `http://localhost:8766/parklet-checker.html` in the default browser and prints one line: started or already running (keys come from each browser, in Settings > Connections). `tools\stop.cmd` stops that server and nothing else: the port is held by http.sys (PID 4), so it finds the PowerShell process whose command line runs `serve.ps1 -Port 8766`; servers on other ports (e.g. the 8765 preview in `.claude/launch.json`) are not touched. Both are CRLF (`*.cmd text eol=crlf` in `.gitattributes`). Test hooks: `PARKLET_PORT` and `PARKLET_NOBROWSER=1` for start.cmd.
 
 **Without Photoreal:** open with VS Code Live Server (Ritwick Dey extension, already installed and enabled).
 Right-click `parklet-checker.html` in the VS Code Explorer → **Open with Live Server**.
@@ -25,7 +25,7 @@ Branches stack: `photoreal` -> `programme` -> `local-run` (each holds the one be
 | `google/nano-banana-pro` (**default**) | instruction edit | `image_input` = [base colour render FIRST, depth pass], `aspect_ratio` = `match_input_image`, `output_format` = png, `resolution` = 2K | 2752 x 1536 | ~25 s per image; the most expensive call in the tool |
 | `google/nano-banana` | instruction edit | same, no resolution | 1344 x 768 | ~10 s |
 | `sdxl` ("strict geometry") | img2img + ControlNet depth / canny | colour, depth, edges; two passes (design s-0.15, context s+0.15; slider s default 0.55), 1536 x 864 | 1536 x 864 | ~8 s per pass; mask composite + distance blur |
-- The server allow-list (`$Models` in `tools/serve.ps1`) is the only set the page can ask for; the key stays in the server (`PROVIDER_KEY` or `.render-key`).
+- The server allow-list (`$Models` in `tools/serve.ps1`) is the only set the page can ask for; the key is the user's own, sent by the browser per call (`X-Provider-Key`) and never stored or logged by the relay.
 - **Manual trigger only:** a provider is called only by Render 4 in the Photoreal panel; the report and the Generate cards read the IndexedDB cache (`pkt-photoreal`) and never call it. Cache key: design hash | preset | prompt hash | strength | adapter-mode | provider | pipeline (+ entctx, + take).
 - **Instruction (edit models)** starts: "Keep the exact camera: same viewpoint, same framing, same lens, same crop. Do not zoom, pan, tilt or re-crop." Then the materials, people / cars, daylight from the sun model, the depth-map sentence, the inventory ("1 bench, 1 cafe table, 2 chairs, ... and the railing along the traffic side"), the railing sentence from `RVZ.RAIL` (`RVZP.o.railDetail`, on by default), "Keep the near building's face where it is ... Do not add furniture.", and the building-programme context and sign clause.
 
@@ -263,7 +263,7 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 - **Verified (headless Edge, `Page.setDownloadBehavior` into the scratchpad):** fresh load -> Visualize: 139 meshes, no console errors. Street at 2x: a 3840 x 2160 PNG downloaded (2.1 s); a second export of the unchanged design: cache hit (same blob, 2 ms, logged). Black-steel spot check: the 382 sampled pixels whose first ray hit is the bench's black-steel frame: mean RGB 9,9,10 (table #2A2B2D; a 0.7-metal surface shows little diffuse), luma sd 5.4, 33 distinct colours. Sun, north 0: 21 Jun 13:00 PDT alt 64.00, 21 Dec 12:00 PST alt 17.24; 21 Jun 12:00 PDT alt 60.3 az 143.7 (SE), 1 m post shadow (-0.338, -0.460) = 0.57 m toward NW; 21 Dec 12:00 PST alt 17.2 az 177.4 (S), shadow (-0.147, -3.220) = 3.22 m toward N (vectors from the DirectionalLight as placed). Render all presets: 4 PNGs. checkLandmarkConsistency and the Brief 10 report unchanged.
 
 ## Photoreal pass (the photoreal Brief 11b, branch photoreal)
-- **Dev server:** `tools/serve.ps1` (in the repo; `.claude/launch.json` runs it on 8765). Static files from the repo root (GET only, never outside it, `.render-key` never served) plus `/render-proxy/{status, submit, poll}`. The provider key is read only by the server: `PROVIDER_KEY` env var, else `.render-key` in the repo root (git-ignored). Proxy requests must carry `X-Render-Proxy: 1` and come from the page's own origin (the custom header forces a CORS preflight the server never answers, so another site cannot spend the key). `RENDER_MOCK=1` (or the key `mock`): no outbound calls, a job returns the submitted colour image after ~1.5 s -- for testing the pipeline only. PowerShell, not Node (Node is not installed here).
+- **Dev server:** `tools/serve.ps1` (in the repo; `.claude/launch.json` runs it on 8765). Static files from the repo root (GET only, never outside it, `.render-key` never served) plus `/render-proxy/{status, submit, poll}`. The relay holds no key: each call carries the browser's own Replicate key in `X-Provider-Key` (Settings > Connections), forwarded for that request only, never stored or logged (nor any header or body). `/render-proxy/test` makes one free call (GET /account) to check a key. Proxy requests must carry `X-Render-Proxy: 1` and come from the page's own origin (the custom header forces a CORS preflight the server never answers, so another site cannot spend the key). `RENDER_MOCK=1` (or the key `mock`): no outbound calls, a job returns the submitted colour image after ~1.5 s -- for testing the pipeline only. PowerShell, not Node (Node is not installed here).
 - **Provider:** Replicate, `fofr/sdxl-multi-controlnet-lora` (SDXL img2img with ControlNet 1 = depth, 2 = canny). The server uploads colour / depth / edges to Replicate's files API, resolves the model's latest version, creates a prediction and, when polled to success, downloads the output and hands the page the image bytes. `Build-Input` was checked against the model's `openapi_schema` (2026-09-25).
 - **Live fixes (2026-09-25):** (1) Uploads: .NET's `MultipartFormDataContent` (quoted boundary, unquoted `name=`, extra `filename*=`) got HTTP 500 from Replicate's Files API; `tools/multipart.ps1` now builds the body as raw bytes (201). `tools/replicate-upload-test.ps1 [-Mode raw|dotnet] [-Delete]` uploads one 1024 x 768 PNG and prints the file URL. (2) Fallback: if an upload still fails, the images go as data URLs (colour JPEG q85, depth / edges PNG, each under 1,000,000 chars: Replicate recommends data URLs only below 1 MB; PNGs are stepped down 0.8x until they fit); the log says which path (`inputs: files` / `data-urls`); `RENDER_FORCE_DATAURL=1` forces it. (3) Throttling: under $5 of credit Replicate allows 6 predictions / min, burst 1: the proxy waits the reset the 429 names and retries (up to 10), and the page submits a preset's two passes one after the other. (4) Output: this model returns `control-0.png` (depth preview), `control-1.png` (canny preview) and `out-0.png`; the proxy takes `out-*` (it had taken the depth preview). (5) Size: `sizing_strategy = width_height` at 1536 x 864 (`input_image` shrank the frame to 1024 x 576). (6) `RVZP.PIPELINE = 'p2'` in the cache key, so results from before (4) and (5) never return. (7) Logging: every provider call to the server window and `render-proxy.log` (git-ignored); failures with the request and response bodies, images abbreviated, the key scrubbed. `/render-proxy/jobs` lists this server's predictions with `predictTime`.
 - **Page (`RVZP`, last script block):** per preset, offscreen at 1536 x 864 (`RVZP.passes`): colour (the Rendered appearance), depth (linear view depth normalised over the visible scene, near = white; `depthRange` stored), edges (Sobel on view normals + depth), mask (`userData.rvzDesign` set in `RVZ.build`: deck, railing, end planters and wheel stops, placed furniture and entourage, the generated people / traffic = white; street, buildings, trees, sky = black). `RVZP.prompt()` is generated from the model (FL_MATERIALS labels by part role, archetype names, entourage, vegetation, season / time / sun from `RVZ.sun` and `DESIGN_MODEL.site`, the weather preset, the fixed photographic tail); the rail shows it, editable for the next run only. Adapter interface `RVZP.adapters.replicate = {submit(images, prompt, params) -> job, poll(job) -> Blob | null}` over the proxy.
@@ -366,6 +366,548 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
 - **6. Sample report (commit 6, the amendment).** "See a sample report" on the Report card (the selected type, new tab) and on the landing page (schematic) opens `parklet-checker.html?sample=schematic|technical`: a finished report of the bundled reference design, generated by the same RPT code. `demo/sample-design.json` is a `pkSerialize` file: the 7-piece test design as rendered on 2026-09-25 (default site, `t_rvz_ds.js`'s pieces), adjusted so all 15 checks pass with nothing not entered (road 5.70 m so the single lane is 3.05 m for C02; the check inputs set to passing values), project "Sample parklet", address "Example street, Vancouver", no building names. `demo/render-{street,sidewalk,corner,aerial}.jpg` are that design's Nano Banana Pro Render 4 (2752 x 1536 PNGs, re-encoded to 2400 px JPEG q86, 346-693 KB), served by `tools/serve.ps1` like any file (no server change); nothing is inlined in the app. The page's first script replaces localStorage / sessionStorage with memory and IndexedDB with a stub before anything else runs, and it never signs in, so it cannot read or write the user's design, state or caches. Every page carries "SAMPLE REPORT - reference design, not your parklet" in the header margin box; the cover (and A-000) say it too, and the title blocks read SAMPLE. The address prints once (`RPT.addr`: ", Vancouver, BC" only when the address does not name the city).
 - **Verified:** schematic sample 15 pass / 0 fail / 0 not confirmed, 11 sheets -> 11 pages with the four render sheets (V-101 - V-104), "SAMPLE REPORT" on 11 / 11 pages, no overlaps; technical sample 15 / 0 / 0, 11 pages, 0 raster images, "SAMPLE REPORT" on every page. Isolation (the sample in a same-origin frame of a page holding a real design): the user's pkSerialize (savedAt removed) byte-identical before and after (hash 687f13f6), localStorage identical, render cache untouched; the user's own schematic report holds 0 of the sample's 5 images (by hash) and no sample band.
 
+## Drawing style (Brief 17 + 3b + 4b, branch drawing-style from master after the report-v2 merge; not merged)
+- **1. Report engine (commit 1).** `window.print` and the HTML report are gone (`RPT.css`, `RPT.prepare`, `RPT.paginate`, the iframe, the `RPT.kv / pill / head / sheet / group` HTML parts, the embedded WOFF2 `RPT.FONT400 / 600`). The report is a PDF made in the page: jsPDF 2.5.2 + svg2pdf.js 2.2.4 and DM Sans Regular / SemiBold TTF (Google Fonts static v17 instances, SIL OFL 1.1), pinned local copies in `tools/vendor/` with their licences, loaded on first use (`RPT.loadEngine`; no CDN). Page 17 x 11 in landscape (431.8 x 279.4 mm = 1224 x 792 pt), margins 12 / 12 / 10 / 12, content box `RPT.SW` x `RPT.SH` = 407.8 x 257.4, every sheet of both reports, nothing rotated. Each page is ONE svg of the page (1 unit = 1 mm) rendered by svg2pdf as vectors: `RPT.page` adds the header strip (project and address, the sample band, "Curbside v0.6"; rule at 7 mm), the footer (disclaimer, date, page n/N) and the 85 x 45 mm title block (`RPT.tblock`: SHEET id, caps title, project / address, SCALE / DATE / STATUS, "Curbside v0.6 - MODE", "DIMENSIONS IN METRES"). Text is real text: the two faces are registered as "DM Sans" and "DM Sans SemiBold" (`RPT.FONT`, `RPT.FONT_B`), so the PDF lists both by name; widths are measured with the same jsPDF font metrics (`RPT.tw`, `RPT.wrap`), so what is laid out is what prints. The pen records every text box (`P.boxes`) for the collision check (`RPT.checkPages`: overlaps, outside the content box). Drawing sheets (`RPT.dsheet`) take the builder's pen drawn from 0 and place it in the drawing area `RPT.DA` (y 9, 407.8 x 199.4) under the header, with the scale bar and caption in the band left of the title block. Text sheets are laid out by the builder into a known grid (`RPT.GRID`, `RPT.cols`: two columns, the second shorter by the title block, or one wide), `RPT.units` / `RPT.flow`: a table that does not fit continues on an explicitly built next page with its group heading "(cont.)" and its head repeated; the page count is known before anything renders (`RPT.pages`). The deck plan splits into equal parts with match lines only when the deck (+ 0.8 m each end, 30 mm for chains) does not fit the width at 1:50 (`RPT.deckParts`). The report never touches the live viewports. `RPT.make(mode)` -> `RPT.lastPdf` {blob, name, pages, check}; the Report button downloads `curbside-<project>-<mode>.pdf`; the sample page shows the PDF in a frame with a Download PDF button.
+- **Verified (headless Edge; PDFs read with `pdfread.ps1` / `r12_check.ps1` / pdftotext):** every page 1224 x 792 pt (431.8 x 279.4 mm) in all four PDFs; fonts DM#20Sans and DM#20Sans#20SemiBold, both embedded (2 font files), no Type 3, no Helvetica anywhere in the file; no unexpected characters; every check ID C01-C15 in the text; "SAMPLE REPORT" on 11 / 11 pages of both samples; nearest content to any page edge 9.8 mm (every element's clipped box measured on the page svg; the target is > 8); the 1:50 (and 1:100, 1:250) scale bar 100.00 mm; the 17.6 m test deck 352.00 mm on A-103 (70.40 on A-101, 176.00 on A-102); collision check 0 overlaps, 0 outside on the samples and the technical test design (one on the schematic V-001 before the drawing area offset: fixed). Samples: 11 pages in both modes. Isolation: making both reports leaves pkSerialize, localStorage and every svg in the page identical (the one new canvas is the axon exporter's offscreen renderer at -20000 px); the sample in a same-origin frame leaves the user's design and storage identical and none of its renders reach the user's report.
+- **2. DRAW_STYLE + DRAW_SYMBOLS (commit 2).** `DRAW_STYLE` (just above `DS`) is the one drawing style. Weights: cut 0.70, object 0.50, edge 0.35, general 0.25, context 0.18, fine 0.13 mm. Dashes: hidden 2/1, centre 8/1/1/1, property 12/2/2/2, zone 1.5/1.5. Type: 2.5 / 1.8 / 3.5 mm on sheets, 12 / 9 / 16 px on screen. It has a technical and a schematic set (the brief's palette; zone red #C0392B, full for a fail, pass drawn as ink at 50 % in technical and zone red at 60 % in schematic), the hatch rules, and `DRAW_STYLE.UI` for overlays (blue, fixed px, never in the report). A drawing context is either `paperCtx(mode, k)` (k user units per sheet mm) or `screenCtx(mode, U, pxPerM)`. On screen a class's px = mm x 3 x sqrt(px per m / 12), held to 0.5-4 px; the Plan re-renders on zoom, so the weights follow it. `DRAW_STYLE.stroke()` is the one writer of stroke attributes; `st` (class), `ui` (overlay), `font`, `zoneSt`, `seg` (segment fill), `hatchDefs` + `band` build on it. Hatches are drawn only in a band inside each material boundary: 6 sheet mm, or 0.6 m on screen, done by stroking the boundary with the pattern at twice the band and clipping to the shape. Pattern ids are per drawing (`ctx.pid`): the Plan uses `pvh-`, the Section `seh-`, because a shared id resolved to the hidden panel's copy and painted nothing. `DRAW_STYLE.pen(ctx)` is a screen pen with the report pen's interface. `DRAW_SYMBOLS` covers north (EDM), section marker and line, grid bubble 8 mm, match line, level datum, tree, bus stop, hydrant, pole, signal cabinet, manhole, bike, wheel stop, 45 deg tick, leader, the scale bar and the rule lozenge. The scale bar is 0-1-2-5-10 of its length: 100 mm on a sheet, so 1:50 reads 0 0.5 1 2.5 5 m. Symbols are drawn through a pen, so they are the same on the sheets and on screen.
+  - **Report:** `RPT.LW` / `TX` / colours / `fills` come from DRAW_STYLE, and the old weights were already the six classes. `RPT.pen(ctx)` takes classes and tokens and writes strokes through `DRAW_STYLE.stroke`. `pen.hatch` follows the DRAW_STYLE material rules (concrete dots 0.8 per mm2, timber lines 3 mm along the boards, planting cross-hatch 25 deg 4 mm, gravel stipple, cut solid), in a band where the box allows it; schematic draws the flat fills. `RPT.sym` / `northSym` / `secMarker` / `bar` are DRAW_SYMBOLS. Dash literals are replaced by names. `RPT._mode` is set in `RPT.pages`.
+  - **Plan:** `_renderPlanView` now computes U first (the chain-margin block moved above the drawing) and draws only with DRAW_STYLE tokens. Fills come from the palette (technical: paper); concrete / planting / timber bands (the deck boards run along the street, as in the render texture); trees, bus stops, hydrants, poles, signals, manholes, wheel stops and bikes are DRAW_SYMBOLS; zones are fine dashed lines with the rule ID in a lozenge (`dimArrow`). Handles, selection, snaps, guides, the grid, the origin marker and the measure tool use `DRAW_STYLE.ui`. Labels are DM Sans, sentence case. `DS.restylePlan`, `DS.restyleSectionObjects` and the technical `achromatic` pass are gone.
+  - **Section:** `_drawSection` uses the same set: cut 0.70 for ground and cut lines, solid for walls, steel and the deck board (thin material), and concrete / planting bands.
+  - **3D:** takes the schematic palette for segments in both styles (`DS.segColor3D`, `DS.segPalette` derived from DRAW_STYLE; `ground3D` / `hatch3D` no longer grey or texture the technical view).
+  - `flPlanArchetype` / `flSectionArchetype` / `GEN.planThumb` write through `DRAW_STYLE.stroke`; commit 3 redraws the furniture.
+- **Verified:** `stroke-width=` / `stroke='#` literals across the file went from 317 to 60. Every one left is UI chrome: the page markup icons (28), `_strGetThumb` (the street-object card thumbnails), the furniture-detail previews, two icon helpers, and `DRAW_STYLE.stroke` itself; none is in a drawing function. The Shape editor's strokes also go through `DRAW_STYLE.ui`. Plan at x1 / x3 / x8 zoom, both styles: weights 1.84/1.31/0.92/0.66/0.50/0.50, 3.19/2.28/1.59/1.14/0.82/0.59 and 4.00/3.72/2.60/1.86/1.34/0.97 px. They are monotonic at every zoom, with 5, 6 and 6 distinct values, and the deck outline measured in the DOM equals the object class. Consistency check OK throughout. Samples: 11 pages each, 0 overlaps, nothing within 9.8 mm of an edge, scale bars 100.00 mm, DM Sans only. Smoke test OK.
+- **3. Furniture silhouettes (commit 3).** `flPlanShapes(type, params)` is the one source for furniture in plan: each archetype part's footprint in local metres, lowest first, with overhead parts (bottom at or above `FL_OVERHEAD_Y` = 1.8 m, e.g. an umbrella canopy) and planting flagged. `flShapePts` turns any shape into a polygon. Both the Plan (`flPlanArchetype`, with the Plan's DRAW_STYLE context) and the report (`RPT.planFurn`) draw the same silhouette in three passes:
+  1. the body parts, stroked at twice the object weight;
+  2. the same parts filled over, which leaves only the outer outline, at the object weight;
+  3. the parts again in the general weight, lowest first, so inner edges read and what stands higher covers what is under it.
+  Planting goes on top (outline; schematic fill), and overhead parts are dashed and unfilled. On the sheets a tag sits in its piece when it fits and clears every other piece and tag. Otherwise it goes on a leader (`DRAW_SYMBOLS.leader`, a dot at the piece) to the first free place in rings 3 / 6 / 10 / 15 / 22 mm out. `.fl-part` still carries the envelope the consistency check measures.
+- **Verified:** the sample A-103 shows the bench's slats, the table between its two chairs, the planter with its plants, the bike rack and the umbrella canopy dashed overhead. F2 (table) and F4 (umbrella, whose pole stands in the table) are tagged on leaders above and below, with 0 overlaps on every sheet. Plan consistency check OK, including the furniture envelope check.
+- **4. Sheets (commit 4).** Both reports print the same sheets with the same information: A-000 title sheet, A-101 site 1:250, A-102 layout 1:100, A-103 deck 1:50 (split with match lines when it does not fit), A-201 section (1:50, or 1:100 when it does not fit), A-301 details 1:10, S-001, C-001, C-002, X-001. The mode changes only the style token, and the schematic title sheet shows the renders (up to 4, or the axonometric) as images in its visual panel. The technical panel shows a key plan of the site instead, and the panel carries no text. G-001 (cover), V-001 (axonometric) and V-101... (renders) are gone; the renders' credits are on X-001 in both reports, because the renders are collected for both. Titles are the same in both ("Layout plan", "Compliance").
+  - **Drawing sheets (`RPT.dsheet`):** the pen records its drawing's extent (`P.bbox`, clamped to rect clips) and dsheet centres the drawing in the drawing area (339.8 x 228.4 mm, left of the 60 mm annotation column; lifted clear of the title block when needed). North (on plans) and the scale bar sit in the band under it. `keys` are `{t, at}`: a numbered hex key (`DRAW_SYMBOLS.hexKey`) at `at` (stepping aside to clear text and other keys, inside the drawing area), and the note in the column. Keys without `at` are general notes. There are no paragraphs on drawing sheets.
+  - **Other rules:** the title block holds a 30 x 20 key plan (`RPT.keyPlan`) showing the street, the deck and the sheet's extent (`ext`, the crop rectangle). Zones are fine dashed lines in the zone colour with the rule in a lozenge. Every plan has north, the scale bar and the section marker (A-103 when the cut falls on that part). Caps are kept only for sheet titles and rule IDs; labels are sentence case.
+- **Verified:** samples 11 pages in both modes. The extracted text of the two sample PDFs is identical except the style line ("Curbside v0.6 · Technical" / "Schematic": 11 lines each); the 17.6 m test design gives the same (13 pages each, 13 style lines differ). 0 overlaps, 0 outside, nearest content to an edge 11.7 mm. Technical A-103 at 1:50 uses all six weights, 0.13 / 0.18 / 0.25 / 0.35 / 0.50 / 0.70 (the 1.00 strokes are the silhouette's first pass). Deck 352.00 mm on A-103, scale bars 100.00 mm.
+- **5. Dimensions, 3b (commit 5).** `RPT.chain(P, {side, edge, row, at, from, vals, c, op})` lays a chain on a row beside an object. Row 0 is 10 mm off the object's edge, rows are 8 mm apart, and a side has at most 3. Extension lines start 1.5 mm off the model edge and run 2 mm past the line; ticks are 45 deg. `RPT.dimText` places each value (2.5 mm, horizontal, two decimals, no units) in its span when it fits with 2 mm past each tick (`RPT.DIM.clear`) and collides with no text already on the pen. Otherwise it goes outside on a leader (dot at the span), at the first free place: beyond the nearer chain end, then out from the line. It is never shrunk, and 'lost' is reported if nowhere is free. `RPT.dimH` / `dimV` (the details sheet) follow the same rules. Each chain is recorded on the pen and the page (`pg.dims`) for the checks.
+  - **Formatter:** one for both views, `DRAW_STYLE.fmt` / `fmtClear` ("1.62 (≥1.50 C13)"). The Plan's DIM chains lost their units and labels, and its C13 / C03 zones, hydrant / pole / signal (C05 / C07 / C08), driveway (C06) and manhole (C09) labels print these same strings.
+  - **Sheets:** A-102 shows the segments across (running, then the overall), the deck from the host frontage over the deck, and the clearances under it (row 0 C13 and C03 at both ends, rows 1-2 the site objects from the nearer deck end, in the zone colour). A-103 shows the planters and post spacing over the deck, each wheel stop from the deck end (gap and stop) and the deck length under it, and the width at the right; the grid bubbles moved above the rows. A-201 has levels from the datum (±0.00 top of curb, then the deck, planter, railing and road), one vertical chain from the sidewalk to the deck to the railing top, and the running chain plus overall under the ground.
+  - The PDF keeps ≥ ≤ ± →, since the embedded DM Sans has them (`RPT._hasGlyph` reads its cmap); only characters it lacks are rewritten.
+  - A-301 details keep three decimals: a 12 mm gap would read 0.01 at two.
+- **Verified (sample, both modes):** 0 overlaps and 0 outside on every sheet, including A-102 and A-103. At most 2 rows are used on any side (limit 3). On A-103 the wheel-stop chain reads 0.25 + 0.15, both outside on leaders. A synthetic 0.35 m dimension at 1:50 (7 mm) goes outside on a leader. The Plan's clearance strings ("2.00 (≥1.50 C13)", "9.00 (≥6.00 C03)") appear verbatim on A-102. The sample PDFs still extract to identical text except the style line; 11 pages each. Plan consistency check OK, weights monotonic at 3 zooms.
+- **6. Extents, 4b (commit 6).** `DESIGN_MODEL.site.contextZ` is the model extent. It is the import radius (`SMP.R` is now a getter on it) and the scene past each deck end: 20-400 m, default 150.
+  - **Import:** nothing inside the radius is dropped for distance; the old "beyond the context extent" drop is gone. The import caches are keyed by radius (`overpass|ctx3|R|...`, `cov|ds|R|...`). City datasets are fetched a page of 100 at a time, up to 1000 records. Changing the context re-clips from the cache for that radius, or asks for a re-import.
+  - **Plan:** it now has one scale both ways (`PLAN_PX_M` = 20 units/m; it used to squeeze the street into 760 units). It is as wide as the model, pans across it, and FIT / Fit all fit it. Zoom limits are relative to the fitted width, and hit tolerances and small labels hold a steady screen size (`_pvHitU`, `pvZS`).
+  - **Crops:** `SITE_SHEETS` (saved with the design and in local state) holds the user's crops; `sheetCrops()` resolves `DESIGN_MODEL.site.sheets.A101/A102/A103.crop` `{z0, z1, x0, x1}`, snapped to 0.5 m. Defaults: A-103 is the deck plus 3 m. A-101 and A-102 are 78.5 x 55 m and 30.5 x 18 m: the brief's 90 x 55 and 36 x 22 m are 360 mm wide at 1:250 / 1:100, wider than the 340 mm drawing area beside the 60 mm notes column.
+  - **Sheets:** A-101, A-102 and A-103 draw their crop, clip at its edge (clip, don't drop) and show it in the key plan. A crop too big for its scale takes the next scale out (`RPT.fitScale`), and A-103 splits its crop with match lines. The Plan's Extents tool (next to Measure) shows each crop as a dashed, labelled blue rectangle: drag the label to move it, the corner square to resize it.
+- **Verified (Robson import at 150 m):**
+  - The City reports exactly 100 trees within 150 m (checked on its API); 40 are on the parklet's side, and all 40 are kept and in the model. Hydrants 4/4 and bus stops 3/3; nothing dropped for distance.
+  - Fit all shows 354.9 m for a 319.8 m model.
+  - Moving A-102's crop 5 m leaves pkSerialize equal except `sheets` and all 15 check statuses unchanged.
+  - With A-102's crop excluding the far sidewalk and its near edge through a street tree, the tree's canopy is drawn and cut at the edge.
+  - Samples: 11 pages, 0 overlaps, 0 outside. Plan consistency check OK, weights monotonic at 3 zooms.
+
+## Drawing clean-up (Brief 18, branch drawing-style, one commit per section; not merged)
+- **A. Plan overlaps (commit 1).** `_renderPlanView` has a single annotation layer, placed in one pass by `annFlush()` just before `innerHTML`.
+  - **What it holds:** `annText(kind, str, x, y, o)` and `annLozenge(code, st, x, y, at)` register every dimension value, rule lozenge, object label (Parklet, deck length, Hydrant, Signal, Pole, bus stop), segment label (bands, lanes, curb, buildings) and tree tag (genus).
+  - **Delete chips:** `annChip(onclick, x, y)` registers each × chip as an object item. It moves along the curb and never gets a leader.
+  - **Obstacles:** `annObst` holds the fixed boxes: the dimension-chain texts, section tags and label, handles, symbols, the D box, and the scale bar with the north arrow. `annObj` holds the objects: the parklet, canopies and furniture. Segment labels keep off every object; tree tags keep off the deck and furniture only.
+  - **Placement order:** by priority dim > lozenge > object > segment > tree, then source order. Each item first tries its own place, then steps along its axis: labels along their band, lozenges and tree tags up and down a row, values along their line. After that it tries the rows beside it.
+  - **Fallbacks:** first inside its bounds and on screen, then past its bounds (a label longer than its building), then anywhere.
+  - **Leaders:** an item that moved more than 2 mm on screen gets a leader from its object.
+  - **Off screen:** an item whose own place is off screen is not pulled into view.
+  - **Check:** `window._pvAnnCheck` reports items, moved, leaders (by kind) and blocked.
+  - **Rules applied:**
+    - Segment labels start at the left edge of the visible area (`VIS`).
+    - Every clearance value (C03, C05/C07/C08, C06, C09, C13) is set at the dimension text size (screen 12 px), bold, never smaller.
+    - `pvZS` now uses this frame's `U`. It used the previous frame's `VB.U`, which is why chips and values blew up when zoomed in.
+  - **The pitched polygon over the deck:** it is the rule lozenge (DRAW_SYMBOLS.lozenge, a pointed hexagon) of the C13/C03 dimension. At fit zoom it was drawn at the centre of a zone narrower than itself, on top of the deck. It carries the rule ID, so it stays; the annotation layer now places it clear of everything, with a leader when moved.
+  - **Culling removed (these made labels disappear by zoom):**
+    1. Segment-band and "Unallocated" labels drawn only when the band was taller than 1.4 x the tag size on screen.
+    2. `dimArrow` returned nothing when its zone was under 6 screen px (the lozenge and value vanished). `dimArrow(..., ann)` now always draws; without `ann` (other callers) it draws inline as before, at the body size.
+    3. `_pvClrLbl` dropped clearance values when none of its five slots was free. It now hands them to the layer.
+    4. Driveway (C06) and curb-feature (C05/C07/C08) dimension values drawn only when the span was over 10 plan units.
+    5. Building labels drawn only when over 70 plan units of the building were visible.
+    6. Genus tree tags drawn only on paper at 1:100. They now show on screen too (lowest priority).
+  - **Culling kept:** the plan's origin marker `_oVis` is UI. The Plan applies no sheet crops (crops clip only in the report).
+  - **Verified (Robson & Burrard, 150 m import: 40 trees, 4 hydrants, 3 stops; the 7-piece design):**
+    - 0 DOM text overlaps at zoom 1 (U 6.05), 4 (U 1.51) and 12 (U 0.50), technical, and at zoom 4 schematic.
+    - 87 items placed, 0 blocked. Leaders: 52 / 25 / 12 at the three zooms.
+    - The technical sample report: 11 pages, 0 overlaps.
+- **B. Trees and small objects (commit 2).** Each symbol below has one definition in `DRAW_SYMBOLS`, used by both the Plan and the report (`RPT.planObjects`, `RPT.planBase`).
+  - **`tree`:** exactly one path and one dot.
+    - Technical: the canopy circle at `context`, plus one 3 mm radial tick across the rim at the NE (up-right on the sheet) in the same path, and the trunk dot. A conifer is dashed `short` (new DASH, 0.8/0.8 mm); a bare tree in winter is dashed `hidden`.
+    - Schematic: 35 % planting fill, no outline, a darker centre dot (`fill.plantingDark`, new token).
+    - The Plan's extra schematic fill ellipse is gone. Provenance appears only in the tooltip and the Sources sheet.
+    - The report pen's `path` grows the extent by `o.bb`.
+  - **`hydrant`:** one circle, 0.3 m across at model size (`o.r`) and at least 2.4 mm across, with an H. The nozzle bar and inner dot are gone.
+    - The Plan's always-on 1.7 m W4.1 ellipse is gone.
+    - The C05 5 m radius (`data-c05`) shows only while C05 is open in the Check list (`toggleCrit('c5')` redraws the Plan) or when that hydrant fails.
+  - **`busStop`:** a bold B, no box, grey until confirmed.
+  - **`post` (new):** a 0.1 m dot at `general`, used for the protected bike lane's flexible posts. `bikePostZs(L, ws)` gives the same positions to the Plan and the report: one at each end and every 2 m between the wheel stops.
+  - **`bike`:** takes `o.cls` and tags its polyline `data-bike`, drawn at `context`. Schematic draws one every 12 m. Technical draws one per sheet: on screen at 30 % of the visible width, in the report at 30 % of the sheet's width. The report plans now carry the bike marking and the posts.
+  - **Section:** a tree crown (A2 ellipse, cut and beyond) is its form outline at `context`, with no fill in technical and 35 % planting in schematic (`_crown()` in the section renderer). The winter rule is unchanged (fine, dashed). The report's A-201 crowns now use 35 % too.
+  - `checkLandmarkConsistency` reads a tree's Plan position from its trunk dot (the sibling after the canopy path) and a bus stop's from the B.
+  - **Verified (Robson, 150 m):**
+    - Plan: 40/40 trees are one path plus one dot and no ellipse, in both modes. 4 hydrants are one circle each. 3 bus stops are a B with no rect.
+    - C05 rings: 2 (the failing hydrants), 4 with C05 open, 2 again when closed.
+    - Protected bike lane: 1 bike symbol in technical; 26 in schematic (26 expected for 12 m); 10 posts with r = 0.05 m.
+    - A-102: 10 posts, 1 bike (technical) / 2 bikes (schematic, per 12 m in its crop).
+    - Screen pen and report pen give the same elements, fills and dashes for tree, conifer, hydrant, bus stop, post and bike in both modes.
+    - Section crowns: `none`, and `#9DB58E` at 0.35.
+    - Samples: both modes 11 pages, 0 overlaps. Plan: 0 text overlaps.
+- **C. Section (commit 3).** Covers the screen strip (`_drawSection`) and the report's A-201 (`RPT.sheetSection`).
+  - **Vertical extent:** `sectionExtentM(DM)` is the tallest building the cut passes or sees within its depth (standing on the sidewalk), or the tallest tree in the depth, plus 2 m; at least 8 m.
+    - `sectionFrame` puts the ground at 14 px + extent × px/m, with 32 px below it. It returns `stripH` and `extM`; `SECTION_H` and `SECTION_GROUND_Y` remain only as the below-ground offset.
+    - The editor strip takes `stripH` and sets `--se-gy`, which keeps the segment names and the Unallocated label near the ground.
+    - `#seViewport` scrolls vertically (`overflow-y: auto`). `_vpHeight()` limits it to the panel and scrolls to the ground whenever the extent changes.
+    - A-201 uses the same extent and picks its scale with `RPT.fitScale` from 1:50 (the next scale when it doesn't fit, never shrunk). With a 10 m+ extent it goes to 1:100.
+  - **Beyond the cut:** silhouettes only, at `context`, with an opaque paper fill, drawn far to near (getSectionScene's order) so the nearer hides the farther.
+    - Furniture uses `flSectionArchetype(..., {silhouette: {w, c, paper}})`: every part drawn twice, first outlined at twice the weight, then filled with no stroke, so only the outer edge of the union shows.
+    - A pole or hydrant is one outline (`postXY`). The deck is one rect.
+    - Tree crowns stay transparent as in B.
+    - The planter's plant spheres (overlapping ellipses) are also drawn as one silhouette in the cut. These were the canopy arcs.
+    - A-201 now draws the buildings beyond, the furniture silhouettes and the end pieces in the same order, then the cut over them.
+  - **Poché:** there are no black fields. A cut building is its wall lines at `cut` (face and roof) over a 45° hatch at `fine`, 4 mm apart (new `poche` material, technical) or a 25 % warm grey (schematic).
+    - It is drawn from the sidewalk to its roof; A-201 extends 1 m into it.
+    - A cut trunk thicker than 0.2 m gets the same poché (`cutRect`). Only thin material is solid: deck boards, steel, poles.
+  - **Ground:** an earth hatch (new `earth` material: 45°, 0.8 mm apart, both modes) in a 2 mm band under each surface line: the road and lane surfaces, the underside of the sidewalk slab, and the paved buffer. Planted ground has no band. The report's `earth` kind now uses it instead of the gravel stipple, and the hatch legend lists "Earth, subgrade" and "Cut building".
+  - **Verified (Robson, 150 m):**
+    - Chair behind planter (section at z 11.3, looking +z): the chair's group comes before the planter's, and every planter shape is filled opaque.
+    - The tallest maple (Acer, 13.7 m in the City's data at z 151; a section reaching it) is whole: the crown top is 194 px inside the strip. Extent 16.85 m.
+    - The cut building is drawn to its 4.2 m roof, on screen and in A-201 (face line 42 mm at 1:100).
+    - The largest black field in the cut is 0.067 m (technical screen) and 0.16 m (A-201); schematic has none.
+    - The viewport scrolls, opening at the ground.
+    - Samples: both modes 11 pages, 0 overlaps. Sample A-201 is now 1:100 (was 1:50).
+- **D. Parklet placement and moving (commit 4).** The model stays parklet-anchored (the deck at world z 0..L).
+  - **`pkZ`:** the parklet's centre in a street frame, in metres from the located point (`SITE_ORIENT`, the import's origin), positive along world +Z. It lives in `state.__place = {pkZ, corners}`, saved in localStorage and in the design's `siteObjects.place`. `SM.use` resets it for a new site.
+  - **`DESIGN_MODEL.site`:** `pkZ` plus `lat`/`lon` derived by `pkLatLon()` (the origin moved `pkZ` along the bearing). `SITE_ORIENT` is never rewritten, so nothing can drift.
+  - **`SMP.frame`:** puts the origin at z = L/2 − pkZ, so a re-import or re-clip lands the context around the moved parklet. The query still centres on the origin.
+  - **`pkMove(dz)` / `pkMoveTo(s)`:**
+    - They shift every context position by −dz: manholes, curb features, driveways, street trees and transit stops (`xM`), and the buildings' `zOffset` on both sides.
+    - The deck and everything on it (railing, wheel stops, furniture, planters, the sketched shape) keep their world coordinates, so relative to the street they move by dz. The across position is unchanged.
+    - `pkAfterMove` then sets C03 from the nearest corner (if corners are known), runs the clearance updates (hydrant, pole, signal, driveway, manhole), then `syncDesignModel`, `renderVerdict`, the panels and the save.
+  - **Place step (Site tab, `#pkPlaceSite`, below the import row):**
+    - A host-frontage list of `BLDG_L` buildings, each with its centre in the street frame; choosing one centres the parklet on it, snapped to the grid.
+    - "Pick in Plan": the next Plan click on a frontage picks it.
+    - The distance from the intersection corner, in metres, set exactly (not snapped). Positive puts the parklet on the −Z side of the nearest corner on its +Z side, measured to the parklet's end; negative uses the nearest corner on its −Z side.
+    - The corners, with "Find corners", Add and Remove.
+  - **Corners:**
+    - `pkFindCorners()` makes one cached Overpass query for the highway ways through the located way's nodes.
+    - A corner is a way crossing at 35° or more that isn't the same street. It's stored as `{s (centreline), half, name, src}`. The curb return facing the parklet is s ∓ half.
+    - `half` comes from the `width` tag, else lanes × 1.65 + 2.4 (a parking lane each side). It's marked "estimate" and editable.
+  - **Moving in the Plan:**
+    - Dragging the deck (`_pvDeckDragging` in `planMD`/`planMM`/`planMU`) moves the parklet by the pointer's travel along the street, snapped to the grid. `pkShiftView` pans the view with the street, so the street stays put and the deck follows the pointer.
+    - The pan mousedown and the pan guard now skip the deck.
+    - With the parklet selected, Arrow Left/Right move it one grid step (Shift ×4; +Z runs left in the Plan). The Δ Z field, the move buttons (their component along the street) and the Z field (= pkZ) move it too. X and rotation are disabled.
+  - **Selection panel:** selecting the parklet (`setSelection('parklet')`) deselects furniture, hides `#rightPanel` and fills the Selection panel (`cadParkletUpdate`): its name, X (fixed), Z = pkZ, the parklet properties (geometry, lane, width/length, "Fit to lane minimum") and the placement controls. `renderRightPanel` has no parklet case any more; the pop-up is gone.
+  - **Known limits:**
+    - At fit zoom, the C13/C03 zone handles' hit radius (about 3 m) covers the deck ends, so grab the deck away from its ends.
+    - The Plan still draws C03 at both ends from the single `intersection_dist`.
+    - The corners' half widths are estimates unless OSM has `width`.
+  - **Verified (Robson & Burrard, 150 m import, 7-piece design):**
+    - Host frontage Arc'teryx (39.8 m): pkZ 17.25 against a centre of 17.30 (0.05 m); its world centre 8.85 against the deck centre 8.80.
+    - Corners found: Burrard (s −19.21, half 12.3, estimate) and Thurlow (s 187.97).
+    - −12.0 m from Burrard: the field reads −12.00, and the parklet end sits 12.00 from the curb return (−6.91 → 5.09). intersection_dist 12.00, C03 pass.
+    - A 3 m drag (zoom 4, synthetic mouse events):
+      - pkZ 13.89 → 16.89.
+      - Furniture street-frame min/max 9.19/19.89 → 12.19/22.89; world z unchanged.
+      - Trees, curb features and buildings shifted exactly −3 (error 0).
+      - lat/lon moved 3.000 m.
+      - hydrant_dist 2.05 → 5.05 and C03 12.00 → 15.00, re-run.
+    - No drift: back by the same amount, then 40 nudges of ±0.25 m. Every position and lat/lon equal the start exactly, with the same checks.
+    - Arrow Left +0.25 m; Δ Z 1 → +1.00 m.
+    - Clicking the deck: the Selection panel shows "Parklet" with its properties and placement, `#rightPanel` is hidden, and the only fixed element on screen is the toast.
+    - Samples: both modes 11 pages, 0 overlaps. Plan: 0 text overlaps.
+
+## Drawing language (Brief 19, branch drawing-style, one commit per section; not merged)
+- **A. Annotation level of detail (commit 1).** `lodTier(pxPerM)`: below 2 px/m is far, 2 to 8 is mid, above 8 is near. A sheet at 1:n counts as 2000/n px/m, so 1:250 is mid and 1:100 is near. `LOD_RANK = {far: 0, mid: 1, near: 2}`.
+  - **Plan:** `LOD` comes from PLAN_PX_M / U (`window._pvLod`); paper uses 2 × mm per metre.
+    - **Far:** fills and outlines only. The parklet is one filled rectangle (`data-pk-far`), with no furniture and no wheel stops. No check zones, handles, chips, dimensions, origin marker or section tag text. Hydrants are a bare circle, bus stops a dot. The only text is the scale bar (with its reset) and north.
+    - **Mid:**
+      - segment labels (once per view, at the left edge);
+      - building labels (C makes them addresses);
+      - the deck-length label;
+      - the overall chains only (curb to curb, and the deck length);
+      - rule lozenges for failed checks only;
+      - the check zones and handles;
+      - delete chips;
+      - hydrant and bus-stop symbols with no labels and no letter (a circle and a dot; their letters collided at mid).
+    - **Near:** everything.
+  - **Where it's gated:** in the annotation layer (`annText` by kind, with `o.tier` to override; `annLozenge` by status; `annChip`) and at the few drawing sites (zones, deck, furniture, chains, section tags, driveway D, C05 ring). Context is never culled.
+  - **Smallest text:** 9 px on screen (the chip × went from 7.5 to 9 px, the driveway D from 8 to 9; the measure, snap and drag-distance texts are now 9 px on screen instead of fixed plan units) and 1.8 mm on paper (the hydrant circle is at least 1.5 mm across, so its H is 1.9 mm).
+  - **Zoom out:** the Plan now zooms out to 0.8 px/m, so the far tier can be reached.
+  - **Report:** A-101 at 1:250 is mid, so no genus tags, no "Parklet", bus stops and hydrants without letters or labels, and a tree note without tag codes. A-102 and A-103 are near.
+  - **Verified (Robson & Burrard, technical):**
+    - 1 px/m (far): 6 texts, all scale bar and north; 0 overlaps.
+    - 4 px/m (mid): 39 texts, 0 overlaps; schematic the same.
+    - 12 px/m (near): 66 texts, 0 overlaps.
+    - Smallest text 9 px at all three.
+    - Samples: both modes 11 pages, 0 overlaps.
+- **B. City context to about 1 km (commit 2).**
+  - **Radius:** `siteContextZ` runs 20–1000 m, 600 by default. `SMP.R`, the inner ring, is `min(150, contextZ)`, so the inner import and its caches are unchanged.
+  - **Step 0, City catalog:** it has `building-footprints-2015` (polygons; 498 within 600 m of Robson & Burrard), `public-streets` (block centre lines with `hblock` and `streetuse`; 215), `parks-polygon-representation`, `property-addresses` (civic_number and std_street points), `street-intersections` and `shoreline-2002`.
+    - The shoreline is two city-wide LineStrings with no side convention, so it can't be filled. Water comes from OSM instead.
+  - **`SMP.importOuter()`:**
+    - Footprints, streets and parks are one City GeoJSON export each (`/exports/geojson?limit=-1&where=within_distance(...)`), cached as `covx|...`.
+    - If the City footprints fail, Overpass `way[building]` in 300 m tiles takes over.
+    - Water comes from Overpass: `natural=coastline` chained, clipped to the context square and closed along its edge with the water on its right (`SMP.waterRings`); islands are holes and lakes are rings, drawn even-odd. It retries across the three Overpass servers.
+    - Everything is stored in local metres from the located point (e, n). It lives in `CTX_OUTER` (= `DESIGN_MODEL.context.outer`, with sources, counts and times); `state.__outer` keeps the summary, and a reload rebuilds from the cache only. No check reads it.
+    - It runs after every import (a failure is a note, not a failed import) and on a radius change.
+  - **Plan (`_pvOuterLayer`):**
+    - It gets its own paper out to the radius. Water uses `fill.sea`, parks `fill.park`, and footprints are fill-only (technical #000 at 8 %, schematic warm grey at 12 %).
+    - Streets are `context` centre lines at far and paired curb lines nearer (half widths by `streetuse`, estimates).
+    - Footprints whose centre is inside the inner strip, and the host street itself, are left out.
+    - Each layer is one path, and the string is cached. At the far tier the same paths are painted once into a canvas image (2 px per screen px), so panning moves a picture.
+    - The Plan's grid step now follows the zoom (the snap spacing, else 1/5/10/50/100 m at 6 px or more apart); before, it drew about 5,000 lines at fit.
+  - **A-101:** a 1:10 000 locator (60 × 52 mm: 600 × 520 m) in the notes column, with water, parks, footprints, street centre lines, the sheet's crop dashed and the parklet filled (`RPT.locator`, via `dsheet ext.inset`).
+  - **Map picker:** `SM.snap` now prefers a named street over a service way or an unnamed one up to 20 m nearer. At W 41st & Dunbar a click beside the avenue had picked a service lane.
+  - **Verified (600 m; import times include Overpass waits; pan = 60 rAF frames of viewBox panning):**
+
+    | Site | Footprints (inner / outer) | Street blocks | Parks | Water rings | City footprints / water fetch | Pan fit, mean / p95 | Pan 5,000, p95 |
+    |---|---|---|---|---|---|---|---|
+    | Robson & Burrard | 506 (29 / 477) | 215 | 5 | 8 (ponds) | 0.6 s / 14 s | 16.7 / 18.2 ms | 19.6 ms |
+    | Commercial & 1st | 2003 (108 / 1895) | 273 | 5 | 0 | 1.2 s / 17 s | 16.7 / 17.0 ms | 17.8 ms |
+    | W 41st & Dunbar | 1610 (93 / 1517) | 166 | 2 | 0 | 0.9 s / 77 s (two 504s) | 18.9 / 17.4 ms | 17.8 ms |
+
+    - **Empty layers:** water at Commercial and at W 41st (no shoreline within 600 m, a true empty). At Robson the only water within 600 m is ponds: Coal Harbour is about 680 m north and False Creek about 770 m south.
+    - **Robson at 1000 m:** 1,359 footprints, 561 streets, 17 parks, 19 water rings in 3.6 s; the Fit-all screenshot shows the harbour and Lost Lagoon filled.
+    - **Rendering:** Fit-all renders in 8–17 ms, and the far-tier image takes 100–230 ms to build (once per import or zoom).
+    - **Report:** A-101 has its locator at all three sites.
+- **C. Building addresses (commit 3).**
+  - **Source (step 0):** City of Vancouver `property-addresses` (`civic_number`, `std_street`, a point). It is fetched within the inner ring as a new import step, "CoV addresses" (and on a re-clip).
+  - **Matching (`SMP.applyAddresses`):** each inner building (`BLDG_L`/`BLDG_R`) takes the point inside its footprint box (if several, the one nearest its frontage's middle), else the nearest within 15 m. The result is stored on the entry as `address`, with `__prov.address` (the City's site id, or "none within 15 m" plus `addressNote: 'no address point'`). `SMP.addrText` turns "1001 ROBSON ST" into "1001 Robson St".
+  - **Plan (mid and near tiers):** the address is centred in the footprint in ink at 9 px, turned -90° along a deep footprint (`annText` `o.rot`), and moves along its long axis. The generic "Building interior" / "Opposite building" labels are gone.
+  - **A-101:** each building shows its address, then its name and use.
+  - **Report:** the site address line (`RPT.addr`, used on the cover, the title block and the header) is the host frontage's address (`pkHostAddress`). If the parklet faces a gap, it's the nearest frontage within 15 m; else the project address.
+  - **A-201:** keys "Building at the cut: <address>, <name>".
+  - **Scale bar:** it now ends clear of the north arrow by its last label's width. On Commercial Dr the "N" met "100 m".
+  - **Verified (600 m):**
+
+    | Site | Inner buildings | With address | "No address point" | Address points | Host / site address |
+    |---|---|---|---|---|---|
+    | Robson & Burrard | 18 | 16 | 2 (the old Law Courts, Kiehl's) | 44 | 1001 Robson St (Arc'teryx) |
+    | Commercial & 1st | 24 | 24 | 0 | 94 | 1622 Commercial Drive |
+    | W 41st & Dunbar | 17 | 17 | 0 | 77 | no host in the first run (the parklet faces a gap), so the nearest-frontage fallback was added |
+
+    - **Plan:** addresses are drawn at mid and near (16 / 24 / 17), none at far. At Robson, 0 overlaps at 1, 4 and 12 px/m.
+    - **A-201:** notes the cut building at Robson and Commercial. At W 41st there's no building at the cut (a gap), so no note.
+- **D. Technical trees, line-art (commit 4).** Jenna's references: the right-hand two images (a plan canopy ring and an elevation tree) are technical; the soft layered sections are schematic.
+  - **`DRAW_SYMBOLS.canopyProfile(seed, n)`:** a unit radius around the tree.
+    - Two octaves: 7–12 rounded lobes, scalloped inward (the square root of |sin|), plus a finer crinkle of 26–38 around.
+    - Together they take 8–14 % off the radius.
+    - Seeded by mulberry32 via `DRAW_SYMBOLS.seedOf`. `treeSeed(v)` uses the City tree id, or for a planted tree its segment and street-frame z, so a parklet move keeps the shape.
+  - **`canopyPath`:** the ellipse run through that profile. `treeN(v)` is 24 × canopyR, clamped to 64–200 points, so the screen and the paper draw the same shape.
+  - **Plan (`DRAW_SYMBOLS.tree`):** in technical, the outline at `context`, no fill, and the trunk dot (conifer: short dash; bare: hidden). In schematic, the same outline filled 35 % sage. The 18 NE tick is gone, replaced by the irregular edge. No check measures trees, so no tree clearance circle is drawn.
+  - **Section and elevation (`DRAW_SYMBOLS.treeElev`):**
+    - The form's A2 ellipse from clearH to top, perturbed the same way; a conifer gets 4–6 stacked triangular tiers.
+    - Three faint inner lobe arcs at `fine` (the reference's cloud lines).
+    - A two-line trunk at `general` running on into the crown at `fine`; 4–7 primary branches at `fine`, bent once, ending at 72 % of the crown (bare: 6–8 branches to 92 %, no crown).
+    - `trunk: false` at the cut, which keeps 18's cut trunk.
+    - Used by the screen's Section (`_treeSec`, beyond and cut) and A-201, with the same seeds.
+  - **Plan draw order:** the parking row each side of the parklet is now painted before the trees, so canopies over it show.
+  - **Verified (technical, all three sites):**
+    - Same tree twice: plan and elevation path data identical. Screen against report: normalised radii within 0.0002.
+    - Largest tree per site (plan / elevation points): Quercus 13.7 m 144 / 227; Carpinus 16.8 m 73 / 204; Acer 16.8 m 144 / 248. Maximum over all trees: 232 / 214 / 248 (at most 300).
+    - Lobe amplitude 11.7 / 12.3 / 10.2 %.
+    - A-102 at 1:100, cropped to the densest 30.5 m: 11 / 18 / 9 trees, 0 overlaps. The trees' path data was identical on a second export.
+    - Robson: the "outside" count was 0. At Commercial and W 41st, 10 and 21 texts land outside the page with the moved crop. Not tree tags (A-102 draws none); to be traced in E's runs.
+  - **Against the references:** the plan outline reads as a lobed, crinkled ring like the plan reference, but closed (the brief asks for a closed outline) and without the reference's loose flecks. The elevation has the reference's lobed crown, inner lobe lines, branches and two-line trunk; its lobes are smoother and larger than the reference's fine leaf fringe, within the 8–14 % amplitude and the 300-point budget.
+- **E. Schematic section, soft layered trees (commit 5).** The second E: trees only, no people, vehicles or entourage.
+  - **Depth tiers (`SECTION_TIER(d, cut)`):** the cut 1.0; near (up to 8 m beyond) 0.8; mid (8–20 m) 0.5; far (past 20 m, or past the section's depth) 0.25. One opacity per tier, applied to each tree's fill and strokes; no gradients.
+  - **Schematic trees (`_treeSec` on screen, `tree()` in A-201):**
+    - The D crown filled with the season's colour (`treeColor`, else the sage) at the tier opacity, overlapping translucently.
+    - The crown's edge in `fill.plantingDark` at `fine`; trunk and branches in ink at the tier's opacity. Winter: branches only.
+    - The far tier adds street trees up to 40 m past the section's depth, drawn first (`data-sec='far'`).
+    - Built elements are unchanged: drawn as the technical section, with the schematic fills.
+  - **Ground (schematic):** the hatch band under the surface (17/18), then a light stipple below 0.5 m (a new `stipple` material, `data-stipple`). There is at least 0.9 m under the ground on screen; A-201's ground goes to -0.9 m and its chains sit under it.
+  - **Keyed notes, both modes (`sectionNotes(scene, DM)`):** generated from the model and the archetypes:
+    - the deck (boards, thickness, level);
+    - the railing (material, height, rails);
+    - an end planter (size);
+    - each piece in the section (archetype label, main material, l × d × h, "cut"; the same piece once);
+    - the building at the cut (address, name).
+  - **On screen:** hex keys on the drawing, placed above each noted thing, else beside it, else higher, 6 mm clear of each other. The notes sit in a collapsible `<details id='seNotes'>` strip under the Section, open, in 2 columns. The viewport scrolls to the ground when its height changes.
+  - **A-201:** `RPT.dsheet` `ext.notesStrip` lays the notes in 3 columns under the drawing instead of the side column; `fitScale` reserves 34 mm for it.
+  - **A-201 levels:** the road-side level labels (deck, planter, railing, road) are spread at least 3 mm apart with a short leader (`DRAW_SYMBOLS.level` `dy`). At 1:250 they collided.
+  - **Site address:** `pkHostAddress` falls back to the nearest frontage within 50 m. At W 41st the parklet faces a gap; it now reads "3535 W 41st Av".
+  - **Verified (section cut at a deck end, looking the way with trees in all three tiers, 20 m deep):**
+
+    | Site | Schematic tiers (crowns) | Overlapping filled crown pairs | Far trees | Screen keys / notes | A-201 |
+    |---|---|---|---|---|---|
+    | Robson & Burrard | 0.8 ×3, 0.5 ×1, 0.25 ×4 | 28 | 4 | 9 / 9 | 1:100, 11 notes, 0 overlaps |
+    | Commercial & 1st | 0.8 ×1, 0.5 ×1, 0.25 ×15 | 136 | 15 | 3 / 3 | 1:100, 5 notes, 0 overlaps |
+    | W 41st & Dunbar | cut 1.0 ×2, 0.5 ×2, 0.25 ×7 (the near trees straddle the cut) | 55 | 5 | 2 / 2 | 1:250 (tall trees at 20 m depth), 4 notes, 0 overlaps |
+
+    - **Technical, all three:** no tier fills, crowns `fill='none'`, no stipple; keys and notes as in schematic.
+    - **People and vehicles:** 0 everywhere.
+  - **Full reports (section at the deck's middle looking -z, 12 m deep), both modes, 0 overlaps and 0 texts outside at every site:**
+    - Robson: 15 pages each, 1631 texts; site address 1001 Robson St.
+    - Commercial: 16 pages, 1798 texts; 1622 Commercial Drive.
+    - W 41st: 14 pages, 1488 texts; 3535 W 41st Av.
+  - **Known:**
+    - An A-102 crop moved away from the parklet (the tests' densest-trees crops) pushes the parklet's own annotations (section mark, deck chain, hex keys) off the page: 10 texts at Commercial, 21 at W 41st. Real crops contain the parklet.
+    - `checkLandmarkConsistency` can warn during an import (mid-render); at rest W 41st checks clean: 31/31 vegetation, 3/3 stops.
+
+## Drawing fixes (Brief 19b, branch drawing-style, one commit; not merged)
+- **Sheets by purpose (`RPT.SHEET_LAYERS`):**
+  - A-101 draws the context, trees with canopies, hydrants, poles and stops, the parklet and the section line.
+  - A-102 draws what the checks measure (hydrants, poles, signals, chambers), with segments, furniture tags, clearance zones and dimensions. No trees.
+  - A-103 draws the deck, furniture, grid and dimensions only: `planBase` `deckOnly`, with no street, curb or labels.
+- **A-201 scale (`RPT.sectionScale`):** 1:50 when the section and its notes fit the drawing area, else 1:100, never smaller. Content taller than the area is clipped at its top (the road level is held so the ground stays in view). Trees outside [xL, xR] are skipped. Beyond-buildings are clamped to the section's extent. A tree's x equals the Plan's.
+- **Scales in one place (`RPT.SCALE_OF`):** each sheet reads its own scale from here, and so does the drawing list, so they cannot disagree.
+- **Key symbols:** the text baseline is at cy + 0.35 × font size in section tags, grid bubbles, hex keys, lozenges, the hydrant H and the A-301 cell circles.
+- **Section line on the plans:** runs from the frontage to the far curb, plus 2 m past each end. Where that is longer than the sheet's crop, it stops at the crop edge (`RPT.secMarker` `lim`), so its tags stay on the sheet.
+- **Dimension text inside the frame:** `RPT.chain` / `RPT.dimText` take `o.frame` and flip or slide a value that would leave it.
+- **C05 on A-102:** only the governing hydrant (the one nearest the deck run) is dimensioned. Inside the run it shows as a 0 m extension line and value, red when the check fails.
+- **Other fixes:**
+  - The X-001 site table's address is `RPT.addr`, the same as the cover.
+  - Bus route numbers in the route note are de-duplicated.
+- **Pen:** a text wholly outside the rect clip it is drawn in is no longer drawn or counted. A crop's far segment labels had counted as "outside the page" after the drawing was centred.
+- **A-101 building labels:** a label that would cover a section tag steps beside it within its footprint, or is left off when it cannot fit (one at Commercial).
+- **Verified (technical, all three sites; A-102 crop -7.5..10.5 m across, 30.5 m along):**
+
+  | | Robson & Burrard | Commercial & 1st | W 41st & Dunbar |
+  |---|---|---|---|
+  | Trees A-101 / A-102 / A-103 | 14 / 0 / 0 | 4 / 0 / 0 | 11 / 0 / 0 |
+  | A-201 scale | 1:100 | 1:100 | 1:100 |
+  | Nearest tree x: model / Plan / Section | -4.60 / -4.60 / -4.595 (Carpinus) | -1.44 / -1.44 / -1.434 (Acer) | -3.40 / -3.40 / -3.404 (Acer) |
+  | Key symbols: worst text-centre offset dx / dy (mm, 67–73 symbols) | 0.132 / 0.131 | 0.132 / 0.086 | 0.132 / 0.086 |
+  | Section line, crop wide enough (A-102 at 1:250) | 19.30 m = 15.30 + 4 | 21.80 m = 17.80 + 4 | 24.50 m = 20.50 + 4 |
+  | Section line, test crop (18 m across) | stops at the crop edge | stops at the crop edge | stops at the crop edge |
+  | Clearance texts outside the frame | 0 of 5 | 0 of 5 | 0 of 5 |
+  | List vs title-block scale mismatches | 0 | 0 | 0 |
+  | C05 on A-102 | 0.00 (≥5.00 C05) in red #C0392B | 29.08, ink | 46.96, ink |
+  | Site table address = cover | 1001 Robson St | 1622 Commercial Drive | 3535 W 41st Av |
+  | Route list (repeats) | 5 (0) | 20, N20 (0) | 41, 2, R4, N22 (0) |
+  | Overlaps A-102 / A-201 | 0 / 0 | 0 / 0 | 0 / 0 |
+  | Full report, both modes: pages, overlaps, outside | 15, 0, 0 | 16, 0, 0 | 14, 0, 0 |
+- **Key-symbol offset:** measured with getBBox on the rendered SVG, which is within the brief's 0.2 mm on both axes.
+
+## Interface makeover (Brief 21, branch ux from drawing-style after 19b; one commit per section; not merged)
+- **§1 Audit (commit 1):** `briefs/21-ux-audit.md` with journey screenshots in `briefs/21-ux-audit/`.
+  - 465 controls, 0 click errors, 5 BROKEN (from the journey and the key handlers), 7 PARTIAL.
+- **§1 BROKEN fixed (commit 2):**
+  - **B1 Section FIT:** `_recomputeScale` solves for px/m with the building columns' metres (`_bldgM`: buffer + deepest near setback) in the width, and only their 24 px of poche fixed. The fit minimum is now 4 px/m.
+  - **B2 Section after an import:** `_vpHeight` centres the parklet sideways when it is wholly out of view (not on every width change, so a drag doesn't jump).
+  - **B3 3D home camera:** it stood behind `ZS` (now the context radius) and the near building's back wall. It now stands over the far curb (`XCR`), half the deck length before the deck's start, at max(0.6 L, 10 m), looking back at the deck. It is lifted in 6 m steps while a canopy (`userData.veg`) is on the line to the target.
+  - **B4 Plan scale bar:** nice lengths run to 2000 m. `DRAW_SYMBOLS.scaleBar` keeps 0 and the length and drops any middle value that would touch a neighbour. The report's 100 mm bars are unchanged.
+  - **B5 Ctrl+Z / Ctrl+Y:** the Section editor's keys (undo, redo, Delete, arrows, Esc) act only while `#seRoot` is on screen.
+  - **Verified (`t_b21_fix.js`, three sites, after the import and the 7-piece design):**
+
+    | | Robson & Burrard | Commercial & 1st | W 41st & Dunbar |
+    |---|---|---|---|
+    | Section at 1:1 after the import: strip / view (px), parklet in view | 1422 / 396, yes (scrolled 632) | 1308 / 396, yes (326) | 1734 / 396, yes (560) |
+    | FIT: strip / view (px) | 396 / 396 | 396 / 396 | 396 / 396 |
+    | 3D home: camera (m), distance, canopy hits on the line of sight | (11.2, 10.6, -8.8), 21.0 m, 0 | (14.4, 10.6, -8.8), 21.5 m, 0 | (17.6, 10.6, -8.8), 22.1 m, 0 |
+    | Scale-bar values at fit / zoom 3 / zoom 18, overlaps | 0 200 m / 0 20 50 100 m / 0 4 10 20 m, 0 | same, 0 | 0 200 m / 0 50 100 m / 0 4 10 20 m, 0 |
+    | Parking 2.40 → 2.30 in the Section; Ctrl+Z on Generate, then on Site | 2.30, then 2.40 | 2.30, then 2.40 | 2.30, then 2.40 |
+- **§2 Names and tooltips (commit 3):**
+  - **Tooltips:**
+    - Every control has one sentence in `data-tip`, shown by one layer (`#uiTip`) 300 ms after the pointer or keyboard focus rests on it.
+    - A `title` (markup or code) is moved into `data-tip` the first time it is met, so the browser's own tooltip never doubles it.
+    - `UI_TIPS` (selector → sentence, near the end of the file) covers controls built by code; `uiApplyTips` re-applies it 150 ms after DOM changes. A later row wins over an earlier one for the same element.
+  - **Renames:**
+    - The brief's list: DIM → Dimensions; Solve width → Fit lanes to minimum; Fit all → Fit design; Plan and Section FIT → Fit view; A–A → Section cut; BOX → Section box; Extents → Sheet extents.
+    - The Move block: X / Z → Across / Along, ° → Rotation, ΔX / ΔZ → Move by Across / Along, Apply ΔXZ → Apply move. The N / W / E / S letters (world axes, not compass points) became arrows whose tooltips say what they do.
+    - Provenance chips: OpenStreetMap / City data / Estimate / You.
+    - Verdicts in mixed case with real plurals.
+  - **One term:** "deck" for the platform in the checks (C14, C15), Generate and the furniture notes. Product names (mmcité Platform Kupé) are kept.
+  - **Type:** one override block (`Names and tooltips (Brief 21 §2)` style) sets headers to 13 px mixed case and controls in the left column and view headers to 12 px.
+    - The Plan's header is two rows (name + Enlarge, then its tools); the Section's totals wrap.
+    - `_vpHeight` keeps a Section viewport down to 60 px (was 120), so the drawing still scrolls to the ground at three views.
+  - **Kept, logged:** the compass pairs N-S / E-W / NE-SW / NW-SE (they fit the five-way switch; the tooltips spell them out), "AI-assisted" and the library's SF / CALC / DI codes (spelled out in their legend).
+  - **Verified (`t_b21_tips.js`, every tab with every left-column panel open):** 430 controls, 0 without a tooltip; 0 headers under 12 px or in capitals; the tooltip is hidden at 250 ms and shown at 350 ms, and the native title is gone.
+- **§3 Structure (commit 4):**
+  - **Top bar:**
+    - Tabs in use order: Site · Generate · Design · Furniture · Check · Visualize · Export.
+    - Settings is in the account menu, which opens signed out too (Sign in…, Settings).
+    - The name field shows `pkShowProjectName()`: the saved design's name, else the typed one, else "Untitled parklet". **+ New** opens the new-design dialog. **?** (or the ? key) opens `uiShowHelp()`: every shortcut (`UI_SHORTCUTS`) and what the tool checks.
+  - **Left column:**
+    - `#cadTools` has the class `cad-empty` (hidden) while nothing is selected (`cadToolsUpdate`).
+    - One Move block: `cadNudge(dx, dz)` moves one grid step in the Plan's directions, and so do the keyboard arrows. They used to be true-compass moves.
+  - **Design:**
+    - The panel is: Parklet shape editor (edit button, read-only length × width `uiDesignDims()` from the applied shape, lane badge), Street context (bike lane), Library.
+    - The bike lane's buffers are set only in the Section: palette items `buf-pk` / `buf-bl` (shown with a parklet-side bike lane), variants raised / planters / trees. `bufFromSegs(segs)` reads them for `_seToGlobals`, the Generate scratch and loads. `pkSerialize` and `saveSettings` no longer store them; older saves' keys are still read.
+    - The vegetated buffer is set in the Section's sidewalk properties ("Planted strip at the building face").
+  - **Visualize (`uiVisLayout`):**
+    - The rail is moved into the left column, in this order: Render (camera presets, photoreal Render, the renders with tick boxes, the key prompt `#rvzKeyPrompt` → `uiOpenConnections()`, Gallery / Clear renders, "Photoreal options"), Output, Sun, Appearance.
+    - `RPT.renderList` fills both `#rvzThumbs` and Export's `#rptRenders` with the same ticks.
+  - **Check:**
+    - `#workspaceCheck` (the viewports are hidden) holds the verdict and the table. `buildCriterion` renders rows (ids kept for `handleInput`); `render()` sorts failures first; `CHECK_SHORT` gives each row its short name and requirement.
+    - `chkAfterRender` fills Measured ("not entered"), the provisional chip and the counts. `chkFilter` provides All / Failing / Provisional / Passing.
+    - `chkShowMe(id)` opens Design, zooms the Plan onto the deck and rings the rule's marks for 5 s (`CHECK_VIEW`, `CHECK_MARKS`). The confirm-on-site list (`#smpCheck`) is in the left column.
+  - **Export:** the report card is in the main area under `#verdictBannerExp`, a copy of the Check tab's banner kept by a MutationObserver. The verdict banner shows on no other tab.
+  - **Empty states:** `uiEmpty` covers Furniture with nothing placed, Export without a located site, and Generate before a run.
+  - **Site:** `uiSiteSteps()` regroups the first panel into 1 Locate · 2 Import context · 3 Place parklet, with Done / Next / Waiting (`uiSiteStepStatus`).
+  - **Refresh:** `syncDesignModel` and `appSetMode` are wrapped once to refresh these, with the bike-lane switch synced from the model.
+- **§4 A blank new design (commit 5):**
+  - **The one definition of empty:** `DEFAULT_STATE` (frozen, beside `pkCreateDesign`) is what an untouched page serializes to. `pkDefaultState(name, address)` gives a copy.
+  - **`pkApplyBlank(s)`:**
+    - It deletes every `state` key, then applies `s`.
+    - It also resets what lives outside the saved state: the imported context (`CTX_OUTER`, `SMP.lastReport`), the render ticks, and the generator (prefs, from the now-missing `state.__gen`, so seed 1; results; opened scheme).
+    - The view toggles return to their defaults, the Plan fits again and the 3D home reframes. The Section editor's undo history is cleared (`seClearHistory`).
+  - **+ New:** `pkCreateDesign` builds the row from `pkDefaultState` (it used to copy the open design and clear only some keys). Signed out, `pkNewDesign` applies the blank locally.
+  - **Also:** the Section editor keeps the bike-lane width when there is none (it had zeroed it). Nothing reads the width then, and a blank now serializes the same whether or not the Section re-synced it.
+- **§5 Section extents (commit 6):**
+  - **Model:** `SECTION` / `DESIGN_MODEL.section` gain `depthBack`, `x0`, `x1` and `yTop`; `depth` is also returned as `depthFwd`, and `setSection` accepts either name.
+    - `sectionResolve(L, zMin, zMax, s, LM)` defaults `x0` / `x1` to 5 m past the face of the building the cut passes through on each side (else the frontage). It clamps them to include the sidewalk and the whole road. It returns `zBack`.
+    - Saved with the design, and in `DEFAULT_STATE`.
+  - **Scene:** `getSectionScene` drops anything wholly outside `x0`–`x1` and gathers `behind` (between `zBack` and the cut).
+  - **Screen Section (`sectionFrame` / `_drawSection`):**
+    - It spans exactly `x0`–`x1`; the fixed 24 px poche column is gone, and `roadEnd` / `farStart` mark the road's drawn end.
+    - Past the road: the far curb and sidewalk, and the far building the cut passes through, cut from its face (`sectionCutBuildingR`; `data-face-far`).
+    - Behind the cut: fine dashed hidden lines (`data-sec='behind'`).
+    - Fit view fits `x1 − x0`. `yTop` (the Section header's "Top" field) replaces the auto-fit in `sectionExtentM`.
+  - **Plan:**
+    - The box runs from the back edge to the forward edge and from `x0` to `x1`, with four edge handles (`_pvSecDown` what 1–4: depth, depthBack, x0, x1), snapped to 0.5 m and with their values shown.
+    - The cut line and its tags span the box. The 3D section box uses the same extents.
+  - **Report:**
+    - A-201 draws the same rectangle (the far side, the hidden lines) at `RPT.sectionScale`: 1:50 when it and its height fit, else the next scale whose width fits (1:100, 1:200, 1:250). Its chain runs the whole road.
+    - A-101 / A-102 markers span `x0`–`x1` within their crops.
+- **§5b Shape editor (commit 7):**
+  - **Module `SKE`** (replaces the old Draw/Select sketch editor). `cadShowFootprintEditor()` opens it in the enlarged Plan; Apply or Cancel (`skeClose`) restores the previous layout.
+    - It edits a copy (`SKE.shape`, the same `{verts, segs, closed}` format); `state.pkShape` changes only in `skeApply`.
+  - **Canvas (`skeExtent` / `skeView`):**
+    - Across: the parking segment, curb (`deckX0`) to lane edge (`deckX1`). Along: the host frontage, else the block between the curb returns, else the deck ± 8 m.
+    - It draws the grid at `cadStep()` (the header's Grid select calls `cadSetSpacing`), metres along both edges from the deck start, the curb, the lane edge, the wheel-stop zones at the outline's ends, the host-frontage band, and the route lane (`GEN.ROUTE_W`, dashed; red where the deck is narrower).
+    - The mouse wheel zooms; Shift+wheel or the middle button pans.
+  - **Tools (`skeSetTool`):**
+    - Rectangle: drag, with a live `l × w` readout; the Length / Width fields set it exactly.
+    - Polygon: click corners; Enter or the first corner closes; Shift gives 90° / 45° edges; Esc cancels; Backspace removes the last corner.
+    - Edit:
+      - Drag a corner, or drag an edge parallel.
+      - Double-click an edge to add a corner; Delete removes the selected one.
+      - Hover an edge to see its length label. Click the label to type a length (`skeSetEdgeLen`); a square next edge moves with it.
+    - Notch: from a convex corner with straight edges on both sides (`skeNotchStart`).
+    - Reset to rectangle.
+    - Undo and redo (Ctrl-Z, Ctrl-Y, Ctrl-Shift-Z) are captured on `window` while the editor shows.
+  - **Constraints (`skeIssues`):** an edge crossing the curb, entering the lane or running past the segment's ends, an edge under 0.25 m, or a self-crossing outline turns the edge red, shows a one-line reason, and disables Apply.
+  - **Apply (`skeApply`):**
+    - An outline that starts or ends somewhere new re-anchors the deck (`skeReanchor`): it sets the length, and sets `pkZ` so the street frame stays put. Street objects, buildings, furniture and the section cut shift by the start offset.
+    - A full-width rectangle stores no outline.
+  - **One source:** `DESIGN_MODEL.parklet.outline` (from `pkAppliedOutline()`) is read by Plan, 3D, Section, the report (`RPT.geo`, which no longer adds `deckX0`), the renders, the generator's metrics and the Design tab's dimensions.
+    - `DESIGN_MODEL.parklet.area` is now exact (`pkShapeArea`: polygon plus arc segments).
+- **§6 User furniture (commit 8):**
+  - **Module `FLU`** (beside the archetype code).
+    - Each user piece is a record registered as archetype `u_<id>` (`FLU.register`), with fixed `l` / `d` / `h`, one material role per mesh group (`g0`…) or region (`r0`…), and `roleNames` for display.
+    - `flSemType` maps it to a generic kind for `GEN.metrics` (a seat ≥ 1 m is a bench).
+  - **New part kinds:**
+    - `prism`: a traced region, extruded; used in `_flPartMesh`, `flPlanShapes` and `flSectionArchetype`.
+    - `mesh`: an imported model (`FLU.mesh3D`). The plan uses `rec.plan`; the section uses `rec.front` or `rec.end`.
+  - **Import (A):**
+    - `FLU.readFile`: GLB, glTF or OBJ up to 20 MB. Loaders come from jsDelivr, three@0.128.0 `examples/js`.
+    - `FLU.build` scales to metres (`guessUnits`), stands the model up (`up`), puts the origin at the bottom centre, applies `decimate` (≤ 50k triangles) and `silhouette` (≤ 300 points), and assigns materials (`matFor`).
+    - Dialog: `FLU.openImport`.
+  - **Traced (B):** `FLU.openTrace`.
+    - Regions on a 50 mm grid, each with a height and a base.
+    - Underlay: PDF (pdf.js from cdnjs), image, or DXF (`FLU.dxfToSVG`).
+    - Cut sheet via the Assistant (`FLU.cutSheet`), with values "suggested" until confirmed.
+  - **Library (D):**
+    - The "My furniture" category (`cat: 'mine'` in `flLibraryItems`). Buttons under the Library's preset toggle.
+    - `FLU.openManage`: rename, duplicate, export GLB (GLTFExporter), delete.
+  - **Storage:** records in localStorage `pkt_userfurn` (per account). Triangles in IndexedDB `pkt-userfurn`. Signed in, the Supabase bucket `user-furniture/<uid>/<id>.json` (`cloudPut` / `cloudGet` / `cloudSync`).
+  - **Designs** carry the placed pieces' definitions in `furniture.userDefs`; `pkApplyDesignState` registers them before placing.
+  - **Schedule:** "user model — <file>" or "user furniture — <name>" (`FLU.label`).
+  - **Photoreal:** type and size only (`FLU.describe`).
+- **§7 Public repo, per-user keys, invite-only (commit 9):**
+  - **CONFIG** (the first script in `parklet-checker.html`): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (public anon key only), `INVITE_ONLY`, `INVITE_CONTACT`, `REPO_URL`. `PK_SUPABASE_*` read it; `tools/sync-landing.ps1` reads `SUPABASE_URL:` too.
+  - **Keys (`CONN`):**
+    - One object in localStorage, `pkt_connections`: `CONN.get` / `set` / `has` / `test` / `gate(id)` / `open(id)`.
+    - The Settings › Connections section is `#swConn`.
+    - Old keys are migrated once (`CONN.migrate`).
+    - `CONN.gate(id)` is the "… use your own … account. Add a key in Connections →" prompt used by Photoreal (`RVZP._syncUI`), the Assistant (`AX.gate`, `#axGate`), Mapillary (`MLY.renderBox`) and the Export renders list.
+  - **Relay (`tools/serve.ps1`):**
+    - No key on the server. `X-Provider-Key` is read per request (`$script:reqKey`, cleared in `finally`).
+    - `/render-proxy/test` checks a key. The log keeps status lines only.
+    - The page sends the key via `RVZP.hdrs()`.
+  - **Assistant:** direct to Anthropic. The proxy option and `index.ts` are removed; `AX.cfg()` returns `{model, apiKey from CONN}`.
+  - **Invite-only:**
+    - The sign-up form's `#pkSUInvite` field; `pkSignUp` sends `options.data.invite_code`.
+    - `supabase/schema.sql` checks the code in a trigger on `auth.users` against `app_settings.invite_code`. The code is set with SQL, never in the client; `invite_only` is the one-line toggle.
+  - **Schema:** `supabase/schema.sql` covers `profiles`, `designs` (RLS, owner-only for select, insert, update and delete), `app_settings`, and the `user-furniture` bucket with owner-folder policies.
+  - **Docs:** `README.md` (setup, keys, own backend, invite), `LICENSE` (MIT), `THIRD_PARTY.md`.
+- **§8 Report: renders first (commit 10):**
+  - **Sheet order:** `RPT.SHEETS` (both modes) is cover, renders, title, then the drawings, schedules, compliance and sources.
+  - **Bleed pages (`page.bleed`):** they draw on the whole sheet, with no margins, header or title block. `RPT.pageSVG(P, bleed)`, `checkPages` and `RPT.render` (`draw(P, {n, N})`) handle them.
+  - **Cover:** `RPT.sheetCover(d, drw, op)` (V-000).
+    - The hero is `RPT.hero(d)`: the first ticked Street, else Corner, render. Otherwise `drw.cover`, the axon as a JPEG.
+    - The panel's opacity is `RPT.COVER_OP` (0.92).
+    - `RPT.coverPNG(d, drw, op, px)` renders a PNG for comparison.
+  - **Render sheets:** `RPT.sheetRender(d, r, id)` (V-101 onwards), each with a caption strip.
+    - `RPT.collectRenders` prefers `blobs.output`, which has no baked caption.
+    - `renderEntry` writes JPEG q85.
+  - **Neighbourhood:** `DM.site.neighbourhood`, from the tree import's `local_area` (`state.__neighbourhood`).
+- **§9 Punch list (commit "ux: punch list"):**
+  - **Search fields:** the library searches have autocomplete off.
+  - **Clear renders:** `RVZP.countCached()` shows the count on the button.
+  - **Report overlay:** `RPT.overlay(src, title, extra)` and `RPT.closeOverlay()`, closed by Esc or the Back button.
+    - The sample opens there (`RPT.openSample`); inside the sample page, `RPT.sampleBack` posts `curbside:close-report`.
+    - Your own report opens there too: `RPT.preview` (#rptPreviewBtn).
+  - **Measure (`MSR`):**
+    - `MSR.targets` gathers the snap targets: V (vertices), E (edges) and S (lines).
+    - `MSR.snapAt(ev)` returns `{x, z, name, kind: vertex | edge | line | grid | raw}`.
+    - `MSR.lock` applies the Shift lock; `MSR.click`, `MSR.move`, `MSR.pin` and `MSR.clear` handle the interaction.
+    - `MSR.draw` draws the overlay group `#pvMsr`. `renderPlanView` is wrapped to redraw it on screen renders only.
+    - `planMD` calls `MSR.click`; the old measure drawing is gone.
+- **§10 Rhino .3dm (commit 11):**
+  - **`RX.build()`** returns `{doc, rh, stats}`. It builds from `DESIGN_MODEL`: the deck extrusion, railing boxes, end pieces, furniture blocks (`RPT.groupsFor`: one `InstanceDefinition` per schedule row, one `InstanceReference` per piece), street slabs, buildings, trees (a trunk plus a revolved crown), site objects, and Drawing curves and dots.
+  - **Layers:** full paths are created on demand (`Parklet::Furniture::<label>` and so on), coloured from the schematic palette.
+  - **Axes:** app (x, y, z) maps to Rhino (x, -z, y), done by `RX.P`.
+  - **Export:** `RX.export()` downloads the file; `RX.exportGLB()` downloads the 3D view as glTF.
+  - **rhino3dm:** pinned at `RX.URL` (8.35.0).
+  - **Menu:** `PX.export` routes `3dm` and `glb` to RX.
+- **§11 Site survey (commit 12):**
+  - **Parsing:** `SURV.parse` (CSV / TXT) and `SURV.parseDXF` (POINT and polyline vertices, with the layer as the code). `SURV.kindOf` maps codes (`SURV.DEFAULT_MAP` plus `state.__surveyMap`).
+  - **Preview:** `SURV.prepare({text, name, frame: local|latlon, pairs: [{s: [x, y], anchor}], surveyor, date})`. It places the rows (`SURV.solve`: rotation and translation, with the scale and misfit reported) and draws them on the Plan (`#pvSurv`, `SURV.draw` on the wrapped `renderPlanView`).
+  - **Apply:** `SURV.apply()`.
+    - Objects match within 0.5 m (update, keep the estimate, confirm), are added (`newFromSurvey`) or are flagged (`notFoundOnSite`).
+    - Curb, building, lane and bike-lane lines set the sidewalk width, curb-to-curb width and bike lane; TOC points set the slope. Provenance is `survey`.
+    - The checks re-run; the result goes in `state.__survey` (file, date, surveyor, frame, placement, points, inputs out of 14, per-check changes, flags).
+  - **Undo:** `SURV.undo()` restores the snapshot taken before Apply.
+  - **Display:**
+    - The Check tab's Survey panel is `#survPanel` (`SURV.renderPanel`).
+    - The cover line comes from `SURV.summary()`; X-001 carries the survey facts; the report stays provisional.
+    - S-002 is `RPT.surveySheet`, with the template from `SURV.template()` and `SURV.applyTemplate()`.
+    - The UI is step 4 of the Site tab (`SURV.ui`).
+  - **Also:** the saved design now carries `siteObjects.neighbourhood`, `survey` and `surveyMap`. `SMP` treats `survey` provenance as confirmed.
+- **§12 Enclosure archetypes (commit 13):**
+  - **Model:** `ENCLOSURE` (saved with the design as `enclosure`, and in the autosave as `state.__enclosure`) holds `{archetype, height, bufferDepth, sides: {traffic, endA, endB}, params, mats}`. `ENC.resolve` builds `DESIGN_MODEL.enclosure`: its `runs` (one per side, with parts in the side's own frame), `inset`, `usableW`, `xOuter`, `xInner`, `zA`, `zB`, `flags` and `routeMaxBuffer`. A design without `enclosure` loads as `ENC.LEGACY` (buffer 0).
+  - **Archetypes:** `ENCLOSURE_ARCHETYPES` has 9 entries. Each has name, family, transparency, mats, params (with ranges), `depth(p)`, `parts(len, H, p, mat, side)` and `dims` (A-301's dimension list).
+  - **The one mapping:**
+    - `ENC.toWorld(run, part, base)`, `ENC.worldParts(DM, base)`.
+    - `ENC.planPrims` (Plan, A-102/103) and `ENC.planSVG` (the Plan's `g[data-layer=enclosure]`).
+    - `ENC.profile` (sections), `ENC.mesh3D` (3D), `RPT.encPlan` / `RPT.encSection` (sheets).
+    - RVZ draws `ENC.worldParts`; `RVZP.railText` / `inventory` use `ENC.describe`. RX puts it on the `Parklet::Enclosure` layer.
+  - **Edits:** `ENC.set(patch, {raw, fast, quiet})`. The Edge card (`#encSec` after `#designShapeSec`, `ENC.renderCard`) uses `fast`: `ENC.fastApply` redraws only the enclosure in Plan, Section and 3D, and the full `syncDesignModel` follows after 0.3 s.
+  - **Checks:**
+    - C17 (`ENC.c17`), C18 (`ENC.c18`, `ENC.openingsOf`), C19 (`ENC.c19`). They have no inputs; their rows refresh with each Plan redraw (`ENC.refreshChecks`).
+    - While the generator evaluates a candidate they read `GEN._scratchPlaced` through `ENC.items`.
+  - **Generator:**
+    - `fp.inset`, `fp.zA` and `fp.zBd` come from `ENC.fpFields` / `GEN.encFields`.
+    - `GEN.edgeAt` stops at the enclosure's inner face, and `GEN.validate` needs two 1.8 m openings.
+    - `ENC.capacity` is the card's seat count; `ENC.bufMax` / `ENC.routeMaxBuffer` is the buffer slider's stop.
+  - **Report:**
+    - A-301 details 1 and 2 are drawn from the traffic side's archetype (`RPT.sheetDetails`). Its dimensions are measured on the parts and tagged `data-enc-dim`, and `RPT._encDims` holds the last set.
+    - S-001 has the Enclosure block (`RPT.encBlocks`); X-001 cites E2, E3, E4/G13 and E5.
+  - **Library:** `FL_RETIRED` hides Railing and Edge rail from the library.
+- **§13 City-supplied items (commit 14):**
+  - **Model:** `DESIGN_MODEL.cityItems` holds a wheel stop and a flexible bollard per end: `{type: wheelStop|flexBollard, end: A|B, provenance: 'city-supplied', nominal, x, z, x0..z1, y0, y1}`. They are generated in `buildDesignModel`, in the C13 1.5 m setback, centred on the parking lane. `DESIGN_MODEL.parklet.ends` is gone.
+  - **Drawing:**
+    - `DRAW_SYMBOLS.cityWheelStop` and `flexBollard` draw the symbols; `RPT.cityPlan` places them on A-101, A-102 and A-103, and A-102 carries `RPT.CITY_NOTE`.
+    - The screen Plan draws them outside the deck. Its 1.10 m wheel-stop zones are gone: the deck runs 0 .. L, as in 3D.
+    - A-301 has three details.
+  - **3D and export:** grey context with `userData.city`, `_expLayer` 'CONTEXT_CITY' (`PX.collect` exports it with the Context tick). RX puts them on a top-level `CONTEXT_CITY` layer. RVZ draws them as context.
+  - **Kept out of:** S-001, the materials table and the checks. X-001's Assumptions has the row. `FL_RETIRED` also hides the Wheel stop piece.
+- **Brief 21c close-out (commits 0452fd7 .. , merged to master, tag v0.9-ux):**
+  - **19b:** already on `ux` as ecd9094; its checks re-run on the final code at the three sites (there was no `briefs/19b-sheet-fixes.md` file to apply).
+  - **Generator:**
+    - `GEN.EDGE_BAND` is gone. `GEN.edgeAt` is the enclosure's inner face, and seats stand against it. `edgeRun` places planters only (the enclosure is the edge), and only where no seat stands.
+    - `GEN.deckAt` is the footprint edge used for overhead pieces.
+    - `ENC.bufMax` bisects `ENC.capacity` (cached per key in `ENC._capM` / `ENC._bm`) for the buffer slider's stop.
+  - **Umbrella:** one definition, `FL_ARCHETYPES.umbrella` (h 2.60–2.80, canopy 1.5 m). The generator's `umbrellaAt` places it unchanged, the pole moved in to keep the canopy on the deck.
+  - **Migration:** `ENCLOSURE.migrated = 'pre-21-12'` marks a design saved before §12. `ENC.MIGRATION_NOTE` is shown in the Check tab (`#chkMigrated`) and in X-001 Assumptions.
+  - **Rhino:** identical enclosure members are one block each (`Enclosure <member> <mm> mm`) with an instance per member.
+  - **Visualize:** one Connections prompt, the `#rvzpProxy` gate above Render.
+  - **X-001:** records C18's floor(w / 1.8) rule.
+- **Tooling:** Node.js 24 LTS (portable, `%LOCALAPPDATA%\Programs\node-v24.21.0-win-x64`, not on PATH) and Playwright 1.63.0 (`tools/package.json`, `npm install` + `npx playwright install chromium` in `tools/`). See the README's Developer prerequisites.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
