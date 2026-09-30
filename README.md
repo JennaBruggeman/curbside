@@ -16,6 +16,24 @@ user's own account, entered by them and stored only in their browser.
    `tools/serve.ps1`.
 3. Open the app, sign in (or use it signed out: designs are then kept in this browser).
 
+## Developer prerequisites
+
+Running the app needs none of this. The developer scripts in `tools/` (the landing-page screenshots, the demo
+walkthrough, the city data build) need:
+
+- **Node.js 24 LTS or later** — <https://nodejs.org/> (the Windows installer, or the portable `win-x64` zip).
+  Check with `node --version`.
+- **Playwright 1.63.0** (pinned in `tools/package.json`) and its Chromium:
+
+  ```
+  cd tools
+  npm install
+  npx playwright install chromium
+  ```
+
+  `npm install` fetches Playwright into `tools/node_modules` (git-ignored); the second command downloads its
+  Chromium, headless shell and ffmpeg (for recorded video) into Playwright's user cache, about 150 MB.
+
 ## Add your keys (optional)
 
 Settings (account menu) › **Connections**. Each row has a key field, **Test** (one free call that says whether
@@ -63,7 +81,8 @@ When you open sign-up, also set `CONFIG.INVITE_ONLY = false` so the form stops a
 ## Repository
 
 - `parklet-checker.html` — the app (one file). `index.html` — the landing page.
-- `tools/` — the local server and relay, start/stop scripts, bundled report libraries (`tools/vendor`).
+- `tools/` — the local server and relay, start/stop scripts, bundled report libraries (`tools/vendor`), and the
+  Node developer scripts (`tools/package.json`; see Developer prerequisites).
 - `supabase/schema.sql` — the database, with its security policies.
 - `demo/` — the sample design and its renders (rendered with the author's Replicate account).
 
