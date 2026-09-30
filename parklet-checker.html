@@ -758,6 +758,13 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <div id='rptModeNote' style='font-size:11px;color:var(--text-mu);line-height:1.5;margin-bottom:6px'>The drawing set in colour, with the renders on the title sheet.</div>
   <div id='rptRenders'></div>
+  <fieldset class='rpt-opts' id='rptOpts'><legend>Include</legend>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_schedule' checked> Furniture schedule (S-001)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_sources' checked> Sources (X-001)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_compliance' checked> Compliance detail (C-001, C-002)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_renders' checked> Renders (cover and V-101 ...)</label>
+    <span class='hint'>A sheet left out drops from the drawing list and the page numbers.</span>
+  </fieldset>
   <button class='ctx-btn ctx-btn-full' id='pdfExportBtn' onclick='RPT.print()' style='margin-bottom:6px' title='17 x 11 in landscape sheets, drawings at true scale, as a PDF file.'>&#8595; Download report (PDF)</button>
   <button class='ctx-btn ctx-btn-full' id='rptPreviewBtn' onclick='RPT.preview()' style='margin-bottom:6px' title='Builds your report and shows it here, over the app, with Download; Back to Curbside or Esc closes it.'>Preview report</button>
   <button class='ctx-btn ctx-btn-full' id='rptSampleBtn' onclick='RPT.openSample()' style='margin-bottom:6px' title='A finished report of a bundled reference design, in the selected type. Opens over the app; Back to Curbside or Esc closes it, and your design is not touched.'>See a sample report</button>
@@ -21834,7 +21841,7 @@ RPT.data = function(mode) {
   var prov = (sp && SMP.anyPending()) || !!(typeof state !== 'undefined' && state.__survey);   // a survey never lifts provisional status (Brief 21 §11)
   var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.slice() : [], gt = RPT.groupsFor(placed);
   return { mode: mode === 'technical' ? 'technical' : 'schematic', sample: !!window.PK_SAMPLE, DM: DM, rows: rows, n: n, overall: prov ? 'provisional' : n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
-    opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null, groups: gt.groups, tags: gt.tags,
+    opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null, groups: gt.groups, tags: gt.tags, opts: (RPT._opts = RPT.opts()),
     date: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
 };
 // GEN metrics of the design as it stands (not of the scheme it may have been opened from): seats,
@@ -21970,7 +21977,7 @@ RPT.streetChanges = function(DM) {
   var ST = { width: 'width changed', variant: 'type changed', added: 'added', removed: 'removed' };
   return [h, { table: { cols: [{ t: 'Segment', w: 0.34 }, { t: 'Existing (m)', w: 0.16, num: true }, { t: 'Proposed (m)', w: 0.16, num: true }, { t: 'Change', w: 0.34 }],
     rows: rows.map(function(r) { var b = !!r.st; return [{ t: (b ? '* ' : '') + r.seg, b: b }, { t: r.ex == null ? '-' : RPT.fx(r.ex, 2), b: b }, { t: r.pr == null ? '-' : RPT.fx(r.pr, 2), b: b }, { t: b ? ST[r.st] : '', b: b }]; }) } },
-    { p: 'Rows marked * differ from the street as imported (' + SMP.day(ex.at) + '). C02 and the lanes above evaluate the proposed street; X-001 records the existing one.' }];
+    { p: 'Rows marked * differ from the street as imported (' + SMP.day(ex.at) + '). C02 and the lanes above evaluate the proposed street' + (RPT.on('sources') ? '; X-001 records the existing one.' : '.') }];
 };
 // ── X-001 Sources ───────────────────────────────────────────────────────────────────────────────────────
 RPT.sources = function(d) {
@@ -22708,7 +22715,7 @@ RPT.sheetLayout = function(d) {
     { t: 'Segments from the Section editor, chained with the overall, frontage to far curb.', at: [xa - 20, (F.sy(0) + F.sy(LM.roadRight)) / 2] },
     { t: hz != null && zs.indexOf(hz) >= 0 ? 'The deck located from the host frontage (' + (host.name || host.use || 'host') + ').' : 'The deck located along the curb from its start.', at: [F.sx(G.L / 2), ay - 9] },
     { t: 'Clearance zones dashed, with their rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal, C09 chamber, C13 parking); red: the check fails.', at: zoneAt },
-    { t: 'Furniture tags: schedule S-001.', at: null },
+    { t: RPT.tagNote(d), at: null },
     { t: RPT.CITY_NOTE, at: cityAt },
     { t: 'Section A-A: sheet A-201; deck plan A-103.', at: [F.sx(G.sec.z) + 10, F.sy(LM.sidewalkL.x0) - 6] }
   ];
@@ -22785,7 +22792,7 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
     { t: 'Hatched: the accessible route, clear width ' + (typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92) + ' m or more from the entries.', at: routeAt },
     { t: 'Entry turning space, ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(2) + ' m square.', at: entryAt },
     { t: 'End enclosure: ' + EN.runs[1].name.toLowerCase() + ', ' + EN.runs[1].depth.toFixed(2) + ' m deep, ' + EN.runs[1].top.toFixed(2) + ' m high' + (EN.runs[2].id !== EN.runs[1].id ? '; far end ' + EN.runs[2].name.toLowerCase() : '') + '.', at: plAt },
-    { t: 'Furniture tags: schedule S-001.', at: null }
+    { t: RPT.tagNote(d), at: null }
   ];
   var id = nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103';
   return RPT.dsheet(d, id, 'Deck plan' + (nParts > 1 ? ' (' + (idx + 1) + ' of ' + nParts + ')' : ''), sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: cr.x1, north: true });
@@ -22961,9 +22968,23 @@ RPT.SHEETS = {
   technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
+// Report options (Brief 22 item 7): the Export tab's Include boxes; a sheet left out is not in the list, so the drawing
+// list and the page numbers follow. Compliance detail is C-001 and C-002; Renders are the render sheets and the cover's image.
+RPT.OPT_KEYS = ['schedule', 'sources', 'compliance', 'renders'];
+RPT.opts = function() { var o = {}; RPT.OPT_KEYS.forEach(function(k) { var e = document.getElementById('rptOpt_' + k); o[k] = e ? !!e.checked : true; }); return o; };
+RPT.OPT_SHEETS = { schedule: ['schedule'], sources: ['sources'], compliance: ['compliance', 'lanes'], renders: ['renders'] };
+RPT.on = function(k, d) { var o = (d && d.opts) || RPT._opts; return !o || o[k] !== false; };
+// the plans' tag note: the schedule, or with the schedule left out, each tag's item
+RPT.tagNote = function(d) {
+  if (RPT.on('schedule', d)) return 'Furniture tags: schedule S-001.';
+  var gs = d.groups.filter(function(g) { return !(g.sp && flIsEntourage(g.sp.type)); });
+  return gs.length ? 'Furniture tags: ' + gs.map(function(g) { return g.tag + ' ' + g.row.item + (g.n > 1 ? ' (' + g.n + ')' : ''); }).join('; ') + '.' : 'No furniture placed.';
+};
 RPT.sheetList = function(d) {
-  var out = [];
+  var out = [], off = [];
+  RPT.OPT_KEYS.forEach(function(k) { if (!RPT.on(k, d)) off = off.concat(RPT.OPT_SHEETS[k]); });
   RPT.SHEETS[d.mode].forEach(function(k) {
+    if (off.indexOf(k) >= 0) return;
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     // (Brief 19b: each drawing's scale from RPT.SCALE_OF, the value its sheet draws at and its title block prints)
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
@@ -23076,8 +23097,7 @@ RPT.sheetTitle = function(d, drw) {
   return RPT.dsheet(d, 'A-000', 'Title sheet', 0, P, [
     { t: 'Dimensions in metres unless noted; drawings at the scale stated on a 17 x 11 in sheet.', at: null },
     { t: 'Generated from the design model; imported site data is indicative and must be verified on site.', at: null },
-    { t: 'Sources, the renders\' credits and the model\'s assumptions: sheet X-001.', at: null }
-  ], null);
+  ].concat(RPT.on('sources', d) ? [{ t: 'Sources, the renders\' credits and the model\'s assumptions: sheet X-001.', at: null }] : []), null);
 };
 
 // ── Renders in the schematic report (Brief 12b): only the current design's photoreal images ─────────────
@@ -23514,6 +23534,7 @@ RPT.make = async function(mode) {
   var d = RPT.data(mode || RPT.mode());
   // the renders are the design's in both reports (their credits in X-001); only the schematic prints the images
   d.renders = await (RPT.renderSource || RPT.collectRenders)();
+  if (!RPT.on('renders', d)) d.renders = [];   // Renders left out (Brief 22 item 7): no render sheet, no render on the cover
   var drw = await RPT.drawings(d), doc = await RPT.render(d, drw);
   RPT.lastData = d;
   RPT.lastPdf = { blob: doc.output('blob'), name: RPT.fileName(d), pages: doc.getNumberOfPages(), check: RPT.lastCheck };
@@ -26983,6 +27004,10 @@ SMP.sourcesList = function() {
 .sf-rw, .sf-lanesrc { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; }
 .sf-refuse { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; font-weight: 600; color: var(--st-fail, #E0795E); }
 .sf-refuse:empty { display: none; }
+.rpt-opts { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 8px; padding: 6px 8px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; }
+.rpt-opts legend { padding: 0 4px; font-size: 11px; font-weight: 600; color: var(--c-text-dim, #9AA0A6); }
+.rpt-opts .hint { font-size: 11px; line-height: 1.4; }
+
 /* -- Brief 22 item 5: stage 0 --------------------------------------------------------------- */
 .pk-stage0 { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--c-bg, #17191C); }
 .pk-stage0[hidden] { display: none; }
@@ -27156,7 +27181,7 @@ SITEF.xBlocks = function() {
   facts.push(['Curb to curb', RPT.fx(ex.roadWidth, 2) + ' m', SITEF.srcLine(SMP.prov().roadWidth) || 'as entered']);
   return [{ h2: 'Existing street (' + (ex.imported ? 'as imported ' : 'as entered ') + SMP.day(ex.at) + ')' }, { table: { cols: three, rows: facts } },
     { table: { cols: [{ t: 'Segment, building face to far curb', w: 0.7 }, { t: 'Width (m)', w: 0.3, num: true }], rows: ex.segs.map(function(s) { return [(window.SE_TYPES && SE_TYPES[s.type] ? SE_TYPES[s.type].label : s.type) + (s.variant && s.variant !== 'none' ? ' (' + s.variant + ')' : ''), RPT.fx(s.width, 2)]; }) } },
-    { p: 'The design is checked on the proposed street (the Section); C-002 lists where it differs from this one.' }];
+    { p: 'The design is checked on the proposed street (the Section)' + (RPT.on('compliance') ? '; C-002 lists where it differs from this one.' : '.') }];
 };
 (function() {
   function wrap(name, after, before) { var f = window[name]; if (typeof f !== 'function' || f._sitef) return; var w = function() { if (before) before.apply(this, arguments); var r; try { r = f.apply(this, arguments); } finally { if (after) { try { after.apply(this, arguments); } catch (e) { console.warn('[existing street] ' + name, e); } } } return r; }; w._sitef = true; window[name] = w; }
