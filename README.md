@@ -23,7 +23,8 @@ _To be written by Jenna._
    source and date; **Override** corrects one. A deck of the default length is then placed at the host frontage.
 5. **Design.** In **Design**, shape the deck, set the enclosure on each side (Edge), edit the street in the Section
    (*Add segment*), and place furniture from the Library. Or let **Generate** propose layouts that pass every
-   check and **Open in Design** the one you like.
+   check and **Open in Design** the one you like; where the site itself fails a check no design can fix (a bus zone,
+   say), Generate says so and places nothing.
 6. **Check.** The **Check** tab shows the verdict and every check, failures first. Imported site objects wait
    for *Confirm* (checks that depend on them are *provisional*); values the import cannot know (slope, driveways,
    poles …) are entered here.
