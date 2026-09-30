@@ -11989,7 +11989,22 @@ FLU.readFile = async function(file) {
 };
 FLU.parseGLTF = async function(data) {
   var L = await FLU.lib('loaders/GLTFLoader.js', 'GLTFLoader');
-  return new Promise(function(res, rej) { new L().parse(data, '', function(g) { res(g.scene || (g.scenes && g.scenes[0])); }, function(e) { rej(new Error('The glTF file could not be read' + (e && e.message ? ': ' + e.message : '.'))); }); });
+  return new Promise(function(res, rej) { new L().parse(data, '', function(g) { var sc = g.scene || (g.scenes && g.scenes[0]); if (sc) sc.userData.__meta = FLU.metaGLTF(g); res(sc); }, function(e) { rej(new Error('The glTF file could not be read' + (e && e.message ? ': ' + e.message : '.'))); }); });
+};
+// the spec card's fields from a glTF file's own metadata (Brief 22 item 8): the extras of the asset, the scenes and the
+// nodes (name, manufacturer, model, material, url, notes by their usual keys), else the scene's or the first node's name
+// and the material names. Dimensions never come from here: always from the geometry.
+FLU.metaGLTF = function(g) {
+  var J = (g && g.parser && g.parser.json) || {}, pools = [], push = function(o) { if (o && typeof o === 'object') pools.push(o); };
+  push(J.asset && J.asset.extras); (J.scenes || []).forEach(function(s) { push(s.extras); }); (J.nodes || []).slice(0, 60).forEach(function(n) { push(n.extras); });
+  var pick = function(re) { for (var i = 0; i < pools.length; i++) for (var k in pools[i]) { var v = pools[i][k]; if (re.test(k) && v != null && typeof v !== 'object' && String(v).trim()) return String(v).trim().slice(0, 200); } return ''; };
+  var generic = /^(scene|root|rootnode|gltf|sketchup|object|mesh|group|default|node)\b/i, sn = ((J.scenes || [])[J.scene || 0] || {}).name || '', n0 = ((J.nodes || [])[0] || {}).name || '';
+  var mats = (J.materials || []).map(function(m) { return m && m.name; }).filter(function(n) { return n && !/^(material|default|mat|lambert|phong|standard)[\s_.#-]*\d*$/i.test(n); });
+  var m = { name: pick(/^(name|title|product.?name)$/i) || (sn && !generic.test(sn) ? sn : '') || (n0 && !generic.test(n0) ? n0 : ''),
+    manufacturer: pick(/^(manufacturer|brand|vendor|maker|company|producer)$/i), model: pick(/^(model|sku|article|product.?code|product.?id|catalog(ue)?.?(no|number)?)$/i),
+    material: pick(/^(materials?|finish(es)?)$/i) || mats.filter(function(v, i, a) { return a.indexOf(v) === i; }).slice(0, 3).join(', '),
+    url: pick(/^(url|link|website|web|product.?url|source.?url)$/i), notes: pick(/^(description|notes?|comments?)$/i) };
+  return Object.keys(m).some(function(k) { return m[k]; }) ? m : null;
 };
 FLU.parseOBJ = async function(text) { var L = await FLU.lib('loaders/OBJLoader.js', 'OBJLoader'); return new L().parse(text); };
 FLU.draftFrom = function(root, filename, fmt) {
@@ -12008,7 +12023,7 @@ FLU.draftFrom = function(root, filename, fmt) {
   });
   var groups = order.map(function(k) { var g = by[k]; g.pos = new Float32Array(g.pos.slice(0, g.pos.length - g.pos.length % 9)); tris += g.pos.length / 9; return g; }).filter(function(g) { return g.pos.length; });
   if (!groups.length) throw new Error(filename + ' has no triangles.');
-  var d = { filename: filename, fmt: fmt, groups: groups, tris: tris };
+  var d = { filename: filename, fmt: fmt, groups: groups, tris: tris, meta: (root.userData && root.userData.__meta) || null };
   d.units = FLU.guessUnits(d, 'y'); d.up = 'y';
   return d;
 };
@@ -12044,6 +12059,7 @@ FLU.build = function(draft, o) {
     date: new Date().toISOString().slice(0, 10), units: units, up: up, l: +l.toFixed(3), d: +d.toFixed(3), h: +h.toFixed(3), tris: tris, trisIn: draft.tris,
     groups: groups.map(function(g, i) { return { name: g.name, mat: mats[i] }; }),
     plan: FLU.silhouette(groups, 0, 2), front: FLU.silhouette(groups, 0, 1), end: FLU.silhouette(groups, 2, 1) };
+  var M = draft.meta || {}; rec.spec = { manufacturer: M.manufacturer || '', model: M.model || '', material: M.material || '', url: M.url || '', notes: M.notes || '', from: draft.meta ? 'the file\'s metadata' : '' };   // Brief 22 item 8
   return { rec: rec, geo: { groups: groups.map(function(g) { return { pos: g.pos }; }) } };
 };
 // Material: from the file's material name when it names one (wood, steel, concrete ...), else the
@@ -12190,6 +12206,7 @@ FLU.save = async function(rec, geo) {
 FLU.remove = async function(id) {
   FLU.lsWrite(FLU.lsMine().filter(function(r) { return r.id !== id; }));
   try { await FLU._tx('readwrite', function(s) { return s.delete(id); }); } catch (e) {}
+  try { await FLU._tx('readwrite', function(s) { return s.delete('att-' + id); }); } catch (e) {} delete FLU.att[id];
   delete FLU.geo[id];
   var used = window.FL3D && FL3D.placed && FL3D.placed.some(function(p) { return p.archetype === FLU.archId(id); });
   if (!used) { delete FL_ARCHETYPES[FLU.archId(id)]; delete FL_GEOM[FLU.archId(id)]; delete FLU.recs[id]; }   // placed pieces keep their definition
@@ -12211,7 +12228,8 @@ FLU._f32 = function(b64) { var s = atob(b64), u8 = new Uint8Array(s.length); for
 FLU.cloudPut = async function(rec, geo) {
   if (!FLU._signedIn()) return false;
   try {
-    var body = JSON.stringify({ rec: rec, geo: geo ? { groups: geo.groups.map(function(g) { return { pos: FLU._b64(g.pos) }; }) } : null });
+    var att = rec.spec && rec.spec.attach ? await FLU.attGet(rec.id, true) : null;   // the spec card's attachment travels in the same file (Brief 22 item 8)
+    var body = JSON.stringify({ rec: rec, geo: geo ? { groups: geo.groups.map(function(g) { return { pos: FLU._b64(g.pos) }; }) } : null, att: att });
     var r = await pkSB.storage.from(FLU.BUCKET).upload(pkCurrentUser.id + '/' + rec.id + '.json', new Blob([body], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
     if (r.error) { console.warn('[my furniture] bucket upload', r.error.message); return false; }
     return true;
@@ -12222,7 +12240,7 @@ FLU.cloudGet = async function(id) {
   try {
     var r = await pkSB.storage.from(FLU.BUCKET).download(pkCurrentUser.id + '/' + id + '.json'); if (r.error || !r.data) return null;
     var o = JSON.parse(await r.data.text());
-    return { rec: o.rec, geo: o.geo ? { groups: o.geo.groups.map(function(g) { return { pos: FLU._f32(g.pos) }; }) } : null };
+    return { rec: o.rec, geo: o.geo ? { groups: o.geo.groups.map(function(g) { return { pos: FLU._f32(g.pos) }; }) } : null, att: o.att || null };
   } catch (e) { return null; }
 };
 FLU.cloudDel = async function(id) { if (!FLU._signedIn()) return; try { await pkSB.storage.from(FLU.BUCKET).remove([pkCurrentUser.id + '/' + id + '.json']); } catch (e) {} };
@@ -12304,11 +12322,12 @@ FLU.openImport = function() {
 FLU.onImportFile = async function(file) {
   if (!file) return;
   FLU.status('Reading ' + file.name + '…');
-  try { var d = await FLU.readFile(file); FLU._imp = { draft: d, o: { units: d.units, up: d.up, type: 'other', name: d.filename.replace(/\.[^.]+$/, '') } }; FLU.importRender(); FLU.status(''); }
+  try { var d = await FLU.readFile(file); FLU._imp = { draft: d, o: { units: d.units, up: d.up, type: 'other', name: (d.meta && d.meta.name) || d.filename.replace(/\.[^.]+$/, '') } }; FLU.importRender(); FLU.status(d.meta ? 'Read the name, maker or material from the file; check the card.' : ''); }
   catch (e) { FLU._imp = null; document.getElementById('fluImp').innerHTML = ''; document.getElementById('fluAdd').disabled = true; FLU.status(e.message || String(e), true); }
 };
 FLU.importRender = function(keepMats) {
   var I = FLU._imp; if (!I) return;
+  if (document.getElementById('fluCI_manufacturer')) I.spec = FLU.cardRead('I');   // typed card values survive a units / up change
   var built = FLU.build(I.draft, { units: I.o.units, up: I.o.up, type: I.o.type, name: I.o.name, mats: keepMats && I.built ? I.built.rec.groups.map(function(g) { return g.mat; }) : null });
   I.built = built; var r = built.rec, det = I.draft.units;
   var uo = Object.keys(FLU.UNITS).map(function(u) { return "<option value='" + u + "'" + (u === I.o.units ? ' selected' : '') + '>' + u + (u === det ? ' (detected)' : '') + '</option>'; }).join('');
@@ -12320,12 +12339,14 @@ FLU.importRender = function(keepMats) {
     "<label title='Which of the file&rsquo;s axes points up. glTF is Y-up; some OBJ exports are Z-up.'>Up <select id='fluUp' onchange='FLU._imp.o.up=this.value;FLU.importRender(true)'><option value='y'" + (I.o.up === 'y' ? ' selected' : '') + ">Y</option><option value='z'" + (I.o.up === 'z' ? ' selected' : '') + '>Z</option></select></label></div>' +
     "<p class='flu-dims' id='fluDims'>" + r.l.toFixed(2) + ' × ' + r.d.toFixed(2) + ' × ' + r.h.toFixed(2) + ' m (length × depth × height) · ' + r.tris.toLocaleString() + ' triangles' + (r.trisIn > r.tris ? ' (from ' + r.trisIn.toLocaleString() + ')' : '') + '</p>' +
     "<div class='flu-sils'>" + FLU.silSVG(r.plan, r.l, r.d, 'Plan') + FLU.silSVG(r.front, r.l, r.h, 'Side') + '</div>' +
-    "<table class='flu-tab'><thead><tr><th>Part (from the file)</th><th>Finish</th></tr></thead><tbody>" + groups + '</tbody></table>';
+    "<table class='flu-tab'><thead><tr><th>Part (from the file)</th><th>Finish</th></tr></thead><tbody>" + groups + '</tbody></table>' +
+    FLU.cardFields(I.spec || (I.spec = JSON.parse(JSON.stringify(r.spec || {}))), 'I');
   document.getElementById('fluAdd').disabled = false;
 };
 FLU.importSave = async function() {
   var I = FLU._imp; if (!I || !I.built) return null;
   var r = I.built.rec; r.name = (I.o.name || r.name).trim() || r.name; r.type = I.o.type;
+  r.spec = Object.assign({}, r.spec || {}, FLU.cardRead('I'));   // the card as the user left it (Brief 22 item 8)
   var res = await FLU.save(r, I.built.geo);
   FLU.closeModal(); FLU.toLibrary(r.id, res.where);
   return r;
@@ -12444,9 +12465,13 @@ FLU.trUnderlay = async function(file) {
     FLU.status(file.name + ' under the grid' + (ext === 'dxf' && d.unit ? ' at its drawing scale (' + d.unit + ')' : ': set its width from a known dimension') + '. Nothing is taken from it.');
   } catch (e) { FLU.status('The underlay could not be read: ' + (e.message || e), true); }
 };
-FLU.pdfPage = async function(file) {
+FLU.pdfjs = async function() {   // pdf.js, loaded once (the tracing underlay and the spec cards' attachments)
   if (!window.pdfjsLib) await new Promise(function(res, rej) { var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js'; s.onload = res; s.onerror = function() { rej(new Error('pdf.js did not load')); }; document.head.appendChild(s); });
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  return pdfjsLib;
+};
+FLU.pdfPage = async function(file) {
+  await FLU.pdfjs();
   var doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, pg = await doc.getPage(1), vp = pg.getViewport({ scale: 2 });
   var c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
   await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
@@ -12545,9 +12570,10 @@ FLU.manRender = function() {
   var el = document.getElementById('fluManList'); if (!el) return;
   var list = FLU.list().slice().sort(function(a, b) { return String(b.date).localeCompare(String(a.date)) || a.name.localeCompare(b.name); });
   el.innerHTML = list.length ? "<table class='flu-tab'><thead><tr><th>Name</th><th>Type</th><th>Source</th><th>Added</th><th>Size, m</th><th></th></tr></thead><tbody>" + list.map(function(r) {
+    var q0 = "\"" + r.id + "\"", card = "<button type='button' class='flu-btn' onclick='FLU.openCard(" + q0 + ")' title='The spec card: maker, model, material, source, notes and a product sheet; it is the piece&rsquo;s row in the report&rsquo;s schedule.'>Spec card…</button>";
     var q = "\"" + r.id + "\"";
     return "<tr data-flu-id='" + r.id + "'><td><input value='" + FLU.esc(r.name) + "' onchange='FLU.rename(" + q + ",this.value).then(FLU.manRender)' title='Renames the piece (placed pieces follow).' aria-label='Name'></td><td>" + (FLU.TYPES[r.type] || FLU.TYPES.other).label + '</td><td>' + FLU.esc(r.kind === 'mesh' ? r.source : 'traced') + '</td><td>' + FLU.esc(r.date) + '</td><td>' + r.l.toFixed(2) + ' × ' + r.d.toFixed(2) + ' × ' + r.h.toFixed(2) + '</td>' +
-      "<td class='flu-acts'>" + (r.kind === 'traced' ? "<button type='button' class='flu-btn' onclick='FLU.openTrace(FLU.recs[" + q + "])' title='Opens the outline and heights for editing.'>Edit</button>" : '') +
+      "<td class='flu-acts'>" + card + (r.kind === 'traced' ? "<button type='button' class='flu-btn' onclick='FLU.openTrace(FLU.recs[" + q + "])' title='Opens the outline and heights for editing.'>Edit</button>" : '') +
       "<button type='button' class='flu-btn' onclick='FLU.duplicate(" + q + ").then(FLU.manRender)' title='Makes a copy you can change.'>Duplicate</button>" +
       "<button type='button' class='flu-btn' onclick='FLU.exportGLB(" + q + ")' title='Saves the piece as a .glb file.'>Export GLB</button>" +
       "<button type='button' class='flu-btn' onclick='FLU.manAskDelete(" + q + ")' title='Removes the piece from My furniture; pieces already placed stay in their designs.'>Delete</button></td></tr>";
@@ -12556,6 +12582,68 @@ FLU.manRender = function() {
 FLU.manAskDelete = function(id) {
   var tr = document.querySelector("#fluManList tr[data-flu-id='" + id + "'] .flu-acts"); if (!tr) return;
   tr.innerHTML = "<span class='flu-ask'>Delete " + FLU.esc((FLU.recs[id] || {}).name) + "?</span><button type='button' class='flu-btn flu-danger' onclick='FLU.remove(\"" + id + "\").then(FLU.manRender)' title='Deletes it from this browser and your account.'>Delete</button><button type='button' class='flu-btn' onclick='FLU.manRender()' title='Keeps it.'>Keep</button>";
+};
+// -- The spec card (Brief 22 item 8) ----------------------------------------------------------------------
+// name (the piece's own), manufacturer, model, material, dimensions (always the geometry's), source URL, notes and an
+// optional attachment (an image or a PDF product sheet). The card is the piece's row in S-001; an attachment prints
+// as an appendix sheet after X-001. The record keeps the fields and the attachment's name; the file itself is kept in
+// this browser (IndexedDB, 'att-<id>') and with the piece in the account.
+FLU.att = {};
+FLU.ATT_MB = 8;
+FLU.CARD = [['manufacturer', 'Manufacturer'], ['model', 'Model'], ['material', 'Material'], ['url', 'Source URL'], ['notes', 'Notes']];
+FLU.specOf = function(rec) {
+  var s = (rec && rec.spec) || {}, o = { name: rec ? rec.name : '', dims: rec ? rec.l.toFixed(2) + ' x ' + rec.d.toFixed(2) + ' x ' + rec.h.toFixed(2) + ' m' : '' };
+  FLU.CARD.forEach(function(f) { o[f[0]] = String(s[f[0]] || '').trim(); }); o.attach = s.attach || null; o.from = s.from || '';
+  return o;
+};
+FLU.cardFields = function(spec, pre) {
+  return "<fieldset class='flu-card'><legend>Spec card <span class='flu-hint'>the piece&rsquo;s row in the report&rsquo;s schedule; empty fields print &ldquo;not stated&rdquo;</span></legend>" +
+    FLU.CARD.map(function(f) { var id = 'fluC' + pre + '_' + f[0], v = FLU.esc(spec[f[0]] || ''); return f[0] === 'notes' ? "<label for='" + id + "'>" + f[1] + "<textarea id='" + id + "' rows='2'>" + v + '</textarea></label>' : "<label for='" + id + "'>" + f[1] + "<input id='" + id + "' value='" + v + "'" + (f[0] === 'url' ? " type='url' placeholder='https://'" : '') + '></label>'; }).join('') + '</fieldset>';
+};
+FLU.cardRead = function(pre) { var o = {}; FLU.CARD.forEach(function(f) { var e = document.getElementById('fluC' + pre + '_' + f[0]); if (e) o[f[0]] = String(e.value || '').trim(); }); return o; };
+FLU.openCard = function(id) {
+  var r = FLU.recs[id]; if (!r) return;
+  var s = FLU.specOf(r), q = "\"" + id + "\"";
+  FLU.modal('card', 'Spec card: ' + FLU.esc(r.name),
+    "<div class='flu-grid'><label for='fluCM_name'>Name <input id='fluCM_name' value='" + FLU.esc(r.name) + "'></label><div class='flu-dims'>Dimensions " + s.dims + ' (length × depth × height, from the ' + (r.kind === 'mesh' ? 'model' : 'outline') + ')</div></div>' +
+    FLU.cardFields(s, 'M') +
+    "<div class='flu-att'><span>Attachment: <b id='fluAttName'>" + (s.attach ? FLU.esc(s.attach.name) + ' (' + (s.attach.size / 1048576).toFixed(2) + ' MB)' : 'none') + "</b></span>" +
+    "<label class='flu-file' title='An image (PNG, JPEG) or a PDF product sheet, up to " + FLU.ATT_MB + " MB. It prints as an appendix sheet after X-001.'><input type='file' id='fluAttFile' accept='.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg' onchange='FLU.cardAttach(" + q + ", this.files[0])'><span>Attach a product sheet…</span></label>" +
+    (s.attach ? "<button type='button' class='flu-btn' onclick='FLU.cardAttach(" + q + ", null)' title='Removes the attachment from the card.'>Remove</button>" : '') + "</div><div class='flu-status' id='fluStatus' role='status'></div>",
+    "<button type='button' class='flu-btn' onclick='FLU.closeModal()' title='Closes this without saving.'>Cancel</button><button type='button' class='flu-btn flu-go' onclick='FLU.cardSave(" + q + ")' title='Saves the card; placed pieces and the report follow.'>Save card</button>");
+};
+FLU.cardSave = async function(id) {
+  var r = FLU.recs[id]; if (!r) return;
+  var nm = (document.getElementById('fluCM_name') || {}).value; if (nm && nm.trim()) r.name = nm.trim();
+  r.spec = Object.assign({}, r.spec || {}, FLU.cardRead('M'));
+  await FLU.save(r, null); FLU.register(r); FLU.rebuildPlaced(id); FLU.closeModal();
+  if (typeof pkToast === 'function') pkToast('Spec card saved.');
+  try { if (typeof FLU.manRender === 'function' && document.getElementById('fluManList')) FLU.manRender(); } catch (e) {}
+};
+// an image or PDF onto the card (null removes it)
+FLU.cardAttach = async function(id, file) {
+  var r = FLU.recs[id]; if (!r) return null;
+  if (!file) { r.spec = Object.assign({}, r.spec || {}); delete r.spec.attach; delete FLU.att[id]; try { await FLU._tx('readwrite', function(s) { return s.delete('att-' + id); }); } catch (e) {} await FLU.save(r, null); FLU.openCard(id); return null; }
+  var ok = /^(application\/pdf|image\/(png|jpeg))$/.test(file.type) || /\.(pdf|png|jpe?g)$/i.test(file.name);
+  if (!ok) { FLU.status('An attachment must be a PDF, PNG or JPEG file.', true); return null; }
+  if (file.size > FLU.ATT_MB * 1048576) { FLU.status(file.name + ' is ' + (file.size / 1048576).toFixed(1) + ' MB; the limit is ' + FLU.ATT_MB + ' MB.', true); return null; }
+  var url = await new Promise(function(res, rej) { var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = function() { rej(fr.error); }; fr.readAsDataURL(file); });
+  var type = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? 'application/pdf' : /png/i.test(file.type) || /\.png$/i.test(file.name) ? 'image/png' : 'image/jpeg';
+  var att = { name: file.name, type: type, size: file.size, data: url };
+  FLU.att[id] = att; try { await FLU._tx('readwrite', function(s) { return s.put({ id: 'att-' + id, owner: FLU.owner(), att: att }); }); } catch (e) { console.warn('[spec card] IndexedDB', e); }
+  r.spec = Object.assign({}, r.spec || {}, { attach: { name: att.name, type: att.type, size: att.size } });
+  if (r.kind === 'mesh') await FLU.ensureGeo(id);
+  await FLU.save(r, FLU.geo[id] || null);
+  if (document.getElementById('fluAttName')) FLU.openCard(id);
+  return att;
+};
+// the attachment's file: this browser, else the account (raw: without asking the account)
+FLU.attGet = async function(id, raw) {
+  if (FLU.att[id]) return FLU.att[id];
+  try { var q = await FLU._tx('readonly', function(s) { return s.get('att-' + id); }); if (q && q.att) { FLU.att[id] = q.att; return q.att; } } catch (e) {}
+  if (raw) return null;
+  var c = await FLU.cloudGet(id); if (c && c.att) { FLU.att[id] = c.att; try { await FLU._tx('readwrite', function(s) { return s.put({ id: 'att-' + id, owner: FLU.owner(), att: c.att }); }); } catch (e) {} return c.att; }
+  return null;
 };
 // Street objects (manholes, hydrants, poles...) register their own meshes here
 // (_registerStreet3DFactories). Furniture never does: it is all FL_ARCHETYPES.
@@ -21911,7 +21999,58 @@ RPT.schedule = function(d) {
   if (!rows.length) rows = [['-', 'No furniture placed.', '', '', '0', '']];
   rows.push([{ t: '', b: true }, { t: 'Total', b: true }, '', { t: d.groups.length + ' types', b: true }, { t: String(d.placed.length), b: true }, '']);
   return RPT.textSheet('S-001', 'Furniture schedule', '', [{ table: { cols: [{ t: 'Tag', w: 0.05 }, { t: 'Item', w: 0.2 }, { t: 'Size l x d x h', w: 0.13, num: true }, { t: 'Material', w: 0.3 }, { t: 'Count', w: 0.06, num: true }, { t: 'Source', w: 0.26 }], rows: rows } },
-    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.encBlocks(d)), true);
+    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.cardBlocks(d), RPT.encBlocks(d)), true);
+};
+// S-001's user pieces (Brief 22 item 8): each spec card as a row; an empty field prints "not stated"
+RPT.userGroups = function(d) { return d.groups.filter(function(g) { var a = g.sp && FL_ARCHETYPES[g.sp.type]; return a && a.user; }); };
+RPT.cardBlocks = function(d) {
+  var gs = RPT.userGroups(d); if (!gs.length) return [];
+  var NS = { t: 'not stated', c: RPT.MID }, v = function(s) { return s ? s : NS; };
+  var rows = gs.map(function(g) {
+    var rec = FL_ARCHETYPES[g.sp.type].rec, s = FLU.specOf(rec), at = s.attach ? s.attach.name + (d.attach && d.attach.some(function(a) { return a.id === rec.id; }) ? ', sheet ' + d.attach.filter(function(a) { return a.id === rec.id; })[0].sheet : '') : '';
+    return [{ t: g.tag, b: true }, s.name, v(s.manufacturer), v(s.model), v(s.material), s.dims, v(s.url), v(s.notes), v(at)];
+  });
+  return [{ h2: 'User-supplied furniture: the spec cards' }, { table: { cols: [{ t: 'Tag', w: 0.05 }, { t: 'Name', w: 0.12 }, { t: 'Manufacturer', w: 0.11 }, { t: 'Model', w: 0.08 }, { t: 'Material', w: 0.12 },
+    { t: 'Dimensions', w: 0.11 }, { t: 'Source URL', w: 0.15 }, { t: 'Notes', w: 0.14 }, { t: 'Attachment', w: 0.12 }], rows: rows } }];
+};
+// the attachments (Brief 22 item 8), fetched before the pages are made: an image as it is, a PDF page by page (at most
+// RPT.ATT_PAGES), each an appendix sheet after X-001: X-002, X-003 ...
+RPT.ATT_PAGES = 6;
+RPT.collectAttach = async function(d) {
+  var out = [], n = 2;
+  if (!RPT.on('schedule', d)) return out;
+  for (var g of RPT.userGroups(d)) {
+    var rec = FL_ARCHETYPES[g.sp.type].rec; if (!rec.spec || !rec.spec.attach) continue;
+    var att = await FLU.attGet(rec.id), pages = [];
+    if (!att) { var ms = 'X-' + String(n).padStart(3, '0'); out.push({ id: rec.id, tag: g.tag, name: rec.name, file: rec.spec.attach.name, missing: true, page: { url: null }, i: 0, n: 1, sheet: ms, sid: ms }); n++; continue; }
+    if (/pdf/.test(att.type)) {
+      try {
+        await FLU.pdfjs();
+        var raw = atob(att.data.split(',')[1]), u8 = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+        var doc = await pdfjsLib.getDocument({ data: u8 }).promise, N = Math.min(doc.numPages, RPT.ATT_PAGES);
+        for (var p = 1; p <= N; p++) { var pg = await doc.getPage(p), vp = pg.getViewport({ scale: 2 }), c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; pages.push({ url: c.toDataURL('image/jpeg', 0.9), w: vp.width, h: vp.height, of: doc.numPages }); }
+      } catch (e) { console.warn('[report] attachment', e); pages = [{ url: null }]; }
+    } else {
+      var im = await new Promise(function(res) { var q = new Image(); q.onload = function() { res(q); }; q.onerror = function() { res(null); }; q.src = att.data; });
+      pages = [{ url: im ? att.data : null, w: im ? im.naturalWidth : 1, h: im ? im.naturalHeight : 1 }];
+    }
+    var first = 'X-' + String(n).padStart(3, '0'); pages.forEach(function(q, i) { out.push({ id: rec.id, tag: g.tag, name: rec.name, file: att.name, page: q, i: i, n: pages.length, sheet: first, sid: 'X-' + String(n + i).padStart(3, '0') }); }); n += pages.length;
+  }
+  return out;
+};
+RPT.sheetAttach = function(d, s) {
+  var a = s.a, TX = RPT.TX;
+  return { id: s.id, title: s.title, scale: 0, draw: function(P) {
+    P.text(0, RPT.HEAD + 5.2, s.id, TX.head, { bold: true, c: RPT.MID });
+    P.text(RPT.tw(s.id, TX.head, true) + 4, RPT.HEAD + 5.2, s.title.toUpperCase(), TX.head, { bold: true });
+    P.line(0, RPT.HEAD + 7.2, RPT.SW, RPT.HEAD + 7.2, { w: RPT.LW.obj });
+    P.text(0, RPT.HEAD + 13, a.tag + ' ' + a.name + ': ' + a.file + (a.n > 1 ? ', page ' + (a.i + 1) + ' of ' + a.n + (a.page.of > a.n ? ' (of ' + a.page.of + ' in the file)' : '') : '') + '. Supplied by the applicant with the spec card (S-001); not verified.', TX.body, { c: RPT.MID });
+    var x0 = 0, y0 = RPT.HEAD + 18, x1 = RPT.SW - RPT.TB.w - 6, y1 = RPT.SH - 2, q = a.page || {};
+    if (!q.url) { P.text(x0, y0 + 8, a.missing ? 'The attachment is not in this browser or the account: open the piece\'s spec card where it was attached.' : 'The attachment could not be read.', TX.body); return; }
+    var sc = Math.min((x1 - x0) / q.w, (y1 - y0) / q.h), w = q.w * sc, h = q.h * sc;
+    P.rect(x0, y0, w, h, { cls: 'fine', fill: 'none' });
+    P.add("<image href='" + q.url + "' xlink:href='" + q.url + "' x='" + x0.toFixed(2) + "' y='" + y0.toFixed(2) + "' width='" + w.toFixed(2) + "' height='" + h.toFixed(2) + "' preserveAspectRatio='xMidYMid meet' data-attach='" + RPT.esc(a.file) + "'/>");
+  } };
 };
 // S-001's Enclosure block (Brief 21 §12): the archetype per side, height, buffer, materials; the enclosure is not furniture
 RPT.encBlocks = function(d) {
@@ -22993,6 +23132,8 @@ RPT.sheetList = function(d) {
       compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
   });
+  // the spec cards' attachments, an appendix after X-001 (Brief 22 item 8)
+  (d.attach || []).forEach(function(a) { out.push({ k: 'attach', a: a, id: a.sid, title: 'Attachment: ' + a.file, scale: '-' }); });
   return out;
 };
 RPT.BUILDERS = {
@@ -23007,7 +23148,8 @@ RPT.BUILDERS = {
 
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
   lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); },
-  survey: function(d) { return RPT.surveySheet(d); }   // S-002 (Brief 21 §11)
+  survey: function(d) { return RPT.surveySheet(d); },   // S-002 (Brief 21 §11)
+  attach: function(d, drw, s) { return RPT.sheetAttach(d, s); }   // Brief 22 item 8
 };
 // Furniture groups (one schedule row each: item, size, finish, preset) and the tag every placed piece carries
 // on the plans: made once per report, so the schedule and the drawings agree.
@@ -23535,6 +23677,7 @@ RPT.make = async function(mode) {
   // the renders are the design's in both reports (their credits in X-001); only the schematic prints the images
   d.renders = await (RPT.renderSource || RPT.collectRenders)();
   if (!RPT.on('renders', d)) d.renders = [];   // Renders left out (Brief 22 item 7): no render sheet, no render on the cover
+  d.attach = await RPT.collectAttach(d);   // the spec cards' attachments (Brief 22 item 8)
   var drw = await RPT.drawings(d), doc = await RPT.render(d, drw);
   RPT.lastData = d;
   RPT.lastPdf = { blob: doc.output('blob'), name: RPT.fileName(d), pages: doc.getNumberOfPages(), check: RPT.lastCheck };
@@ -27004,6 +27147,13 @@ SMP.sourcesList = function() {
 .sf-rw, .sf-lanesrc { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; }
 .sf-refuse { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; font-weight: 600; color: var(--st-fail, #E0795E); }
 .sf-refuse:empty { display: none; }
+.flu-card { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 10px 0 0; padding: 8px 10px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; }
+.flu-card legend { padding: 0 4px; font-weight: 600; }
+.flu-card label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.flu-card label:last-child { grid-column: 1 / -1; }
+.flu-card textarea { resize: vertical; font: inherit; }
+.flu-hint { font-weight: 400; color: var(--c-text-dim, #9AA0A6); font-size: 11px; }
+.flu-att { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: 12px; }
 .rpt-opts { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 8px; padding: 6px 8px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; }
 .rpt-opts legend { padding: 0 4px; font-size: 11px; font-weight: 600; color: var(--c-text-dim, #9AA0A6); }
 .rpt-opts .hint { font-size: 11px; line-height: 1.4; }
