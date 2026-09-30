@@ -17574,7 +17574,9 @@ async function pkSignOut() {
 }
 
 // the landing page: the server's / (index.html); a file:// copy has no server root, so the file next to this one
-function pkLandingURL() { return window.location.protocol === 'file:' ? 'index.html' : '/'; }
+// the landing page beside this file: relative, so it works from a file, the local server and a project site
+// (GitHub Pages serves this at /curbside/, where '/' would be the account's root)
+function pkLandingURL() { return 'index.html'; }
 
 async function pkForgotPassword(email) {
   if (!pkSB) return;
@@ -25459,6 +25461,8 @@ RVZP.adapters = {
 // 'nokey' = the server answers without a key. A server older than /health falls back to /status.
 RVZP.checkProxy = async function() {
   if (location.protocol === 'file:') { RVZP.proxy = { proxy: false, why: 'file' }; RVZP._syncUI(); return RVZP.proxy; }
+  // a hosted copy (GitHub Pages) has no relay: said as it is, and nothing is fetched
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) { RVZP.proxy = { proxy: false, why: 'hosted' }; RVZP._syncUI(); return RVZP.proxy; }
   async function get(u) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, t = setTimeout(function() { if (ctl) ctl.abort(); }, 2500);
     try { var r = await fetch(u, { headers: RVZP._hdr, signal: ctl ? ctl.signal : undefined, cache: 'no-store' }); return r.ok ? await r.json() : null; }
@@ -25475,6 +25479,7 @@ RVZP.checkProxy = async function() {
 RVZP.WHY = {
   file: 'You opened the file directly. Photoreal needs the app served from the local server. Run tools/start.cmd, or open http://localhost:8766/parklet-checker.html.',
   down: 'The local server isn\'t running. Run tools/start.cmd.',
+  hosted: 'Photoreal renders run through the relay in the local server, which this hosted copy doesn\'t have. To render, clone the repository and run tools/start.cmd; everything else works here.',
   nokey: 'Photoreal renders use your own Replicate account. Add a key in Connections.'
 };
 RVZP.ready = function() { return !!(RVZP.proxy && RVZP.proxy.proxy && RVZP.proxy.key === 'present'); };
