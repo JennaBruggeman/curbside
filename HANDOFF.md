@@ -868,6 +868,26 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - S-002 is `RPT.surveySheet`, with the template from `SURV.template()` and `SURV.applyTemplate()`.
     - The UI is step 4 of the Site tab (`SURV.ui`).
   - **Also:** the saved design now carries `siteObjects.neighbourhood`, `survey` and `surveyMap`. `SMP` treats `survey` provenance as confirmed.
+- **§12 Enclosure archetypes (commit 13):**
+  - **Model:** `ENCLOSURE` (saved with the design as `enclosure`, and in the autosave as `state.__enclosure`) holds `{archetype, height, bufferDepth, sides: {traffic, endA, endB}, params, mats}`. `ENC.resolve` builds `DESIGN_MODEL.enclosure`: its `runs` (one per side, with parts in the side's own frame), `inset`, `usableW`, `xOuter`, `xInner`, `zA`, `zB`, `flags` and `routeMaxBuffer`. A design without `enclosure` loads as `ENC.LEGACY` (buffer 0).
+  - **Archetypes:** `ENCLOSURE_ARCHETYPES` has 9 entries. Each has name, family, transparency, mats, params (with ranges), `depth(p)`, `parts(len, H, p, mat, side)` and `dims` (A-301's dimension list).
+  - **The one mapping:**
+    - `ENC.toWorld(run, part, base)`, `ENC.worldParts(DM, base)`.
+    - `ENC.planPrims` (Plan, A-102/103) and `ENC.planSVG` (the Plan's `g[data-layer=enclosure]`).
+    - `ENC.profile` (sections), `ENC.mesh3D` (3D), `RPT.encPlan` / `RPT.encSection` (sheets).
+    - RVZ draws `ENC.worldParts`; `RVZP.railText` / `inventory` use `ENC.describe`. RX puts it on the `Parklet::Enclosure` layer.
+  - **Edits:** `ENC.set(patch, {raw, fast, quiet})`. The Edge card (`#encSec` after `#designShapeSec`, `ENC.renderCard`) uses `fast`: `ENC.fastApply` redraws only the enclosure in Plan, Section and 3D, and the full `syncDesignModel` follows after 0.3 s.
+  - **Checks:**
+    - C17 (`ENC.c17`), C18 (`ENC.c18`, `ENC.openingsOf`), C19 (`ENC.c19`). They have no inputs; their rows refresh with each Plan redraw (`ENC.refreshChecks`).
+    - While the generator evaluates a candidate they read `GEN._scratchPlaced` through `ENC.items`.
+  - **Generator:**
+    - `fp.inset`, `fp.zA` and `fp.zBd` come from `ENC.fpFields` / `GEN.encFields`.
+    - `GEN.edgeAt` stops at the enclosure's inner face, and `GEN.validate` needs two 1.8 m openings.
+    - `ENC.capacity` is the card's seat count; `ENC.bufMax` / `ENC.routeMaxBuffer` is the buffer slider's stop.
+  - **Report:**
+    - A-301 details 1 and 2 are drawn from the traffic side's archetype (`RPT.sheetDetails`). Its dimensions are measured on the parts and tagged `data-enc-dim`, and `RPT._encDims` holds the last set.
+    - S-001 has the Enclosure block (`RPT.encBlocks`); X-001 cites E2, E3, E4/G13 and E5.
+  - **Library:** `FL_RETIRED` hides Railing and Edge rail from the library.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
