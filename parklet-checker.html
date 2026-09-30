@@ -708,6 +708,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
       </div>
     </div>
     <button id='cadDimBtn' class='ctb-btn active' aria-pressed='true' onclick='cadToggleDim()' title='Show or hide the dimension chains in the Plan and the Section.'>Dimensions</button>
+    <button id='cadTagBtn' class='ctb-btn active' aria-pressed='true' onclick='cadToggleTags()' title='Show or hide the furniture tags (F1, F2 ...) in the Plan. The report prints them on A-102 and A-103 either way.'>Tags</button>
     <button class='ctb-btn' onclick='autoSolveWidth()' title='Widens the parklet as far as the travel lanes allow at their minimum width (C02).'>Fit lanes to minimum</button>
     <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fits the Plan, Section and 3D views to the whole design.'>Fit design</button>
     <div class='canvas-toolbar-right'>
@@ -7847,6 +7848,7 @@ const manholes = state['manholes'] || [];
   svg.style.cursor = (_pvUserMod || _pvInFS) ? 'grab' : 'default';
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
+  if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
   syncToolbarStates();
   initPlanInteraction();
   // the Section's objects follow the same model (cut position, deck length, furniture moves)
@@ -14173,6 +14175,14 @@ document.addEventListener('click', function(e) {
   var menu = document.getElementById('appearanceMenu');
   if (menu && menu.style.display !== 'none' && btn && !btn.contains(e.target) && !menu.contains(e.target)) menu.style.display = 'none';
 });
+// furniture tags in the Plan (Brief 22 item 6): the screen's toggle only; the report sets its own per sheet
+var _pvTagsOn = true;
+function cadToggleTags() {
+  _pvTagsOn = !_pvTagsOn;
+  var btn = document.getElementById('cadTagBtn');
+  if (btn) { btn.classList.toggle('active', _pvTagsOn); btn.setAttribute('aria-pressed', String(_pvTagsOn)); }
+  try { if (typeof renderPlanView === 'function') renderPlanView(); } catch (e) {}
+}
 var _cadDimEnabled = true;
 function cadToggleDim() {
   _cadDimEnabled = !_cadDimEnabled;
@@ -17553,6 +17563,7 @@ function pkApplyBlank(s) {
     var gg = document.getElementById('genGrid'); if (gg) gg.innerHTML = '';
   }
   _pvDimsOn = true; _pvSectionOn = true; _3dSectionOn = true; _pvExtentsOn = false; _pvUserMod = false; _pvExtent = 'sheet';   // the view toggles, the Plan fitted
+  _pvTagsOn = true; var _tgb = document.getElementById('cadTagBtn'); if (_tgb) { _tgb.classList.add('active'); _tgb.setAttribute('aria-pressed', 'true'); }
   if (typeof syncToolbarStates === 'function') try { syncToolbarStates(); } catch (e) {}
   if (typeof _3d !== 'undefined' && _3d) { _3d.hasPositioned = false; _3d._posTag = null; }            // the 3D home view reframes
   var sb = document.getElementById('sitePaste'); if (sb) sb.value = '';
@@ -22493,29 +22504,8 @@ RPT.planFurn = function(P, G, F, d, o) {
   });
   pieces.forEach(function(pc) { pc.shapes.filter(function(q) { return q.sh.overhead; }).forEach(function(q) { P.poly(q.pts, { fill: 'none', cls: 'general', dash: 'hidden' }); }); });
   if (o.tags === false) return;
-  // tags: every piece's box is taken first, so no tag lands on another piece; a tag inside its own piece must clear
-  // every other piece and tag too (an umbrella's pole stands in the table it shades)
-  pieces.forEach(function(pc) { taken.push({ b: pc.box, pc: pc }); });
-  var free = function(b, self) { return !taken.some(function(t) { var q = t.b; return (!self || t.pc !== self) && b[0] < q[2] && q[0] < b[2] && b[1] < q[3] && q[1] < b[3]; }); };
-  pieces.forEach(function(pc) {
-    var tag = d.tags[pc.p.id]; if (!tag) return;
-    var b = pc.box, w = RPT.tw(tag, TS, true), h = TS, cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, ib = [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2];
-    if (w + 1.6 <= b[2] - b[0] && h + 1.2 <= b[3] - b[1] && free(ib, pc)) { taken.push({ b: ib }); P.text(cx, cy + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "'" }); return; }
-    // rings 3 / 6 / 10 / 15 / 22 mm out, each right, left, above, below, then the corners
-    var tries = [];
-    [3, 6, 10, 15, 22].forEach(function(g) { tries.push([b[2] + g + w / 2, cy], [b[0] - g - w / 2, cy], [cx, b[1] - g - h / 2], [cx, b[3] + g + h / 2], [b[2] + g + w / 2, b[1] - g], [b[0] - g - w / 2, b[3] + g], [b[2] + g + w / 2, b[3] + g], [b[0] - g - w / 2, b[1] - g]); });
-    for (var i = 0; i < tries.length; i++) {
-      var t = tries[i], tb = [t[0] - w / 2 - 0.4, t[1] - h / 2 - 0.4, t[0] + w / 2 + 0.4, t[1] + h / 2 + 0.4];
-      if (!free(tb)) continue;
-      taken.push({ b: tb });
-      var ax = Math.max(b[0], Math.min(b[2], t[0])), ay = Math.max(b[1], Math.min(b[3], t[1]));   // the leader's end: the box point nearest the tag
-      var ex = t[0] < b[0] ? tb[2] : t[0] > b[2] ? tb[0] : t[0], ey = t[1] < b[1] ? tb[3] : t[1] > b[3] ? tb[1] : t[1];
-      DRAW_SYMBOLS.leader(P, [[ax, ay], [ex, ey]], { dot: true });
-      P.text(t[0], t[1] + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "' data-leader='1'" });
-      return;
-    }
-    P.text(cx, cy + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "'" });   // nowhere free: in the piece
-  });
+  // tags (Brief 22 item 6): placed later, by RPT.planTags, once the sheet's dimensions and labels are drawn
+  P._ftag = { pieces: pieces.map(function(pc) { return { key: pc.p.id, tag: d.tags[pc.p.id] || '', polys: (pc.body.length ? pc.body : pc.shapes).map(function(q) { return q.pts; }), box: pc.box }; }) };
 };
 // Sheets draw by purpose, not by the Plan viewport (Brief 19b): each plan sheet's own layers of site objects and trees.
 // A-101 the context (trees with their canopies, hydrants, poles, stops); A-102 the objects a check measures
@@ -22647,6 +22637,7 @@ RPT.sheetLayout = function(d) {
   var cityAt = RPT.cityPlan(P, F, d);
   RPT.planFurn(P, G, F, d);
   RPT.planObjects(P, G, F, { layers: RPT.SHEET_LAYERS.A102 });
+  var tagLater = function() { RPT.planTags(P, [xa + 0.5, ya + 0.5, xb - 0.5, yb - 0.5], 'A-102'); };   // after the zones' lozenges (Brief 22 item 6)
   // clearance zones: DRAW_STYLE's zone line (fine, dashed; red when that check fails), the rule ID in its lozenge
   var zst = function(id) { return G.fail(id) ? 'fail' : 'pass'; };
   var zone = function(id, z0, z1, x0, x1) {
@@ -22664,6 +22655,7 @@ RPT.sheetLayout = function(d) {
     if (r) { var z = DRAW_STYLE.zone(P.ctx, zst(id)); P.circle(F.sx(c.z), F.sy(c.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='" + id + "'" }); DRAW_SYMBOLS.lozenge(P, F.sx(c.z) + r * k + 4, F.sy(c.x) - 2, id === 'c7' ? 'C07' : 'C08', zst(id)); }
   });
   G.mh.forEach(function(m) { var z = DRAW_STYLE.zone(P.ctx, zst('c9')), r = 1 + (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47); P.circle(F.sx(m.z), F.sy(m.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='c9'" }); DRAW_SYMBOLS.lozenge(P, F.sx(m.z) + r * k + 4, F.sy(m.x) - 2, 'C09', zst('c9')); });
+  tagLater();
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
   // across, left of the drawing: the running chain of segments (frontage .. far curb), the overall on the next row
@@ -22786,6 +22778,7 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   if (posts.length > 1) { var pa = posts.filter(function(z) { return z >= za && z <= zb; }); if (pa.length > 1) RPT.chain(P, { side: 'top', edge: dTop, row: 1, at: [sx(pa[1]), sx(pa[0])], vals: [RPT.fmt(pa[1] - pa[0]) + ' typ.'] }); }
   RPT.chain(P, { side: 'bottom', edge: dBot, row: 1, at: [sx(Math.min(L, zb)), sx(Math.max(0, za))], vals: [RPT.fmt(lenHere) + (nParts > 1 ? ' (of ' + RPT.fmt(L) + ')' : '')], data: " data-deck-len='" + lenHere.toFixed(3) + "'" });
   RPT.chain(P, { side: 'right', edge: sx(Math.max(0, za)), row: 0, at: [dTop, dBot], vals: [RPT.fmt(LM.deckX1 - LM.deckX0)] });
+  RPT.planTags(P, [xa + 0.5, ya + 0.5, xb - 0.5, yb - 0.5], nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103');   // Brief 22 item 6: after the dimension rows
   var keys = [
     { t: 'Grid lines 1, 2, 3 ... at the enclosure posts on the traffic side' + (posts.length > 1 ? ', ' + (posts[1] - posts[0]).toFixed(2) + ' m apart, the first at ' + posts[0].toFixed(2) + ' m' : '') + '.', at: null },
     { t: 'Enclosure: ' + ENC.describe(G.DM) + ': details A-301.', at: encAt.traffic || null },
@@ -27264,6 +27257,120 @@ function pkStageSync() {
   // (the tooltip table's hook: SEED.tabTips installs it once uiApplyTips exists)
   setTimeout(function() { try { pkStageSync(); } catch (e) {} }, 1800);
 })();
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// FURNITURE TAGS (Brief 22 item 6)
+// A tag is its text at the annotation floor size (the 'tag' role: 1.8 mm on a sheet, 9 px on screen) in a small rounded
+// box, off its piece, on a leader from the nearest point of the piece's outline. FTAG.place tries rings around the piece
+// (right, left, above, below, then the corners) and takes the first place clear of every piece, every tag placed before
+// it and every text already drawn (the dimension pass's values and labels), inside the bounds, whose leader crosses no
+// other piece. The tags are RPT.groupsFor's (F1, F2 ...): the schedule, the sheets and the Plan agree.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var FTAG = {};
+FTAG.hit = function(a, b, m) { m = m || 0; return a[0] < b[2] + m && b[0] < a[2] + m && a[1] < b[3] + m && b[1] < a[3] + m; };
+FTAG.near = function(polys, x, y) {   // the nearest point of the outline
+  var best = null;
+  polys.forEach(function(pts) {
+    for (var i = 0; i < pts.length; i++) {
+      var a = pts[i], b = pts[(i + 1) % pts.length], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+      var t = L2 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / L2)) : 0, px = a[0] + t * dx, py = a[1] + t * dy, dd = Math.hypot(px - x, py - y);
+      if (!best || dd < best.d) best = { d: dd, p: [px, py] };
+    }
+  });
+  return best ? best.p : [x, y];
+};
+FTAG.segHits = function(p, q, b) {   // does segment p-q enter box b (Liang-Barsky)
+  var t0 = 0, t1 = 1, dx = q[0] - p[0], dy = q[1] - p[1];
+  var c = function(pp, qq) { if (pp === 0) return qq > 0; var r = qq / pp; if (pp < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; } return true; };
+  return c(-dx, p[0] - b[0]) && c(dx, b[2] - p[0]) && c(-dy, p[1] - b[1]) && c(dy, b[3] - p[1]) && t1 - t0 > 1e-6;
+};
+// pieces [{key, tag, polys, box}] (all of them are obstacles; those with a tag are tagged), taken [[x0, y0, x1, y1]] the
+// text already drawn, S {w(tag): box width, h: box height, rings: [gaps], m: clearance, bounds}
+FTAG.place = function(pieces, taken, S) {
+  var out = [], occ = taken.slice();
+  var tryAt = function(pc, t, w, h, strict) {
+    var tb = [t[0] - w / 2, t[1] - h / 2, t[0] + w / 2, t[1] + h / 2], B = S.bounds;
+    if (B && (tb[0] < B[0] || tb[1] < B[1] || tb[2] > B[2] || tb[3] > B[3])) return null;
+    if (pieces.some(function(q) { return FTAG.hit(tb, q.box, S.m); })) return null;
+    if (occ.some(function(q) { return FTAG.hit(tb, q, strict ? S.m : 0); })) return null;
+    var a = FTAG.near(pc.polys, t[0], t[1]), e = [Math.max(tb[0], Math.min(tb[2], a[0])), Math.max(tb[1], Math.min(tb[3], a[1]))];
+    if (strict && pieces.some(function(q) { return q !== pc && FTAG.segHits(a, e, q.box); })) return null;
+    return { key: pc.key, tag: pc.tag, box: tb, cx: t[0], cy: t[1], a: a, e: e, pbox: pc.box, polys: pc.polys };
+  };
+  pieces.filter(function(p) { return p.tag; }).sort(function(a, b) { return (a.box[0] - b.box[0]) || (a.box[1] - b.box[1]); }).forEach(function(pc) {
+    var b = pc.box, w = S.w(pc.tag), h = S.h, cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, got = null;
+    [true, false].forEach(function(strict) {
+      for (var gi = 0; gi < S.rings.length && !got; gi++) {
+        var g = S.rings[gi], C = [[b[2] + g + w / 2, cy], [b[0] - g - w / 2, cy], [cx, b[1] - g - h / 2], [cx, b[3] + g + h / 2],
+          [b[2] + g + w / 2, b[1] - g - h / 2], [b[0] - g - w / 2, b[3] + g + h / 2], [b[2] + g + w / 2, b[3] + g + h / 2], [b[0] - g - w / 2, b[1] - g - h / 2]];
+        for (var i = 0; i < C.length && !got; i++) got = tryAt(pc, C[i], w, h, strict);
+      }
+    });
+    if (!got) return;   // nowhere free inside the bounds: left untagged, and counted by the checks (FTAG.audit)
+    occ.push(got.box); out.push(got);
+  });
+  return out;
+};
+// the checks (the VERIFY): tag / piece and tag / tag overlaps, each leader's start on its piece's outline
+FTAG.audit = function(res, pieces, tol) {
+  var tp = 0, tt = 0, off = 0; tol = tol || 0.01;
+  res.forEach(function(r, i) {
+    pieces.forEach(function(q) { if (FTAG.hit(r.box, q.box, 0)) tp++; });
+    for (var j = i + 1; j < res.length; j++) if (FTAG.hit(r.box, res[j].box, 0)) tt++;
+    var n = FTAG.near(r.polys, r.a[0], r.a[1]); if (Math.hypot(n[0] - r.a[0], n[1] - r.a[1]) > tol) off++;
+  });
+  return { tags: res.length, wanted: pieces.filter(function(p) { return p.tag; }).length, tagPiece: tp, tagTag: tt, leaderOff: off };
+};
+// the symbol: the leader (its dot on the outline), the rounded box, the text; through any pen (sheet or screen)
+DRAW_SYMBOLS.ftag = function(P, t, fs) {
+  var k = P.ctx.k, b = t.box, r = Math.min((b[3] - b[1]) / 2, 0.8 * k), f = function(v) { return (+v).toFixed(2); };
+  DRAW_SYMBOLS.leader(P, [t.a, t.e], { dot: true });
+  var d = 'M' + f(b[0] + r) + ' ' + f(b[1]) + 'H' + f(b[2] - r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[2]) + ' ' + f(b[1] + r) + 'V' + f(b[3] - r) +
+    'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[2] - r) + ' ' + f(b[3]) + 'H' + f(b[0] + r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[0]) + ' ' + f(b[3] - r) +
+    'V' + f(b[1] + r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[0] + r) + ' ' + f(b[1]) + 'Z';
+  P.path(d, { fill: 'paper', cls: 'general', bb: b, data: " data-ftag='" + t.tag + "'" });
+  P.text(t.cx, t.cy + fs * 0.35, t.tag, fs, { anchor: 'middle', bold: true, data: " data-tag='" + t.tag + "'" });
+};
+// the sheets: A-102 and A-103 (A-101 draws no furniture); the sheet's text so far is taken
+RPT._ftags = {};
+RPT.planTags = function(P, bounds, id) {
+  var T = P._ftag; if (!T) return []; P._ftag = null;
+  var fs = RPT.TX.tag, taken = P.boxes.filter(function(b) { return b.text; }).map(function(b) { return [b.x0, b.y0, b.x1, b.y1]; });
+  var res = FTAG.place(T.pieces, taken, { w: function(t) { return RPT.tw(t, fs, true) + 1.6; }, h: fs + 1.2, rings: [1.5, 3, 5, 8, 12, 18], m: 0.35, bounds: bounds });
+  res.forEach(function(t) { DRAW_SYMBOLS.ftag(P, t, fs); });
+  RPT._ftags[id || 'sheet'] = { res: res, pieces: T.pieces };
+  return res;
+};
+// the Plan: the pieces' outlines through worldToPlan; the drawing's text (dimension values, labels, the scale bar) taken
+FTAG.screen = function(svg, VB, lod) {
+  var old = svg.querySelector('#pvTags'); if (old) old.remove();
+  FTAG._last = null;
+  var placed = (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) || [];
+  if (!_pvTagsOn || !lod || !placed.length) return;
+  var rc = svg.getBoundingClientRect(); if (!(rc.width > 40)) return;
+  var U = VB.w / rc.width, tags = RPT.groupsFor(placed).tags, inv = svg.getScreenCTM() && svg.getScreenCTM().inverse();
+  var pieces = placed.filter(function(p) { return !(p.archetype && flIsEntourage(p.archetype)); }).map(function(p) {
+    var sp = flInstSpec(p), r = typeof p.userRotation === 'number' ? p.userRotation : (p.rotationY || 0), sn = Math.sin(r), cs = Math.cos(r);
+    var W = function(u, v) { var q = worldToPlan((p.x || 0) + u * sn + v * cs, (p.z || 0) + u * cs - v * sn); return [q.px, q.py]; };
+    var polys = sp ? flPlanShapes(sp.type, sp.params).filter(function(sh) { return !sh.veg && !sh.overhead; }).map(function(sh) { return flShapePts(sh).map(function(q) { return W(q[0], q[1]); }); }) : [];
+    if (!polys.length) polys = [getFurnitureCorners(p).map(function(c) { var q = worldToPlan(c.wx, c.wz); return [q.px, q.py]; })];
+    var xs = [], ys = []; polys.forEach(function(pts) { pts.forEach(function(v) { xs.push(v[0]); ys.push(v[1]); }); });
+    return { key: p.id, tag: tags[p.id] || '', polys: polys, box: [Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)] };
+  });
+  var taken = [];
+  if (inv) [].forEach.call(svg.querySelectorAll('text'), function(t) {
+    var b = t.getBoundingClientRect(); if (!(b.width > 0)) return;
+    var p0 = svg.createSVGPoint(), p1 = svg.createSVGPoint(); p0.x = b.left; p0.y = b.top; p1.x = b.right; p1.y = b.bottom; p0 = p0.matrixTransform(inv); p1 = p1.matrixTransform(inv);
+    taken.push([Math.min(p0.x, p1.x), Math.min(p0.y, p1.y), Math.max(p0.x, p1.x), Math.max(p0.y, p1.y)]);
+  });
+  var fs = DRAW_STYLE.TYPE.screen.tag * U, P = DRAW_STYLE.pen(DRAW_STYLE.screenCtx(DRAW_STYLE.mode(), U, VB.pxM || 12));
+  var res = FTAG.place(pieces, taken, { w: function(t) { return RPT.tw(t, fs, true) + 8 * U; }, h: fs + 6 * U, rings: [6, 12, 20, 32, 48].map(function(v) { return v * U; }), m: 2 * U, bounds: [VB.x, VB.y, VB.x + VB.w, VB.y + VB.h] });
+  res.forEach(function(t) { DRAW_SYMBOLS.ftag(P, t, fs); });
+  var g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.id = 'pvTags'; g.setAttribute('pointer-events', 'none');
+  g.innerHTML = P.body(); svg.appendChild(g);
+  FTAG._last = { res: res, pieces: pieces, U: U };
+};
+
 
 </script>
 <style>
