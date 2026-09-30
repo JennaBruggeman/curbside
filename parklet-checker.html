@@ -588,7 +588,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
           </div>
           <div class='site-rose-wrap'><div id='siteRose'></div><p class='site-orient-txt' id='siteOrientTxt' aria-live='polite'></p></div>
         </div>
-        <div class="ff-row">          <div class="ff ff--site">            <label>Roadway width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">curb-to-curb &mdash; enter from field measurement</span>            </label>            <input type="number" id="roadWidth" value="5.635" min="4.0" max="12" step="0.01"                   oninput="onRoadWidthChange()">          <span id='roadWidthNote' style='display:block;margin-top:4px;font-size:11px;color:#888'></span></div>          <div class="ff ff--site">            <label>Sidewalk width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">building face to curb</span>            </label>            <input type="number" id="sidewalkWidth" value="1.8" min="0.5" max="6" step="0.01"                   oninput="onSidewalkWidthChange()">          </div>        </div>        <p class='hint sf-intro'>The existing street, as imported: each value shows its source. Override one only to correct the import; the proposed street is the Section.</p>        <div class='ff sf-ff'>          <label>Road direction</label>          <div class='sf-fact' id='sf_roadDir'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_roadDir' onclick='SITEF.toggle("roadDir")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_roadDir' hidden><div class='seg-group' id='roadDirToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("roadDir", "oneway")'>One-way</button>            <button type='button' class='seg-btn' onclick='SITEF.set("roadDir", "twoway")'>Two-way</button>          </div></div>        </div>        <div class="ff" id="laneOneWayField">          <label>Travel lanes <span class="hint">adjacent to parklet</span></label>          <input type="number" id="laneCount" value="1" min="1" max="6" step="1"                 oninput="onLaneCountChange()">        </div>        <div id="laneTwoWayField" style="display:none">          <div class="ff-row">            <div class="ff">              <label>Near lanes <span class="hint">parklet side &#x2192;</span></label>              <input type="number" id="lanesA" value="1" min="1" max="4" step="1" oninput="onLanesAChange()">            </div>            <div class="ff">              <label>Far lanes <span class="hint">&#x2190; opposite</span></label>              <input type="number" id="lanesB" value="1" min="1" max="4" step="1" oninput="onLanesBChange()">            </div>          </div>        </div>        <div class='ff sf-ff'>          <label>Route type</label>          <div class='sf-fact' id='sf_routeType'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_routeType' onclick='SITEF.toggle("routeType")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_routeType' hidden><div class='seg-group' id='routeToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("routeType", "standard")'>Standard ≥ 3.0 m</button>            <button type='button' class='seg-btn' onclick='SITEF.set("routeType", "bus_truck")'>Bus / Truck ≥ 3.2 m</button>          </div></div>        </div>        <div class='ff sf-ff'>          <label>Bike lane <span class='hint'>on the parklet side</span></label>          <div class='sf-fact' id='sf_bikeLane'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_bikeLane' onclick='SITEF.toggle("bikeLane")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_bikeLane' hidden><div class='ff-row'><div class='ff'><label for='sfBikeSel'>Type</label><select id='sfBikeSel' onchange='SITEF.setBike()'><option value='none'>None</option><option value='painted'>Painted</option><option value='protected'>Protected</option></select></div><div class='ff'><label for='sfBikeW'>Width <span class='unit'>m</span></label><input type='number' id='sfBikeW' min='1' max='2.5' step='0.05' onchange='SITEF.setBike()'></div></div></div>        </div>        <div class='ff sf-ff'>          <label>Right-of-way width <span class='hint'>property line to property line</span></label>          <div class='sf-fact' id='sf_row'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_row' onclick='SITEF.toggle("row")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_row' hidden><div class='ff'><label for='sfRowW'>Width <span class='unit'>m</span></label><input type='number' id='sfRowW' min='6' max='60' step='0.1' onchange='SITEF.set("row", this.value)'></div></div>        </div>      <div class='ff'><label for='siteContextZ'>Context each way <span class='unit'>m</span><span class='hint'>the import radius and the street scene past each deck end, 20-400 m: Plan, 3D and the import</span></label><input type='number' id='siteContextZ' min='20' max='400' step='5' value='150' onchange='SMP.setContext(this.value)'></div>      </div>      <div class='sb-section' id='contextSection'></div><div class='sb-section'>
+        <div class="ff-row">          <div class="ff ff--site">            <label>Roadway width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">curb-to-curb &mdash; enter from field measurement</span>            </label>            <input type="number" id="roadWidth" value="5.635" min="4.0" max="12" step="0.01"                   oninput="onRoadWidthChange()" onchange='onRoadWidthCommit()' aria-describedby='roadWidthRow roadWidthMsg'>          <span id='roadWidthNote' style='display:block;margin-top:4px;font-size:11px;color:#888'></span><span class='hint sf-rw' id='roadWidthRow'></span><span class='sf-refuse' id='roadWidthMsg' role='alert'></span></div>          <div class="ff ff--site">            <label>Sidewalk width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">building face to curb</span>            </label>            <input type="number" id="sidewalkWidth" value="1.8" min="0.5" max="6" step="0.01"                   oninput="onSidewalkWidthChange()">          </div>        </div>        <p class='hint sf-intro'>The existing street, as imported: each value shows its source. Override one only to correct the import; the proposed street is the Section.</p>        <div class='ff sf-ff'>          <label>Road direction</label>          <div class='sf-fact' id='sf_roadDir'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_roadDir' onclick='SITEF.toggle("roadDir")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_roadDir' hidden><div class='seg-group' id='roadDirToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("roadDir", "oneway")'>One-way</button>            <button type='button' class='seg-btn' onclick='SITEF.set("roadDir", "twoway")'>Two-way</button>          </div></div>        </div>        <div class="ff" id="laneOneWayField">          <label>Travel lanes <span class="hint">adjacent to parklet</span></label>          <input type="number" id="laneCount" value="1" min="1" max="6" step="1"                 oninput="onLaneCountChange()">        </div>        <div id="laneTwoWayField" style="display:none">          <div class="ff-row">            <div class="ff">              <label>Near lanes <span class="hint">parklet side &#x2192;</span></label>              <input type="number" id="lanesA" value="1" min="1" max="4" step="1" oninput="onLanesAChange()">            </div>            <div class="ff">              <label>Far lanes <span class="hint">&#x2190; opposite</span></label>              <input type="number" id="lanesB" value="1" min="1" max="4" step="1" oninput="onLanesBChange()">            </div>          </div>        </div>        <span class='hint sf-lanesrc' id='laneSrc' role='status'></span>        <div class='ff sf-ff'>          <label>Route type</label>          <div class='sf-fact' id='sf_routeType'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_routeType' onclick='SITEF.toggle("routeType")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_routeType' hidden><div class='seg-group' id='routeToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("routeType", "standard")'>Standard ≥ 3.0 m</button>            <button type='button' class='seg-btn' onclick='SITEF.set("routeType", "bus_truck")'>Bus / Truck ≥ 3.2 m</button>          </div></div>        </div>        <div class='ff sf-ff'>          <label>Bike lane <span class='hint'>on the parklet side</span></label>          <div class='sf-fact' id='sf_bikeLane'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_bikeLane' onclick='SITEF.toggle("bikeLane")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_bikeLane' hidden><div class='ff-row'><div class='ff'><label for='sfBikeSel'>Type</label><select id='sfBikeSel' onchange='SITEF.setBike()'><option value='none'>None</option><option value='painted'>Painted</option><option value='protected'>Protected</option></select></div><div class='ff'><label for='sfBikeW'>Width <span class='unit'>m</span></label><input type='number' id='sfBikeW' min='1' max='2.5' step='0.05' onchange='SITEF.setBike()'></div></div></div>        </div>        <div class='ff sf-ff'>          <label>Right-of-way width <span class='hint'>property line to property line</span></label>          <div class='sf-fact' id='sf_row'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_row' onclick='SITEF.toggle("row")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_row' hidden><div class='ff'><label for='sfRowW'>Width <span class='unit'>m</span></label><input type='number' id='sfRowW' min='6' max='60' step='0.1' onchange='SITEF.set("row", this.value)'></div></div>        </div>      <div class='ff'><label for='siteContextZ'>Context each way <span class='unit'>m</span><span class='hint'>the import radius and the street scene past each deck end, 20-400 m: Plan, 3D and the import</span></label><input type='number' id='siteContextZ' min='20' max='400' step='5' value='150' onchange='SMP.setContext(this.value)'></div>      </div>      <div class='sb-section' id='contextSection'></div><div class='sb-section'>
   <div class='sb-section-lbl'>Street Objects</div>
   <div class='ctx-pill-row'>
     <button class='ctx-btn' onclick='togglePlaceMH()' title='Place manhole / access chamber'>+ Manhole</button>
@@ -3321,12 +3321,27 @@ function onLaneEnvelopeInput() {
   saveSettings();
   syncDesignModel('sidebar');
 }
+// Brief 22 item 4: the City right-of-way (property line to property line) is the ceiling on curb to curb, strictly less.
+// An entry at or above it is refused with the reason; the import and a loaded design are not checked here (the import
+// caps its own estimate against the new record, SITEF.fromImport).
+function roadRowCeil() { var ex = typeof SITEF !== 'undefined' ? SITEF.ex() : null; return ex && ex.row && ex.row.width > 0 ? +ex.row.width : null; }
+function roadWidthRefused(v, row, kept) {
+  const m = document.getElementById('roadWidthMsg'); if (!m) return;
+  m.textContent = v == null ? '' : 'Refused: ' + v.toFixed(2) + ' m is not less than the right-of-way, ' + row.toFixed(2) + ' m (property line to property line). Curb to curb must be less than the right-of-way.' + (kept ? ' The width stays ' + (+TOTAL_ROAD).toFixed(2) + ' m.' : '');
+}
 function onRoadWidthChange() {
   const v = parseFloat(document.getElementById('roadWidth').value);
   if (isNaN(v) || v < 3.5) return;
+  const row = (typeof SMP !== 'undefined' && SMP._busy) || (typeof SITEF !== 'undefined' && SITEF._loading) ? null : roadRowCeil();
+  if (row && v >= row - 0.0005) { roadWidthRefused(v, row, false); return; }
+  roadWidthRefused(null);
   TOTAL_ROAD = v;
   onLaneEnvelopeInput();
-
+  if (typeof SITEF !== 'undefined') SITEF.roadHints();
+}
+function onRoadWidthCommit() {
+  const el = document.getElementById('roadWidth'), v = parseFloat(el.value), row = roadRowCeil();
+  if (row && v >= row - 0.0005) { el.value = TOTAL_ROAD; roadWidthRefused(v, row, true); window._rwRefused = true; }   // the provenance listener that runs next skips it
 }
 function onSidewalkWidthChange() {
   const v = parseFloat(document.getElementById('sidewalkWidth').value);
@@ -26156,7 +26171,8 @@ SMP.tags = function() {
     SMP.tagEl(lab, P[k], function() { SMP.confirmField(k); });
     if (!el._smpBound) {   // a user edit flips the field to 'user'
       el._smpBound = true;
-      ['input', 'change', 'click'].forEach(function(ev) { el.addEventListener(ev, function(e) { if (ev === 'click' && !e.target.closest('button')) return; var q = SMP.prov()[k]; if (q && q.source !== 'user') { SMP.prov()[k] = { source: 'user', from: q.source, fetchedAt: q.fetchedAt, editedAt: new Date().toISOString() }; setTimeout(SMP.refresh, 0); } }); });
+      ['input', 'change', 'click'].forEach(function(ev) { el.addEventListener(ev, function(e) { if (ev === 'click' && !e.target.closest('button')) return; var q = SMP.prov()[k];
+        if (k === 'roadWidth' && (window._rwRefused || (typeof roadRowCeil === 'function' && roadRowCeil() && parseFloat(el.value) >= roadRowCeil() - 0.0005))) { window._rwRefused = false; return; } /* a refused entry (Brief 22 item 4) changes nothing */ if (q && q.source !== 'user') { SMP.prov()[k] = { source: 'user', from: q.source, fetchedAt: q.fetchedAt, editedAt: new Date().toISOString() }; setTimeout(SMP.refresh, 0); } }); });
     }
   });
 };
@@ -26959,6 +26975,10 @@ SMP.sourcesList = function() {
 .sf-src { flex-basis: 100%; font-size: 11px; line-height: 1.4; color: var(--c-text-dim, #9AA0A6); }
 .sf-fact.sf-overridden .sf-val::after { content: ' (overridden)'; font-weight: 400; color: var(--c-text-dim, #9AA0A6); }
 .sf-edit { margin-top: 6px; }
+.sf-rw, .sf-lanesrc { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; }
+.sf-refuse { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; font-weight: 600; color: var(--st-fail, #E0795E); }
+.sf-refuse:empty { display: none; }
+
 </style>
 <script>
 // ════════════════════════════════════════════════════════════════════════════════════════════
@@ -26993,7 +27013,15 @@ SMP.rowOf = function(res) {
   return best ? { width: Math.round(best.v * 0.3048 * 100) / 100, ft: best.v, src: { source: 'cov', dataset: 'right-of-way-widths', id: best.id, fetchedAt: res.at, note: best.v + ' ft; label ' + best.dx.toFixed(1) + ' m off the centreline, ' + (best.dz ? best.dz.toFixed(0) + ' m past the deck' : 'beside the deck') } } : null;
 };
 SITEF.fromImport = function(way, rowRes, at, rep) {
-  var P = SMP.prov(), ex = SITEF.record(true), rw = SMP.rowOf(rowRes);
+  var P = SMP.prov(), rw = SMP.rowOf(rowRes);
+  // the curb-to-curb estimate stays inside the right-of-way (Brief 22 item 4): capped at the right-of-way less both sidewalks
+  if (rw && TOTAL_ROAD >= rw.width - 0.0005) {
+    var inner = rw.width - 2 * SIDEWALK_W, cap = Math.round((inner >= 3.5 ? inner : rw.width - 0.1) * 100) / 100, el = document.getElementById('roadWidth'), was = TOTAL_ROAD;
+    if (el) { el.value = cap; onRoadWidthChange(); }
+    if (P.roadWidth) P.roadWidth.note = (P.roadWidth.note || '') + '; capped from ' + (+was).toFixed(2) + ' m to the right-of-way (' + rw.width.toFixed(2) + ' m) less both sidewalks';
+    rep.notes.push('curb to curb capped at ' + cap.toFixed(2) + ' m: the estimate ' + (+was).toFixed(2) + ' m was not less than the right-of-way ' + rw.width.toFixed(2) + ' m');
+  }
+  var ex = SITEF.record(true);
   ex.src = { roadDir: SITEF.cp(P.roadDir), routeType: SITEF.cp(P.routeType), bikeLane: SITEF.cp(P.bikeLane) || SITEF.cp(rep.street.bikeSrc) };
   if (rw) { ex.row = { width: rw.width, ft: rw.ft }; ex.src.row = rw.src; }
   else rep.notes.push(rowRes && rowRes.err ? 'right-of-way widths failed: ' + rowRes.err : 'no City right-of-way width on this street near the deck');
@@ -27028,6 +27056,20 @@ SITEF.render = function() {
     if (b) { b.textContent = open ? 'Done' : 'Override'; b.setAttribute('aria-expanded', open ? 'true' : 'false'); b.title = open ? 'Closes the editor; the value stays as set.' : 'Opens the value to correct the import; the change is listed in X-001 as an override.'; }
     if (ed) ed.hidden = !open;
   });
+  SITEF.roadHints();
+};
+// The Site step's two fields (Brief 22 item 4): the right-of-way ceiling and the source of the curb-to-curb value on the
+// roadway width; the lane count's source ("from OpenStreetMap, confirm") until the user confirms or edits it
+SITEF.roadHints = function() {
+  var P = SMP.prov(), ex = SITEF.ex(), row = roadRowCeil(), p = P.roadWidth, r = document.getElementById('roadWidthRow'), el = document.getElementById('roadWidth');
+  var src = !p ? 'the default, not measured' : p.source === 'user' ? (p.from ? 'entered by you (was ' + (SMP.SRC[p.from] === 'estimate' ? 'an estimate' : SMP.SRC[p.from]) + ', ' + SMP.day(p.fetchedAt) + ')' : 'entered by you')
+    : p.source === 'survey' ? 'the site survey' : (p.source === 'estimate' ? 'an estimate' : SMP.SRC[p.source]) + ', ' + SMP.day(p.fetchedAt) + (p.note ? ': ' + p.note : '');
+  if (r) r.textContent = (row ? 'ROW ' + row.toFixed(2) + ' m' + (ex.row.ft ? ' (' + ex.row.ft + ' ft)' : '') + '; curb-to-curb must be less. ' : 'ROW not known, so no ceiling. ') + 'Current value: ' + src + '.';
+  if (el) el.max = row ? (Math.ceil(row * 100) / 100 - 0.01).toFixed(2) : '40';
+  var ls = document.getElementById('laneSrc'); if (!ls) return;
+  var ps = (ROAD_DIR === 'twoway' ? ['lanesA', 'lanesB'] : ['lanes']).map(function(k) { return P[k]; }).filter(Boolean);
+  ls.textContent = !ps.length ? '' : ps.every(function(q) { return q.source === 'user' || q.source === 'survey'; }) ? 'Lane count confirmed by you.'
+    : ps.some(function(q) { return q.source === 'estimate'; }) ? 'Lane count estimated from the road class (no lanes tag in OpenStreetMap), confirm.' : 'Lane count from OpenStreetMap, confirm.';
 };
 SITEF.toggle = function(k) {
   SITEF._open = SITEF._open === k ? null : k;
