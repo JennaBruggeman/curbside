@@ -588,7 +588,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
           </div>
           <div class='site-rose-wrap'><div id='siteRose'></div><p class='site-orient-txt' id='siteOrientTxt' aria-live='polite'></p></div>
         </div>
-        <div class="ff-row">          <div class="ff ff--site">            <label>Roadway width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">curb-to-curb &mdash; enter from field measurement</span>            </label>            <input type="number" id="roadWidth" value="5.635" min="4.0" max="12" step="0.01"                   oninput="onRoadWidthChange()">          <span id='roadWidthNote' style='display:block;margin-top:4px;font-size:11px;color:#888'></span></div>          <div class="ff ff--site">            <label>Sidewalk width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">building face to curb</span>            </label>            <input type="number" id="sidewalkWidth" value="1.8" min="0.5" max="6" step="0.01"                   oninput="onSidewalkWidthChange()">          </div>        </div>        <div class="ff">          <label>Road direction</label>          <div class="seg-group" id="roadDirToggle">            <button class="seg-btn active" onclick="onRoadDirChange('oneway')">One-way</button>            <button class="seg-btn" onclick="onRoadDirChange('twoway')">Two-way</button>          </div>        </div>        <div class="ff" id="laneOneWayField">          <label>Travel lanes <span class="hint">adjacent to parklet</span></label>          <input type="number" id="laneCount" value="1" min="1" max="6" step="1"                 oninput="onLaneCountChange()">        </div>        <div id="laneTwoWayField" style="display:none">          <div class="ff-row">            <div class="ff">              <label>Near lanes <span class="hint">parklet side &#x2192;</span></label>              <input type="number" id="lanesA" value="1" min="1" max="4" step="1" oninput="onLanesAChange()">            </div>            <div class="ff">              <label>Far lanes <span class="hint">&#x2190; opposite</span></label>              <input type="number" id="lanesB" value="1" min="1" max="4" step="1" oninput="onLanesBChange()">            </div>          </div>        </div>        <div class="ff">          <label>Route type</label>          <div class="seg-group" id="routeToggle">            <button class="seg-btn active" onclick="onRouteTypeToggle('standard')">Standard ≥ 3.0 m</button>            <button class="seg-btn" onclick="onRouteTypeToggle('bus_truck')">Bus / Truck ≥ 3.2 m</button>          </div>        </div>      <div class='ff'><label for='siteContextZ'>Context each way <span class='unit'>m</span><span class='hint'>the import radius and the street scene past each deck end, 20-400 m: Plan, 3D and the import</span></label><input type='number' id='siteContextZ' min='20' max='400' step='5' value='150' onchange='SMP.setContext(this.value)'></div>      </div>      <div class='sb-section' id='contextSection'></div><div class='sb-section'>
+        <div class="ff-row">          <div class="ff ff--site">            <label>Roadway width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">curb-to-curb &mdash; enter from field measurement</span>            </label>            <input type="number" id="roadWidth" value="5.635" min="4.0" max="12" step="0.01"                   oninput="onRoadWidthChange()" onchange='onRoadWidthCommit()' aria-describedby='roadWidthRow roadWidthMsg'>          <span id='roadWidthNote' style='display:block;margin-top:4px;font-size:11px;color:#888'></span><span class='hint sf-rw' id='roadWidthRow'></span><span class='sf-refuse' id='roadWidthMsg' role='alert'></span></div>          <div class="ff ff--site">            <label>Sidewalk width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">building face to curb</span>            </label>            <input type="number" id="sidewalkWidth" value="1.8" min="0.5" max="6" step="0.01"                   oninput="onSidewalkWidthChange()">          </div>        </div>        <p class='hint sf-intro'>The existing street, as imported: each value shows its source. Override one only to correct the import; the proposed street is the Section.</p>        <div class='ff sf-ff'>          <label>Road direction</label>          <div class='sf-fact' id='sf_roadDir'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_roadDir' onclick='SITEF.toggle("roadDir")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_roadDir' hidden><div class='seg-group' id='roadDirToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("roadDir", "oneway")'>One-way</button>            <button type='button' class='seg-btn' onclick='SITEF.set("roadDir", "twoway")'>Two-way</button>          </div></div>        </div>        <div class="ff" id="laneOneWayField">          <label>Travel lanes <span class="hint">adjacent to parklet</span></label>          <input type="number" id="laneCount" value="1" min="1" max="6" step="1"                 oninput="onLaneCountChange()">        </div>        <div id="laneTwoWayField" style="display:none">          <div class="ff-row">            <div class="ff">              <label>Near lanes <span class="hint">parklet side &#x2192;</span></label>              <input type="number" id="lanesA" value="1" min="1" max="4" step="1" oninput="onLanesAChange()">            </div>            <div class="ff">              <label>Far lanes <span class="hint">&#x2190; opposite</span></label>              <input type="number" id="lanesB" value="1" min="1" max="4" step="1" oninput="onLanesBChange()">            </div>          </div>        </div>        <span class='hint sf-lanesrc' id='laneSrc' role='status'></span>        <div class='ff sf-ff'>          <label>Route type</label>          <div class='sf-fact' id='sf_routeType'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_routeType' onclick='SITEF.toggle("routeType")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_routeType' hidden><div class='seg-group' id='routeToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("routeType", "standard")'>Standard ≥ 3.0 m</button>            <button type='button' class='seg-btn' onclick='SITEF.set("routeType", "bus_truck")'>Bus / Truck ≥ 3.2 m</button>          </div></div>        </div>        <div class='ff sf-ff'>          <label>Bike lane <span class='hint'>on the parklet side</span></label>          <div class='sf-fact' id='sf_bikeLane'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_bikeLane' onclick='SITEF.toggle("bikeLane")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_bikeLane' hidden><div class='ff-row'><div class='ff'><label for='sfBikeSel'>Type</label><select id='sfBikeSel' onchange='SITEF.setBike()'><option value='none'>None</option><option value='painted'>Painted</option><option value='protected'>Protected</option></select></div><div class='ff'><label for='sfBikeW'>Width <span class='unit'>m</span></label><input type='number' id='sfBikeW' min='1' max='2.5' step='0.05' onchange='SITEF.setBike()'></div></div></div>        </div>        <div class='ff sf-ff'>          <label>Right-of-way width <span class='hint'>property line to property line</span></label>          <div class='sf-fact' id='sf_row'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_row' onclick='SITEF.toggle("row")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_row' hidden><div class='ff'><label for='sfRowW'>Width <span class='unit'>m</span></label><input type='number' id='sfRowW' min='6' max='60' step='0.1' onchange='SITEF.set("row", this.value)'></div></div>        </div>      <div class='ff'><label for='siteContextZ'>Context each way <span class='unit'>m</span><span class='hint'>the import radius and the street scene past each deck end, 20-400 m: Plan, 3D and the import</span></label><input type='number' id='siteContextZ' min='20' max='400' step='5' value='150' onchange='SMP.setContext(this.value)'></div>      </div>      <div class='sb-section' id='contextSection'></div><div class='sb-section'>
   <div class='sb-section-lbl'>Street Objects</div>
   <div class='ctx-pill-row'>
     <button class='ctx-btn' onclick='togglePlaceMH()' title='Place manhole / access chamber'>+ Manhole</button>
@@ -602,7 +602,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <div id='mhHintCtx' style='font-size:11px;color:var(--text-mu);margin-top:4px;min-height:12px'></div>
 </div></div>
-<div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section" id="designShapeSec">        <div class="sb-section-lbl">Parklet shape editor</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit the deck&rsquo;s shape</button>        <div class="design-dims" id="designDims" aria-live="polite"><span>Length</span> <span id="lengthReadout" class="readout">19.8 m</span> <span>&times; width</span> <span id="widthReadout" class="readout">2.650 m</span></div>        <span class="hint">Set by the shape; the width also follows the Parklet segment in the Section.</span>        <div class="lane-badge" id="laneReadout"></div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street context</div>        <div class="ff">          <label>Bike lane</label>          <div class="seg-group" id="bikeLaneToggle">            <button class="seg-btn active" onclick="onBikeLaneType('none')">None</button>            <button class="seg-btn" onclick="onBikeLaneType('painted')">Painted</button>            <button class="seg-btn" onclick="onBikeLaneType('protected')">Protected</button>          </div>          <span class="hint" id="bikeLaneHint" style="display:none"></span>        </div>        <div class="sl-field" id="bikeLaneWidthField" style="display:none">          <div class="sl-hdr">            <label>Bike lane width</label>            <span id="bikeLaneReadout" class="readout">1.50 m</span>          </div>          <input type="range" id="bikeLaneSlider" min="1.2" max="3.5" step="0.05" value="1.5" oninput="onBikeLaneWidth(this.value)">        </div>      <span class='hint design-buf-hint'>Buffers beside the bike lane are segments of the street: add them in the Section (Add segment).</span></div>
+<div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section" id="designShapeSec">        <div class="sb-section-lbl">Parklet shape editor</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit the deck&rsquo;s shape</button>        <div class="design-dims" id="designDims" aria-live="polite"><span>Length</span> <span id="lengthReadout" class="readout">19.8 m</span> <span>&times; width</span> <span id="widthReadout" class="readout">2.650 m</span></div>        <span class="hint">Set by the shape; the width also follows the Parklet segment in the Section.</span>        <div class="lane-badge" id="laneReadout"></div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street context</div>        <span class='hint design-buf-hint'>The bike lane and its buffers are segments of the street: the site import writes them, and you edit them in the Section (Add segment).</span></div>
       <div class='sb-section' id='lhsFurnSection'>
         <div class='sb-section-lbl'>Library</div>
         <input type='search' id='lhsFwSearch' name='curbside-library-search' autocomplete='off' spellcheck='false' class='lib-search' placeholder='Search furniture, street components, people' aria-label='Search the library' oninput='lhsFwSearchFn(this.value)'>
@@ -708,6 +708,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
       </div>
     </div>
     <button id='cadDimBtn' class='ctb-btn active' aria-pressed='true' onclick='cadToggleDim()' title='Show or hide the dimension chains in the Plan and the Section.'>Dimensions</button>
+    <button id='cadTagBtn' class='ctb-btn active' aria-pressed='true' onclick='cadToggleTags()' title='Show or hide the furniture tags (F1, F2 ...) in the Plan. The report prints them on A-102 and A-103 either way.'>Tags</button>
     <button class='ctb-btn' onclick='autoSolveWidth()' title='Widens the parklet as far as the travel lanes allow at their minimum width (C02).'>Fit lanes to minimum</button>
     <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fits the Plan, Section and 3D views to the whole design.'>Fit design</button>
     <div class='canvas-toolbar-right'>
@@ -716,7 +717,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
 <div id='viewportGrid' data-layout='three'>
 <div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div>    </div>    <!-- Drawing 02: Plan -->    
-<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fits the Plan to the whole drawing.'>Fit view</button><button class='drw-tb-toggle' id='secTogglePV' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id='planTabShape' style='display:none'><div class='ske-head'><span class='ske-title' title='The deck outline, drawn on the parking segment between the curb and the lane edge. Nothing in the design changes until you press Apply.'>Shape editor</span><span class='ske-read' id='skeReadout' title='The outline being edited: its area, and its length along the curb by its width across.'></span><label class='ske-fld' title='The grid step the editor snaps to: the app grid step, shared with the Plan.'>Grid <select id='skeGrid' onchange='cadSetSpacing(this);skeRender()'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></label><button type='button' class='ske-btn' id='skeUndo' onclick='skeUndo()' title='Undoes the last change in the editor (Ctrl+Z).'>Undo</button><button type='button' class='ske-btn' id='skeRedo' onclick='skeRedo()' title='Redoes the change just undone (Ctrl+Y).'>Redo</button><button type='button' class='ske-btn' id='skeFit' onclick='skeFit()' title='Fits the whole parking segment in the canvas. The mouse wheel zooms; Shift+wheel or the middle button pans.'>Fit</button><span class='ske-sp'></span><button type='button' class='ske-btn' id='skeCancel' onclick='skeClose()' title='Closes the editor and discards the changes made in it.'>Cancel</button><button type='button' class='ske-btn ske-apply' id='skeApply' onclick='skeApply()' title='Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'>Apply</button></div><div class='ske-tools' id='skeTools' role='toolbar' aria-label='Shape tools'><button type='button' class='ske-tool' data-tool='rect' onclick='skeSetTool(&quot;rect&quot;)' title='Rectangle: drag across the parking segment. The length and width show as you drag; type them in the fields to set them exactly.'><svg viewBox='0 0 16 16' aria-hidden='true'><rect x='2.5' y='4.5' width='11' height='7'/></svg><span>Rectangle</span></button><button type='button' class='ske-tool' data-tool='poly' onclick='skeSetTool(&quot;poly&quot;)' title='Polygon: click each corner; click the first corner or press Enter to close. Corners snap to the grid; hold Shift for 90&deg; and 45&deg; edges. Esc cancels.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 12.5 L4 4 L10 2.5 L13.5 8 L8 13.5 Z'/></svg><span>Polygon</span></button><button type='button' class='ske-tool' data-tool='edit' onclick='skeSetTool(&quot;edit&quot;)' title='Edit: drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected corner. Hover an edge to read its length; click the length to type one.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.5 2.5 L3.5 12.5 L6.2 10 L8.2 13.8 L10 12.9 L8 9.2 L11.8 8.9 Z'/></svg><span>Edit</span></button><button type='button' class='ske-tool' data-tool='notch' onclick='skeSetTool(&quot;notch&quot;)' title='Notch: press on a corner of the outline and drag inward to cut a rectangular notch.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 4.5 H13.5 V11.5 H6.5 V8 H2.5 Z'/></svg><span>Notch</span></button><button type='button' class='ske-tool' id='skeReset' onclick='skeReset()' title='Reset to rectangle: the deck&rsquo;s length, the full width of the parking segment. Undo brings the outline back.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.6 8.5 A4.6 4.6 0 1 0 5.2 4.4'/><path d='M3 2.6 V5.2 H5.6'/></svg><span>Reset to rectangle</span></button><span class='ske-opt' id='skeOptRect'><label title='The rectangle&rsquo;s length along the curb, m. Type a value to set it exactly.'>Length <input id='skeRL' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label><label title='The rectangle&rsquo;s width across, from the curb side, m. Type a value to set it exactly.'>Width <input id='skeRW' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label></span><span class='ske-opt' id='skeOptEdge'><label title='The selected edge&rsquo;s length, m. Type a value to set it: the edge&rsquo;s end corner moves along it, and a square next edge moves with it.'>Edge <b id='skeEdgeNo'>-</b> <input id='skeEL' type='number' step='0.05' min='0.25' onchange='skeSetEdgeLen()'></label></span></div><div class='ske-msg' id='skeMsg' role='status' aria-live='polite'></div><div class='ske-canvas'><svg id='skeSVG' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='The parking segment and the deck outline'></svg></div></div>    </div>    <!-- Drawing 03: 3D View -->    
+<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' data-pv-fit='design' aria-pressed='false' onclick='_pvFit("design")' title='Fits the Plan to the deck and 1 m around it.'>Fit design</button><button class='drw-tb-toggle active' data-pv-fit='sheet' aria-pressed='true' onclick='_pvFit("sheet")' title='Fits the Plan to the site sheet (A-101), as the report draws it.'>Fit sheet</button><button class='drw-tb-toggle' data-pv-fit='context' aria-pressed='false' onclick='_pvFit("context")' title='Fits the Plan to everything imported for the site.'>Fit context</button><button class='drw-tb-toggle' id='secTogglePV' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id='planTabShape' style='display:none'><div class='ske-head'><span class='ske-title' title='The deck outline, drawn on the parking segment between the curb and the lane edge. Nothing in the design changes until you press Apply.'>Shape editor</span><span class='ske-read' id='skeReadout' title='The outline being edited: its area, and its length along the curb by its width across.'></span><label class='ske-fld' title='The grid step the editor snaps to: the app grid step, shared with the Plan.'>Grid <select id='skeGrid' onchange='cadSetSpacing(this);skeRender()'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></label><button type='button' class='ske-btn' id='skeUndo' onclick='skeUndo()' title='Undoes the last change in the editor (Ctrl+Z).'>Undo</button><button type='button' class='ske-btn' id='skeRedo' onclick='skeRedo()' title='Redoes the change just undone (Ctrl+Y).'>Redo</button><button type='button' class='ske-btn' id='skeFit' onclick='skeFit()' title='Fits the whole parking segment in the canvas. The mouse wheel zooms; Shift+wheel or the middle button pans.'>Fit</button><span class='ske-sp'></span><button type='button' class='ske-btn' id='skeCancel' onclick='skeClose()' title='Closes the editor and discards the changes made in it.'>Cancel</button><button type='button' class='ske-btn ske-apply' id='skeApply' onclick='skeApply()' title='Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'>Apply</button></div><div class='ske-tools' id='skeTools' role='toolbar' aria-label='Shape tools'><button type='button' class='ske-tool' data-tool='rect' onclick='skeSetTool(&quot;rect&quot;)' title='Rectangle: drag across the parking segment. The length and width show as you drag; type them in the fields to set them exactly.'><svg viewBox='0 0 16 16' aria-hidden='true'><rect x='2.5' y='4.5' width='11' height='7'/></svg><span>Rectangle</span></button><button type='button' class='ske-tool' data-tool='poly' onclick='skeSetTool(&quot;poly&quot;)' title='Polygon: click each corner; click the first corner or press Enter to close. Corners snap to the grid; hold Shift for 90&deg; and 45&deg; edges. Esc cancels.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 12.5 L4 4 L10 2.5 L13.5 8 L8 13.5 Z'/></svg><span>Polygon</span></button><button type='button' class='ske-tool' data-tool='edit' onclick='skeSetTool(&quot;edit&quot;)' title='Edit: drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected corner. Hover an edge to read its length; click the length to type one.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.5 2.5 L3.5 12.5 L6.2 10 L8.2 13.8 L10 12.9 L8 9.2 L11.8 8.9 Z'/></svg><span>Edit</span></button><button type='button' class='ske-tool' data-tool='notch' onclick='skeSetTool(&quot;notch&quot;)' title='Notch: press on a corner of the outline and drag inward to cut a rectangular notch.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 4.5 H13.5 V11.5 H6.5 V8 H2.5 Z'/></svg><span>Notch</span></button><button type='button' class='ske-tool' id='skeReset' onclick='skeReset()' title='Reset to rectangle: the deck&rsquo;s length, the full width of the parking segment. Undo brings the outline back.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.6 8.5 A4.6 4.6 0 1 0 5.2 4.4'/><path d='M3 2.6 V5.2 H5.6'/></svg><span>Reset to rectangle</span></button><span class='ske-opt' id='skeOptRect'><label title='The rectangle&rsquo;s length along the curb, m. Type a value to set it exactly.'>Length <input id='skeRL' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label><label title='The rectangle&rsquo;s width across, from the curb side, m. Type a value to set it exactly.'>Width <input id='skeRW' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label></span><span class='ske-opt' id='skeOptEdge'><label title='The selected edge&rsquo;s length, m. Type a value to set it: the edge&rsquo;s end corner moves along it, and a square next edge moves with it.'>Edge <b id='skeEdgeNo'>-</b> <input id='skeEL' type='number' step='0.05' min='0.25' onchange='skeSetEdgeLen()'></label></span></div><div class='ske-msg' id='skeMsg' role='status' aria-live='polite'></div><div class='ske-canvas'><svg id='skeSVG' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='The parking segment and the deck outline'></svg></div></div>    </div>    <!-- Drawing 03: 3D View -->    
 <div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"><button class='drw-tb-toggle on' id='secToggle3D' title='Shows or hides the section box, its cut plane and fill in the 3D view.' aria-pressed='true' onclick='_3dSectionOn=!_3dSectionOn;syncToolbarStates();_3dSectionHelper()'>Section box</button></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
 <div id='workspaceVisualize' style='display:none'><div id='rvzView'><p class='rvz-info' id='rvzViewInfo' aria-live='polite'></p></div><aside id='rvzRail' aria-label='Render controls'></aside></div>
@@ -757,6 +758,13 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <div id='rptModeNote' style='font-size:11px;color:var(--text-mu);line-height:1.5;margin-bottom:6px'>The drawing set in colour, with the renders on the title sheet.</div>
   <div id='rptRenders'></div>
+  <fieldset class='rpt-opts' id='rptOpts'><legend>Include</legend>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_schedule' checked> Furniture schedule (S-001)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_sources' checked> Sources (X-001)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_compliance' checked> Compliance detail (C-001, C-002)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_renders' checked> Renders (cover and V-101 ...)</label>
+    <span class='hint'>A sheet left out drops from the drawing list and the page numbers.</span>
+  </fieldset>
   <button class='ctx-btn ctx-btn-full' id='pdfExportBtn' onclick='RPT.print()' style='margin-bottom:6px' title='17 x 11 in landscape sheets, drawings at true scale, as a PDF file.'>&#8595; Download report (PDF)</button>
   <button class='ctx-btn ctx-btn-full' id='rptPreviewBtn' onclick='RPT.preview()' style='margin-bottom:6px' title='Builds your report and shows it here, over the app, with Download; Back to Curbside or Esc closes it.'>Preview report</button>
   <button class='ctx-btn ctx-btn-full' id='rptSampleBtn' onclick='RPT.openSample()' style='margin-bottom:6px' title='A finished report of a bundled reference design, in the selected type. Opens over the app; Back to Curbside or Esc closes it, and your design is not touched.'>See a sample report</button>
@@ -1669,7 +1677,21 @@ function _pvZoomStep(factor) {
   _svgApplyVB(svg,_pvVB); _svgAppendSB(svg,_pvVB,760,395);
   clearTimeout(_pvRenderT); _pvRenderT=setTimeout(renderPlanView,90);
 }
-function _pvFitView() { _pvUserMod=false; renderPlanView(); }
+// The Plan's named extents (Brief 22): 'design' the deck and 1 m round it; 'sheet' the A-101 sheet's crop (78.5 x 55 m by
+// default: sheetCrops, the report's own function); 'context' all the model holds (the imported context to its edge). A design
+// opens at 'sheet'; a zoom or pan leaves the named extent until the next Fit.
+var _pvExtent = 'sheet';
+function _pvExtentRect(mode, DM) {
+  DM = DM || _dmCurrent(); var LM = DM.landmarks, L = DM.parklet.length;
+  if (mode === 'design') return { z0: -1, z1: L + 1, x0: LM.deckX0 - 1, x1: LM.deckX1 + 1 };
+  if (mode === 'sheet') { var c = (DM.site && DM.site.sheets && DM.site.sheets.A101) ? DM.site.sheets.A101.crop : sheetCrops(DM).A101.crop; return { z0: c.z0, z1: c.z1, x0: c.x0, x1: c.x1 }; }
+  return null;   // context: the whole drawing
+}
+function _pvFit(mode) {
+  _pvExtent = mode === 'design' || mode === 'context' ? mode : 'sheet'; _pvUserMod = false; renderPlanView();
+  document.querySelectorAll('[data-pv-fit]').forEach(function(b) { b.classList.toggle('active', b.dataset.pvFit === _pvExtent); b.setAttribute('aria-pressed', String(b.dataset.pvFit === _pvExtent)); });
+}
+function _pvFitView() { _pvFit(_pvExtent); }
 let _pvDimsOn = true;
 let _pvSectionOn = true;   // the Plan's A-A cut line (A-A toggle)
 let _3dSectionOn = true;   // 3D only: the section box, cut plane and fill (BOX toggle, Brief 13d)
@@ -1679,11 +1701,46 @@ let _pvRenderT = null;
 // sidewalk width
 let designParkletWidth = 2.65;
 let designParkletLength = 19.8;
+// Brief 22 item 5: stage 0, no site. The design has no street segments and no deck (DEFAULT_STATE); the globals keep
+// nominal values (SEED.NOMINAL) that the hidden views may draw, but a "Choose a site" panel covers them, the design tabs
+// are off and pkSerialize writes the empty street. The site import ends it (SEED.parklet).
+var PK_NOSTREET = false;
 // ── Street-context layers ──────────────────────
-// Bike lane type: 'none' | 'painted' | 'protected'
-// Painted min 1.5 m · Protected min 1.8 m (Vancouver Engineering Design Manual)
-let designBikeLane = 'none';
-let designBikeLaneW = 1.5;
+// The bike lane (Brief 22): the Section's segments are its one source. The parklet-side run is the segments before the
+// first travel lane: an optional buffer to the parklet (buf-pk), the bike-lane segment (variant painted | protected), an
+// optional buffer to the traffic (buf-bl). A far-side bike lane is its own segment after the travel lanes.
+// Default widths (Engineering Design Manual 2026): painted 1.5 m, protected 2.0 m (Table 8-6 minimums); a protected lane
+// gets a 0.8 m buffer to the parking lane (Table 8-7, §8.5.4.5: raised and painted, intermittent physical, minimum).
+var BIKE_DEFAULTS = { painted: { lane: 1.5 }, protected: { lane: 2.0, bufPK: 0.8, bufPKType: 'raised' } };
+function _curSegs() {
+  var s = typeof window.seGetSegs === 'function' ? window.seGetSegs() : null;
+  return (s && s.length) ? s : ((typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.crossSection) || []);
+}
+// the parklet-side bike run: {bufPK, lane, bufBL} (segments or null)
+function bikeRun(segs) {
+  segs = segs || _curSegs();
+  var fl = segs.findIndex(function(s) { return s.type === 'travel-lane'; }), near = fl < 0 ? segs : segs.slice(0, fl);
+  var lane = near.find(function(s) { return s.type === 'bike-lane'; }) || null;
+  return { lane: lane, bufPK: lane ? near.find(function(s) { return s.type === 'buf-pk'; }) || null : null, bufBL: lane ? near.find(function(s) { return s.type === 'buf-bl'; }) || null : null };
+}
+function bikeLaneType(segs) { var r = bikeRun(segs); return r.lane ? (r.lane.variant === 'protected' ? 'protected' : 'painted') : 'none'; }
+function bikeLaneWidth(segs) { var r = bikeRun(segs); return r.lane ? r.lane.width : 0; }
+// The bike run written into a segment list (the Section's own, or the existing street's record, Brief 22 item 3): the
+// lane after the sidewalk / parklet / buffer, a raised buffer for protected, at the EDM defaults. mkId names new segments.
+function bikeApply(list, type, width, mkId) {
+  var r3 = function(v) { return Math.round(v * 1000) / 1000; }, run = bikeRun(list), start = list[0] && list[0].type === 'building' ? 1 : 0;
+  var lim = function() { var i = list.findIndex(function(x) { return x.type === 'travel-lane'; }); return i < 0 ? list.length : i; };
+  var after = function(types) { var at = start, n = lim(); for (var i = 0; i < n; i++) if (types.indexOf(list[i].type) >= 0) at = i + 1; return at; };
+  if (type !== 'painted' && type !== 'protected') {
+    [run.bufPK, run.lane, run.bufBL].forEach(function(s) { if (s) list.splice(list.indexOf(s), 1); });
+    return list;
+  }
+  var D = BIKE_DEFAULTS[type];
+  if (run.lane) { run.lane.variant = type; if (width > 0) run.lane.width = r3(width); else if (run.lane.width < D.lane) run.lane.width = D.lane; }
+  else list.splice(after(['sidewalk', 'parklet', 'buf-pk']), 0, { id: mkId(), type: 'bike-lane', width: r3(width > 0 ? width : D.lane), variant: type });
+  if (type === 'protected' && !bikeRun(list).bufPK) list.splice(after(['sidewalk', 'parklet']), 0, { id: mkId(), type: 'buf-pk', width: D.bufPK, variant: D.bufPKType });
+  return list;
+}
 // Vegetated buffer (boulevard / utility strip): min 0.6 m (Vancouver Streetscape Design Guidelines)
 let designBufferEnabled = false;
 let designBufferW = 0.9;
@@ -1693,12 +1750,10 @@ let bufPKType = 'none'; // parklet ↔ bike lane
 let bufPKW = 0.8;
 let bufBLType = 'none'; // bike lane ↔ traffic
 let bufBLW = 0.4;
-function getBikeLaneD() {
-  if (designBikeLane === 'none') return 0;
-  let d = designBikeLaneW;
-  if (bufPKType !== 'none') d += bufPKW;
-  if (bufBLType !== 'none') d += bufBLW;
-  return d;
+// the parklet-side bike lane and its buffers, m (0 without a lane): from the segments
+function getBikeLaneD(segs) {
+  var r = bikeRun(segs); if (!r.lane) return 0;
+  return r.lane.width + (r.bufPK ? r.bufPK.width : 0) + (r.bufBL ? r.bufBL.width : 0);
 }
 // â”€â”€ Canonical cross-section geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns ordered segment array with world x0/x1 (X=0 = parklet street-side edge).
@@ -1890,15 +1945,9 @@ function _computeSegsFromGlobals() {
   var segs = [], cx = PW;
   segs.push({ id: 'sidewalk',  type: 'sidewalk',  width: SIDEWALK_W, x0: -SIDEWALK_W, x1: 0 });
   segs.push({ id: 'parklet',   type: 'parklet',   width: PW, x0: 0, x1: PW });
-  if (designBikeLane !== 'none' && bld > 0.001) {
-    if (bufPKType !== 'none' && bufPKW > 0.001) {
-      segs.push({ id: 'buf-pk',   type: 'buf-pk',   width: bufPKW, variant: bufPKType, x0: cx, x1: cx + bufPKW }); cx += bufPKW;
-    }
-    segs.push({ id: 'bike-lane', type: 'bike-lane', width: designBikeLaneW, variant: designBikeLane, x0: cx, x1: cx + designBikeLaneW }); cx += designBikeLaneW;
-    if (bufBLType !== 'none' && bufBLW > 0.001) {
-      segs.push({ id: 'buf-bl',   type: 'buf-bl',   width: bufBLW, variant: bufBLType, x0: cx, x1: cx + bufBLW }); cx += bufBLW;
-    }
-  }
+  // the parklet-side bike run as the last known segments hold it (Brief 22: the segments are its one source)
+  var br = bikeRun();
+  [br.bufPK, br.lane, br.bufBL].forEach(function(s) { if (!s || !(s.width > 0.001)) return; var o = { id: s.type, type: s.type, width: s.width, x0: cx, x1: cx + s.width }; if (s.variant !== undefined) o.variant = s.variant; segs.push(o); cx += s.width; });
   if (carLW > 0.001) {
     var nL = getTotalLanes(), lnW = parseFloat((carLW / nL).toFixed(4));
     for (var li = 0; li < nL; li++) {
@@ -3194,7 +3243,7 @@ function buildDesignModel() {
       direction: (typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'twoway') ? 'two-way' : 'one-way',
       route: typeof laneRouteKey === 'function' ? laneRouteKey() : 'standard',
       travelLanes: DM.lanes.length,
-      bikeLane: bike ? { type: (typeof designBikeLane !== 'undefined' ? designBikeLane : 'bike lane'), width: bike.width } : null,
+      bikeLane: bike ? { type: bike.variant === 'protected' ? 'protected' : 'painted', width: bike.width } : null,
       buffers: segs.filter(function(s) { return s.type === 'buf-pk' || s.type === 'buf-bl' || s.type === 'planting'; })
         .map(function(s) { return { id: s.id, type: s.type, width: s.width, variant: s.variant || null }; })
     };
@@ -3268,7 +3317,7 @@ window.syncDesignModel = syncDesignModel;
 // Legacy alias (external code that calls getCanonicalCrossSection still works).
 function getCanonicalCrossSection() { return buildDesignModel().crossSection; }
 // EDM §8.5.4.1 Table 8-6: protected min = 2.0m (absolute 1.5m requires CE approval)
-function bikeLaneMinW() { return designBikeLane === 'protected' ? 2.0 : 1.5; }
+function bikeLaneMinW() { return bikeLaneType() === 'protected' ? 2.0 : 1.5; }
 function bufMinW(loc, type) {
   if (type === 'trees') return 1.5; // EDM Table 8-7 "Raised Buffer with Trees"
   return loc === 'pk' ? 0.8 : 0.4; // raised: parklet-side 0.8m, traffic-side 0.4m
@@ -3284,12 +3333,27 @@ function onLaneEnvelopeInput() {
   saveSettings();
   syncDesignModel('sidebar');
 }
+// Brief 22 item 4: the City right-of-way (property line to property line) is the ceiling on curb to curb, strictly less.
+// An entry at or above it is refused with the reason; the import and a loaded design are not checked here (the import
+// caps its own estimate against the new record, SITEF.fromImport).
+function roadRowCeil() { var ex = typeof SITEF !== 'undefined' ? SITEF.ex() : null; return ex && ex.row && ex.row.width > 0 ? +ex.row.width : null; }
+function roadWidthRefused(v, row, kept) {
+  const m = document.getElementById('roadWidthMsg'); if (!m) return;
+  m.textContent = v == null ? '' : 'Refused: ' + v.toFixed(2) + ' m is not less than the right-of-way, ' + row.toFixed(2) + ' m (property line to property line). Curb to curb must be less than the right-of-way.' + (kept ? ' The width stays ' + (+TOTAL_ROAD).toFixed(2) + ' m.' : '');
+}
 function onRoadWidthChange() {
   const v = parseFloat(document.getElementById('roadWidth').value);
   if (isNaN(v) || v < 3.5) return;
+  const row = (typeof SMP !== 'undefined' && SMP._busy) || (typeof SITEF !== 'undefined' && SITEF._loading) ? null : roadRowCeil();
+  if (row && v >= row - 0.0005) { roadWidthRefused(v, row, false); return; }
+  roadWidthRefused(null);
   TOTAL_ROAD = v;
   onLaneEnvelopeInput();
-
+  if (typeof SITEF !== 'undefined') SITEF.roadHints();
+}
+function onRoadWidthCommit() {
+  const el = document.getElementById('roadWidth'), v = parseFloat(el.value), row = roadRowCeil();
+  if (row && v >= row - 0.0005) { el.value = TOTAL_ROAD; roadWidthRefused(v, row, true); window._rwRefused = true; }   // the provenance listener that runs next skips it
 }
 function onSidewalkWidthChange() {
   const v = parseFloat(document.getElementById('sidewalkWidth').value);
@@ -3504,17 +3568,6 @@ function updateWidthSliderMax() {
   const maxPk = Math.max(1.5, TOTAL_ROAD - getBikeLaneD());
   const sl = document.getElementById('widthSlider');
   if (sl) sl.max = maxPk.toFixed(3);
-  // Bike lane max: leave enough room for minimum required travel lanes
-  const bufAct = (bufPKType !== 'none' ? bufPKW : 0) + (bufBLType !== 'none' ? bufBLW : 0);
-  const maxBL = Math.max(bikeLaneMinW(), TOTAL_ROAD - designParkletWidth - bufAct - getReqLane() * getTotalLanes());
-  const blSl = document.getElementById('bikeLaneSlider');
-  if (blSl) blSl.max = maxBL.toFixed(2);
-  if (designBikeLaneW > maxBL) {
-    designBikeLaneW = parseFloat(maxBL.toFixed(2));
-    if (blSl) blSl.value = designBikeLaneW;
-    const rdEl = document.getElementById('bikeLaneReadout');
-    if (rdEl) rdEl.textContent = designBikeLaneW.toFixed(2) + ' m';
-  }
   updateMinRoadNote();
 }
 function clampParkletWidth() {
@@ -3545,8 +3598,7 @@ function saveSettings() {
     state['__bldgR'] = JSON.stringify(BLDG_R);
     state['__projectName'] = document.getElementById('projectName').value;
     state['__streetAddress'] = document.getElementById('streetAddress').value;
-    state['__bikeLane'] = designBikeLane;
-    state['__bikeLaneW'] = String(designBikeLaneW);
+    delete state['__bikeLane']; delete state['__bikeLaneW'];   // (Brief 22: the bike lane is a segment of the Section, saved with it)
     // (Brief 21 §3: the bike lane's buffers are stored once, in the cross-section; older saves' keys are only read)
     delete state['__bufPKType']; delete state['__bufPKW']; delete state['__bufBLType']; delete state['__bufBLW'];
     state['__bufferEnabled'] = designBufferEnabled ? '1' : '0';
@@ -3684,42 +3736,12 @@ function onLengthSlider(val) {
   renderMassView();
 
 }
-function onBikeLaneType(type) {
-  designBikeLane = type;
-  const btns = document.querySelectorAll('#bikeLaneToggle .seg-btn');
-  ['none','painted','protected'].forEach((t,i) => {
-    if (btns[i]) btns[i].className = 'seg-btn' + (t===type?' active':'');
-  });
-  const field = document.getElementById('bikeLaneWidthField');
-  if (field) field.style.display = type === 'none' ? 'none' : '';
-  const hint = document.getElementById('bikeLaneHint');
-  if (hint) {
-    if (type === 'none') { hint.style.display = 'none'; }
-    else {
-      const minW = bikeLaneMinW();
-      hint.style.display = '';
-      hint.textContent = type === 'painted'
-        ? `Min 1.5 m — Vancouver Engineering Design Manual`
-        : `Min 2.0 m — EDM 2026 §8.5.4.1`;
-      if (designBikeLaneW < minW) {
-        designBikeLaneW = minW;
-        const sl = document.getElementById('bikeLaneSlider');
-        if (sl) sl.value = minW;
-        document.getElementById('bikeLaneReadout').textContent = minW.toFixed(2) + ' m';
-      }
-    }
-  }
-  updateBikeBufUI();
-  onLaneEnvelopeInput();
-}
-function onBikeLaneWidth(val) {
-  const v = parseFloat(val);
-  const minW = bikeLaneMinW();
-  designBikeLaneW = Math.max(minW, v);
-  const sl = document.getElementById('bikeLaneSlider');
-  if (sl && designBikeLaneW !== v) sl.value = designBikeLaneW;
-  document.getElementById('bikeLaneReadout').textContent = designBikeLaneW.toFixed(2) + ' m';
-  onLaneEnvelopeInput();
+// Set the parklet-side bike lane (Brief 22): its segments in the Section, the one source. type 'none' | 'painted' |
+// 'protected'; width optional (else the lane's own, else the EDM default); a protected lane gets its buffer to the parking
+// lane (BIKE_DEFAULTS). The site import and the survey call this; the user edits the segments in the Section.
+function setBikeLane(type, width) {
+  if (typeof window.seSetBikeLane === 'function') window.seSetBikeLane(type, width);
+  if (typeof updateBikeBufUI === 'function') updateBikeBufUI();
 }
 function onBufferToggle(enabled) {
   designBufferEnabled = enabled;
@@ -3736,8 +3758,8 @@ function onBufferWidth(val) {
   onLaneEnvelopeInput();
 }
 function updateBikeBufUI() {
-  const hasBike = designBikeLane !== 'none';
-  const isProt = designBikeLane === 'protected';
+  const hasBike = bikeLaneType() !== 'none';
+  const isProt = bikeLaneType() === 'protected';
   const bbs = document.getElementById('bikeBufSection');
   if (bbs) bbs.style.display = hasBike ? '' : 'none';
   const bpk = document.getElementById('bufPKSection');
@@ -4000,7 +4022,7 @@ _vpInitResize();
 // FIT, the section editor's Fit + scroll to start, 3D's auto-framed home camera.
 function fitAllViewports() {
   var shown = function(id) { var el = document.getElementById(id); return !!el && el.offsetWidth > 0 && el.offsetHeight > 0; };
-  if (shown('pvPanel') && typeof _pvFitView === 'function') _pvFitView();
+  if (shown('pvPanel') && typeof _pvFit === 'function') _pvFit('design');   // the toolbar's Fit design: the Plan at its design extent (Brief 22)
   if (shown('csPanel') && typeof window.seSetFit === 'function') {
     window.seSetFit(true);
     var sv = document.getElementById('seViewport'); if (sv) sv.scrollLeft = 0;
@@ -4247,8 +4269,6 @@ document.addEventListener('mouseup', function() {
     function _g(name, def) {
       var v = (typeof window[name] !== 'undefined') ? window[name] : undefined;
       // Also check direct closure access for key variables
-      if (name === 'designBikeLane')   v = (typeof designBikeLane   !== 'undefined') ? designBikeLane   : v;
-      if (name === 'designBikeLaneW')  v = (typeof designBikeLaneW  !== 'undefined') ? designBikeLaneW  : v;
       if (name === 'designParkletWidth') v = (typeof designParkletWidth !== 'undefined') ? designParkletWidth : v;
       if (name === 'bufPKType')  v = (typeof bufPKType  !== 'undefined') ? bufPKType  : v;
       if (name === 'bufPKW')     v = (typeof bufPKW     !== 'undefined') ? bufPKW     : v;
@@ -4274,21 +4294,10 @@ document.addEventListener('mouseup', function() {
     var _bpkt = _g('bufPKType','none');
     if (_bpkt && _bpkt !== 'none')
       _segs.push({ id:_nid(), type:'buf-pk', width:Math.round((_g('bufPKW',0.8))*1000)/1000, variant:_bpkt });
-    var _dbl = _g('designBikeLane','none');
-    if (_dbl && _dbl !== 'none')
-      _segs.push({ id:_nid(), type:'bike-lane', width:Math.round((_g('designBikeLaneW',1.5))*1000)/1000, variant:_dbl });
-    var _bblt = _g('bufBLType','none');
-    if (_bblt && _bblt !== 'none')
-      _segs.push({ id:_nid(), type:'buf-bl', width:Math.round((_g('bufBLW',0.4))*1000)/1000, variant:_bblt });
+    // (Brief 22: a bike lane is never built from globals; the site import writes its segments, setBikeLane)
     // Travel lanes
     var nL = (_g('ROAD_DIR','oneway') === 'twoway')
       ? ((_g('LANES_A',1))+(_g('LANES_B',1))) : _g('NUM_LANES',1);
-    var bikeD = 0;
-    if (_dbl && _dbl !== 'none') {
-      bikeD = _g('designBikeLaneW',1.5);
-      if (_bpkt && _bpkt !== 'none') bikeD += _g('bufPKW',0.8);
-      if (_bblt && _bblt !== 'none') bikeD += _g('bufBLW',0.4);
-    }
     for (var i = 0; i < nL; i++) _segs.push({ id:_nid(), type:'travel-lane', width:0 });
     _seNormalizeLanes();   // lane widths from the one normaliser (EDM Table 8-10 envelope)
   }
@@ -4313,10 +4322,7 @@ document.addEventListener('mouseup', function() {
     if (!_segs.length || _segs[0].type !== 'building') _segs.unshift({ id: 'building', type: 'building', width: 0 });
     ensure('sidewalk', true, _g('SIDEWALK_W', 1.8), undefined, ['building']);
     ensure('parklet', true, _g('designParkletWidth', 2.65), undefined, ['building', 'sidewalk']);
-    var bpk = _g('bufPKType', 'none'), dbl = _g('designBikeLane', 'none'), bbl = _g('bufBLType', 'none');
-    ensure('buf-pk', bpk && bpk !== 'none', _g('bufPKW', 0.8), bpk, ['building', 'sidewalk', 'parklet']);
-    ensure('bike-lane', dbl && dbl !== 'none', _g('designBikeLaneW', 1.5), dbl, ['building', 'sidewalk', 'parklet', 'buf-pk']);
-    ensure('buf-bl', bbl && bbl !== 'none', _g('bufBLW', 0.4), bbl, ['building', 'sidewalk', 'parklet', 'buf-pk', 'bike-lane']);
+    // (Brief 22: the bike lane and its buffers are segments only; a sidebar change or an import never rewrites them here)
     var nL = (_g('ROAD_DIR', 'oneway') === 'twoway') ? (_g('LANES_A', 1) + _g('LANES_B', 1)) : _g('NUM_LANES', 1);
     var lanes = _segs.filter(function(s) { return s.type === 'travel-lane'; });
     if (lanes.length < nL) {
@@ -4338,17 +4344,7 @@ document.addEventListener('mouseup', function() {
     if (sw) SIDEWALK_W = sw.width;
     var pk = _segs.find(function(s){ return s.type==='parklet'; });
     if (pk) designParkletWidth = pk.width;
-    // Bike lanes
-    // the parklet-side bike lane: one before the first travel lane (a far-side one is its own segment)
-    var _fl = _segs.findIndex(function(s){ return s.type==='travel-lane'; });
-    var bls = _segs.filter(function(s, i){ return s.type==='bike-lane' && (_fl < 0 || i < _fl); });
-    if (bls.length > 0) {
-      designBikeLaneW = bls[0].width;
-      designBikeLane = bls[0].variant || 'painted';
-    } else {
-      designBikeLane = 'none';   // the width is kept (unused while there is none): a re-added lane gets it back, and a
-      // blank design serializes the same whether or not the Section re-synced it (Brief 21 §4)
-    }
+    // (Brief 22: the bike lane is read from the segments where it is needed: bikeRun / bikeLaneType / bikeLaneWidth)
     // Buffers: read from the segments, the one store (Brief 21 §3; bufFromSegs, also used by a load and Generate)
     var _bf = bufFromSegs(_segs);
     bufPKType = _bf.bufPKType; if (_bf.bufPKType !== 'none') bufPKW = _bf.bufPKW;
@@ -4369,8 +4365,6 @@ document.addEventListener('mouseup', function() {
     set('sidewalkWidth', (SIDEWALK_W||1.8).toFixed(3));
     var ws=document.getElementById('widthSlider'); if(ws) ws.value=designParkletWidth||2.65;
     var wr=document.getElementById('widthReadout'); if(wr) wr.textContent=(designParkletWidth||2.65).toFixed(3)+' m';
-    var bs=document.getElementById('bikeLaneSlider'); if(bs) bs.value=designBikeLaneW||1.5;
-    var br=document.getElementById('bikeLaneReadout'); if(br) br.textContent=((designBikeLaneW||0)>0?(designBikeLaneW).toFixed(2):'—')+' m';
   }
 
 
@@ -4513,7 +4507,6 @@ document.addEventListener('mouseup', function() {
   function _seVariant(id, v) {
     var s = _segs.find(function(x){ return x.id===id; }); if (!s) return;
     _push(); s.variant = v;
-    if (s.type==='bike-lane') designBikeLane = v;  // _seToGlobals() below re-derives this anyway
     _seRender(); _seToGlobals(); _trigger();
   }
   function _seSelect(id) { _selId = id; _renderSel(); _renderProp(); }
@@ -5066,7 +5059,7 @@ document.addEventListener('mouseup', function() {
       '<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--rule);background:var(--card)">'+
         '<button id="seUndoBtn" onclick="seUndo()" disabled>Undo</button>'+
         '<button id="seRedoBtn" onclick="seRedo()" disabled>Redo</button>'+
-        '<button id="seFitBtn" onclick="seFit()">Fit view</button>'+
+        '<button id="seFitBtn" onclick="seFit()">Fit section</button>'+
         '<label id="seTopLbl" class="se-top" title="The section drawing&rsquo;s top, in metres above the road; empty: it fits the tallest building or tree it sees.">Top <input type="number" id="seTop" min="3" max="80" step="0.5" placeholder="auto" onchange="setSection({ yTop: parseFloat(this.value) > 0 ? parseFloat(this.value) : null })"> m</label>'+
         '<span style="flex:1"></span>'+
         '<span style="font-size:11px;color:var(--muted)">Click to select &middot; Drag to reorder &middot; Drag edge to resize &middot; Del to remove</span>'+
@@ -5133,6 +5126,13 @@ document.addEventListener('mouseup', function() {
   window.seUndo = function(){ _seUndo(); };
   window.seRedo = function(){ _seRedo(); };
   window.seSyncFromGlobals = function(){ _recomputeScale(); _seFromGlobals(); _seRender(); };
+  // the parklet-side bike lane, set from outside the strip (setBikeLane: the site import, the survey; Brief 22): the lane
+  // segment and, for a protected lane, its buffer to the parking lane, at the EDM default widths unless a width is given;
+  // 'none' removes the lane and its buffers. The lanes are re-fitted and the model synced as for any Section edit.
+  window.seSetBikeLane = function(type, width) {
+    _push(); bikeApply(_segs, type, width, _nid);
+    _seNormalizeLanes(); _seRender(); _seToGlobals(); _trigger();
+  };
   // a new design: no undo back into the previous one (Brief 21 §4)
   window.seClearHistory = function(){ _hist = []; _fut = []; _selId = null; _updateHistBtns(); _renderSel(); _renderProp(); };
   // seGetSegs: exposes the section editor's _segs array so buildDesignModel()
@@ -7043,6 +7043,13 @@ function _renderPlanView(o) {
     U = o.U || HS / (o.mmPerM * 96 / 25.4);
     VB.x = -_ML * U; VB.y = -CTX_TOP - _MT * U; VB.w = VW + (_MR + _ML) * U; VB.h = _cH + (_MT + _MB) * U;
     _pvPW = VB.w / U; _pvPH = VB.h / U;
+  } else if (!_pvUserMod && _pvExtentRect(_pvExtent, _pvDM)) {
+    // a named extent (Brief 22): its rectangle fitted to the panel, 16 px clear on every side
+    const _xr = _pvExtentRect(_pvExtent, _pvDM), _ea = worldToPlan(_xr.x0, _xr.z1), _eb = worldToPlan(_xr.x1, _xr.z0);
+    const _ex0 = Math.min(_ea.px, _eb.px), _ex1 = Math.max(_ea.px, _eb.px), _ey0 = Math.min(_ea.py, _eb.py), _ey1 = Math.max(_ea.py, _eb.py);
+    U = Math.max((_ex1 - _ex0) / Math.max(80, _pvPW - 32), (_ey1 - _ey0) / Math.max(60, _pvPH - 32));
+    VB.w = _pvPW * U; VB.h = _pvPH * U; VB.fitW = VB.w;
+    VB.x = (_ex0 + _ex1) / 2 - VB.w / 2; VB.y = (_ey0 + _ey1) / 2 - VB.h / 2;
   } else if (!_pvUserMod) {
     U = Math.max(VW / Math.max(80, _pvPW - _MR - _ML), _cH / Math.max(60, _pvPH - _MT - _MB));
     const vw = _pvPW * U, vh = _pvPH * U;
@@ -7242,7 +7249,7 @@ function _renderPlanView(o) {
     annSeg('Bike lane', pvLaneY + pvLaneH - 3 * U, { c: pvBLStroke });
     // Protected bike lane: flexible bollard row in plan at parklet/bike-lane boundary
     // Manual p.21, p.48: City installs flexible bollards at each end and as needed
-    if (designBikeLane === 'protected') {
+    if (bikeLaneType() === 'protected') {
       // every 2 m along the deck and one at each end (Manual p.48); DRAW_SYMBOLS.post: a 0.1 m dot at 'general'
       const bollardY = _corrEdgeY, bR = 0.05 * pvSC;
       bikePostZs(PARKLET_M, 1.1).forEach(function(z) { s += _sym(function(P) { DRAW_SYMBOLS.post(P, PK_X + z * HS, bollardY, bR, { data: " data-post='1'" }); }); });
@@ -7848,6 +7855,7 @@ const manholes = state['manholes'] || [];
   svg.style.cursor = (_pvUserMod || _pvInFS) ? 'grab' : 'default';
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
+  if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
   syncToolbarStates();
   initPlanInteraction();
   // the Section's objects follow the same model (cut position, deck length, furniture moves)
@@ -8684,7 +8692,7 @@ function renderMassView() {
     sidewalkWidth: SW,
     totalRoad:     _dm3d.totalRoad,
     bikeLaneWidth: bld,
-    bikeLaneType:  typeof designBikeLane      !== 'undefined' ? designBikeLane      : null,
+    bikeLaneType:  bikeLaneType(),
     bufferEnabled: typeof designBufferEnabled  !== 'undefined' ? designBufferEnabled  : false,
     bufferWidth:   (typeof designBufferEnabled !== 'undefined' && designBufferEnabled && typeof designBufferW !== 'undefined') ? designBufferW : 0,
     numLanes:      typeof NUM_LANES            !== 'undefined' ? NUM_LANES           : null,
@@ -8918,11 +8926,11 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
   // Bike lane surface and markings
   if (bld > 0.05) {
-    const blOk = designBikeLaneW >= bikeLaneMinW() - 0.001;
+    const blOk = bikeLaneWidth() >= bikeLaneMinW() - 0.001;
     const bufA3d = _bpS ? _bpS.width : (bufPKType !== 'none' ? bufPKW : 0);
     const bufB3d = _bbS ? _bbS.width : (bufBLType !== 'none' ? bufBLW : 0);
     const blX0 = _blS ? _blS.x0 : PW + bufA3d;
-    const blX1 = _blS ? _blS.x1 : blX0 + designBikeLaneW;
+    const blX1 = _blS ? _blS.x1 : blX0 + bikeLaneWidth();
     // Buffer A surface (parklet side)
     if (bufA3d > 0.01 && _bpS) {
       mplane(_bpS.x0, ZS, _bpS.x1, ZE, 0.003, DS.segColor3D('buf-pk'), 0.9).userData.seg = _bpS.id;
@@ -8940,8 +8948,8 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // Edge stripe at bike lane / traffic boundary
     mplane(blX1 - 0.05, ZS, blX1 + 0.05, ZE, 0.005, blOk ? 0x2a7aaa : 0xB42C2C, 0.85);
     // Chevrons inside bike lane
-    const chW = Math.min(designBikeLaneW * 0.38, 0.28);
-    const chMx = blX0 + designBikeLaneW / 2;
+    const chW = Math.min((blX1 - blX0) * 0.38, 0.28);
+    const chMx = (blX0 + blX1) / 2;
     for (let z = ZS + 1.0; z < ZE - 0.3; z += 2.4) {
       mplane(chMx - chW, z, chMx, z + 0.18, 0.006, 0xffffff, 0.9);
       mplane(chMx, z, chMx + chW, z + 0.18, 0.006, 0xffffff, 0.9);
@@ -8949,7 +8957,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // Protected bike lane: flexible bollards at parklet/bike-lane boundary
     // Manual p.21, p.48: "City will supply and install flexible bollards at each end of the parklet as needed"
     // Manual p.21: to ensure visibility to passing cyclists/motorists
-    if (designBikeLane === 'protected') {
+    if (bikeLaneType() === 'protected') {
       const matBoll = new THREE.MeshStandardMaterial({color: 0xf07030, roughness: 0.65});
       const matRefl = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.3, metalness: 0.05});
       const geomBoll = new THREE.CylinderGeometry(0.038, 0.062, 0.75, 8);
@@ -9267,21 +9275,7 @@ if (s['__roadWidth']) {
     if (s['__enclosure']) { try { ENCLOSURE = ENC.norm(JSON.parse(s['__enclosure'])); } catch(e) {} }
     else if (s['__roadWidth'] !== undefined) ENCLOSURE = ENC.norm(Object.assign(JSON.parse(JSON.stringify(ENC.LEGACY)), { migrated: 'pre-21-12' }));
     if (s['__bldgR']) { try { BLDG_R = JSON.parse(s['__bldgR']); } catch(e) {} }
-    if (s['__bikeLane']) {
-      designBikeLane = s['__bikeLane'];
-      designBikeLaneW = parseFloat(s['__bikeLaneW']) || 1.5;
-      const slEl = document.getElementById('bikeLaneSlider');
-      const rdEl = document.getElementById('bikeLaneReadout');
-      const wfEl = document.getElementById('bikeLaneWidthField');
-      const hnEl = document.getElementById('bikeLaneHint');
-      if (slEl) slEl.value = designBikeLaneW;
-      if (rdEl) rdEl.textContent = designBikeLaneW.toFixed(2) + ' m';
-      if (wfEl) wfEl.style.display = designBikeLane !== 'none' ? '' : 'none';
-      if (hnEl) hnEl.style.display = 'none';
-      document.querySelectorAll('#bikeLaneToggle .seg-btn').forEach(function(btn) {
-        btn.classList.toggle('active', btn.textContent.trim().toLowerCase() === designBikeLane);
-      });
-    }
+    // (Brief 22: the autosave's old __bikeLane keys are not read; the bike lane is in the saved design's segments)
     if (s['__bufPKType']) {
       bufPKType = s['__bufPKType'];
       bufPKW = parseFloat(s['__bufPKW']) || 0.8;
@@ -11995,7 +11989,22 @@ FLU.readFile = async function(file) {
 };
 FLU.parseGLTF = async function(data) {
   var L = await FLU.lib('loaders/GLTFLoader.js', 'GLTFLoader');
-  return new Promise(function(res, rej) { new L().parse(data, '', function(g) { res(g.scene || (g.scenes && g.scenes[0])); }, function(e) { rej(new Error('The glTF file could not be read' + (e && e.message ? ': ' + e.message : '.'))); }); });
+  return new Promise(function(res, rej) { new L().parse(data, '', function(g) { var sc = g.scene || (g.scenes && g.scenes[0]); if (sc) sc.userData.__meta = FLU.metaGLTF(g); res(sc); }, function(e) { rej(new Error('The glTF file could not be read' + (e && e.message ? ': ' + e.message : '.'))); }); });
+};
+// the spec card's fields from a glTF file's own metadata (Brief 22 item 8): the extras of the asset, the scenes and the
+// nodes (name, manufacturer, model, material, url, notes by their usual keys), else the scene's or the first node's name
+// and the material names. Dimensions never come from here: always from the geometry.
+FLU.metaGLTF = function(g) {
+  var J = (g && g.parser && g.parser.json) || {}, pools = [], push = function(o) { if (o && typeof o === 'object') pools.push(o); };
+  push(J.asset && J.asset.extras); (J.scenes || []).forEach(function(s) { push(s.extras); }); (J.nodes || []).slice(0, 60).forEach(function(n) { push(n.extras); });
+  var pick = function(re) { for (var i = 0; i < pools.length; i++) for (var k in pools[i]) { var v = pools[i][k]; if (re.test(k) && v != null && typeof v !== 'object' && String(v).trim()) return String(v).trim().slice(0, 200); } return ''; };
+  var generic = /^(scene|root|rootnode|gltf|sketchup|object|mesh|group|default|node)\b/i, sn = ((J.scenes || [])[J.scene || 0] || {}).name || '', n0 = ((J.nodes || [])[0] || {}).name || '';
+  var mats = (J.materials || []).map(function(m) { return m && m.name; }).filter(function(n) { return n && !/^(material|default|mat|lambert|phong|standard)[\s_.#-]*\d*$/i.test(n); });
+  var m = { name: pick(/^(name|title|product.?name)$/i) || (sn && !generic.test(sn) ? sn : '') || (n0 && !generic.test(n0) ? n0 : ''),
+    manufacturer: pick(/^(manufacturer|brand|vendor|maker|company|producer)$/i), model: pick(/^(model|sku|article|product.?code|product.?id|catalog(ue)?.?(no|number)?)$/i),
+    material: pick(/^(materials?|finish(es)?)$/i) || mats.filter(function(v, i, a) { return a.indexOf(v) === i; }).slice(0, 3).join(', '),
+    url: pick(/^(url|link|website|web|product.?url|source.?url)$/i), notes: pick(/^(description|notes?|comments?)$/i) };
+  return Object.keys(m).some(function(k) { return m[k]; }) ? m : null;
 };
 FLU.parseOBJ = async function(text) { var L = await FLU.lib('loaders/OBJLoader.js', 'OBJLoader'); return new L().parse(text); };
 FLU.draftFrom = function(root, filename, fmt) {
@@ -12014,7 +12023,7 @@ FLU.draftFrom = function(root, filename, fmt) {
   });
   var groups = order.map(function(k) { var g = by[k]; g.pos = new Float32Array(g.pos.slice(0, g.pos.length - g.pos.length % 9)); tris += g.pos.length / 9; return g; }).filter(function(g) { return g.pos.length; });
   if (!groups.length) throw new Error(filename + ' has no triangles.');
-  var d = { filename: filename, fmt: fmt, groups: groups, tris: tris };
+  var d = { filename: filename, fmt: fmt, groups: groups, tris: tris, meta: (root.userData && root.userData.__meta) || null };
   d.units = FLU.guessUnits(d, 'y'); d.up = 'y';
   return d;
 };
@@ -12050,6 +12059,7 @@ FLU.build = function(draft, o) {
     date: new Date().toISOString().slice(0, 10), units: units, up: up, l: +l.toFixed(3), d: +d.toFixed(3), h: +h.toFixed(3), tris: tris, trisIn: draft.tris,
     groups: groups.map(function(g, i) { return { name: g.name, mat: mats[i] }; }),
     plan: FLU.silhouette(groups, 0, 2), front: FLU.silhouette(groups, 0, 1), end: FLU.silhouette(groups, 2, 1) };
+  var M = draft.meta || {}; rec.spec = { manufacturer: M.manufacturer || '', model: M.model || '', material: M.material || '', url: M.url || '', notes: M.notes || '', from: draft.meta ? 'the file\'s metadata' : '' };   // Brief 22 item 8
   return { rec: rec, geo: { groups: groups.map(function(g) { return { pos: g.pos }; }) } };
 };
 // Material: from the file's material name when it names one (wood, steel, concrete ...), else the
@@ -12196,6 +12206,7 @@ FLU.save = async function(rec, geo) {
 FLU.remove = async function(id) {
   FLU.lsWrite(FLU.lsMine().filter(function(r) { return r.id !== id; }));
   try { await FLU._tx('readwrite', function(s) { return s.delete(id); }); } catch (e) {}
+  try { await FLU._tx('readwrite', function(s) { return s.delete('att-' + id); }); } catch (e) {} delete FLU.att[id];
   delete FLU.geo[id];
   var used = window.FL3D && FL3D.placed && FL3D.placed.some(function(p) { return p.archetype === FLU.archId(id); });
   if (!used) { delete FL_ARCHETYPES[FLU.archId(id)]; delete FL_GEOM[FLU.archId(id)]; delete FLU.recs[id]; }   // placed pieces keep their definition
@@ -12217,7 +12228,8 @@ FLU._f32 = function(b64) { var s = atob(b64), u8 = new Uint8Array(s.length); for
 FLU.cloudPut = async function(rec, geo) {
   if (!FLU._signedIn()) return false;
   try {
-    var body = JSON.stringify({ rec: rec, geo: geo ? { groups: geo.groups.map(function(g) { return { pos: FLU._b64(g.pos) }; }) } : null });
+    var att = rec.spec && rec.spec.attach ? await FLU.attGet(rec.id, true) : null;   // the spec card's attachment travels in the same file (Brief 22 item 8)
+    var body = JSON.stringify({ rec: rec, geo: geo ? { groups: geo.groups.map(function(g) { return { pos: FLU._b64(g.pos) }; }) } : null, att: att });
     var r = await pkSB.storage.from(FLU.BUCKET).upload(pkCurrentUser.id + '/' + rec.id + '.json', new Blob([body], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
     if (r.error) { console.warn('[my furniture] bucket upload', r.error.message); return false; }
     return true;
@@ -12228,7 +12240,7 @@ FLU.cloudGet = async function(id) {
   try {
     var r = await pkSB.storage.from(FLU.BUCKET).download(pkCurrentUser.id + '/' + id + '.json'); if (r.error || !r.data) return null;
     var o = JSON.parse(await r.data.text());
-    return { rec: o.rec, geo: o.geo ? { groups: o.geo.groups.map(function(g) { return { pos: FLU._f32(g.pos) }; }) } : null };
+    return { rec: o.rec, geo: o.geo ? { groups: o.geo.groups.map(function(g) { return { pos: FLU._f32(g.pos) }; }) } : null, att: o.att || null };
   } catch (e) { return null; }
 };
 FLU.cloudDel = async function(id) { if (!FLU._signedIn()) return; try { await pkSB.storage.from(FLU.BUCKET).remove([pkCurrentUser.id + '/' + id + '.json']); } catch (e) {} };
@@ -12310,11 +12322,12 @@ FLU.openImport = function() {
 FLU.onImportFile = async function(file) {
   if (!file) return;
   FLU.status('Reading ' + file.name + '…');
-  try { var d = await FLU.readFile(file); FLU._imp = { draft: d, o: { units: d.units, up: d.up, type: 'other', name: d.filename.replace(/\.[^.]+$/, '') } }; FLU.importRender(); FLU.status(''); }
+  try { var d = await FLU.readFile(file); FLU._imp = { draft: d, o: { units: d.units, up: d.up, type: 'other', name: (d.meta && d.meta.name) || d.filename.replace(/\.[^.]+$/, '') } }; FLU.importRender(); FLU.status(d.meta ? 'Read the name, maker or material from the file; check the card.' : ''); }
   catch (e) { FLU._imp = null; document.getElementById('fluImp').innerHTML = ''; document.getElementById('fluAdd').disabled = true; FLU.status(e.message || String(e), true); }
 };
 FLU.importRender = function(keepMats) {
   var I = FLU._imp; if (!I) return;
+  if (document.getElementById('fluCI_manufacturer')) I.spec = FLU.cardRead('I');   // typed card values survive a units / up change
   var built = FLU.build(I.draft, { units: I.o.units, up: I.o.up, type: I.o.type, name: I.o.name, mats: keepMats && I.built ? I.built.rec.groups.map(function(g) { return g.mat; }) : null });
   I.built = built; var r = built.rec, det = I.draft.units;
   var uo = Object.keys(FLU.UNITS).map(function(u) { return "<option value='" + u + "'" + (u === I.o.units ? ' selected' : '') + '>' + u + (u === det ? ' (detected)' : '') + '</option>'; }).join('');
@@ -12326,12 +12339,14 @@ FLU.importRender = function(keepMats) {
     "<label title='Which of the file&rsquo;s axes points up. glTF is Y-up; some OBJ exports are Z-up.'>Up <select id='fluUp' onchange='FLU._imp.o.up=this.value;FLU.importRender(true)'><option value='y'" + (I.o.up === 'y' ? ' selected' : '') + ">Y</option><option value='z'" + (I.o.up === 'z' ? ' selected' : '') + '>Z</option></select></label></div>' +
     "<p class='flu-dims' id='fluDims'>" + r.l.toFixed(2) + ' × ' + r.d.toFixed(2) + ' × ' + r.h.toFixed(2) + ' m (length × depth × height) · ' + r.tris.toLocaleString() + ' triangles' + (r.trisIn > r.tris ? ' (from ' + r.trisIn.toLocaleString() + ')' : '') + '</p>' +
     "<div class='flu-sils'>" + FLU.silSVG(r.plan, r.l, r.d, 'Plan') + FLU.silSVG(r.front, r.l, r.h, 'Side') + '</div>' +
-    "<table class='flu-tab'><thead><tr><th>Part (from the file)</th><th>Finish</th></tr></thead><tbody>" + groups + '</tbody></table>';
+    "<table class='flu-tab'><thead><tr><th>Part (from the file)</th><th>Finish</th></tr></thead><tbody>" + groups + '</tbody></table>' +
+    FLU.cardFields(I.spec || (I.spec = JSON.parse(JSON.stringify(r.spec || {}))), 'I');
   document.getElementById('fluAdd').disabled = false;
 };
 FLU.importSave = async function() {
   var I = FLU._imp; if (!I || !I.built) return null;
   var r = I.built.rec; r.name = (I.o.name || r.name).trim() || r.name; r.type = I.o.type;
+  r.spec = Object.assign({}, r.spec || {}, FLU.cardRead('I'));   // the card as the user left it (Brief 22 item 8)
   var res = await FLU.save(r, I.built.geo);
   FLU.closeModal(); FLU.toLibrary(r.id, res.where);
   return r;
@@ -12450,9 +12465,13 @@ FLU.trUnderlay = async function(file) {
     FLU.status(file.name + ' under the grid' + (ext === 'dxf' && d.unit ? ' at its drawing scale (' + d.unit + ')' : ': set its width from a known dimension') + '. Nothing is taken from it.');
   } catch (e) { FLU.status('The underlay could not be read: ' + (e.message || e), true); }
 };
-FLU.pdfPage = async function(file) {
+FLU.pdfjs = async function() {   // pdf.js, loaded once (the tracing underlay and the spec cards' attachments)
   if (!window.pdfjsLib) await new Promise(function(res, rej) { var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js'; s.onload = res; s.onerror = function() { rej(new Error('pdf.js did not load')); }; document.head.appendChild(s); });
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  return pdfjsLib;
+};
+FLU.pdfPage = async function(file) {
+  await FLU.pdfjs();
   var doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, pg = await doc.getPage(1), vp = pg.getViewport({ scale: 2 });
   var c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
   await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
@@ -12551,9 +12570,10 @@ FLU.manRender = function() {
   var el = document.getElementById('fluManList'); if (!el) return;
   var list = FLU.list().slice().sort(function(a, b) { return String(b.date).localeCompare(String(a.date)) || a.name.localeCompare(b.name); });
   el.innerHTML = list.length ? "<table class='flu-tab'><thead><tr><th>Name</th><th>Type</th><th>Source</th><th>Added</th><th>Size, m</th><th></th></tr></thead><tbody>" + list.map(function(r) {
+    var q0 = "\"" + r.id + "\"", card = "<button type='button' class='flu-btn' onclick='FLU.openCard(" + q0 + ")' title='The spec card: maker, model, material, source, notes and a product sheet; it is the piece&rsquo;s row in the report&rsquo;s schedule.'>Spec card…</button>";
     var q = "\"" + r.id + "\"";
     return "<tr data-flu-id='" + r.id + "'><td><input value='" + FLU.esc(r.name) + "' onchange='FLU.rename(" + q + ",this.value).then(FLU.manRender)' title='Renames the piece (placed pieces follow).' aria-label='Name'></td><td>" + (FLU.TYPES[r.type] || FLU.TYPES.other).label + '</td><td>' + FLU.esc(r.kind === 'mesh' ? r.source : 'traced') + '</td><td>' + FLU.esc(r.date) + '</td><td>' + r.l.toFixed(2) + ' × ' + r.d.toFixed(2) + ' × ' + r.h.toFixed(2) + '</td>' +
-      "<td class='flu-acts'>" + (r.kind === 'traced' ? "<button type='button' class='flu-btn' onclick='FLU.openTrace(FLU.recs[" + q + "])' title='Opens the outline and heights for editing.'>Edit</button>" : '') +
+      "<td class='flu-acts'>" + card + (r.kind === 'traced' ? "<button type='button' class='flu-btn' onclick='FLU.openTrace(FLU.recs[" + q + "])' title='Opens the outline and heights for editing.'>Edit</button>" : '') +
       "<button type='button' class='flu-btn' onclick='FLU.duplicate(" + q + ").then(FLU.manRender)' title='Makes a copy you can change.'>Duplicate</button>" +
       "<button type='button' class='flu-btn' onclick='FLU.exportGLB(" + q + ")' title='Saves the piece as a .glb file.'>Export GLB</button>" +
       "<button type='button' class='flu-btn' onclick='FLU.manAskDelete(" + q + ")' title='Removes the piece from My furniture; pieces already placed stay in their designs.'>Delete</button></td></tr>";
@@ -12562,6 +12582,68 @@ FLU.manRender = function() {
 FLU.manAskDelete = function(id) {
   var tr = document.querySelector("#fluManList tr[data-flu-id='" + id + "'] .flu-acts"); if (!tr) return;
   tr.innerHTML = "<span class='flu-ask'>Delete " + FLU.esc((FLU.recs[id] || {}).name) + "?</span><button type='button' class='flu-btn flu-danger' onclick='FLU.remove(\"" + id + "\").then(FLU.manRender)' title='Deletes it from this browser and your account.'>Delete</button><button type='button' class='flu-btn' onclick='FLU.manRender()' title='Keeps it.'>Keep</button>";
+};
+// -- The spec card (Brief 22 item 8) ----------------------------------------------------------------------
+// name (the piece's own), manufacturer, model, material, dimensions (always the geometry's), source URL, notes and an
+// optional attachment (an image or a PDF product sheet). The card is the piece's row in S-001; an attachment prints
+// as an appendix sheet after X-001. The record keeps the fields and the attachment's name; the file itself is kept in
+// this browser (IndexedDB, 'att-<id>') and with the piece in the account.
+FLU.att = {};
+FLU.ATT_MB = 8;
+FLU.CARD = [['manufacturer', 'Manufacturer'], ['model', 'Model'], ['material', 'Material'], ['url', 'Source URL'], ['notes', 'Notes']];
+FLU.specOf = function(rec) {
+  var s = (rec && rec.spec) || {}, o = { name: rec ? rec.name : '', dims: rec ? rec.l.toFixed(2) + ' x ' + rec.d.toFixed(2) + ' x ' + rec.h.toFixed(2) + ' m' : '' };
+  FLU.CARD.forEach(function(f) { o[f[0]] = String(s[f[0]] || '').trim(); }); o.attach = s.attach || null; o.from = s.from || '';
+  return o;
+};
+FLU.cardFields = function(spec, pre) {
+  return "<fieldset class='flu-card'><legend>Spec card <span class='flu-hint'>the piece&rsquo;s row in the report&rsquo;s schedule; empty fields print &ldquo;not stated&rdquo;</span></legend>" +
+    FLU.CARD.map(function(f) { var id = 'fluC' + pre + '_' + f[0], v = FLU.esc(spec[f[0]] || ''); return f[0] === 'notes' ? "<label for='" + id + "'>" + f[1] + "<textarea id='" + id + "' rows='2'>" + v + '</textarea></label>' : "<label for='" + id + "'>" + f[1] + "<input id='" + id + "' value='" + v + "'" + (f[0] === 'url' ? " type='url' placeholder='https://'" : '') + '></label>'; }).join('') + '</fieldset>';
+};
+FLU.cardRead = function(pre) { var o = {}; FLU.CARD.forEach(function(f) { var e = document.getElementById('fluC' + pre + '_' + f[0]); if (e) o[f[0]] = String(e.value || '').trim(); }); return o; };
+FLU.openCard = function(id) {
+  var r = FLU.recs[id]; if (!r) return;
+  var s = FLU.specOf(r), q = "\"" + id + "\"";
+  FLU.modal('card', 'Spec card: ' + FLU.esc(r.name),
+    "<div class='flu-grid'><label for='fluCM_name'>Name <input id='fluCM_name' value='" + FLU.esc(r.name) + "'></label><div class='flu-dims'>Dimensions " + s.dims + ' (length × depth × height, from the ' + (r.kind === 'mesh' ? 'model' : 'outline') + ')</div></div>' +
+    FLU.cardFields(s, 'M') +
+    "<div class='flu-att'><span>Attachment: <b id='fluAttName'>" + (s.attach ? FLU.esc(s.attach.name) + ' (' + (s.attach.size / 1048576).toFixed(2) + ' MB)' : 'none') + "</b></span>" +
+    "<label class='flu-file' title='An image (PNG, JPEG) or a PDF product sheet, up to " + FLU.ATT_MB + " MB. It prints as an appendix sheet after X-001.'><input type='file' id='fluAttFile' accept='.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg' onchange='FLU.cardAttach(" + q + ", this.files[0])'><span>Attach a product sheet…</span></label>" +
+    (s.attach ? "<button type='button' class='flu-btn' onclick='FLU.cardAttach(" + q + ", null)' title='Removes the attachment from the card.'>Remove</button>" : '') + "</div><div class='flu-status' id='fluStatus' role='status'></div>",
+    "<button type='button' class='flu-btn' onclick='FLU.closeModal()' title='Closes this without saving.'>Cancel</button><button type='button' class='flu-btn flu-go' onclick='FLU.cardSave(" + q + ")' title='Saves the card; placed pieces and the report follow.'>Save card</button>");
+};
+FLU.cardSave = async function(id) {
+  var r = FLU.recs[id]; if (!r) return;
+  var nm = (document.getElementById('fluCM_name') || {}).value; if (nm && nm.trim()) r.name = nm.trim();
+  r.spec = Object.assign({}, r.spec || {}, FLU.cardRead('M'));
+  await FLU.save(r, null); FLU.register(r); FLU.rebuildPlaced(id); FLU.closeModal();
+  if (typeof pkToast === 'function') pkToast('Spec card saved.');
+  try { if (typeof FLU.manRender === 'function' && document.getElementById('fluManList')) FLU.manRender(); } catch (e) {}
+};
+// an image or PDF onto the card (null removes it)
+FLU.cardAttach = async function(id, file) {
+  var r = FLU.recs[id]; if (!r) return null;
+  if (!file) { r.spec = Object.assign({}, r.spec || {}); delete r.spec.attach; delete FLU.att[id]; try { await FLU._tx('readwrite', function(s) { return s.delete('att-' + id); }); } catch (e) {} await FLU.save(r, null); FLU.openCard(id); return null; }
+  var ok = /^(application\/pdf|image\/(png|jpeg))$/.test(file.type) || /\.(pdf|png|jpe?g)$/i.test(file.name);
+  if (!ok) { FLU.status('An attachment must be a PDF, PNG or JPEG file.', true); return null; }
+  if (file.size > FLU.ATT_MB * 1048576) { FLU.status(file.name + ' is ' + (file.size / 1048576).toFixed(1) + ' MB; the limit is ' + FLU.ATT_MB + ' MB.', true); return null; }
+  var url = await new Promise(function(res, rej) { var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = function() { rej(fr.error); }; fr.readAsDataURL(file); });
+  var type = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? 'application/pdf' : /png/i.test(file.type) || /\.png$/i.test(file.name) ? 'image/png' : 'image/jpeg';
+  var att = { name: file.name, type: type, size: file.size, data: url };
+  FLU.att[id] = att; try { await FLU._tx('readwrite', function(s) { return s.put({ id: 'att-' + id, owner: FLU.owner(), att: att }); }); } catch (e) { console.warn('[spec card] IndexedDB', e); }
+  r.spec = Object.assign({}, r.spec || {}, { attach: { name: att.name, type: att.type, size: att.size } });
+  if (r.kind === 'mesh') await FLU.ensureGeo(id);
+  await FLU.save(r, FLU.geo[id] || null);
+  if (document.getElementById('fluAttName')) FLU.openCard(id);
+  return att;
+};
+// the attachment's file: this browser, else the account (raw: without asking the account)
+FLU.attGet = async function(id, raw) {
+  if (FLU.att[id]) return FLU.att[id];
+  try { var q = await FLU._tx('readonly', function(s) { return s.get('att-' + id); }); if (q && q.att) { FLU.att[id] = q.att; return q.att; } } catch (e) {}
+  if (raw) return null;
+  var c = await FLU.cloudGet(id); if (c && c.att) { FLU.att[id] = c.att; try { await FLU._tx('readwrite', function(s) { return s.put({ id: 'att-' + id, owner: FLU.owner(), att: c.att }); }); } catch (e) {} return c.att; }
+  return null;
 };
 // Street objects (manholes, hydrants, poles...) register their own meshes here
 // (_registerStreet3DFactories). Furniture never does: it is all FL_ARCHETYPES.
@@ -14188,6 +14270,14 @@ document.addEventListener('click', function(e) {
   var menu = document.getElementById('appearanceMenu');
   if (menu && menu.style.display !== 'none' && btn && !btn.contains(e.target) && !menu.contains(e.target)) menu.style.display = 'none';
 });
+// furniture tags in the Plan (Brief 22 item 6): the screen's toggle only; the report sets its own per sheet
+var _pvTagsOn = true;
+function cadToggleTags() {
+  _pvTagsOn = !_pvTagsOn;
+  var btn = document.getElementById('cadTagBtn');
+  if (btn) { btn.classList.toggle('active', _pvTagsOn); btn.setAttribute('aria-pressed', String(_pvTagsOn)); }
+  try { if (typeof renderPlanView === 'function') renderPlanView(); } catch (e) {}
+}
 var _cadDimEnabled = true;
 function cadToggleDim() {
   _cadDimEnabled = !_cadDimEnabled;
@@ -17071,16 +17161,16 @@ function _dsScheduleLocal() {
 }
 window.addEventListener('load', function() {
   setTimeout(function() {
-    if (window.pkCurrentDesignId) return;   // a cloud design is (being) loaded instead
+    if (window.pkCurrentDesignId || window.pkOpenNone) return;   // a cloud design is (being) loaded instead, or signing in opened none
     var raw = null; try { raw = localStorage.getItem('pkt-design-state'); } catch (e) {}
-    if (!raw) return;
+    if (!raw) { pkApplyBlank(pkDefaultState()); return; }   // a first visit: stage 0, no site (Brief 22 item 5)
     try { pkApplyDesignState(JSON.parse(raw)); } catch (e) { console.warn('[design state] local restore failed:', e); }
   }, 1300);
 });
 function pkSerialize() {
   // Snapshot DOM into state before capturing
   try { if (typeof saveSettings === 'function') saveSettings(); } catch(e_) {}
-  return {
+  var _o = {
     schemaVersion: PK_SCHEMA_VERSION,
     savedAt: new Date().toISOString(),
     project: {
@@ -17098,8 +17188,6 @@ function pkSerialize() {
       bldgR:          typeof BLDG_R          !== 'undefined' ? BLDG_R          : null,
       parkletWidth:   typeof designParkletWidth  !== 'undefined' ? designParkletWidth  : 2.65,
       parkletLength:  typeof designParkletLength !== 'undefined' ? designParkletLength : 19.8,
-      bikeLane:       typeof designBikeLane  !== 'undefined' ? designBikeLane  : 'none',
-      bikeLaneW:      typeof designBikeLaneW !== 'undefined' ? designBikeLaneW : 1.5,
       bufferEnabled:  typeof designBufferEnabled !== 'undefined' ? !!designBufferEnabled : false,
       bufferW:        typeof designBufferW   !== 'undefined' ? designBufferW   : 0.9,
       // (Brief 21 §3: the bike lane's buffers are stored once, as crossSection segments; bufPKType etc. are read from them)
@@ -17141,6 +17229,7 @@ function pkSerialize() {
       // Brief 21: the neighbourhood (§8), the applied survey and the code map (§11)
       neighbourhood:(typeof state !== 'undefined' && typeof state['__neighbourhood'] === 'string') ? state['__neighbourhood'] : '',
       survey:       (typeof state !== 'undefined' && state['__survey'])      ? JSON.parse(JSON.stringify(state['__survey']))      : null,
+      existing:     (typeof state !== 'undefined' && state['__existing'])    ? JSON.parse(JSON.stringify(state['__existing']))    : null,   // Brief 22 item 3: the street as imported
       surveyMap:    (typeof state !== 'undefined' && state['__surveyMap'])   ? JSON.parse(JSON.stringify(state['__surveyMap']))   : null
     },
     furniture: {
@@ -17153,6 +17242,9 @@ function pkSerialize() {
       userDefs: (typeof FLU !== 'undefined' && typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? JSON.parse(JSON.stringify(FLU.defsFor(FL3D.placed))) : []
     }
   };
+  // stage 0 (Brief 22 item 5): the empty street, not the nominal globals behind the Choose a site panel
+  if (PK_NOSTREET) { Object.assign(_o.site, { totalRoad: 0, sidewalkW: 0, numLanes: 0, lanesA: 0, lanesB: 0, parkletWidth: 0, parkletLength: 0 }); _o.crossSection = []; }
+  return _o;
 }
 
 // ─── Migrate old schema ───────────────────────────────────────────
@@ -17216,8 +17308,13 @@ function bufFromSegs(segs) {
 // ─── Apply design state ───────────────────────────────────────────
 function pkApplyDesignState(raw) {
   if (!raw) return;
+  if (typeof _pvExtent !== 'undefined') { _pvExtent = 'sheet'; _pvUserMod = false; }   // a design opens at Fit sheet (Brief 22)
   var data = pkMigrate(raw);
   if (!data) return;
+  // stage 0 (Brief 22 item 5): a design with an empty street (not an older save without one) has no site yet; the
+  // globals take the nominal values, which stay hidden
+  PK_NOSTREET = Array.isArray(data.crossSection) && !data.crossSection.length;
+  if (PK_NOSTREET && typeof SEED !== 'undefined') data = Object.assign({}, data, { site: Object.assign({}, data.site || {}, SEED.NOMINAL) });
 
   // Project metadata
   if (data.project) {
@@ -17242,8 +17339,8 @@ function pkApplyDesignState(raw) {
     if (s.bldgR        !== null && s.bldgR !== undefined && typeof BLDG_R !== 'undefined') BLDG_R = s.bldgR;
     if (s.parkletWidth  !== undefined && typeof designParkletWidth  !== 'undefined') designParkletWidth  = s.parkletWidth;
     if (s.parkletLength !== undefined && typeof designParkletLength !== 'undefined') designParkletLength = s.parkletLength;
-    if (s.bikeLane      !== undefined && typeof designBikeLane      !== 'undefined') designBikeLane      = s.bikeLane;
-    if (s.bikeLaneW     !== undefined && typeof designBikeLaneW     !== 'undefined') designBikeLaneW     = s.bikeLaneW;
+    // (Brief 22) a save from before the cross-section was stored kept its bike lane only here: written as segments below
+    var _legacyBike = (s.bikeLane === 'painted' || s.bikeLane === 'protected') && !(Array.isArray(data.crossSection) && data.crossSection.some(function(q) { return q.type === 'bike-lane'; })) ? [s.bikeLane, +s.bikeLaneW || 0] : null;
     if (s.bufferEnabled !== undefined && typeof designBufferEnabled  !== 'undefined') designBufferEnabled = !!s.bufferEnabled;
     if (s.bufferW       !== undefined && typeof designBufferW        !== 'undefined') designBufferW       = s.bufferW;
     if (s.bufPKType !== undefined && typeof bufPKType !== 'undefined') bufPKType = s.bufPKType;
@@ -17322,6 +17419,7 @@ function pkApplyDesignState(raw) {
       state['__place']       = data.siteObjects.place         || { pkZ: 0, corners: [] };
       state['__neighbourhood'] = data.siteObjects.neighbourhood || '';
       state['__survey']      = data.siteObjects.survey        || null;
+      state['__existing']    = data.siteObjects.existing      || null;
       state['__surveyMap']   = data.siteObjects.surveyMap     || null;
     }
   }
@@ -17368,9 +17466,12 @@ function pkApplyDesignState(raw) {
   // The saved cross-section replaces the one rebuilt from the globals (older saves have none).
   var _segsIn = Array.isArray(data.crossSection) && data.crossSection.length ? data.crossSection : null;
   if (_segsIn && typeof window.seSetSegs === 'function') window.seSetSegs(_segsIn);
+  else if (PK_NOSTREET && typeof window.seSetSegs === 'function') window.seSetSegs([]);   // stage 0: nothing of the previous street survives
+  if (typeof _legacyBike !== 'undefined' && _legacyBike && typeof setBikeLane === 'function') setBikeLane(_legacyBike[0], _legacyBike[1]);
 
   // Full re-render (with saved segments the strip is already right: do not rebuild it)
   pkReRenderAll(_segsIn ? 'section-edit' : 'load');
+  if (typeof pkStageSync === 'function') pkStageSync();   // Brief 22 item 5
 }
 
 // ─── Clear all furniture ──────────────────────────────────────────
@@ -17473,7 +17574,9 @@ async function pkSignOut() {
 }
 
 // the landing page: the server's / (index.html); a file:// copy has no server root, so the file next to this one
-function pkLandingURL() { return window.location.protocol === 'file:' ? 'index.html' : '/'; }
+// the landing page beside this file: relative, so it works from a file, the local server and a project site
+// (GitHub Pages serves this at /curbside/, where '/' would be the account's root)
+function pkLandingURL() { return 'index.html'; }
 
 async function pkForgotPassword(email) {
   if (!pkSB) return;
@@ -17524,19 +17627,19 @@ async function pkLoadDesigns() {
 var DEFAULT_STATE = Object.freeze({
   schemaVersion: 1,
   project: { name: 'Untitled parklet', streetAddress: '' },
-  site: { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, roadDir: 'oneway', lanesA: 1, lanesB: 1,
-    bldgL: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
-    bldgR: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
-    parkletWidth: 2.65, parkletLength: 19.8, bikeLane: 'none', bikeLaneW: 1.5, bufferEnabled: false, bufferW: 0.9,
+  // stage 0 (Brief 22 item 5): no street, no deck, no buildings
+  site: { totalRoad: 0, sidewalkW: 0, numLanes: 0, roadDir: 'oneway', lanesA: 0, lanesB: 0,
+    bldgL: { buildings: [] }, bldgR: { buildings: [] },
+    parkletWidth: 0, parkletLength: 0, bufferEnabled: false, bufferW: 0.9,
     lat: 49.2827, lon: -123.1207, streetBearing: 0, parkletSide: 'east', contextZ: 600, sheets: {} },
   section: { z: null, dir: -1, depth: 6, depthBack: 0, x0: null, x1: null, yTop: null },
-  crossSection: [{ type: 'sidewalk', width: 1.8 }, { type: 'parklet', width: 2.65 }, { type: 'travel-lane', width: 2.985 }],
+  crossSection: [],
   enclosure: JSON.parse(JSON.stringify(ENC.DEFAULT)),   // Brief 21 §12
   compliance: { parking_restrictions: '', route_type: '', intersection_dist: '', slope: '', hydrant_dist: '', driveway_dist: '', pole_dist: '',
     pole_trolley: '', signal_box_dist: '', manhole_dist: '', fire_exit_block: '', drainage_clear: '', boulevard_clear: '', parking_setback: '',
     platform_gap: '', load_capacity: '' },
   siteObjects: { manholes: [], curb_features: [], driveways: [], pkShape: null, street_trees: [], transit_stops: [], prov: {}, siteMap: null,
-    place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, surveyMap: null },
+    place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, existing: null, surveyMap: null },
   furniture: { placed: [], userDefs: [] }
 });
 function pkDefaultState(name, address) {
@@ -17556,7 +17659,8 @@ function pkApplyBlank(s) {
     GEN.site = null; GEN.siteEdited = false; GEN.result = null; GEN.opened = null; GEN.undoSnap = null;
     var gg = document.getElementById('genGrid'); if (gg) gg.innerHTML = '';
   }
-  _pvDimsOn = true; _pvSectionOn = true; _3dSectionOn = true; _pvExtentsOn = false; _pvUserMod = false;   // the view toggles, the Plan fitted
+  _pvDimsOn = true; _pvSectionOn = true; _3dSectionOn = true; _pvExtentsOn = false; _pvUserMod = false; _pvExtent = 'sheet';   // the view toggles, the Plan fitted
+  _pvTagsOn = true; var _tgb = document.getElementById('cadTagBtn'); if (_tgb) { _tgb.classList.add('active'); _tgb.setAttribute('aria-pressed', 'true'); }
   if (typeof syncToolbarStates === 'function') try { syncToolbarStates(); } catch (e) {}
   if (typeof _3d !== 'undefined' && _3d) { _3d.hasPositioned = false; _3d._posTag = null; }            // the 3D home view reframes
   var sb = document.getElementById('sitePaste'); if (sb) sb.value = '';
@@ -17785,12 +17889,10 @@ async function pkInitApp() {
       // Check for local migration (first sign-in)
       var migrated = await pkCheckLocalMigration();
       if (!migrated) {
-        // Open most recent design or create new
-        if (pkAllDesigns.length > 0) {
-          await pkLoadDesign(pkAllDesigns[0].id);
-        } else {
-          await pkNewDesign('My First Parklet', '');
-        }
+        // Brief 22 item 5: signing in lists the designs and opens none (stage 0); the first site import makes a design
+        window.pkOpenNone = true; pkCurrentDesignId = null; pkCurrentDesignMeta = null;
+        pkApplyBlank(pkDefaultState());
+        if (pkAllDesigns.length > 0) pkOpenDesignBrowser();
       }
 
       // Listen for auth state changes
@@ -19519,8 +19621,8 @@ window.debugViewSync = function() {
     'Parklet length (m)':  typeof designParkletLength !== 'undefined' ? designParkletLength : '?',
     'Sidewalk width (m)':  typeof SIDEWALK_W          !== 'undefined' ? SIDEWALK_W          : '?',
     'Total road (m)':      typeof TOTAL_ROAD          !== 'undefined' ? TOTAL_ROAD          : '?',
-    'Bike lane type':      typeof designBikeLane      !== 'undefined' ? designBikeLane      : '?',
-    'Bike lane width (m)': typeof designBikeLaneW     !== 'undefined' ? designBikeLaneW     : '?',
+    'Bike lane type':      bikeLaneType(),
+    'Bike lane width (m)': bikeLaneWidth(),
     'Buffer enabled':      typeof designBufferEnabled  !== 'undefined' ? designBufferEnabled  : '?',
     'Buffer width (m)':    typeof designBufferW        !== 'undefined' ? designBufferW        : '?',
     'NUM_LANES':           typeof NUM_LANES            !== 'undefined' ? NUM_LANES           : '?',
@@ -20423,7 +20525,7 @@ GEN.siteFromLive = function() {
   var L = designParkletLength;
   return { road: TOTAL_ROAD, route: state['route_type'] === 'bus_truck' ? 'bus_truck' : 'standard',
     dir: ROAD_DIR, lanes: NUM_LANES, lanesA: LANES_A, lanesB: LANES_B, sidewalk: SIDEWALK_W,
-    bike: designBikeLane || 'none', bikeW: designBikeLaneW || 1.5, frontage: [0, +L.toFixed(2)] };
+    bike: bikeLaneType(), bikeW: bikeLaneWidth() || 1.5, frontage: [0, +L.toFixed(2)] };
 };
 GEN.loadPrefs = function() {
   var p = GEN.defaultPrefs();
@@ -20659,17 +20761,17 @@ GEN.r3 = function(v) { return Math.round(v * 1000) / 1000; };
 // values in, rebuilds DESIGN_MODEL from them (buildDesignModel, with the candidate's segments
 // and no furniture), runs fn, and restores every value in a finally block. Synchronous: no
 // render, no save, no DOM, so nothing observable touches the live design.
-GEN.G_KEYS = ['TOTAL_ROAD', 'SIDEWALK_W', 'NUM_LANES', 'ROAD_DIR', 'LANES_A', 'LANES_B', 'designBikeLane', 'designBikeLaneW',
+GEN.G_KEYS = ['TOTAL_ROAD', 'SIDEWALK_W', 'NUM_LANES', 'ROAD_DIR', 'LANES_A', 'LANES_B',
   'bufPKType', 'bufPKW', 'bufBLType', 'bufBLW', 'designParkletWidth', 'designParkletLength', 'designBufferEnabled', 'designBufferW', 'BLDG_L', 'BLDG_R'];
 GEN.getG = function() {
   return { TOTAL_ROAD: TOTAL_ROAD, SIDEWALK_W: SIDEWALK_W, NUM_LANES: NUM_LANES, ROAD_DIR: ROAD_DIR, LANES_A: LANES_A, LANES_B: LANES_B,
-    designBikeLane: designBikeLane, designBikeLaneW: designBikeLaneW, bufPKType: bufPKType, bufPKW: bufPKW, bufBLType: bufBLType, bufBLW: bufBLW,
+    bufPKType: bufPKType, bufPKW: bufPKW, bufBLType: bufBLType, bufBLW: bufBLW,
     designParkletWidth: designParkletWidth, designParkletLength: designParkletLength, designBufferEnabled: designBufferEnabled, designBufferW: designBufferW,
     BLDG_L: BLDG_L, BLDG_R: BLDG_R };
 };
 GEN.setG = function(g) {
   TOTAL_ROAD = g.TOTAL_ROAD; SIDEWALK_W = g.SIDEWALK_W; NUM_LANES = g.NUM_LANES; ROAD_DIR = g.ROAD_DIR; LANES_A = g.LANES_A; LANES_B = g.LANES_B;
-  designBikeLane = g.designBikeLane; designBikeLaneW = g.designBikeLaneW; bufPKType = g.bufPKType; bufPKW = g.bufPKW; bufBLType = g.bufBLType; bufBLW = g.bufBLW;
+  bufPKType = g.bufPKType; bufPKW = g.bufPKW; bufBLType = g.bufBLType; bufBLW = g.bufBLW;
   designParkletWidth = g.designParkletWidth; designParkletLength = g.designParkletLength; designBufferEnabled = g.designBufferEnabled; designBufferW = g.designBufferW;
   BLDG_L = g.BLDG_L; BLDG_R = g.BLDG_R;
 };
@@ -20683,7 +20785,7 @@ GEN.withScratch = function(ds, fn) {
   try {
     var s = ds.site, bf = (ds.crossSection && ds.crossSection.length) ? bufFromSegs(ds.crossSection) : { bufPKType: s.bufPKType || 'none', bufPKW: s.bufPKW || 0.8, bufBLType: s.bufBLType || 'none', bufBLW: s.bufBLW || 0.4 };
     GEN.setG({ TOTAL_ROAD: s.totalRoad, SIDEWALK_W: s.sidewalkW, NUM_LANES: s.numLanes, ROAD_DIR: s.roadDir, LANES_A: s.lanesA, LANES_B: s.lanesB,
-      designBikeLane: s.bikeLane, designBikeLaneW: s.bikeLaneW, bufPKType: bf.bufPKType, bufPKW: bf.bufPKW, bufBLType: bf.bufBLType, bufBLW: bf.bufBLW,
+      bufPKType: bf.bufPKType, bufPKW: bf.bufPKW, bufBLType: bf.bufBLType, bufBLW: bf.bufBLW,
       designParkletWidth: s.parkletWidth, designParkletLength: s.parkletLength, designBufferEnabled: s.bufferEnabled, designBufferW: s.bufferW,
       BLDG_L: s.bldgL, BLDG_R: s.bldgR });
     Object.keys(ds.compliance).forEach(function(k) { state[k] = ds.compliance[k]; });
@@ -21829,7 +21931,7 @@ RPT.data = function(mode) {
   var prov = (sp && SMP.anyPending()) || !!(typeof state !== 'undefined' && state.__survey);   // a survey never lifts provisional status (Brief 21 §11)
   var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.slice() : [], gt = RPT.groupsFor(placed);
   return { mode: mode === 'technical' ? 'technical' : 'schematic', sample: !!window.PK_SAMPLE, DM: DM, rows: rows, n: n, overall: prov ? 'provisional' : n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
-    opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null, groups: gt.groups, tags: gt.tags,
+    opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null, groups: gt.groups, tags: gt.tags, opts: (RPT._opts = RPT.opts()),
     date: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
 };
 // GEN metrics of the design as it stands (not of the scheme it may have been opened from): seats,
@@ -21894,12 +21996,67 @@ RPT.schedule = function(d) {
   var rows = d.groups.map(function(g) {
     var sp = g.sp, a = sp ? FL_ARCHETYPES[sp.type] : null, pr = g.row.pr;
     return [{ t: g.tag, b: true }, g.row.item + (a && a.cat === 'entourage' ? ' (entourage, not built)' : ''), g.row.dims, g.row.mats || '-', String(g.n),
-      pr ? pr.brand + ' ' + pr.name + (pr.art && pr.art !== 'not extracted' ? ', art. ' + pr.art : '') + (pr.src ? ' (' + pr.src + ')' : '') : 'generic archetype'];
+      pr ? pr.brand + ' ' + pr.name + (pr.art && pr.art !== 'not extracted' ? ', art. ' + pr.art : '') + (pr.src ? ' (' + pr.src + ')' : '') : a && a.user ? FLU.label(a) : 'generic archetype'];   // Brief 22 item 9: the provenance
   });
   if (!rows.length) rows = [['-', 'No furniture placed.', '', '', '0', '']];
   rows.push([{ t: '', b: true }, { t: 'Total', b: true }, '', { t: d.groups.length + ' types', b: true }, { t: String(d.placed.length), b: true }, '']);
   return RPT.textSheet('S-001', 'Furniture schedule', '', [{ table: { cols: [{ t: 'Tag', w: 0.05 }, { t: 'Item', w: 0.2 }, { t: 'Size l x d x h', w: 0.13, num: true }, { t: 'Material', w: 0.3 }, { t: 'Count', w: 0.06, num: true }, { t: 'Source', w: 0.26 }], rows: rows } },
-    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.encBlocks(d)), true);
+    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.userNote(d), RPT.cardBlocks(d), RPT.encBlocks(d)), true);
+};
+// Provenance (Brief 22 item 9): a user piece's tag carries a trailing dot (F3•); S-001 says what its figures rest on
+RPT.USER_DOT = '•';
+RPT.USER_NOTE = 'User-supplied furniture: dimensions from the supplied model; other specifications as entered by the applicant, not verified.';
+RPT.userNote = function(d) { return RPT.userGroups(d).length ? [{ p: RPT.USER_NOTE + ' Its tags carry a dot (F1' + RPT.USER_DOT + ').' }] : []; };
+// S-001's user pieces (Brief 22 item 8): each spec card as a row; an empty field prints "not stated"
+RPT.userGroups = function(d) { return d.groups.filter(function(g) { var a = g.sp && FL_ARCHETYPES[g.sp.type]; return a && a.user; }); };
+RPT.cardBlocks = function(d) {
+  var gs = RPT.userGroups(d); if (!gs.length) return [];
+  var NS = { t: 'not stated', c: RPT.MID }, v = function(s) { return s ? s : NS; };
+  var rows = gs.map(function(g) {
+    var rec = FL_ARCHETYPES[g.sp.type].rec, s = FLU.specOf(rec), at = s.attach ? s.attach.name + (d.attach && d.attach.some(function(a) { return a.id === rec.id; }) ? ', sheet ' + d.attach.filter(function(a) { return a.id === rec.id; })[0].sheet : '') : '';
+    return [{ t: g.tag, b: true }, s.name, v(s.manufacturer), v(s.model), v(s.material), s.dims, v(s.url), v(s.notes), v(at)];
+  });
+  return [{ h2: 'User-supplied furniture: the spec cards' }, { table: { cols: [{ t: 'Tag', w: 0.05 }, { t: 'Name', w: 0.12 }, { t: 'Manufacturer', w: 0.11 }, { t: 'Model', w: 0.08 }, { t: 'Material', w: 0.12 },
+    { t: 'Dimensions', w: 0.11 }, { t: 'Source URL', w: 0.15 }, { t: 'Notes', w: 0.14 }, { t: 'Attachment', w: 0.12 }], rows: rows } }];
+};
+// the attachments (Brief 22 item 8), fetched before the pages are made: an image as it is, a PDF page by page (at most
+// RPT.ATT_PAGES), each an appendix sheet after X-001: X-002, X-003 ...
+RPT.ATT_PAGES = 6;
+RPT.collectAttach = async function(d) {
+  var out = [], n = 2;
+  if (!RPT.on('schedule', d)) return out;
+  for (var g of RPT.userGroups(d)) {
+    var rec = FL_ARCHETYPES[g.sp.type].rec; if (!rec.spec || !rec.spec.attach) continue;
+    var att = await FLU.attGet(rec.id), pages = [];
+    if (!att) { var ms = 'X-' + String(n).padStart(3, '0'); out.push({ id: rec.id, tag: g.tag, name: rec.name, file: rec.spec.attach.name, missing: true, page: { url: null }, i: 0, n: 1, sheet: ms, sid: ms }); n++; continue; }
+    if (/pdf/.test(att.type)) {
+      try {
+        await FLU.pdfjs();
+        var raw = atob(att.data.split(',')[1]), u8 = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+        var doc = await pdfjsLib.getDocument({ data: u8 }).promise, N = Math.min(doc.numPages, RPT.ATT_PAGES);
+        for (var p = 1; p <= N; p++) { var pg = await doc.getPage(p), vp = pg.getViewport({ scale: 2 }), c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; pages.push({ url: c.toDataURL('image/jpeg', 0.9), w: vp.width, h: vp.height, of: doc.numPages }); }
+      } catch (e) { console.warn('[report] attachment', e); pages = [{ url: null }]; }
+    } else {
+      var im = await new Promise(function(res) { var q = new Image(); q.onload = function() { res(q); }; q.onerror = function() { res(null); }; q.src = att.data; });
+      pages = [{ url: im ? att.data : null, w: im ? im.naturalWidth : 1, h: im ? im.naturalHeight : 1 }];
+    }
+    var first = 'X-' + String(n).padStart(3, '0'); pages.forEach(function(q, i) { out.push({ id: rec.id, tag: g.tag, name: rec.name, file: att.name, page: q, i: i, n: pages.length, sheet: first, sid: 'X-' + String(n + i).padStart(3, '0') }); }); n += pages.length;
+  }
+  return out;
+};
+RPT.sheetAttach = function(d, s) {
+  var a = s.a, TX = RPT.TX;
+  return { id: s.id, title: s.title, scale: 0, draw: function(P) {
+    P.text(0, RPT.HEAD + 5.2, s.id, TX.head, { bold: true, c: RPT.MID });
+    P.text(RPT.tw(s.id, TX.head, true) + 4, RPT.HEAD + 5.2, s.title.toUpperCase(), TX.head, { bold: true });
+    P.line(0, RPT.HEAD + 7.2, RPT.SW, RPT.HEAD + 7.2, { w: RPT.LW.obj });
+    P.text(0, RPT.HEAD + 13, a.tag + ' ' + a.name + ': ' + a.file + (a.n > 1 ? ', page ' + (a.i + 1) + ' of ' + a.n + (a.page.of > a.n ? ' (of ' + a.page.of + ' in the file)' : '') : '') + '. Supplied by the applicant with the spec card (S-001); not verified.', TX.body, { c: RPT.MID });
+    var x0 = 0, y0 = RPT.HEAD + 18, x1 = RPT.SW - RPT.TB.w - 6, y1 = RPT.SH - 2, q = a.page || {};
+    if (!q.url) { P.text(x0, y0 + 8, a.missing ? 'The attachment is not in this browser or the account: open the piece\'s spec card where it was attached.' : 'The attachment could not be read.', TX.body); return; }
+    var sc = Math.min((x1 - x0) / q.w, (y1 - y0) / q.h), w = q.w * sc, h = q.h * sc;
+    P.rect(x0, y0, w, h, { cls: 'fine', fill: 'none' });
+    P.add("<image href='" + q.url + "' xlink:href='" + q.url + "' x='" + x0.toFixed(2) + "' y='" + y0.toFixed(2) + "' width='" + w.toFixed(2) + "' height='" + h.toFixed(2) + "' preserveAspectRatio='xMidYMid meet' data-attach='" + RPT.esc(a.file) + "'/>");
+  } };
 };
 // S-001's Enclosure block (Brief 21 §12): the archetype per side, height, buffer, materials; the enclosure is not furniture
 RPT.encBlocks = function(d) {
@@ -21932,6 +22089,17 @@ RPT.compliance = function(d) {
   var note = d.n.pass + ' pass  ·  ' + d.n.fail + ' fail  ·  ' + d.n.unclear + ' not confirmed' + (d.provisional ? '  ·  provisional' : '');
   return RPT.textSheet('C-001', 'Compliance', note, RPT.compBlocks(d), true);
 };
+// C-002 (Brief 22): what the Section puts beside the parklet, read from the segments (the bike lane's one source): the
+// segment against its traffic edge and the run out to the first travel lane
+RPT.besideParklet = function(DM) {
+  var cs = DM.crossSection || [], pi = cs.findIndex(function(s) { return s.type === 'parklet'; });
+  if (pi < 0) return 'No parklet segment in the Section.';
+  var name = function(s) { var n = (RPT.SEG[s.type] || s.type), v = s.variant && s.variant !== 'none' ? ' (' + String(s.variant).replace(/_/g, ' ') + ')' : ''; if (s.type === 'buf-pk') n = 'Buffer to the bike lane'; if (s.type === 'buf-bl') n = 'Buffer to the traffic'; return n + v + ', ' + RPT.fx(s.width, 2) + ' m'; };
+  var run = []; for (var i = pi + 1; i < cs.length && cs[i].type !== 'travel-lane'; i++) run.push(cs[i]);
+  var bt = bikeLaneType(cs), lane = cs.slice(pi + 1).find(function(s) { return s.type === 'travel-lane'; });
+  return 'Beside the parklet (from the Section): ' + (run.length ? name(run[0]) : 'the travel lane') + '. ' + (run.length ? 'Out to the first travel lane: ' + run.map(name).join('; ') + '. ' : '') +
+    'Bike lane: ' + (bt === 'none' ? 'none' : bt + ', ' + RPT.fx(bikeLaneWidth(cs), 2) + ' m') + '. The rightmost travel lane' + (lane ? ' (' + RPT.fx(lane.width, 2) + ' m)' : '') + ' is the first beyond ' + (run.length ? 'that run' : 'the parklet') + '.';
+};
 // ── C-002 Lane envelope (EDM Table 8-10) ───────────────────────────────────────────────────────────────
 RPT.lanes = function(d) {
   var DM = d.DM, route = DM.street.route, env = [];
@@ -21942,8 +22110,19 @@ RPT.lanes = function(d) {
   return RPT.textSheet('C-002', 'Lane envelope (EDM Table 8-10)', '', [
     { h2: 'EDM Table 8-10: travel lane widths (m); this design\'s route in bold' }, { table: { cols: [{ t: 'Route', w: 0.25 }, { t: 'Lane role', w: 0.25 }, { t: 'Absolute min.', w: 0.17, num: true }, { t: 'Preferred', w: 0.17, num: true }, { t: 'Max.', w: 0.16, num: true }], rows: env } },
     { p: 'Route of this design: ' + (route === 'bus_truck' ? 'bus / truck' : 'standard') + (DM.inputs.route_type && DM.inputs.route_type.entered ? '' : ' (route type not entered; standard assumed)') + '. Rightmost = the lane next to the parklet (or its bike lane / buffer); single = a lone travel lane. Below preferred needs City Engineer approval (note 4); above maximum is an exception only (note 8), never beyond ' + LANE_EXCEPTION_MAX + ' m.' },
+    { p: RPT.besideParklet(DM) }].concat(RPT.streetChanges(DM), [
     { h2: 'This design (m)' }, { table: { cols: [{ t: 'Lane', w: 0.05, num: true }, { t: 'Direction', w: 0.1 }, { t: 'Role', w: 0.1 }, { t: 'Width', w: 0.08, num: true }, { t: 'Abs. min.', w: 0.08, num: true }, { t: 'Preferred', w: 0.08, num: true }, { t: 'Max.', w: 0.07, num: true }, { t: 'Band', w: 0.24 }, { t: 'C02 min.', w: 0.08, num: true }, { t: 'C02', w: 0.12 }], rows: lanes.length ? lanes : [['-', 'No travel lane.', '', '', '', '', '', '', '', '']] } },
-    { p: 'C02 (Parklet Manual p. 20): the adjacent travel lane stays at least 3.0 m (3.2 m on bus / truck routes). Widths are the Section\'s travel-lane segments.' }], true);
+    { p: 'C02 (Parklet Manual p. 20): the adjacent travel lane stays at least 3.0 m (3.2 m on bus / truck routes). Widths are the Section\'s travel-lane segments.' }]), true);
+};
+// C-002 Street changes (Brief 22 item 3): the Section (proposed) against the street as imported (existing), per segment
+RPT.streetChanges = function(DM) {
+  var h = { h2: 'Street changes: existing (as imported) against proposed (the Section)' }, ex = typeof SITEF !== 'undefined' ? SITEF.ex() : null, rows = ex ? SITEF.rows(DM) : null;
+  if (!rows) return [h, { p: 'No imported street is recorded: import the street context to compare the Section with it.' }];
+  if (!rows.some(function(r) { return r.st; })) return [h, { p: 'None: the Section is the street as imported (' + SMP.day(ex.at) + ').' }];
+  var ST = { width: 'width changed', variant: 'type changed', added: 'added', removed: 'removed' };
+  return [h, { table: { cols: [{ t: 'Segment', w: 0.34 }, { t: 'Existing (m)', w: 0.16, num: true }, { t: 'Proposed (m)', w: 0.16, num: true }, { t: 'Change', w: 0.34 }],
+    rows: rows.map(function(r) { var b = !!r.st; return [{ t: (b ? '* ' : '') + r.seg, b: b }, { t: r.ex == null ? '-' : RPT.fx(r.ex, 2), b: b }, { t: r.pr == null ? '-' : RPT.fx(r.pr, 2), b: b }, { t: b ? ST[r.st] : '', b: b }]; }) } },
+    { p: 'Rows marked * differ from the street as imported (' + SMP.day(ex.at) + '). C02 and the lanes above evaluate the proposed street' + (RPT.on('sources') ? '; X-001 records the existing one.' : '.') }];
 };
 // ── X-001 Sources ───────────────────────────────────────────────────────────────────────────────────────
 RPT.sources = function(d) {
@@ -21975,6 +22154,7 @@ RPT.sources = function(d) {
   std.push(['DM Sans (SIL Open Font License 1.1)', 'the report\'s typeface, embedded'], ['jsPDF, svg2pdf.js (MIT)', 'the PDF engine (tools/vendor)']);
   var ins = Object.keys(DM.inputs).map(function(k) { return DM.inputs[k]; });
   var entered = ins.filter(function(i) { return i.entered; }).map(function(i) { return [i.label, (i.text || i.value) + (i.unit ? ' ' + i.unit : '') + (i.source === 'placed site objects' ? ' (measured from placed site objects)' : '')]; });
+  if (typeof SITEF !== 'undefined') entered = entered.concat(SITEF.overRows());   // Brief 22 item 3: the overridden facts of the existing street
   var hr = RPT.hostRaw(DM), hImp = hr && hr.b.__prov && ['use', 'name'].some(function(k) { return hr.b.__prov[k] && hr.b.__prov[k].source !== 'user'; });
   if (hr && hr.entered) entered.push(['Host building (' + (hImp ? 'imported, verify on site' : 'user input') + ')', RPT.hostLine(DM) + ', ' + hr.b.frontage + ' frontage, ' + hr.b.storeys + ' storey' + (hr.b.storeys > 1 ? 's' : '')]);
   var imp = typeof SMP !== 'undefined' ? SMP.sourcesList().map(function(s) { var i = s.indexOf(': '); return i > 0 ? [s.slice(0, i), s.slice(i + 2)] : [s, '']; }) : [];
@@ -21990,6 +22170,8 @@ RPT.sources = function(d) {
   var two = function(a, b) { return [{ t: a, w: 0.36 }, { t: b, w: 0.64 }]; };
   var blocks = [{ h2: 'Standards and data' }, { table: { cols: two('Source', 'Used for'), rows: std } }, { h2: 'Entered inputs' }, entered.length ? { table: { cols: two('Input', 'Value'), rows: entered } } : { p: 'None entered.' }];
   if (imp.length) blocks.push({ h2: 'Imported site data (verify on site)' }, { table: { cols: two('Item', 'Source'), rows: imp } }, { p: 'Nothing imported is authoritative: each imported value is a starting point to verify on site, and the checks that depend on one stay provisional until it is confirmed.' });
+  if (typeof SITEF !== 'undefined') blocks = blocks.concat(SITEF.xBlocks());   // the existing street (Brief 22 item 3)
+
   blocks = blocks.concat(RPT.treeBlocks(DM), [{ h2: 'From the design model' }, { table: { cols: two('Value', 'Derived from'), rows: model } }, { h2: 'Assumptions' }, { table: { cols: two('Topic', 'Assumption'), rows: assume } }]);
   return RPT.textSheet('X-001', 'Sources', '', blocks.concat([{ h2: 'Site' }], RPT.siteBlocks(d).slice(1)), false);
 };
@@ -22421,7 +22603,7 @@ RPT.planBase = function(P, G, F, mode, o) {
       if (mode === 'technical') DRAW_SYMBOLS.bike(P, xa + 0.3 * (xb - xa), bkY, bkR, { cls: 'context' });
       else for (var bz = Math.ceil(F.zA / 12) * 12 + 6; bz < F.zB; bz += 12) DRAW_SYMBOLS.bike(P, F.sx(bz), bkY, bkR, { cls: 'context' });
       // protected: the flexible posts on its traffic side, every 2 m along the deck and one at each end, as on screen
-      if (typeof designBikeLane !== 'undefined' && designBikeLane === 'protected') {
+      if (bikeLaneType() === 'protected') {
         bikePostZs(G.DM.parklet.length, 1.1).forEach(function(z) { if (z >= F.zA && z <= F.zB) DRAW_SYMBOLS.post(P, F.sx(z), y0 + h, 0.05 * F.k); });
       }
     }
@@ -22474,29 +22656,8 @@ RPT.planFurn = function(P, G, F, d, o) {
   });
   pieces.forEach(function(pc) { pc.shapes.filter(function(q) { return q.sh.overhead; }).forEach(function(q) { P.poly(q.pts, { fill: 'none', cls: 'general', dash: 'hidden' }); }); });
   if (o.tags === false) return;
-  // tags: every piece's box is taken first, so no tag lands on another piece; a tag inside its own piece must clear
-  // every other piece and tag too (an umbrella's pole stands in the table it shades)
-  pieces.forEach(function(pc) { taken.push({ b: pc.box, pc: pc }); });
-  var free = function(b, self) { return !taken.some(function(t) { var q = t.b; return (!self || t.pc !== self) && b[0] < q[2] && q[0] < b[2] && b[1] < q[3] && q[1] < b[3]; }); };
-  pieces.forEach(function(pc) {
-    var tag = d.tags[pc.p.id]; if (!tag) return;
-    var b = pc.box, w = RPT.tw(tag, TS, true), h = TS, cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, ib = [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2];
-    if (w + 1.6 <= b[2] - b[0] && h + 1.2 <= b[3] - b[1] && free(ib, pc)) { taken.push({ b: ib }); P.text(cx, cy + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "'" }); return; }
-    // rings 3 / 6 / 10 / 15 / 22 mm out, each right, left, above, below, then the corners
-    var tries = [];
-    [3, 6, 10, 15, 22].forEach(function(g) { tries.push([b[2] + g + w / 2, cy], [b[0] - g - w / 2, cy], [cx, b[1] - g - h / 2], [cx, b[3] + g + h / 2], [b[2] + g + w / 2, b[1] - g], [b[0] - g - w / 2, b[3] + g], [b[2] + g + w / 2, b[3] + g], [b[0] - g - w / 2, b[1] - g]); });
-    for (var i = 0; i < tries.length; i++) {
-      var t = tries[i], tb = [t[0] - w / 2 - 0.4, t[1] - h / 2 - 0.4, t[0] + w / 2 + 0.4, t[1] + h / 2 + 0.4];
-      if (!free(tb)) continue;
-      taken.push({ b: tb });
-      var ax = Math.max(b[0], Math.min(b[2], t[0])), ay = Math.max(b[1], Math.min(b[3], t[1]));   // the leader's end: the box point nearest the tag
-      var ex = t[0] < b[0] ? tb[2] : t[0] > b[2] ? tb[0] : t[0], ey = t[1] < b[1] ? tb[3] : t[1] > b[3] ? tb[1] : t[1];
-      DRAW_SYMBOLS.leader(P, [[ax, ay], [ex, ey]], { dot: true });
-      P.text(t[0], t[1] + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "' data-leader='1'" });
-      return;
-    }
-    P.text(cx, cy + h * 0.36, tag, TS, { anchor: 'middle', bold: true, data: " data-tag='" + tag + "'" });   // nowhere free: in the piece
-  });
+  // tags (Brief 22 item 6): placed later, by RPT.planTags, once the sheet's dimensions and labels are drawn
+  P._ftag = { pieces: pieces.map(function(pc) { return { key: pc.p.id, tag: d.tags[pc.p.id] || '', polys: (pc.body.length ? pc.body : pc.shapes).map(function(q) { return q.pts; }), box: pc.box }; }) };
 };
 // Sheets draw by purpose, not by the Plan viewport (Brief 19b): each plan sheet's own layers of site objects and trees.
 // A-101 the context (trees with their canopies, hydrants, poles, stops); A-102 the objects a check measures
@@ -22628,6 +22789,7 @@ RPT.sheetLayout = function(d) {
   var cityAt = RPT.cityPlan(P, F, d);
   RPT.planFurn(P, G, F, d);
   RPT.planObjects(P, G, F, { layers: RPT.SHEET_LAYERS.A102 });
+  var tagLater = function() { RPT.planTags(P, [xa + 0.5, ya + 0.5, xb - 0.5, yb - 0.5], 'A-102'); };   // after the zones' lozenges (Brief 22 item 6)
   // clearance zones: DRAW_STYLE's zone line (fine, dashed; red when that check fails), the rule ID in its lozenge
   var zst = function(id) { return G.fail(id) ? 'fail' : 'pass'; };
   var zone = function(id, z0, z1, x0, x1) {
@@ -22645,6 +22807,7 @@ RPT.sheetLayout = function(d) {
     if (r) { var z = DRAW_STYLE.zone(P.ctx, zst(id)); P.circle(F.sx(c.z), F.sy(c.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='" + id + "'" }); DRAW_SYMBOLS.lozenge(P, F.sx(c.z) + r * k + 4, F.sy(c.x) - 2, id === 'c7' ? 'C07' : 'C08', zst(id)); }
   });
   G.mh.forEach(function(m) { var z = DRAW_STYLE.zone(P.ctx, zst('c9')), r = 1 + (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47); P.circle(F.sx(m.z), F.sy(m.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='c9'" }); DRAW_SYMBOLS.lozenge(P, F.sx(m.z) + r * k + 4, F.sy(m.x) - 2, 'C09', zst('c9')); });
+  tagLater();
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
   // across, left of the drawing: the running chain of segments (frontage .. far curb), the overall on the next row
@@ -22697,7 +22860,7 @@ RPT.sheetLayout = function(d) {
     { t: 'Segments from the Section editor, chained with the overall, frontage to far curb.', at: [xa - 20, (F.sy(0) + F.sy(LM.roadRight)) / 2] },
     { t: hz != null && zs.indexOf(hz) >= 0 ? 'The deck located from the host frontage (' + (host.name || host.use || 'host') + ').' : 'The deck located along the curb from its start.', at: [F.sx(G.L / 2), ay - 9] },
     { t: 'Clearance zones dashed, with their rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal, C09 chamber, C13 parking); red: the check fails.', at: zoneAt },
-    { t: 'Furniture tags: schedule S-001.', at: null },
+    { t: RPT.tagNote(d), at: null },
     { t: RPT.CITY_NOTE, at: cityAt },
     { t: 'Section A-A: sheet A-201; deck plan A-103.', at: [F.sx(G.sec.z) + 10, F.sy(LM.sidewalkL.x0) - 6] }
   ];
@@ -22767,13 +22930,14 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   if (posts.length > 1) { var pa = posts.filter(function(z) { return z >= za && z <= zb; }); if (pa.length > 1) RPT.chain(P, { side: 'top', edge: dTop, row: 1, at: [sx(pa[1]), sx(pa[0])], vals: [RPT.fmt(pa[1] - pa[0]) + ' typ.'] }); }
   RPT.chain(P, { side: 'bottom', edge: dBot, row: 1, at: [sx(Math.min(L, zb)), sx(Math.max(0, za))], vals: [RPT.fmt(lenHere) + (nParts > 1 ? ' (of ' + RPT.fmt(L) + ')' : '')], data: " data-deck-len='" + lenHere.toFixed(3) + "'" });
   RPT.chain(P, { side: 'right', edge: sx(Math.max(0, za)), row: 0, at: [dTop, dBot], vals: [RPT.fmt(LM.deckX1 - LM.deckX0)] });
+  RPT.planTags(P, [xa + 0.5, ya + 0.5, xb - 0.5, yb - 0.5], nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103');   // Brief 22 item 6: after the dimension rows
   var keys = [
     { t: 'Grid lines 1, 2, 3 ... at the enclosure posts on the traffic side' + (posts.length > 1 ? ', ' + (posts[1] - posts[0]).toFixed(2) + ' m apart, the first at ' + posts[0].toFixed(2) + ' m' : '') + '.', at: null },
     { t: 'Enclosure: ' + ENC.describe(G.DM) + ': details A-301.', at: encAt.traffic || null },
     { t: 'Hatched: the accessible route, clear width ' + (typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92) + ' m or more from the entries.', at: routeAt },
     { t: 'Entry turning space, ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(2) + ' m square.', at: entryAt },
     { t: 'End enclosure: ' + EN.runs[1].name.toLowerCase() + ', ' + EN.runs[1].depth.toFixed(2) + ' m deep, ' + EN.runs[1].top.toFixed(2) + ' m high' + (EN.runs[2].id !== EN.runs[1].id ? '; far end ' + EN.runs[2].name.toLowerCase() : '') + '.', at: plAt },
-    { t: 'Furniture tags: schedule S-001.', at: null }
+    { t: RPT.tagNote(d), at: null }
   ];
   var id = nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103';
   return RPT.dsheet(d, id, 'Deck plan' + (nParts > 1 ? ' (' + (idx + 1) + ' of ' + nParts + ')' : ''), sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: cr.x1, north: true });
@@ -22949,9 +23113,23 @@ RPT.SHEETS = {
   technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
+// Report options (Brief 22 item 7): the Export tab's Include boxes; a sheet left out is not in the list, so the drawing
+// list and the page numbers follow. Compliance detail is C-001 and C-002; Renders are the render sheets and the cover's image.
+RPT.OPT_KEYS = ['schedule', 'sources', 'compliance', 'renders'];
+RPT.opts = function() { var o = {}; RPT.OPT_KEYS.forEach(function(k) { var e = document.getElementById('rptOpt_' + k); o[k] = e ? !!e.checked : true; }); return o; };
+RPT.OPT_SHEETS = { schedule: ['schedule'], sources: ['sources'], compliance: ['compliance', 'lanes'], renders: ['renders'] };
+RPT.on = function(k, d) { var o = (d && d.opts) || RPT._opts; return !o || o[k] !== false; };
+// the plans' tag note: the schedule, or with the schedule left out, each tag's item
+RPT.tagNote = function(d) {
+  if (RPT.on('schedule', d)) return 'Furniture tags: schedule S-001.';
+  var gs = d.groups.filter(function(g) { return !(g.sp && flIsEntourage(g.sp.type)); });
+  return gs.length ? 'Furniture tags: ' + gs.map(function(g) { return g.tag + ' ' + g.row.item + (g.n > 1 ? ' (' + g.n + ')' : ''); }).join('; ') + '.' : 'No furniture placed.';
+};
 RPT.sheetList = function(d) {
-  var out = [];
+  var out = [], off = [];
+  RPT.OPT_KEYS.forEach(function(k) { if (!RPT.on(k, d)) off = off.concat(RPT.OPT_SHEETS[k]); });
   RPT.SHEETS[d.mode].forEach(function(k) {
+    if (off.indexOf(k) >= 0) return;
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     // (Brief 19b: each drawing's scale from RPT.SCALE_OF, the value its sheet draws at and its title block prints)
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
@@ -22960,6 +23138,8 @@ RPT.sheetList = function(d) {
       compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
   });
+  // the spec cards' attachments, an appendix after X-001 (Brief 22 item 8)
+  (d.attach || []).forEach(function(a) { out.push({ k: 'attach', a: a, id: a.sid, title: 'Attachment: ' + a.file, scale: '-' }); });
   return out;
 };
 RPT.BUILDERS = {
@@ -22974,7 +23154,8 @@ RPT.BUILDERS = {
 
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
   lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); },
-  survey: function(d) { return RPT.surveySheet(d); }   // S-002 (Brief 21 §11)
+  survey: function(d) { return RPT.surveySheet(d); },   // S-002 (Brief 21 §11)
+  attach: function(d, drw, s) { return RPT.sheetAttach(d, s); }   // Brief 22 item 8
 };
 // Furniture groups (one schedule row each: item, size, finish, preset) and the tag every placed piece carries
 // on the plans: made once per report, so the schedule and the drawings agree.
@@ -22989,7 +23170,7 @@ RPT.groupsFor = function(placed) {
     if (!byKey[key]) { byKey[key] = { key: key, inst: p, sp: sp, row: row, n: 0, ids: [] }; groups.push(byKey[key]); }
     byKey[key].n++; byKey[key].ids.push(p.id);
   });
-  groups.forEach(function(g, i) { g.tag = 'F' + (i + 1); g.ids.forEach(function(id) { tags[id] = g.tag; }); });
+  groups.forEach(function(g, i) { var a = g.sp && FL_ARCHETYPES[g.sp.type]; g.tag = 'F' + (i + 1) + (a && a.user ? RPT.USER_DOT : ''); g.ids.forEach(function(id) { tags[id] = g.tag; }); });   // a user piece's tag: F3• (Brief 22 item 9)
   return { groups: groups, tags: tags };
 };
 
@@ -23052,6 +23233,9 @@ RPT.sheetTitle = function(d, drw) {
     function(X, Y) { DRAW_SYMBOLS.busStop(P, X, Y); }, 'Bus stop',
     function(X, Y) { RPT.sym.grid(P, X, Y, '1'); }, 'Grid line at a railing post', function(X, Y) { RPT.sym.level(P, X, Y + 1, '', true); }, 'Level (datum: top of curb)',
     function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone'];
+  if (RPT.userGroups(d).length) syms.push(function(X, Y) { var fs = TX.tag, w = RPT.tw('F1' + RPT.USER_DOT, fs, true) + 1.6; DRAW_SYMBOLS.ftag(P, { box: [X - w / 2, Y - fs / 2 - 0.6, X + w / 2, Y + fs / 2 + 0.6], cx: X, cy: Y, a: [X - w / 2 - 3, Y], e: [X - w / 2, Y], tag: 'F1' + RPT.USER_DOT }, fs); },
+    'Furniture tag, S-001; a dot: user-supplied, not verified');   // Brief 22 item 9
+
   for (var i = 0; i < syms.length; i += 2) { syms[i](lx + 8, ly - 1); P.text(lx + 20, ly, syms[i + 1], TX.tag); ly += 5.4; }
   ly += 2;
   [['concrete', 'Concrete'], ['timber', 'Timber deck, along the boards'], ['planting', 'Planting'], ['earth', 'Earth, subgrade'], ['poche', 'Cut building'], ['cut', 'Cut steel, thin material'], ['route', 'Accessible route']].forEach(function(q) {
@@ -23064,8 +23248,7 @@ RPT.sheetTitle = function(d, drw) {
   return RPT.dsheet(d, 'A-000', 'Title sheet', 0, P, [
     { t: 'Dimensions in metres unless noted; drawings at the scale stated on a 17 x 11 in sheet.', at: null },
     { t: 'Generated from the design model; imported site data is indicative and must be verified on site.', at: null },
-    { t: 'Sources, the renders\' credits and the model\'s assumptions: sheet X-001.', at: null }
-  ], null);
+  ].concat(RPT.on('sources', d) ? [{ t: 'Sources, the renders\' credits and the model\'s assumptions: sheet X-001.', at: null }] : []), null);
 };
 
 // ── Renders in the schematic report (Brief 12b): only the current design's photoreal images ─────────────
@@ -23502,6 +23685,8 @@ RPT.make = async function(mode) {
   var d = RPT.data(mode || RPT.mode());
   // the renders are the design's in both reports (their credits in X-001); only the schematic prints the images
   d.renders = await (RPT.renderSource || RPT.collectRenders)();
+  if (!RPT.on('renders', d)) d.renders = [];   // Renders left out (Brief 22 item 7): no render sheet, no render on the cover
+  d.attach = await RPT.collectAttach(d);   // the spec cards' attachments (Brief 22 item 8)
   var drw = await RPT.drawings(d), doc = await RPT.render(d, drw);
   RPT.lastData = d;
   RPT.lastPdf = { blob: doc.output('blob'), name: RPT.fileName(d), pages: doc.getNumberOfPages(), check: RPT.lastCheck };
@@ -24180,7 +24365,7 @@ RVZ.build = function(o) {
         var st = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(1.1, (s.x1 - s.x0) * 0.72), 2.2), RVZ.decal('bike', '#FFFFFF', 0.92));
         st.rotation.set(-Math.PI / 2, 0, dz < 0 ? Math.PI : 0, 'YXZ'); st.position.set(cxs, 0.005, z); st.renderOrder = 1; root.add(st);
       }
-      if (typeof designBikeLane !== 'undefined' && designBikeLane === 'protected') {
+      if (bikeLaneType() === 'protected') {
         var bx = lanes.length ? lanes[0].x0 : s.x1;
         for (var bz = 0; bz <= L; bz += 2) bollard(bx, bz);
       }
@@ -25276,6 +25461,8 @@ RVZP.adapters = {
 // 'nokey' = the server answers without a key. A server older than /health falls back to /status.
 RVZP.checkProxy = async function() {
   if (location.protocol === 'file:') { RVZP.proxy = { proxy: false, why: 'file' }; RVZP._syncUI(); return RVZP.proxy; }
+  // a hosted copy (GitHub Pages) has no relay: said as it is, and nothing is fetched
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) { RVZP.proxy = { proxy: false, why: 'hosted' }; RVZP._syncUI(); return RVZP.proxy; }
   async function get(u) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, t = setTimeout(function() { if (ctl) ctl.abort(); }, 2500);
     try { var r = await fetch(u, { headers: RVZP._hdr, signal: ctl ? ctl.signal : undefined, cache: 'no-store' }); return r.ok ? await r.json() : null; }
@@ -25292,6 +25479,7 @@ RVZP.checkProxy = async function() {
 RVZP.WHY = {
   file: 'You opened the file directly. Photoreal needs the app served from the local server. Run tools/start.cmd, or open http://localhost:8766/parklet-checker.html.',
   down: 'The local server isn\'t running. Run tools/start.cmd.',
+  hosted: 'Photoreal renders run through the relay in the local server, which this hosted copy doesn\'t have. To render, clone the repository and run tools/start.cmd; everything else works here.',
   nokey: 'Photoreal renders use your own Replicate account. Add a key in Connections.'
 };
 RVZP.ready = function() { return !!(RVZP.proxy && RVZP.proxy.proxy && RVZP.proxy.key === 'present'); };
@@ -26138,7 +26326,7 @@ SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', estimate: 
 SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', estimate: 'Estimate', user: 'You', survey: 'Survey' };   // no abbreviations in labels (Brief 21 §2)
 // Site-tab fields that carry a tag: key -> the element whose .ff label gets it
 SMP.FIELDS = { sidewalk: 'sidewalkWidth', address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
-  roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'bikeLaneToggle' };
+  roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'csPanel' };
 SMP.CRIT_FIELDS = { c2: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'routeType', 'bikeLane', 'farParking', 'farBike'], c1: ['parkingRestrictions'] };
 
 // ── Provenance tags in the Site tab; editing a field flips it to 'user'; a click confirms ─────
@@ -26163,7 +26351,8 @@ SMP.tags = function() {
     SMP.tagEl(lab, P[k], function() { SMP.confirmField(k); });
     if (!el._smpBound) {   // a user edit flips the field to 'user'
       el._smpBound = true;
-      ['input', 'change', 'click'].forEach(function(ev) { el.addEventListener(ev, function(e) { if (ev === 'click' && !e.target.closest('button')) return; var q = SMP.prov()[k]; if (q && q.source !== 'user') { SMP.prov()[k] = { source: 'user', from: q.source, fetchedAt: q.fetchedAt, editedAt: new Date().toISOString() }; setTimeout(SMP.refresh, 0); } }); });
+      ['input', 'change', 'click'].forEach(function(ev) { el.addEventListener(ev, function(e) { if (ev === 'click' && !e.target.closest('button')) return; var q = SMP.prov()[k];
+        if (k === 'roadWidth' && (window._rwRefused || (typeof roadRowCeil === 'function' && roadRowCeil() && parseFloat(el.value) >= roadRowCeil() - 0.0005))) { window._rwRefused = false; return; } /* a refused entry (Brief 22 item 4) changes nothing */ if (q && q.source !== 'user') { SMP.prov()[k] = { source: 'user', from: q.source, fetchedAt: q.fetchedAt, editedAt: new Date().toISOString() }; setTimeout(SMP.refresh, 0); } }); });
     }
   });
 };
@@ -26618,7 +26807,11 @@ SMP.importContext = async function() {
     await runStep('hydrants', async function(sig) { cov['water-hydrants'] = await SMP.cov('water-hydrants', 'geo_point_2d', la, lo, sig); cov.bikeways = await SMP.cov('bikeways', 'geom', la, lo, sig); });
     cov['public-trees'] = await runStep('trees', function(sig) { return SMP.cov('public-trees', 'geo_point_2d', la, lo, sig); });
     cov['rapid-transit-stations'] = await runStep('transit', function(sig) { return SMP.cov('rapid-transit-stations', 'geo_point_2d', la, lo, sig); });
-    cov['property-addresses'] = await runStep('addresses', function(sig) { return SMP.cov('property-addresses', 'geo_point_2d', la, lo, sig); });
+    cov['property-addresses'] = await runStep('addresses', async function(sig) {
+      // the City's right-of-way widths (Brief 22 item 3) with the addresses: a failure leaves the width unknown, not the import failed
+      try { cov['right-of-way-widths'] = await SMP.cov('right-of-way-widths', 'geom', la, lo, sig); } catch (e) { if (sig && sig.aborted) throw e; cov['right-of-way-widths'] = { rows: [], at: null, err: e && e.message ? e.message : String(e) }; }
+      return SMP.cov('property-addresses', 'geo_point_2d', la, lo, sig);
+    });
     // apply (every fetch succeeded)
     cur = 'apply'; SMP._touched = [];
     var P = data.parts, before = SMP.snapshot();
@@ -26626,6 +26819,8 @@ SMP.importContext = async function() {
     SMP.applyBuildings(P.blds, P.pois, data.osm.at, rep);
     SMP.applyAddresses(cov['property-addresses'].rows, cov['property-addresses'].at, rep);
     SMP.applyObjects(cov, P.stops, data.osm.at, rep);
+    if (PK_NOSTREET && typeof SEED !== 'undefined') SEED.parklet(rep);   // stage 0 -> 1: the deck at the host frontage (Brief 22 item 5)
+    SITEF.fromImport(P.way, cov['right-of-way-widths'], data.osm.at, rep);   // the existing street, before any design change
     SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString();
     // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import
     cur = 'city'; st.city = 'run'; show();
@@ -26663,7 +26858,7 @@ SMP.importContext = async function() {
 SMP.snapshot = function() {
   var strip = function(list) { return (list || []).map(function(b) { var o = Object.assign({}, b); delete o.__prov; return o; }); };
   var ids = function(list) { return (list || []).map(function(o) { return o.id + '@' + o.xM + ',' + o.yM; }); };
-  return JSON.stringify({ road: TOTAL_ROAD, sw: SIDEWALK_W, dir: ROAD_DIR, n: NUM_LANES, a: LANES_A, b: LANES_B, bike: designBikeLane, bikeW: designBikeLaneW, route: state.route_type,
+  return JSON.stringify({ road: TOTAL_ROAD, sw: SIDEWALK_W, dir: ROAD_DIR, n: NUM_LANES, a: LANES_A, b: LANES_B, bike: bikeLaneType(), bikeW: bikeLaneWidth(), route: state.route_type,
     segs: (window.seGetSegs ? window.seGetSegs() : []).map(function(s) { return s.type + ':' + (+s.width).toFixed(3) + ':' + (s.variant || ''); }),
     L: strip(BLDG_L.buildings), R: strip(BLDG_R.buildings), cf: ids(state.curb_features), tr: ids(state.street_trees), ts: ids(state.transit_stops), pr: state.parking_restrictions || '' });
 };
@@ -26762,7 +26957,8 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
     var a = document.getElementById('lanesA'), b = document.getElementById('lanesB'); if (a) a.value = near; if (b) b.value = far; onLanesAChange(); onLanesBChange();
     ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, src, plan.ids, at, lnote); }); s.lanes = (near + far) + ' lanes (two-way, ' + near + '+' + far + ')';   // the total first: '6 lanes (two-way, 3+3)'
   }
-  onBikeLaneType(nearBike || 'none'); if (plan.bike.v) SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : plan.ids, bsrc === 'cov' ? bikeways.at : at, plan.bike.note); s.bike = nearBike || 'none';
+  setBikeLane(nearBike || 'none'); if (plan.bike.v) SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : plan.ids, bsrc === 'cov' ? bikeways.at : at, plan.bike.note); s.bike = nearBike || 'none';
+  s.bikeSrc = { source: 'osm', id: plan.ids, fetchedAt: at, note: plan.bike.v ? plan.bike.note : 'no cycleway tag on the way, no City bikeway on the street' };   // the existing record's source when OSM says nothing
   var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), rt = /^(trunk|primary|secondary)$/.test(hw) || bus.length ? 'bus_truck' : 'standard';
   onRouteTypeToggle(rt);
   SMP.set('routeType', 'osm', plan.ids, at, 'suggested: highway=' + (t.highway || '?') + (bus.length ? '; bus route' + (bus.length > 1 ? 's ' : ' ') + bus.map(function(r) { return String(r.tags.ref || r.tags.name || r.id); }).filter(function(v, i, a) { return a.indexOf(v) === i; }).join(', ') : '; no bus route on the way') + (stops.length ? '; ' + stops.length + ' bus stop' + (stops.length > 1 ? 's' : '') + ' within 80 m' : ''));
@@ -26952,7 +27148,421 @@ SMP.sourcesList = function() {
 })();
 </script>
 <style>
+/* -- Brief 22 item 3: the Site step's existing-street facts ------------------------------------ */
+.sf-intro { display: block; margin: 2px 0 8px; }
+.sf-fact { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.sf-val { font-weight: 600; color: var(--c-text, #F2F2F0); font-size: 12px; }
+.sf-over { margin-left: auto; font-size: 11px; }
+.sf-src { flex-basis: 100%; font-size: 11px; line-height: 1.4; color: var(--c-text-dim, #9AA0A6); }
+.sf-fact.sf-overridden .sf-val::after { content: ' (overridden)'; font-weight: 400; color: var(--c-text-dim, #9AA0A6); }
+.sf-edit { margin-top: 6px; }
+.sf-rw, .sf-lanesrc { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; }
+.sf-refuse { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; font-weight: 600; color: var(--st-fail, #E0795E); }
+.sf-refuse:empty { display: none; }
+.flu-card { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 10px 0 0; padding: 8px 10px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; }
+.flu-card legend { padding: 0 4px; font-weight: 600; }
+.flu-card label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.flu-card label:last-child { grid-column: 1 / -1; }
+.flu-card textarea { resize: vertical; font: inherit; }
+.flu-hint { font-weight: 400; color: var(--c-text-dim, #9AA0A6); font-size: 11px; }
+.flu-att { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: 12px; }
+.rpt-opts { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 8px; padding: 6px 8px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; }
+.rpt-opts legend { padding: 0 4px; font-size: 11px; font-weight: 600; color: var(--c-text-dim, #9AA0A6); }
+.rpt-opts .hint { font-size: 11px; line-height: 1.4; }
+
+/* -- Brief 22 item 5: stage 0 --------------------------------------------------------------- */
+.pk-stage0 { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--c-bg, #17191C); }
+.pk-stage0[hidden] { display: none; }
+.pk-s0-card { max-width: 34em; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.pk-s0-card h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--c-text, #F2F2F0); text-wrap: balance; }
+.pk-s0-card p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--c-text-dim, #9AA0A6); }
+.pk-s0-card ol { margin: 0; padding-left: 1.3em; font-size: 13px; line-height: 1.6; color: var(--c-text, #F2F2F0); }
+.ttab.ttab-off { opacity: .42; cursor: not-allowed; }
+body.pk-stage0 .canvas-toolbar, body.pk-stage0 #cadTools { display: none !important; }   /* nothing to fit or draw before a site */
+</style>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// THE EXISTING STREET (Brief 22 item 3)
+// The Site step shows the street as imported: road direction, route type, the parklet-side bike lane and the City's
+// right-of-way width, each with its source and fetch date, read-only. Override opens a value to correct the import;
+// the change is recorded (state.__existing.over) and listed in X-001 Entered inputs as "overrides <source>".
+// state.__existing is taken at the end of an import: the facts and the Section's segments before any design change.
+// The Section stays the proposed street; C-002 Street changes compares the two per segment.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var SITEF = { KEYS: ['roadDir', 'routeType', 'bikeLane', 'row'], LBL: { roadDir: 'Road direction', routeType: 'Route type', bikeLane: 'Bike lane (parklet side)', row: 'Right-of-way width' }, _open: null };
+SITEF.ex = function() { return (typeof state !== 'undefined' && state.__existing) || null; };
+SITEF.segsNow = function() {
+  return (typeof window.seGetSegs === 'function' ? window.seGetSegs() : []).filter(function(s) { return s.type !== 'building'; })
+    .map(function(s) { var o = { type: s.type, width: Math.round((+s.width || 0) * 1000) / 1000 }; if (s.variant !== undefined) o.variant = s.variant; return o; });
+};
+SITEF.cp = function(p) { return p ? JSON.parse(JSON.stringify(p)) : null; };
+SITEF.record = function(imported) {
+  return { at: new Date().toISOString(), imported: !!imported, segs: SITEF.segsNow(), roadWidth: Math.round(TOTAL_ROAD * 1000) / 1000, direction: ROAD_DIR,
+    route: state.route_type === 'bus_truck' ? 'bus_truck' : 'standard', bike: bikeLaneType(), bikeW: bikeLaneWidth(), row: null, src: {}, over: {} };
+};
+// the City's right-of-way label nearest the deck on this street (a label point on the street's centreline). The dataset
+// gives no unit; its values are feet (20 = a lane, 66 = the one-chain street, 33, 99: 11 080, 5 758, 1 017, 333 labels).
+SMP.rowOf = function(res) {
+  var F = SMP.frame(), LM = F.LM, L = F.L, best = null;
+  ((res && res.rows) || []).forEach(function(r) {
+    var g = SMP.pt(r), v = parseFloat(r.width); if (!g || !(v > 0)) return;
+    var w = F.w(g.lat, g.lon), dx = Math.abs(w.x - LM.roadCenterX), dz = w.z < 0 ? -w.z : w.z > L ? w.z - L : 0;
+    if (dx > 8 || dz > 80) return;   // off this street's centreline (a cross street's label), or past the block
+    if (!best || dz + dx < best.dz + best.dx) best = { v: v, dx: dx, dz: dz, id: SMP.rowId(r) };
+  });
+  return best ? { width: Math.round(best.v * 0.3048 * 100) / 100, ft: best.v, src: { source: 'cov', dataset: 'right-of-way-widths', id: best.id, fetchedAt: res.at, note: best.v + ' ft; label ' + best.dx.toFixed(1) + ' m off the centreline, ' + (best.dz ? best.dz.toFixed(0) + ' m past the deck' : 'beside the deck') } } : null;
+};
+SITEF.fromImport = function(way, rowRes, at, rep) {
+  var P = SMP.prov(), rw = SMP.rowOf(rowRes);
+  // the curb-to-curb estimate stays inside the right-of-way (Brief 22 item 4): capped at the right-of-way less both sidewalks
+  if (rw && TOTAL_ROAD >= rw.width - 0.0005) {
+    var inner = rw.width - 2 * SIDEWALK_W, cap = Math.round((inner >= 3.5 ? inner : rw.width - 0.1) * 100) / 100, el = document.getElementById('roadWidth'), was = TOTAL_ROAD;
+    if (el) { el.value = cap; onRoadWidthChange(); }
+    if (P.roadWidth) P.roadWidth.note = (P.roadWidth.note || '') + '; capped from ' + (+was).toFixed(2) + ' m to the right-of-way (' + rw.width.toFixed(2) + ' m) less both sidewalks';
+    rep.notes.push('curb to curb capped at ' + cap.toFixed(2) + ' m: the estimate ' + (+was).toFixed(2) + ' m was not less than the right-of-way ' + rw.width.toFixed(2) + ' m');
+  }
+  var ex = SITEF.record(true);
+  ex.src = { roadDir: SITEF.cp(P.roadDir), routeType: SITEF.cp(P.routeType), bikeLane: SITEF.cp(P.bikeLane) || SITEF.cp(rep.street.bikeSrc) };
+  if (rw) { ex.row = { width: rw.width, ft: rw.ft }; ex.src.row = rw.src; }
+  else rep.notes.push(rowRes && rowRes.err ? 'right-of-way widths failed: ' + rowRes.err : 'no City right-of-way width on this street near the deck');
+  ex.rowNote = rw ? '' : rowRes && rowRes.err ? 'the City right-of-way data failed to load (' + rowRes.err + ')' : 'no City of Vancouver right-of-way-widths label on this street within 80 m of the deck';
+  state.__existing = ex; SITEF._open = null;
+};
+SITEF.fmt = function(k, ex) {
+  if (k === 'roadDir') return (ex ? ex.direction : ROAD_DIR) === 'twoway' ? 'Two-way' : 'One-way';
+  if (k === 'routeType') return (ex ? ex.route : state.route_type) === 'bus_truck' ? 'Bus / truck route (lanes 3.2 m min.)' : 'Standard route (lanes 3.0 m min.)';
+  if (k === 'bikeLane') { if (!ex) return 'Not recorded'; return ex.bike === 'none' ? 'None' : (ex.bike === 'protected' ? 'Protected' : 'Painted') + ', ' + (+ex.bikeW).toFixed(2) + ' m'; }
+  if (k === 'row') return ex && ex.row ? (+ex.row.width).toFixed(2) + ' m' + (ex.row.ft ? ' (' + ex.row.ft + ' ft)' : '') : 'Not known';
+  return '';
+};
+SITEF.srcLine = function(p) { return p ? (SMP.SRC[p.source] || p.source) + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + (p.fetchedAt ? ', fetched ' + SMP.day(p.fetchedAt) : '') + (p.note ? ' (' + p.note + ')' : '') : ''; };
+SITEF.srcText = function(k) {
+  var ex = SITEF.ex(), o = ex && ex.over && ex.over[k];
+  if (o) return 'Overridden by you, ' + SMP.day(o.at) + ': overrides ' + o.from + ', which gave ' + o.was + '.';
+  if (!ex) return 'Not imported: Import street context fills it, or Override to enter it.';
+  var p = ex.src && ex.src[k];
+  if (p) return SITEF.srcLine(p) + '.';
+  if (k === 'row') return ex.imported ? 'Not found: ' + (ex.rowNote || 'no City right-of-way width near the deck') + '.' : 'Not entered.';
+  return ex.imported ? 'Imported without a source record.' : 'Entered by you.';
+};
+SITEF.render = function() {
+  var ex = SITEF.ex();
+  SITEF.KEYS.forEach(function(k) {
+    var el = document.getElementById('sf_' + k); if (!el) return;
+    var open = SITEF._open === k, ed = document.getElementById('sfEdit_' + k), b = el.querySelector('.sf-over');
+    el.querySelector('.sf-val').textContent = SITEF.fmt(k, ex);
+    el.querySelector('.sf-src').textContent = SITEF.srcText(k);
+    el.classList.toggle('sf-overridden', !!(ex && ex.over && ex.over[k]));
+    if (b) { b.textContent = open ? 'Done' : 'Override'; b.setAttribute('aria-expanded', open ? 'true' : 'false'); b.title = open ? 'Closes the editor; the value stays as set.' : 'Opens the value to correct the import; the change is listed in X-001 as an override.'; }
+    if (ed) ed.hidden = !open;
+  });
+  SITEF.roadHints();
+};
+// The Site step's two fields (Brief 22 item 4): the right-of-way ceiling and the source of the curb-to-curb value on the
+// roadway width; the lane count's source ("from OpenStreetMap, confirm") until the user confirms or edits it
+SITEF.roadHints = function() {
+  var P = SMP.prov(), ex = SITEF.ex(), row = roadRowCeil(), p = P.roadWidth, r = document.getElementById('roadWidthRow'), el = document.getElementById('roadWidth');
+  var src = !p ? 'the default, not measured' : p.source === 'user' ? (p.from ? 'entered by you (was ' + (SMP.SRC[p.from] === 'estimate' ? 'an estimate' : SMP.SRC[p.from]) + ', ' + SMP.day(p.fetchedAt) + ')' : 'entered by you')
+    : p.source === 'survey' ? 'the site survey' : (p.source === 'estimate' ? 'an estimate' : SMP.SRC[p.source]) + ', ' + SMP.day(p.fetchedAt) + (p.note ? ': ' + p.note : '');
+  if (r) r.textContent = (row ? 'ROW ' + row.toFixed(2) + ' m' + (ex.row.ft ? ' (' + ex.row.ft + ' ft)' : '') + '; curb-to-curb must be less. ' : 'ROW not known, so no ceiling. ') + 'Current value: ' + src + '.';
+  if (el) el.max = row ? (Math.ceil(row * 100) / 100 - 0.01).toFixed(2) : '40';
+  var ls = document.getElementById('laneSrc'); if (!ls) return;
+  var ps = (ROAD_DIR === 'twoway' ? ['lanesA', 'lanesB'] : ['lanes']).map(function(k) { return P[k]; }).filter(Boolean);
+  ls.textContent = !ps.length ? '' : ps.every(function(q) { return q.source === 'user' || q.source === 'survey'; }) ? 'Lane count confirmed by you.'
+    : ps.some(function(q) { return q.source === 'estimate'; }) ? 'Lane count estimated from the road class (no lanes tag in OpenStreetMap), confirm.' : 'Lane count from OpenStreetMap, confirm.';
+};
+SITEF.toggle = function(k) {
+  SITEF._open = SITEF._open === k ? null : k;
+  var ex = SITEF.ex();
+  if (SITEF._open === 'bikeLane') { var s = document.getElementById('sfBikeSel'), w = document.getElementById('sfBikeW'); if (s) s.value = ex ? ex.bike : bikeLaneType(); if (w) w.value = ((ex ? ex.bikeW : bikeLaneWidth()) || 1.5).toFixed(2); }
+  if (SITEF._open === 'row') { var r = document.getElementById('sfRowW'); if (r) r.value = ex && ex.row ? ex.row.width : ''; }
+  SITEF.render();
+};
+// Records the override of fact k (was -> now); returning to the imported value removes it
+SITEF.note = function(ex, k, was, from) {
+  var now = SITEF.fmt(k, ex), at = new Date().toISOString(), o = ex.over[k];
+  if (now === was && !o) return;
+  if (!o) ex.over[k] = { was: was, from: from, at: at }; else if (o.was === now) delete ex.over[k]; else o.at = at;
+  var P = SMP.prov(); if (P[k] && P[k].source !== 'user') P[k] = SMP.userOf(P[k]);
+};
+// Overrides fact k with v: the global the checks read, and the existing record. While the Section still is the street as
+// imported, it follows the override (a corrected import); once it holds design changes, only the record changes.
+SITEF.set = function(k, v) {
+  var ex = SITEF.ex() || (state.__existing = SITEF.record(false)), clean = !SITEF.changes().length, was = SITEF.fmt(k, ex), from = ex.src && ex.src[k] ? SITEF.srcLine(ex.src[k]) : 'the default';
+  SITEF._inSet = true;
+  try {
+    if (k === 'roadDir') { ex.direction = v === 'twoway' ? 'twoway' : 'oneway'; onRoadDirChange(ex.direction); }
+    else if (k === 'routeType') { ex.route = v === 'bus_truck' ? 'bus_truck' : 'standard'; onRouteTypeToggle(ex.route); }
+    else if (k === 'bikeLane') {
+      ex.bike = v.type; ex.bikeW = v.type === 'none' ? 0 : Math.round((+v.width || BIKE_DEFAULTS[v.type].lane) * 1000) / 1000;
+      setBikeLane(v.type, ex.bikeW);
+      if (!clean) { var n = 0; bikeApply(ex.segs, v.type, ex.bikeW, function() { return 'ex' + (++n); }); ex.segs.forEach(function(s) { delete s.id; }); SITEF.fitLanes(ex); }
+    }
+    else if (k === 'row') { var w = parseFloat(v); ex.row = w > 0 ? { width: Math.round(w * 100) / 100 } : null; }
+  } finally { SITEF._inSet = false; }
+  if (clean && k !== 'row') { ex.segs = SITEF.segsNow(); ex.roadWidth = Math.round(TOTAL_ROAD * 1000) / 1000; }
+  SITEF.note(ex, k, was, from);
+  try { saveSettings(); } catch (e) {}
+  SITEF.render();
+  try { if (typeof syncDesignModel === 'function') syncDesignModel('site-fact'); } catch (e) {}
+};
+SITEF.setBike = function() { var s = document.getElementById('sfBikeSel'), w = document.getElementById('sfBikeW'); SITEF.set('bikeLane', { type: s ? s.value : 'none', width: w ? parseFloat(w.value) : 0 }); };
+// the record's travel lanes share its curb-to-curb width after a bike lane is written into it (as the Section's do)
+SITEF.fitLanes = function(ex) {
+  var lanes = ex.segs.filter(function(s) { return s.type === 'travel-lane'; }); if (!lanes.length) return;
+  var other = ex.segs.filter(function(s) { return s.type !== 'sidewalk' && s.type !== 'travel-lane'; }).reduce(function(a, s) { return a + s.width; }, 0);
+  var ws = normaliseLaneWidths(Math.max(0, ex.roadWidth - other), lanes.length); lanes.forEach(function(l, i) { l.width = Math.round(ws[i] * 1000) / 1000; });
+};
+// Existing against proposed, per segment: the longest common run of segment types pairs them; the rest are added / removed
+SITEF.rows = function(DM) {
+  var ex = SITEF.ex(); if (!ex) return null;
+  var A = ex.segs || [], B = (DM && DM.crossSection ? DM.crossSection : SITEF.segsNow()).filter(function(s) { return s.type !== 'building'; });
+  var n = A.length, m = B.length, T = [], i, j;
+  for (i = 0; i <= n; i++) { T.push([]); for (j = 0; j <= m; j++) T[i].push(0); }
+  for (i = n - 1; i >= 0; i--) for (j = m - 1; j >= 0; j--) T[i][j] = A[i].type === B[j].type ? T[i + 1][j + 1] + 1 : Math.max(T[i + 1][j], T[i][j + 1]);
+  var out = [], lbl = function(s) { var d = (window.SE_TYPES || {})[s.type] || {}; return (s.type === 'buf-pk' ? 'Buffer to the bike lane' : s.type === 'buf-bl' ? 'Buffer to the traffic' : d.label || s.type) + (s.variant && s.variant !== 'none' ? ' (' + String(s.variant).replace(/_/g, ' ') + ')' : ''); };
+  var row = function(a, b) { var st = !a ? 'added' : !b ? 'removed' : Math.abs(a.width - b.width) > 0.005 ? 'width' : (a.variant || '') !== (b.variant || '') ? 'variant' : ''; out.push({ seg: lbl(b || a), ex: a ? a.width : null, pr: b ? b.width : null, st: st, type: (b || a).type }); };
+  i = 0; j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i].type === B[j].type) { row(A[i], B[j]); i++; j++; }
+    else if (j < m && (i >= n || T[i][j + 1] >= T[i + 1][j])) { row(null, B[j]); j++; }
+    else { row(A[i], null); i++; }
+  }
+  return out;
+};
+SITEF.changes = function(DM) { var r = SITEF.rows(DM); return r ? r.filter(function(x) { return x.st; }) : []; };
+// X-001: the overrides as entered inputs, and the existing street as recorded
+SITEF.overRows = function() {
+  var ex = SITEF.ex(); if (!ex || !ex.over) return [];
+  return SITEF.KEYS.filter(function(k) { return ex.over[k]; }).map(function(k) { var o = ex.over[k]; return [SITEF.LBL[k], SITEF.fmt(k, ex) + ' (overrides ' + o.from + ', which gave ' + o.was + '; ' + SMP.day(o.at) + ')']; });
+};
+SITEF.xBlocks = function() {
+  var ex = SITEF.ex(); if (!ex) return [];
+  var three = [{ t: 'Fact', w: 0.22 }, { t: 'Value', w: 0.2 }, { t: 'Source', w: 0.58 }];
+  var facts = SITEF.KEYS.map(function(k) { return [SITEF.LBL[k], SITEF.fmt(k, ex), SITEF.srcText(k)]; });
+  facts.push(['Curb to curb', RPT.fx(ex.roadWidth, 2) + ' m', SITEF.srcLine(SMP.prov().roadWidth) || 'as entered']);
+  return [{ h2: 'Existing street (' + (ex.imported ? 'as imported ' : 'as entered ') + SMP.day(ex.at) + ')' }, { table: { cols: three, rows: facts } },
+    { table: { cols: [{ t: 'Segment, building face to far curb', w: 0.7 }, { t: 'Width (m)', w: 0.3, num: true }], rows: ex.segs.map(function(s) { return [(window.SE_TYPES && SE_TYPES[s.type] ? SE_TYPES[s.type].label : s.type) + (s.variant && s.variant !== 'none' ? ' (' + s.variant + ')' : ''), RPT.fx(s.width, 2)]; }) } },
+    { p: 'The design is checked on the proposed street (the Section)' + (RPT.on('compliance') ? '; C-002 lists where it differs from this one.' : '.') }];
+};
+(function() {
+  function wrap(name, after, before) { var f = window[name]; if (typeof f !== 'function' || f._sitef) return; var w = function() { if (before) before.apply(this, arguments); var r; try { r = f.apply(this, arguments); } finally { if (after) { try { after.apply(this, arguments); } catch (e) { console.warn('[existing street] ' + name, e); } } } return r; }; w._sitef = true; window[name] = w; }
+  wrap('pkApplyDesignState', function() { SITEF._loading = false; SITEF._open = null; SITEF.render(); }, function() { SITEF._loading = true; });
+  // a route type set in the Check tab is the same fact: recorded as an override of the imported one
+  wrap('handleInput', function(crit, id, val) {
+    if (id !== 'route_type' || SITEF._inSet || SITEF._loading || SMP._busy) return;
+    var ex = SITEF.ex(); if (!ex) { SITEF.render(); return; }
+    var v = val === 'bus_truck' ? 'bus_truck' : 'standard'; if (v === ex.route) return;
+    var was = SITEF.fmt('routeType', ex), from = ex.src && ex.src.routeType ? SITEF.srcLine(ex.src.routeType) : 'the default';
+    ex.route = v; SITEF.note(ex, 'routeType', was, from); SITEF.render();
+  });
+  var r0 = SMP.refresh; SMP.refresh = function() { var r = r0.apply(this, arguments); try { SITEF.render(); } catch (e) {} return r; };
+  setTimeout(function() { try { SITEF.render(); } catch (e) {} }, 1700);
+})();
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// THE THREE STAGES (Brief 22 item 5)
+// 0 no site: DEFAULT_STATE, an empty street and no deck; the views are covered by "Choose a site" and the tabs that need a
+//   design (Generate, Design, Check, Visualize, Export) are off. + New and signing in land here.
+// 1 site chosen: the import writes the existing street, then SEED.parklet places a deck of the default length at the
+//   host frontage with the default enclosure, no furniture and no layout; the checks run on the site's facts.
+// 2 the user's design: furniture on the deck (pkStage reads it; nothing stores the stage).
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// TODO(Jenna): DECK_L is the app's existing default deck (19.8 m); confirm the Parklet Manual's default length and cite it.
+var SEED = { DECK_L: 19.8, DECK_W: 2.65, GATED: ['generate', 'design', 'check', 'visualize', 'export'],
+  TIP: 'Choose a site first: Locate on map in the Site tab, then Import street context.' };
+// the hidden stage-0 globals: what the views could draw before a site exists (never shown, never saved)
+SEED.NOMINAL = { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L };
+function pkStage() { return PK_NOSTREET ? 0 : (typeof FL3D !== 'undefined' && FL3D && FL3D.placed && FL3D.placed.length ? 2 : 1); }
+SEED.parklet = function(rep) {
+  PK_NOSTREET = false;
+  designParkletLength = SEED.DECK_L; designParkletWidth = SEED.DECK_W; state.pkShape = null;
+  ENCLOSURE = ENC.norm(JSON.parse(JSON.stringify(ENC.DEFAULT))); state.__enclosure = JSON.stringify(ENCLOSURE);
+  pkClearAllFurniture();
+  var lr = document.getElementById('lengthReadout'), wr = document.getElementById('widthReadout');
+  if (lr) lr.textContent = designParkletLength.toFixed(1) + ' m'; if (wr) wr.textContent = designParkletWidth.toFixed(3) + ' m';
+  // the host frontage: the one in front of the located point, else the nearest; the deck centres on it
+  var fr = pkFrontages(), h = pkHostIdx(), f = null;
+  if (h < 0 && fr.length) h = fr.slice().sort(function(a, b) { return Math.abs(a.s - pkZNow()) - Math.abs(b.s - pkZNow()); })[0].i;
+  if (h >= 0) { f = fr.find(function(q) { return q.i === h; }); pkPlaceFrontage(h); }
+  else try { syncDesignModel('seed'); } catch (e) {}
+  if (rep) rep.notes.push('stage 1: a ' + SEED.DECK_L + ' m deck ' + (f ? 'centred on the host frontage (' + f.name + ')' : 'at the located point (no frontage imported)') + ', the default enclosure, no furniture');
+  pkStageSync();
+  // signed in with no design open (signing in opens none): the first site makes one
+  if (typeof pkSB !== 'undefined' && pkSB && pkCurrentUser && !pkCurrentDesignId && typeof pkCreateDesign === 'function') {
+    var nm = (state.__siteMap && state.__siteMap.name) || 'Untitled parklet';
+    pkCreateDesign(nm, (document.getElementById('streetAddress') || {}).value || '').then(function(d) {
+      if (!d) return; pkCurrentDesignId = d.id; pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at }; window.pkOpenNone = false;
+      var pn = document.getElementById('projectName'); if (pn && !pn.value) pn.value = d.name;
+      try { pkScheduleSave(); pkUpdateAccountUI(); } catch (e) {}
+    });
+  }
+};
+// the stage's UI: the Choose a site panel over the views, the gated tabs, the Site fields blank before a site
+// the gated tabs: off, with the reason as their tooltip (the tooltip layer reads data-tip; its own table is kept aside)
+SEED.tabTips = function() {
+  var s0 = PK_NOSTREET, ut = window.uiApplyTips;
+  // the tooltip table (defined later in the page) must not undo the stage-0 reason: re-applied after it, once it exists
+  if (typeof ut === 'function' && !ut._stage) { window.uiApplyTips = function() { var r = ut.apply(this, arguments); try { SEED.tabTips(); } catch (e) {} return r; }; window.uiApplyTips._stage = true; }
+  SEED.GATED.forEach(function(m) {
+    var t = document.querySelector('.ttab[onclick*="' + m + '"]'); if (!t) return;
+    t.classList.toggle('ttab-off', s0); t.setAttribute('aria-disabled', s0 ? 'true' : 'false');
+    if (t.hasAttribute('title')) { if (!t.hasAttribute('data-tip')) t.setAttribute('data-tip', t.getAttribute('title')); t.removeAttribute('title'); }
+    var cur = t.getAttribute('data-tip') || '';
+    if (s0) { if (cur !== SEED.TIP) t.dataset.tip0 = cur; t.setAttribute('data-tip', SEED.TIP); }
+    else if (t.dataset.tip0 !== undefined) { t.setAttribute('data-tip', t.dataset.tip0); delete t.dataset.tip0; }
+  });
+};
+function pkStageSync() {
+  var s0 = PK_NOSTREET, grid = document.getElementById('viewportGrid');
+  document.body.classList.toggle('pk-stage0', s0);
+  SEED.tabTips();
+  var ov = document.getElementById('pkStage0');
+  if (!ov && grid) {
+    if (getComputedStyle(grid).position === 'static') grid.style.position = 'relative';
+    ov = document.createElement('div'); ov.id = 'pkStage0'; ov.className = 'pk-stage0'; ov.setAttribute('role', 'region'); ov.setAttribute('aria-label', 'Choose a site');
+    ov.innerHTML = "<div class='pk-s0-card'><h2>Choose a site</h2><p>There is no street yet. A design starts from a real curb:</p>" +
+      "<ol><li>Locate on map: search the address, click the street, then the parklet's side.</li><li>Import street context: the existing street, its buildings and the City's site objects.</li></ol>" +
+      "<p>A deck of the default length is then placed at the host frontage, and the checks run on the site's facts.</p>" +
+      "<button type='button' class='ctx-btn' onclick='appSetMode(\"site\"); SM.open()'>Locate on map</button></div>";
+    grid.appendChild(ov);
+  }
+  if (ov) ov.hidden = !s0;
+  if (s0) ['roadWidth', 'sidewalkWidth', 'laneCount', 'lanesA', 'lanesB'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
+  var act = document.querySelector('.ttab.active'), m = act ? (String(act.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : null;
+  if (s0 && m && SEED.GATED.indexOf(m) >= 0) appSetMode('site');
+}
+(function() {
+  var f = window.appSetMode; if (typeof f !== 'function' || f._stage) return;
+  var w = function(mode) {
+    if (PK_NOSTREET && SEED.GATED.indexOf(mode) >= 0) {   // stage 0: the Site tab, with the reason
+      var r = f.call(this, 'site'); try { if (typeof SMP !== 'undefined' && SMP.msg) SMP.msg(SEED.TIP); } catch (e) {} return r;
+    }
+    return f.apply(this, arguments);
+  };
+  w._stage = true; window.appSetMode = w;
+  // (the tooltip table's hook: SEED.tabTips installs it once uiApplyTips exists)
+  setTimeout(function() { try { pkStageSync(); } catch (e) {} }, 1800);
+})();
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// FURNITURE TAGS (Brief 22 item 6)
+// A tag is its text at the annotation floor size (the 'tag' role: 1.8 mm on a sheet, 9 px on screen) in a small rounded
+// box, off its piece, on a leader from the nearest point of the piece's outline. FTAG.place tries rings around the piece
+// (right, left, above, below, then the corners) and takes the first place clear of every piece, every tag placed before
+// it and every text already drawn (the dimension pass's values and labels), inside the bounds, whose leader crosses no
+// other piece. The tags are RPT.groupsFor's (F1, F2 ...): the schedule, the sheets and the Plan agree.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var FTAG = {};
+FTAG.hit = function(a, b, m) { m = m || 0; return a[0] < b[2] + m && b[0] < a[2] + m && a[1] < b[3] + m && b[1] < a[3] + m; };
+FTAG.near = function(polys, x, y) {   // the nearest point of the outline
+  var best = null;
+  polys.forEach(function(pts) {
+    for (var i = 0; i < pts.length; i++) {
+      var a = pts[i], b = pts[(i + 1) % pts.length], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+      var t = L2 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / L2)) : 0, px = a[0] + t * dx, py = a[1] + t * dy, dd = Math.hypot(px - x, py - y);
+      if (!best || dd < best.d) best = { d: dd, p: [px, py] };
+    }
+  });
+  return best ? best.p : [x, y];
+};
+FTAG.segHits = function(p, q, b) {   // does segment p-q enter box b (Liang-Barsky)
+  var t0 = 0, t1 = 1, dx = q[0] - p[0], dy = q[1] - p[1];
+  var c = function(pp, qq) { if (pp === 0) return qq > 0; var r = qq / pp; if (pp < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; } return true; };
+  return c(-dx, p[0] - b[0]) && c(dx, b[2] - p[0]) && c(-dy, p[1] - b[1]) && c(dy, b[3] - p[1]) && t1 - t0 > 1e-6;
+};
+// pieces [{key, tag, polys, box}] (all of them are obstacles; those with a tag are tagged), taken [[x0, y0, x1, y1]] the
+// text already drawn, S {w(tag): box width, h: box height, rings: [gaps], m: clearance, bounds}
+FTAG.place = function(pieces, taken, S) {
+  var out = [], occ = taken.slice();
+  var tryAt = function(pc, t, w, h, strict) {
+    var tb = [t[0] - w / 2, t[1] - h / 2, t[0] + w / 2, t[1] + h / 2], B = S.bounds;
+    if (B && (tb[0] < B[0] || tb[1] < B[1] || tb[2] > B[2] || tb[3] > B[3])) return null;
+    if (pieces.some(function(q) { return FTAG.hit(tb, q.box, S.m); })) return null;
+    if (occ.some(function(q) { return FTAG.hit(tb, q, strict ? S.m : 0); })) return null;
+    var a = FTAG.near(pc.polys, t[0], t[1]), e = [Math.max(tb[0], Math.min(tb[2], a[0])), Math.max(tb[1], Math.min(tb[3], a[1]))];
+    if (strict && pieces.some(function(q) { return q !== pc && FTAG.segHits(a, e, q.box); })) return null;
+    return { key: pc.key, tag: pc.tag, box: tb, cx: t[0], cy: t[1], a: a, e: e, pbox: pc.box, polys: pc.polys };
+  };
+  pieces.filter(function(p) { return p.tag; }).sort(function(a, b) { return (a.box[0] - b.box[0]) || (a.box[1] - b.box[1]); }).forEach(function(pc) {
+    var b = pc.box, w = S.w(pc.tag), h = S.h, cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, got = null;
+    [true, false].forEach(function(strict) {
+      for (var gi = 0; gi < S.rings.length && !got; gi++) {
+        var g = S.rings[gi], C = [[b[2] + g + w / 2, cy], [b[0] - g - w / 2, cy], [cx, b[1] - g - h / 2], [cx, b[3] + g + h / 2],
+          [b[2] + g + w / 2, b[1] - g - h / 2], [b[0] - g - w / 2, b[3] + g + h / 2], [b[2] + g + w / 2, b[3] + g + h / 2], [b[0] - g - w / 2, b[1] - g - h / 2]];
+        for (var i = 0; i < C.length && !got; i++) got = tryAt(pc, C[i], w, h, strict);
+      }
+    });
+    if (!got) return;   // nowhere free inside the bounds: left untagged, and counted by the checks (FTAG.audit)
+    occ.push(got.box); out.push(got);
+  });
+  return out;
+};
+// the checks (the VERIFY): tag / piece and tag / tag overlaps, each leader's start on its piece's outline
+FTAG.audit = function(res, pieces, tol) {
+  var tp = 0, tt = 0, off = 0; tol = tol || 0.01;
+  res.forEach(function(r, i) {
+    pieces.forEach(function(q) { if (FTAG.hit(r.box, q.box, 0)) tp++; });
+    for (var j = i + 1; j < res.length; j++) if (FTAG.hit(r.box, res[j].box, 0)) tt++;
+    var n = FTAG.near(r.polys, r.a[0], r.a[1]); if (Math.hypot(n[0] - r.a[0], n[1] - r.a[1]) > tol) off++;
+  });
+  return { tags: res.length, wanted: pieces.filter(function(p) { return p.tag; }).length, tagPiece: tp, tagTag: tt, leaderOff: off };
+};
+// the symbol: the leader (its dot on the outline), the rounded box, the text; through any pen (sheet or screen)
+DRAW_SYMBOLS.ftag = function(P, t, fs) {
+  var k = P.ctx.k, b = t.box, r = Math.min((b[3] - b[1]) / 2, 0.8 * k), f = function(v) { return (+v).toFixed(2); };
+  DRAW_SYMBOLS.leader(P, [t.a, t.e], { dot: true });
+  var d = 'M' + f(b[0] + r) + ' ' + f(b[1]) + 'H' + f(b[2] - r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[2]) + ' ' + f(b[1] + r) + 'V' + f(b[3] - r) +
+    'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[2] - r) + ' ' + f(b[3]) + 'H' + f(b[0] + r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[0]) + ' ' + f(b[3] - r) +
+    'V' + f(b[1] + r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(b[0] + r) + ' ' + f(b[1]) + 'Z';
+  P.path(d, { fill: 'paper', cls: 'general', bb: b, data: " data-ftag='" + t.tag + "'" });
+  P.text(t.cx, t.cy + fs * 0.35, t.tag, fs, { anchor: 'middle', bold: true, data: " data-tag='" + t.tag + "'" });
+};
+// the sheets: A-102 and A-103 (A-101 draws no furniture); the sheet's text so far is taken
+RPT._ftags = {};
+RPT.planTags = function(P, bounds, id) {
+  var T = P._ftag; if (!T) return []; P._ftag = null;
+  var fs = RPT.TX.tag, taken = P.boxes.filter(function(b) { return b.text; }).map(function(b) { return [b.x0, b.y0, b.x1, b.y1]; });
+  var res = FTAG.place(T.pieces, taken, { w: function(t) { return RPT.tw(t, fs, true) + 1.6; }, h: fs + 1.2, rings: [1.5, 3, 5, 8, 12, 18], m: 0.35, bounds: bounds });
+  res.forEach(function(t) { DRAW_SYMBOLS.ftag(P, t, fs); });
+  RPT._ftags[id || 'sheet'] = { res: res, pieces: T.pieces };
+  return res;
+};
+// the Plan: the pieces' outlines through worldToPlan; the drawing's text (dimension values, labels, the scale bar) taken
+FTAG.screen = function(svg, VB, lod) {
+  var old = svg.querySelector('#pvTags'); if (old) old.remove();
+  FTAG._last = null;
+  var placed = (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) || [];
+  if (!_pvTagsOn || !lod || !placed.length) return;
+  var rc = svg.getBoundingClientRect(); if (!(rc.width > 40)) return;
+  var U = VB.w / rc.width, tags = RPT.groupsFor(placed).tags, inv = svg.getScreenCTM() && svg.getScreenCTM().inverse();
+  var pieces = placed.filter(function(p) { return !(p.archetype && flIsEntourage(p.archetype)); }).map(function(p) {
+    var sp = flInstSpec(p), r = typeof p.userRotation === 'number' ? p.userRotation : (p.rotationY || 0), sn = Math.sin(r), cs = Math.cos(r);
+    var W = function(u, v) { var q = worldToPlan((p.x || 0) + u * sn + v * cs, (p.z || 0) + u * cs - v * sn); return [q.px, q.py]; };
+    var polys = sp ? flPlanShapes(sp.type, sp.params).filter(function(sh) { return !sh.veg && !sh.overhead; }).map(function(sh) { return flShapePts(sh).map(function(q) { return W(q[0], q[1]); }); }) : [];
+    if (!polys.length) polys = [getFurnitureCorners(p).map(function(c) { var q = worldToPlan(c.wx, c.wz); return [q.px, q.py]; })];
+    var xs = [], ys = []; polys.forEach(function(pts) { pts.forEach(function(v) { xs.push(v[0]); ys.push(v[1]); }); });
+    return { key: p.id, tag: tags[p.id] || '', polys: polys, box: [Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)] };
+  });
+  var taken = [];
+  if (inv) [].forEach.call(svg.querySelectorAll('text'), function(t) {
+    var b = t.getBoundingClientRect(); if (!(b.width > 0)) return;
+    var p0 = svg.createSVGPoint(), p1 = svg.createSVGPoint(); p0.x = b.left; p0.y = b.top; p1.x = b.right; p1.y = b.bottom; p0 = p0.matrixTransform(inv); p1 = p1.matrixTransform(inv);
+    taken.push([Math.min(p0.x, p1.x), Math.min(p0.y, p1.y), Math.max(p0.x, p1.x), Math.max(p0.y, p1.y)]);
+  });
+  var fs = DRAW_STYLE.TYPE.screen.tag * U, P = DRAW_STYLE.pen(DRAW_STYLE.screenCtx(DRAW_STYLE.mode(), U, VB.pxM || 12));
+  var res = FTAG.place(pieces, taken, { w: function(t) { return RPT.tw(t, fs, true) + 8 * U; }, h: fs + 6 * U, rings: [6, 12, 20, 32, 48].map(function(v) { return v * U; }), m: 2 * U, bounds: [VB.x, VB.y, VB.x + VB.w, VB.y + VB.h] });
+  res.forEach(function(t) { DRAW_SYMBOLS.ftag(P, t, fs); });
+  var g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.id = 'pvTags'; g.setAttribute('pointer-events', 'none');
+  g.innerHTML = P.body(); svg.appendChild(g);
+  FTAG._last = { res: res, pieces: pieces, U: U };
+};
+
+
+</script>
+<style>
 /* -- Site from map (Brief 13) phase 3: the Mapillary context photo -------------------------- */
+
 #rvzpCtxBody { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 #rvzpCtxBody input[type=password] { height: 24px; padding: 0 6px; background: var(--c-bg, #17191C); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; color: var(--c-text, #F2F2F0); font: var(--fs-12, 12px) var(--font-mono, monospace); }
 .mly-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
@@ -27215,9 +27825,6 @@ var UI_TIPS = [
   ['#widthSlider', 'Width of the deck across the street, in metres.'],
   ['#lengthSlider', 'Length of the deck along the curb, in metres.'],
   ['.btn-solve', 'Widens the parklet as far as the travel lanes allow at their minimum width (C02).'],
-  ['[onclick*="onBikeLaneType(\'none\')"]', 'No bike lane on this street.'],
-  ['[onclick*="onBikeLaneType(\'painted\')"]', 'A painted bike lane beside the parklet.'],
-  ['[onclick*="onBikeLaneType(\'protected\')"]', 'A bike lane protected by a buffer and flexible posts.'],
   ['[onclick*="onBufferToggle(false)"]', 'No planted buffer beside the parklet.'],
   ['[onclick*="onBufferToggle(true)"]', 'Adds a planted buffer beside the parklet.'],
   ['[onclick*="cadShowFootprintEditor"]', 'Opens the editor for the deck&rsquo;s outline.'],
@@ -27875,7 +28482,7 @@ SURV.apply = function() {
     notes.push('surveyed lane widths ' + widths.map(function(w) { return w.toFixed(2); }).join(' / ') + ' m (curb to curb); the model spreads the travel lanes by EDM Table 8-10 from the surveyed curb-to-curb width');
   }
   var bl = cluster(byKind('bikeLane').map(function(r) { return r.mx; }));
-  if (bl.length >= 2 && typeof designBikeLane !== 'undefined' && designBikeLane !== 'none') { var bw = +(bl[1] - bl[0]).toFixed(3); designBikeLaneW = bw; surveyed.bikeLane = bw; line.bikeLane = bw; }
+  if (bl.length >= 2 && bikeLaneType() !== 'none') { var bw = +(bl[1] - bl[0]).toFixed(3); setBikeLane(bikeLaneType(), bw); surveyed.bikeLane = bw; line.bikeLane = bw; }
   // the grade: top-of-curb elevations along the street
   var toc = byKind('toc').filter(function(r) { return r.z !== null; });
   if (toc.length >= 2) {
@@ -28404,13 +29011,9 @@ RPT.sheetDetails = function(d) {
   RPT._encDims = drawn;
   return sh;
 };
-// the Design tab's bike-lane switch follows the model (a load or a Section edit changes designBikeLane without it)
-function uiSyncBikeToggle() {
-  if (typeof designBikeLane === 'undefined') return;
-  var btns = document.querySelectorAll('#bikeLaneToggle .seg-btn');
-  ['none', 'painted', 'protected'].forEach(function(k, i) { if (btns[i]) btns[i].classList.toggle('active', designBikeLane === k); });
-  var fld = document.getElementById('bikeLaneWidthField'); if (fld) fld.style.display = designBikeLane === 'none' ? 'none' : '';
-}
+// (Brief 22: the Design tab's bike-lane card is gone; the lane is a segment of the Section)
+function uiSyncBikeToggle() {}
+
 // one refresh after anything the model or the tabs change
 (function() {
   var after = function() { try { uiDesignDims(); uiSiteStepStatus(); uiEmptyStates(); uiSyncBikeToggle(); if (typeof updateMinRoadNote === 'function') updateMinRoadNote(); } catch (e) {} };   // (the C02 note reads the bike corridor with its buffers)

@@ -1,0 +1,25 @@
+#!/bin/sh
+# Curbside pre-push check: refuses a push whose commits carry a PDF, DWG or ZIP file, or any file over 5 MB.
+# Third-party documents stay local (see .gitignore). Enable once per clone:  git config core.hooksPath tools/hooks
+z=0000000000000000000000000000000000000000
+limit=5242880
+found=""
+while read -r lref lsha rref rsha; do
+  [ "$lsha" = "$z" ] && continue                                   # a branch or tag being deleted
+  if [ "$rsha" = "$z" ]; then set -- "$lsha" --not --remotes; else set -- "$rsha..$lsha"; fi   # new ref: all it adds
+  objs=$(git rev-list --objects "$@") || { echo "pre-push: could not list the commits for $lref: refused" >&2; exit 1; }   # fail closed
+  hits=$(printf '%s\n' "$objs" | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | awk -v L="$limit" '
+    $1 == "blob" { s = $2; p = $0; sub(/^blob [0-9]+ /, "", p); lp = tolower(p)
+      if (lp ~ /\.(pdf|dwg|zip)$/) print "  " p "  (PDF / DWG / ZIP)"
+      else if (s > L) printf "  %s  (%.1f MB, over 5 MB)\n", p, s / 1048576 }')
+  [ -n "$hits" ] && found="$found$lref:
+$hits
+"
+done
+if [ -n "$found" ]; then
+  echo "pre-push: refused. These files are not allowed in the repository:" >&2
+  printf '%s' "$found" >&2
+  echo "Remove them from the commits (keep local copies in reference/, which is git-ignored) and push again." >&2
+  exit 1
+fi
+exit 0

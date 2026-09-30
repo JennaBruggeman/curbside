@@ -908,6 +908,28 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   - **Visualize:** one Connections prompt, the `#rvzpProxy` gate above Render.
   - **X-001:** records C18's floor(w / 1.8) rule.
 - **Tooling:** Node.js 24 LTS (portable, `%LOCALAPPDATA%\Programs\node-v24.21.0-win-x64`, not on PATH) and Playwright 1.63.0 (`tools/package.json`, `npm install` + `npx playwright install chromium` in `tools/`). See the README's Developer prerequisites.
+## Brief 22: fixes round (branch `fixes`, 2026-09-30 .. 10-01)
+Decisions for every item are in the session's decisions log; the essentials:
+- **1 Plan extents:** Fit design / Fit sheet / Fit context (`_pvFit`, `_pvExtentRect`); a design opens at Fit sheet.
+- **2 Bike lane, one source:** the Section's segments only (`bikeRun`, `bikeLaneType`, `bikeLaneWidth`, `getBikeLaneD`); `setBikeLane` / `bikeApply` write segments at the EDM defaults (painted 1.5; protected 2.0 + 0.8 m raised buffer).
+- **3 Site step = existing street:** `SITEF` (after the SMP script). `state.__existing` is recorded at the end of an import (facts with sources, the segments, curb to curb) and saved as `siteObjects.existing`. Direction, route type, bike lane and right-of-way are read-only facts with Override; overrides are listed in X-001 Entered inputs. C-002 "Street changes" compares existing and proposed per segment (`SITEF.rows`, an LCS on segment types). Right-of-way widths come from the City's `right-of-way-widths` dataset, whose values are **feet** (converted).
+- **4 Roadway width:** refused at or above the right-of-way (`roadRowCeil`, `onRoadWidthCommit`); the import caps its estimate; the lane count says "from OpenStreetMap, confirm".
+- **5 Three stages:** `PK_NOSTREET` (stage 0: DEFAULT_STATE has no segments, no deck, no buildings), `SEED.parklet` (stage 1, run once when an import ends stage 0), `pkStage()`. Stage 0 covers the views with "Choose a site" and turns off Generate, Design, Check, Visualize and Export. Signing in lists the designs and opens none. **Open: the seeded deck is 19.8 m, the app's old default; the Parklet Manual's default length is to be confirmed (TODO(Jenna) in SEED).**
+- **6 Furniture tags:** `FTAG.place` (one placer for the Plan and A-102 / A-103), rounded box, leader from the outline; Tags toggle beside Dimensions.
+- **7 Report options:** the Export tab's Include boxes (`RPT.opts`, `RPT.on`); all on is identical to the report before.
+- **8 Spec card:** `FLU.openCard`, `FLU.cardAttach`, `FLU.attGet`; glTF metadata prefills it (`FLU.metaGLTF`); S-001 "User-supplied furniture" table (`RPT.cardBlocks`); attachments as appendix sheets X-002 ... (`RPT.collectAttach`, `RPT.sheetAttach`). IFC is not an import format, so only glTF metadata is read.
+- **9 Provenance:** a user piece's tag is F3• (`RPT.USER_DOT`), Source "user model — <file>", the A-000 legend line and the S-001 note.
+- **10 Landing images:** `tools/screenshots.js` (Playwright) with `tools/fixtures/commercial/` (recorded site data, replayed byte for byte; `--record` refreshes). Kept in Brief 22 because its record / replay part is reusable as Brief 24's three-site fixtures.
+- **11 moved:** the demo walkthrough is now **Brief 26** (`briefs/26-demo-walkthrough.md`), after Brief 25. Its draft is on the local branch `demo-draft`.
+
+## Briefs that exist only in chat
+Briefs 22 and 23, and Brief 24 until 2026-10-01, were written in chat and never saved in `briefs/`, although the chat handoff (session 6) lists them there. Brief 24 v2 is now `briefs/24-gis-cells.md`; 22 and 23 are still only in chat.
+
+## Repository and publishing (2026-10-01)
+- GitHub: `JennaBruggeman/curbside` (the app), `JennaBruggeman/curbside-data` (Brief 24's cells).
+- **History rewritten:** the third-party documents (City manuals and standard drawings, the mmcité Kupé files, the LA parklet guide and other precedent PDFs, precedent and reference images), the two `.bak` files and `.claude/` were removed from every branch and tag with `git filter-branch`. The local copies stay on the author's machine, git-ignored. Keep any new reference material in `reference/` (ignored).
+- **Pre-push check:** `tools/hooks/pre-push` refuses any PDF, DWG or ZIP and any file over 5 MB in the commits being pushed. Enable it once per clone: `git config core.hooksPath tools/hooks`.
+- **Invite codes:** `supabase/invite-codes.sql` (run after `schema.sql`) replaces the single shared code with a table of codes, one per person, each with a use count and an optional expiry.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
