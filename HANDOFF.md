@@ -738,6 +738,14 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   - **Empty states:** `uiEmpty` covers Furniture with nothing placed, Export without a located site, and Generate before a run.
   - **Site:** `uiSiteSteps()` regroups the first panel into 1 Locate · 2 Import context · 3 Place parklet, with Done / Next / Waiting (`uiSiteStepStatus`).
   - **Refresh:** `syncDesignModel` and `appSetMode` are wrapped once to refresh these, with the bike-lane switch synced from the model.
+- **§4 A blank new design (commit 5):**
+  - **The one definition of empty:** `DEFAULT_STATE` (frozen, beside `pkCreateDesign`) is what an untouched page serializes to. `pkDefaultState(name, address)` gives a copy.
+  - **`pkApplyBlank(s)`:**
+    - It deletes every `state` key, then applies `s`.
+    - It also resets what lives outside the saved state: the imported context (`CTX_OUTER`, `SMP.lastReport`), the render ticks, and the generator (prefs, from the now-missing `state.__gen`, so seed 1; results; opened scheme).
+    - The view toggles return to their defaults, the Plan fits again and the 3D home reframes. The Section editor's undo history is cleared (`seClearHistory`).
+  - **+ New:** `pkCreateDesign` builds the row from `pkDefaultState` (it used to copy the open design and clear only some keys). Signed out, `pkNewDesign` applies the blank locally.
+  - **Also:** the Section editor keeps the bike-lane width when there is none (it had zeroed it). Nothing reads the width then, and a blank now serializes the same whether or not the Section re-synced it.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

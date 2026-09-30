@@ -3786,8 +3786,8 @@ document.addEventListener('mouseup', function() {
       designBikeLaneW = bls[0].width;
       designBikeLane = bls[0].variant || 'painted';
     } else {
-      designBikeLane = 'none';
-      designBikeLaneW = 0;
+      designBikeLane = 'none';   // the width is kept (unused while there is none): a re-added lane gets it back, and a
+      // blank design serializes the same whether or not the Section re-synced it (Brief 21 §4)
     }
     // Buffers: read from the segments, the one store (Brief 21 §3; bufFromSegs, also used by a load and Generate)
     var _bf = bufFromSegs(_segs);
@@ -4572,6 +4572,8 @@ document.addEventListener('mouseup', function() {
   window.seUndo = function(){ _seUndo(); };
   window.seRedo = function(){ _seRedo(); };
   window.seSyncFromGlobals = function(){ _recomputeScale(); _seFromGlobals(); _seRender(); };
+  // a new design: no undo back into the previous one (Brief 21 §4)
+  window.seClearHistory = function(){ _hist = []; _fut = []; _selId = null; _updateHistBtns(); _renderSel(); _renderProp(); };
   // seGetSegs: exposes the section editor's _segs array so buildDesignModel()
   // can use it as the canonical cross-section source.
   window.seGetSegs = function() { return _segs; };
@@ -15796,19 +15798,60 @@ async function pkLoadDesigns() {
   return pkAllDesigns;
 }
 
+// ─── The blank design (Brief 21 §4) ───────────────────────────────────
+// DEFAULT_STATE is the one definition of "empty": what a fresh page serializes to. A new design is this object with its
+// name and address; applying it resets every key (furniture, the shape, site objects, imports and their caches, the
+// section, the sheet crops, the view toggles, the render ticks, the generator's seed) and deletes the keys it lacks.
+var DEFAULT_STATE = Object.freeze({
+  schemaVersion: 1,
+  project: { name: 'Untitled parklet', streetAddress: '' },
+  site: { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, roadDir: 'oneway', lanesA: 1, lanesB: 1,
+    bldgL: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
+    bldgR: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
+    parkletWidth: 2.65, parkletLength: 19.8, bikeLane: 'none', bikeLaneW: 1.5, bufferEnabled: false, bufferW: 0.9,
+    lat: 49.2827, lon: -123.1207, streetBearing: 0, parkletSide: 'east', contextZ: 600, sheets: {} },
+  section: { z: null, dir: -1, depth: 6 },
+  crossSection: [{ type: 'sidewalk', width: 1.8 }, { type: 'parklet', width: 2.65 }, { type: 'travel-lane', width: 2.985 }],
+  compliance: { parking_restrictions: '', route_type: '', intersection_dist: '', slope: '', hydrant_dist: '', driveway_dist: '', pole_dist: '',
+    pole_trolley: '', signal_box_dist: '', manhole_dist: '', fire_exit_block: '', drainage_clear: '', boulevard_clear: '', parking_setback: '',
+    platform_gap: '', load_capacity: '' },
+  siteObjects: { manholes: [], curb_features: [], driveways: [], pkShape: null, street_trees: [], transit_stops: [], prov: {}, siteMap: null,
+    place: { pkZ: 0, corners: [] } },
+  furniture: { placed: [] }
+});
+function pkDefaultState(name, address) {
+  var s = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  s.project.name = name || 'Untitled parklet'; s.project.streetAddress = address || '';
+  return s;
+}
+// apply a blank design: everything outside the saved state that a design leaves behind goes back to its start as well
+function pkApplyBlank(s) {
+  if (typeof state !== 'undefined') Object.keys(state).forEach(function(k) { delete state[k]; });   // keys the blank lacks are deleted
+  if (typeof CTX_OUTER !== 'undefined') CTX_OUTER = null;                                           // the imported city context
+  if (typeof SMP !== 'undefined') { SMP.lastReport = null; if (SMP._pending) SMP._pending = null; }
+  if (typeof RPT !== 'undefined') RPT._renderSel = {};                                               // the render ticks
+  if (typeof GEN !== 'undefined') {                                                                  // the generator: its prefs, seed, results
+    GEN.prefs = null;   // read again from state.__gen, which is gone: the defaults (seed 1)
+    GEN.site = null; GEN.siteEdited = false; GEN.result = null; GEN.opened = null; GEN.undoSnap = null;
+    var gg = document.getElementById('genGrid'); if (gg) gg.innerHTML = '';
+  }
+  _pvDimsOn = true; _pvSectionOn = true; _3dSectionOn = true; _pvExtentsOn = false; _pvUserMod = false;   // the view toggles, the Plan fitted
+  if (typeof syncToolbarStates === 'function') try { syncToolbarStates(); } catch (e) {}
+  if (typeof _3d !== 'undefined' && _3d) { _3d.hasPositioned = false; _3d._posTag = null; }            // the 3D home view reframes
+  var sb = document.getElementById('sitePaste'); if (sb) sb.value = '';
+  pkApplyDesignState(s);
+  if (typeof window.seClearHistory === 'function') window.seClearHistory();                        // no undo into the old design
+  if (typeof saveSettings === 'function') saveSettings();
+  if (typeof render === 'function') render();
+}
 async function pkCreateDesign(name, address) {
   if (!pkSB || !pkCurrentUser) return null;
-  // Build initial state from current design OR a blank default
-  var initialState = pkSerialize();
-  initialState.project.name = name || 'Untitled Parklet';
-  initialState.project.streetAddress = address || '';
-  // Reset to blank design
-  initialState.siteObjects = { manholes:[], curb_features:[], driveways:[], pkShape:null };
-  initialState.furniture   = { placed: [] };
+  // the blank design (Brief 21 §4: DEFAULT_STATE, not a copy of the open design)
+  var initialState = pkDefaultState(name || 'Untitled parklet', address || '');
 
   var res = await pkSB.from('designs').insert({
     user_id:  pkCurrentUser.id,
-    name:     name || 'Untitled Parklet',
+    name:     name || 'Untitled parklet',
     description: address || '',
     state:    initialState,
     version:  1
@@ -15943,13 +15986,21 @@ async function pkNewDesign(name, address) {
   if (pkCurrentDesignId) {
     try { await pkSaveDesign(true); } catch(_e) {}
   }
+  // signed out: the blank design in this browser only (Brief 21 §4)
+  if (!pkSB || !pkCurrentUser) {
+    pkCurrentDesignId = null; pkCurrentDesignMeta = null;
+    pkApplyBlank(pkDefaultState(name, address));
+    try { pkSaveLocal(pkSerialize()); } catch (_e) {}
+    pkHideDesignBrowser(); pkUpdateAccountUI(); pkToast('New design: ' + (name || 'Untitled parklet'), 'success');
+    return;
+  }
   pkShowLoading('Creating design…');
-  var d = await pkCreateDesign(name || 'Untitled Parklet', address || '');
+  var d = await pkCreateDesign(name || 'Untitled parklet', address || '');
   if (!d) { pkHideLoading(); pkToast('Could not create design.', 'error'); return; }
   pkCurrentDesignId   = d.id;
   pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at };
-  // Apply blank state
-  pkApplyDesignState(d.state);
+  // Apply the blank state (every key reset)
+  pkApplyBlank(d.state);
   pkHideLoading();
   pkHideDesignBrowser();
   pkSetSaveStatus('pk-saved', 'Saved');
@@ -16378,7 +16429,7 @@ function pkShowNewDesignDialog() {
     '<div class="pk-dialog-box">',
     '<div class="pk-dialog-title">New Design</div>',
     '<div class="pk-form-group"><label class="pk-form-label">Design Name</label>',
-    '<input type="text" id="pkNDName" class="pk-form-input" value="Untitled Parklet" placeholder="e.g. Main St Parklet" onkeydown="if(event.key===\'Enter\')pkDoCreateNewDesign()"></div>',
+    '<input type="text" id="pkNDName" class="pk-form-input" value="Untitled parklet" placeholder="e.g. Main St Parklet" onkeydown="if(event.key===\'Enter\')pkDoCreateNewDesign()"></div>',
     '<div class="pk-form-group"><label class="pk-form-label">Street Address <span style="color:var(--text-mu);font-weight:400;">(optional)</span></label>',
     '<input type="text" id="pkNDAddr" class="pk-form-input" placeholder="e.g. 1000-block Robson St" onkeydown="if(event.key===\'Enter\')pkDoCreateNewDesign()"></div>',
     '<div class="pk-dialog-btns">',
@@ -16392,11 +16443,11 @@ function pkShowNewDesignDialog() {
   setTimeout(function() { var el = document.getElementById('pkNDName'); if (el) { el.select(); } }, 50);
 }
 async function pkDoCreateNewDesign() {
-  var name = (document.getElementById('pkNDName')||{}).value || 'Untitled Parklet';
+  var name = (document.getElementById('pkNDName')||{}).value || 'Untitled parklet';
   var addr = (document.getElementById('pkNDAddr')||{}).value || '';
   var dlg  = document.getElementById('pkNewDlg');
   if (dlg) dlg.remove();
-  await pkNewDesign(name.trim() || 'Untitled Parklet', addr.trim());
+  await pkNewDesign(name.trim() || 'Untitled parklet', addr.trim());
 }
 
 // ─── Rename dialog ────────────────────────────────────────────────
