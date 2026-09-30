@@ -26021,13 +26021,14 @@ RVZP._gallery = async function() {
 </style>
 <div id='smModal' role='dialog' aria-modal='true' aria-labelledby='smTitle'>
   <div class='sm-box'>
-    <div class='sm-head'><h3 id='smTitle'>Locate the parklet on the map</h3><button type='button' class='sm-btn' id='smClose' onclick='SM.close()'>Close</button></div>
+    <div class='sm-head'><h3 id='smTitle'>Locate the parklet on the map</h3><button type='button' class='sm-btn' id='smLayersBtn' aria-pressed='false' aria-controls='smLayers' onclick='GIS.togglePanel()' title='The City, OpenStreetMap and TransLink layers around the site: what the import will read.'>Layers</button><button type='button' class='sm-btn' id='smClose' onclick='SM.close()'>Close</button></div>
     <form class='sm-search' onsubmit='SM.search(); return false;'>
       <input type='search' id='smQuery' placeholder='Search an address in Vancouver, e.g. 1000 Robson St' autocomplete='off' aria-label='Address search'>
       <button type='submit' class='sm-btn' id='smGo'>Search</button>
       <ul class='sm-results' id='smResults' hidden></ul>
     </form>
-    <div id='smMap'></div>
+    <div class='sm-body'><div id='smMap'></div>
+      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><div id='smLayersList'></div></aside></div>
     <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
       <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' disabled>Use this location</button></div>
   </div>
@@ -26194,9 +26195,12 @@ SM.open = async function() {
     SM.map.on('load', function() {
       SM.map.addSource('smWay', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       SM.map.addLayer({ id: 'smWay', type: 'line', source: 'smWay', paint: { 'line-color': '#3AA8E4', 'line-width': 6, 'line-opacity': 0.75 } });
+      if (typeof GIS !== 'undefined') GIS.mapInit(SM.map);   // the city layers under the picked street (Brief 24)
     });
-    SM.map.on('click', function(e) { SM.onClick(e.lngLat.lat, e.lngLat.lng); });
-  } else SM.map.resize();
+    // a click on a point of a city layer opens its popup; any other click picks the street, then the side
+    SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
+  } else { SM.map.resize(); if (typeof GIS !== 'undefined') GIS.onMove(); }
+  try { if (typeof GIS !== 'undefined' && localStorage.getItem('pkt_gis_panel') === '1') GIS.togglePanel(true); } catch (e) {}
   SM.status('Search an address or pan the map, then <b>click the street</b> where the parklet goes.');
 };
 SM.close = function() { document.getElementById('smModal').classList.remove('open'); document.getElementById('smResults').hidden = true; };
@@ -26449,8 +26453,6 @@ GIS.evict = function() {
   Object.keys(gone).forEach(GIS.dirty);
 };
 GIS.refresh = function() { if (GIS.view.length) GIS.setView(GIS.view); };
-// (until the map is wired, a change only marks the layer: B3)
-GIS.dirty = GIS.dirty || function() {};
 GIS.log = function(s) { (GIS._log = GIS._log || []).push(s); if (GIS._log.length > 200) GIS._log.shift(); };
 
 // ── A layer's features across the resident cells, deduplicated by id (a line's pieces in neighbouring cells joined) ─
@@ -26491,7 +26493,190 @@ GIS.rowState = function(lid) {
   return st;
 };
 </script>
+<script>
+// ── Changes reach the map once a frame: every layer changed in a frame gets one setData (Brief 24 B3) ─────────────
+// (a hidden page has no animation frames: a timer stands in, so a background tab still settles)
+GIS._dirty = new Set(); GIS._listeners = [];
+GIS.listen = function(fn) { GIS._listeners.push(fn); };
+GIS.dirty = function(lid) {
+  GIS._dirty.add(lid); if (GIS._pend) return;
+  var run = function() { if (!GIS._pend) return; GIS._pend = false; clearTimeout(GIS._pendT); var d = [...GIS._dirty]; GIS._dirty.clear(); GIS.frames = (GIS.frames || 0) + 1; GIS._listeners.forEach(function(fn) { try { fn(d); } catch (e) { console.warn('[gis]', e); } }); };
+  GIS._pend = true; requestAnimationFrame(run); GIS._pendT = setTimeout(run, 150);
+};
 
+// ── The site map's layers: one source and one layer per registry entry, added once, in registry order, under the
+// picked street; a toggle is a visibility change only (Brief 24 B3) ────────────────────────────────────────────────
+GIS.src = function(lid) { return 'gis-' + lid; };
+GIS.mapInit = function(map) {
+  if (GIS.map === map && map.getSource(GIS.src(GIS.LAYERS[0].id))) return;
+  GIS.map = map;
+  var hov = function(a, b) { return ['case', ['boolean', ['feature-state', 'hover'], false], a, b]; };
+  GIS.LAYERS.forEach(function(L) {
+    var id = GIS.src(L.id), S = L.style;
+    map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' });
+    var spec = L.geometry === 'polygon' ? { type: 'fill', paint: { 'fill-color': S.colour, 'fill-opacity': hov(0.62, S.opacity), 'fill-outline-color': '#5A6068' } }
+      : L.geometry === 'line' ? { type: 'line', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': S.colour, 'line-width': hov(S.width + 2.5, S.width), 'line-opacity': 0.9 } }
+      : { type: 'circle', paint: { 'circle-radius': hov(S.radius + 2.5, S.radius), 'circle-color': S.colour, 'circle-stroke-width': 1, 'circle-stroke-color': '#FFFFFF' } };
+    map.addLayer({ id: id, type: spec.type, source: id, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, spec.layout || {}), paint: spec.paint }, map.getLayer('smWay') ? 'smWay' : undefined);
+  });
+  // hover: one feature at a time, through feature-state (no DOM per feature)
+  var hovered = null;
+  map.on('mousemove', function(e) {
+    var f = GIS.hit(e.point, true);
+    if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; }
+    if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); }
+    map.getCanvas().style.cursor = f ? 'pointer' : '';
+  });
+  map.on('moveend', GIS.onMove);
+  GIS.listen(function(lids) {
+    if (!GIS.map) return;
+    lids.forEach(function(l) { var s = GIS.map.getSource(GIS.src(l)); if (s) s.setData({ type: 'FeatureCollection', features: GIS.features(l) }); });
+    GIS.renderRows();
+  });
+  GIS.onMove();
+};
+// the visible layers' feature under a point (points first, then lines, then buildings); all: any geometry
+GIS.hit = function(pt, all) {
+  var map = GIS.map, ls = GIS.LAYERS.filter(function(l) { return GIS.on[l.id] && (all || l.geometry === 'point'); }).map(function(l) { return GIS.src(l.id); }).reverse();
+  if (!ls.length) return null;
+  var fs = map.queryRenderedFeatures([[pt.x - 4, pt.y - 4], [pt.x + 4, pt.y + 4]], { layers: ls });
+  fs.sort(function(a, b) { return ls.indexOf(a.layer.id) - ls.indexOf(b.layer.id); });
+  return fs[0] || null;
+};
+// a click on a point feature opens its popup (the street pick is not run); anything else is the pick's
+GIS.popupAt = function(e, f) {
+  f = f || GIS.hit(e.point, false); if (!f) return false;
+  var p = f.properties || {}, lid = String(f.layer.id).replace(/^gis-/, ''), L = GIS.byId(lid), pr = typeof p.props === 'string' ? JSON.parse(p.props) : (p.props || {});
+  var rows = GIS.describe(lid, pr), meta = GIS._idx && GIS._idx.layers[lid];
+  var html = "<div class='gis-pop'><b>" + SM.esc(L.label.replace(/s$/, '')) + '</b>' + rows.map(function(r) { return '<div>' + SM.esc(r) + '</div>'; }).join('') +
+    "<div class='gis-pop-src'>" + SM.esc(GIS.GROUPS[L.group]) + (meta ? ', data ' + String(meta.updatedAt).slice(0, 10) : '') + '</div></div>';
+  if (GIS._pop) GIS._pop.remove();
+  GIS._pop = new maplibregl.Popup({ closeButton: true, maxWidth: '260px' }).setLngLat(e.lngLat).setHTML(html).addTo(GIS.map);
+  return true;
+};
+GIS.describe = function(lid, p) {
+  var r = [], add = function(s) { if (s) r.push(s); };
+  if (lid === 'buildings') { add(p.name); add(p.address || 'no City address point'); add([p.use, p.kind && p.kind !== 'yes' ? p.kind : null, p.levels ? p.levels + ' storeys' : null].filter(Boolean).join(', ')); }
+  else if (lid === 'bus-stops') { add(p.name); add(p.code ? 'Stop ' + p.code : null); add(p.routes && p.routes.length ? 'Routes ' + p.routes.join(', ') : null); }
+  else if (lid === 'hydrants') add('Hydrant ' + (p.hydrantId || ''));
+  else if (lid === 'trees') { add(p.species); add([p.genus, p.speciesName].filter(Boolean).join(' ')); add([p.dbh ? 'diameter ' + p.dbh + ' cm' : null, p.height ? 'height class ' + p.height : null].filter(Boolean).join(', ')); }
+  else if (lid === 'row-width') { add(p.width + ' m (' + p.widthFt + ' ft) property line to property line'); add('not curb to curb'); }
+  else if (lid === 'transit-stations') add(p.name);
+  else if (lid === 'pois') { add(p.name); add([p.kind, p.use].filter(Boolean).join(', ')); }
+  else if (lid === 'streets') { add(p.name); add([p.highway, p.lanes ? p.lanes + ' lanes' : null, p.oneway === 'no' ? 'two-way' : 'one-way'].filter(Boolean).join(', ')); }
+  else if (lid === 'bikeways') { add(p.name); add([p.type, p.subtype].filter(Boolean).join(', ')); add('side approximate'); }
+  else if (lid === 'one-way') { add(p.name); add(p.use); }
+  else if (lid === 'truck-routes') add(p.name);
+  else if (lid === 'bus-routes') { add('Route ' + p.route); add(p.name); }
+  return r;
+};
+// the view's cells: those in view first, then their neighbours while the resident cap allows; none when the view
+// alone needs more than the cap (zoomed out: the tab says so)
+GIS.onMove = async function() {
+  var map = GIS.map; if (!map) return;
+  try { await GIS.index(); } catch (e) { GIS.renderRows(); return; }
+  var b = map.getBounds(), inView = GIS.cellsIn(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 0);
+  var cells = inView.length > GIS.MAX_CELLS ? [] : inView.slice();
+  if (cells.length) GIS.cellsIn(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 1).forEach(function(c) { if (cells.length < GIS.MAX_CELLS && cells.indexOf(c) < 0) cells.push(c); });
+  GIS.zoomOut = inView.length > GIS.MAX_CELLS;
+  GIS.setView(cells);
+  GIS.renderRows();
+};
+// the features of a layer in view (a point inside, a line or polygon whose box overlaps)
+GIS.countInView = function(lid) {
+  if (!GIS.map) return 0; var b = GIS.map.getBounds(), w = b.getWest(), s = b.getSouth(), e = b.getEast(), n = b.getNorth(), c = 0;
+  GIS.features(lid).forEach(function(f) {
+    var g = f.geometry, pts = g.type === 'Point' ? [g.coordinates] : g.type === 'LineString' ? g.coordinates : g.type === 'MultiLineString' || g.type === 'Polygon' ? [].concat.apply([], g.coordinates) : [];
+    if (g.type === 'Point') { if (pts[0][0] >= w && pts[0][0] <= e && pts[0][1] >= s && pts[0][1] <= n) c++; return; }
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; pts.forEach(function(p) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; });
+    if (x1 >= w && x0 <= e && y1 >= s && y0 <= n) c++;
+  });
+  return c;
+};
+
+// ── The Layers tab (Brief 24 B4) ─────────────────────────────────────────────────────────────────────────────────
+GIS.togglePanel = function(v) {
+  var p = document.getElementById('smLayers'), b = document.getElementById('smLayersBtn'); if (!p) return;
+  var open = v == null ? p.hidden : !!v; p.hidden = !open; if (b) b.setAttribute('aria-pressed', open ? 'true' : 'false');
+  try { localStorage.setItem('pkt_gis_panel', open ? '1' : '0'); } catch (e) {}
+  if (open) GIS.buildRows();
+  if (GIS.map) setTimeout(function() { GIS.map.resize(); }, 0);
+};
+GIS.buildRows = function() {
+  var p = document.getElementById('smLayersList'); if (!p || p.dataset.built) { GIS.renderRows(); return; }
+  p.dataset.built = '1';
+  p.innerHTML = Object.keys(GIS.GROUPS).map(function(g) {
+    return "<div class='gis-grp' role='group' aria-label='" + GIS.GROUPS[g] + "'><div class='gis-grp-h'>" + GIS.GROUPS[g] + '</div>' + GIS.LAYERS.filter(function(l) { return l.group === g; }).map(function(L) {
+      var sw = L.geometry === 'point' ? 'border-radius:50%;width:9px;height:9px;' : L.geometry === 'line' ? 'height:3px;width:16px;' : 'width:14px;height:10px;opacity:.6;';
+      return "<div class='gis-row' data-l='" + L.id + "'><label class='gis-lab' title='" + SM.esc(L.legend) + "'><input type='checkbox' id='gisChk_" + L.id + "' data-l='" + L.id + "'" + (GIS.on[L.id] ? ' checked' : '') + " onchange='GIS.toggle(this.dataset.l, this.checked)'>" +
+        "<span class='gis-sw' style='" + sw + 'background:' + L.style.colour + "'></span><span class='gis-name'>" + SM.esc(L.label) + "</span></label><span class='gis-n' id='gisN_" + L.id + "'></span>" +
+        (L.live ? "<button type='button' class='gis-live' id='gisLive_" + L.id + "' onclick='GIS.live(\"" + L.id + "\")' title='Fetches this layer for the view from OpenStreetMap now (Overpass). The site facts change only when you import again.'>&#8635; live</button>" : '') +
+        "<span class='gis-src' id='gisSrc_" + L.id + "'></span></div>";
+    }).join('') + '</div>';
+  }).join('') + "<button type='button' class='gis-reset txt-btn' onclick='GIS.reset()'>Reset to defaults</button>";
+  // keyboard: space toggles (the checkbox's own), up / down move between rows
+  p.addEventListener('keydown', function(e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    var bs = [].slice.call(p.querySelectorAll("input[type='checkbox']")), i = bs.indexOf(document.activeElement); if (i < 0) return;
+    e.preventDefault(); var n = bs[Math.max(0, Math.min(bs.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]; n.focus();
+  });
+  GIS.renderRows();
+};
+GIS.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
+GIS.renderRows = function() {
+  var p = document.getElementById('smLayersList'); if (!p || !p.dataset.built || document.getElementById('smLayers').hidden) return;
+  var idx = GIS._idx;
+  GIS.LAYERS.forEach(function(L) {
+    var n = document.getElementById('gisN_' + L.id), s = document.getElementById('gisSrc_' + L.id), c = document.getElementById('gisChk_' + L.id); if (!s) return;
+    if (c && c.checked !== !!GIS.on[L.id]) c.checked = !!GIS.on[L.id];
+    var meta = idx && idx.layers[L.id], st = GIS.rowState(L.id), txt;
+    if (!idx) txt = GIS._idxErr ? 'not cached here' : 'loading…';
+    else if (!GIS.on[L.id]) txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
+    else if (GIS.zoomOut) txt = 'zoom in to see this layer';
+    else if (st.live) txt = 'live OSM ' + new Date(st.live).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    else if (st.loading && !st.ready) txt = 'loading…';
+    else if (!st.ready && st.nodata && !st.offline) txt = 'no data for this location';
+    else if (!st.ready && st.offline) txt = 'not cached here';
+    else if (!st.ready && st.error) txt = 'could not be read';
+    else if (meta && meta.stale) txt = GIS.GROUPS[L.group].replace('City of Vancouver', 'City') + ' data from ' + GIS.day(meta.updatedAt) + ', refresh failed upstream';
+    else txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
+    s.textContent = txt;
+    if (n) n.textContent = GIS.on[L.id] && st.ready && !GIS.zoomOut ? String(GIS.countInView(L.id)) : '';
+  });
+};
+GIS.toggle = function(lid, v) {
+  GIS.on[lid] = !!v; GIS.saveOn();
+  if (GIS.map && GIS.map.getLayer(GIS.src(lid))) GIS.map.setLayoutProperty(GIS.src(lid), 'visibility', v ? 'visible' : 'none');
+  if (v && GIS.view.length) GIS.ensure([lid], GIS.view, { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal });
+  GIS.renderRows();
+};
+GIS.live = GIS.live || function() { return false; };   // B6: replaced by the live refresh
+GIS.reset = function() { GIS.LAYERS.forEach(function(l) { GIS.toggle(l.id, l.defaultOn); }); };
+</script>
+<style>
+/* -- Brief 24 B4: the site map's Layers tab ------------------------------------------------- */
+.sm-body { position: relative; min-height: 0; display: grid; grid-template-columns: 1fr auto; }
+.sm-body #smMap { min-height: 0; }
+.sm-layers { width: 300px; overflow: auto; border-left: 1px solid var(--c-rule, #2E3338); padding: 8px 10px 12px; font-size: 12px; }
+.sm-layers[hidden] { display: none; }
+.sm-layers h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.sm-layers .gis-note { margin: 0 0 8px; color: var(--c-text-dim, #9AA0A6); line-height: 1.4; }
+.gis-grp { margin: 8px 0 4px; }
+.gis-grp-h { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--c-text-dim, #9AA0A6); margin-bottom: 2px; }
+.gis-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0 6px; padding: 3px 0; border-top: 1px solid rgba(255, 255, 255, .05); }
+.gis-lab { display: flex; align-items: center; gap: 6px; cursor: pointer; min-width: 0; }
+.gis-lab input:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
+.gis-sw { display: inline-block; flex: none; }
+.gis-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gis-n { font-variant-numeric: tabular-nums; color: var(--c-text-dim, #9AA0A6); min-width: 2.5em; text-align: right; }
+.gis-live { grid-column: 3; font: inherit; font-size: 11px; padding: 0 6px; height: 20px; background: transparent; color: var(--accent-ui, #3AA8E4); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; cursor: pointer; }
+.gis-live:disabled { opacity: .5; cursor: progress; }
+.gis-src { grid-column: 1 / -1; padding-left: 22px; font-size: 11px; color: var(--c-text-dim, #9AA0A6); line-height: 1.35; }
+.gis-reset { margin-top: 8px; font-size: 11px; }
+.gis-pop { font: 12px/1.4 var(--font-ui, sans-serif); color: #1A1A1A; }
+.gis-pop b { display: block; margin-bottom: 2px; }
+.gis-pop-src { margin-top: 4px; color: #6B7075; font-size: 11px; }
+</style>
 <style>
 /* -- Site from map (Brief 13) phase 2: provenance tags, imported objects -------------------- */
 .prov-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 7px; font: 600 11px/16px var(--font-ui, sans-serif); letter-spacing: .01em; vertical-align: 1px; cursor: pointer; border: 1px solid currentColor; background: transparent; }
