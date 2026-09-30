@@ -602,7 +602,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <div id='mhHintCtx' style='font-size:11px;color:var(--text-mu);margin-top:4px;min-height:12px'></div>
 </div></div>
-<div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section" id="designShapeSec">        <div class="sb-section-lbl">Parklet shape editor</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit the deck&rsquo;s shape</button>        <div class="design-dims" id="designDims" aria-live="polite"><span>Length</span> <span id="lengthReadout" class="readout">19.8 m</span> <span>&times; width</span> <span id="widthReadout" class="readout">2.650 m</span></div>        <span class="hint">Set by the shape; the width also follows the Parklet segment in the Section.</span>        <div class="lane-badge" id="laneReadout"></div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street context</div>        <div class="ff">          <label>Bike lane</label>          <div class="seg-group" id="bikeLaneToggle">            <button class="seg-btn active" onclick="onBikeLaneType('none')">None</button>            <button class="seg-btn" onclick="onBikeLaneType('painted')">Painted</button>            <button class="seg-btn" onclick="onBikeLaneType('protected')">Protected</button>          </div>          <span class="hint" id="bikeLaneHint" style="display:none"></span>        </div>        <div class="sl-field" id="bikeLaneWidthField" style="display:none">          <div class="sl-hdr">            <label>Bike lane width</label>            <span id="bikeLaneReadout" class="readout">1.50 m</span>          </div>          <input type="range" id="bikeLaneSlider" min="1.2" max="3.5" step="0.05" value="1.5" oninput="onBikeLaneWidth(this.value)">        </div>      <span class='hint design-buf-hint'>Buffers beside the bike lane are segments of the street: add them in the Section (Add segment).</span></div>
+<div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section" id="designShapeSec">        <div class="sb-section-lbl">Parklet shape editor</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit the deck&rsquo;s shape</button>        <div class="design-dims" id="designDims" aria-live="polite"><span>Length</span> <span id="lengthReadout" class="readout">19.8 m</span> <span>&times; width</span> <span id="widthReadout" class="readout">2.650 m</span></div>        <span class="hint">Set by the shape; the width also follows the Parklet segment in the Section.</span>        <div class="lane-badge" id="laneReadout"></div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street context</div>        <span class='hint design-buf-hint'>The bike lane and its buffers are segments of the street: the site import writes them, and you edit them in the Section (Add segment).</span></div>
       <div class='sb-section' id='lhsFurnSection'>
         <div class='sb-section-lbl'>Library</div>
         <input type='search' id='lhsFwSearch' name='curbside-library-search' autocomplete='off' spellcheck='false' class='lib-search' placeholder='Search furniture, street components, people' aria-label='Search the library' oninput='lhsFwSearchFn(this.value)'>
@@ -1694,10 +1694,25 @@ let _pvRenderT = null;
 let designParkletWidth = 2.65;
 let designParkletLength = 19.8;
 // ── Street-context layers ──────────────────────
-// Bike lane type: 'none' | 'painted' | 'protected'
-// Painted min 1.5 m · Protected min 1.8 m (Vancouver Engineering Design Manual)
-let designBikeLane = 'none';
-let designBikeLaneW = 1.5;
+// The bike lane (Brief 22): the Section's segments are its one source. The parklet-side run is the segments before the
+// first travel lane: an optional buffer to the parklet (buf-pk), the bike-lane segment (variant painted | protected), an
+// optional buffer to the traffic (buf-bl). A far-side bike lane is its own segment after the travel lanes.
+// Default widths (Engineering Design Manual 2026): painted 1.5 m, protected 2.0 m (Table 8-6 minimums); a protected lane
+// gets a 0.8 m buffer to the parking lane (Table 8-7, §8.5.4.5: raised and painted, intermittent physical, minimum).
+var BIKE_DEFAULTS = { painted: { lane: 1.5 }, protected: { lane: 2.0, bufPK: 0.8, bufPKType: 'raised' } };
+function _curSegs() {
+  var s = typeof window.seGetSegs === 'function' ? window.seGetSegs() : null;
+  return (s && s.length) ? s : ((typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.crossSection) || []);
+}
+// the parklet-side bike run: {bufPK, lane, bufBL} (segments or null)
+function bikeRun(segs) {
+  segs = segs || _curSegs();
+  var fl = segs.findIndex(function(s) { return s.type === 'travel-lane'; }), near = fl < 0 ? segs : segs.slice(0, fl);
+  var lane = near.find(function(s) { return s.type === 'bike-lane'; }) || null;
+  return { lane: lane, bufPK: lane ? near.find(function(s) { return s.type === 'buf-pk'; }) || null : null, bufBL: lane ? near.find(function(s) { return s.type === 'buf-bl'; }) || null : null };
+}
+function bikeLaneType(segs) { var r = bikeRun(segs); return r.lane ? (r.lane.variant === 'protected' ? 'protected' : 'painted') : 'none'; }
+function bikeLaneWidth(segs) { var r = bikeRun(segs); return r.lane ? r.lane.width : 0; }
 // Vegetated buffer (boulevard / utility strip): min 0.6 m (Vancouver Streetscape Design Guidelines)
 let designBufferEnabled = false;
 let designBufferW = 0.9;
@@ -1707,12 +1722,10 @@ let bufPKType = 'none'; // parklet ↔ bike lane
 let bufPKW = 0.8;
 let bufBLType = 'none'; // bike lane ↔ traffic
 let bufBLW = 0.4;
-function getBikeLaneD() {
-  if (designBikeLane === 'none') return 0;
-  let d = designBikeLaneW;
-  if (bufPKType !== 'none') d += bufPKW;
-  if (bufBLType !== 'none') d += bufBLW;
-  return d;
+// the parklet-side bike lane and its buffers, m (0 without a lane): from the segments
+function getBikeLaneD(segs) {
+  var r = bikeRun(segs); if (!r.lane) return 0;
+  return r.lane.width + (r.bufPK ? r.bufPK.width : 0) + (r.bufBL ? r.bufBL.width : 0);
 }
 // â”€â”€ Canonical cross-section geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns ordered segment array with world x0/x1 (X=0 = parklet street-side edge).
@@ -1904,15 +1917,9 @@ function _computeSegsFromGlobals() {
   var segs = [], cx = PW;
   segs.push({ id: 'sidewalk',  type: 'sidewalk',  width: SIDEWALK_W, x0: -SIDEWALK_W, x1: 0 });
   segs.push({ id: 'parklet',   type: 'parklet',   width: PW, x0: 0, x1: PW });
-  if (designBikeLane !== 'none' && bld > 0.001) {
-    if (bufPKType !== 'none' && bufPKW > 0.001) {
-      segs.push({ id: 'buf-pk',   type: 'buf-pk',   width: bufPKW, variant: bufPKType, x0: cx, x1: cx + bufPKW }); cx += bufPKW;
-    }
-    segs.push({ id: 'bike-lane', type: 'bike-lane', width: designBikeLaneW, variant: designBikeLane, x0: cx, x1: cx + designBikeLaneW }); cx += designBikeLaneW;
-    if (bufBLType !== 'none' && bufBLW > 0.001) {
-      segs.push({ id: 'buf-bl',   type: 'buf-bl',   width: bufBLW, variant: bufBLType, x0: cx, x1: cx + bufBLW }); cx += bufBLW;
-    }
-  }
+  // the parklet-side bike run as the last known segments hold it (Brief 22: the segments are its one source)
+  var br = bikeRun();
+  [br.bufPK, br.lane, br.bufBL].forEach(function(s) { if (!s || !(s.width > 0.001)) return; var o = { id: s.type, type: s.type, width: s.width, x0: cx, x1: cx + s.width }; if (s.variant !== undefined) o.variant = s.variant; segs.push(o); cx += s.width; });
   if (carLW > 0.001) {
     var nL = getTotalLanes(), lnW = parseFloat((carLW / nL).toFixed(4));
     for (var li = 0; li < nL; li++) {
@@ -3208,7 +3215,7 @@ function buildDesignModel() {
       direction: (typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'twoway') ? 'two-way' : 'one-way',
       route: typeof laneRouteKey === 'function' ? laneRouteKey() : 'standard',
       travelLanes: DM.lanes.length,
-      bikeLane: bike ? { type: (typeof designBikeLane !== 'undefined' ? designBikeLane : 'bike lane'), width: bike.width } : null,
+      bikeLane: bike ? { type: bike.variant === 'protected' ? 'protected' : 'painted', width: bike.width } : null,
       buffers: segs.filter(function(s) { return s.type === 'buf-pk' || s.type === 'buf-bl' || s.type === 'planting'; })
         .map(function(s) { return { id: s.id, type: s.type, width: s.width, variant: s.variant || null }; })
     };
@@ -3282,7 +3289,7 @@ window.syncDesignModel = syncDesignModel;
 // Legacy alias (external code that calls getCanonicalCrossSection still works).
 function getCanonicalCrossSection() { return buildDesignModel().crossSection; }
 // EDM §8.5.4.1 Table 8-6: protected min = 2.0m (absolute 1.5m requires CE approval)
-function bikeLaneMinW() { return designBikeLane === 'protected' ? 2.0 : 1.5; }
+function bikeLaneMinW() { return bikeLaneType() === 'protected' ? 2.0 : 1.5; }
 function bufMinW(loc, type) {
   if (type === 'trees') return 1.5; // EDM Table 8-7 "Raised Buffer with Trees"
   return loc === 'pk' ? 0.8 : 0.4; // raised: parklet-side 0.8m, traffic-side 0.4m
@@ -3518,17 +3525,6 @@ function updateWidthSliderMax() {
   const maxPk = Math.max(1.5, TOTAL_ROAD - getBikeLaneD());
   const sl = document.getElementById('widthSlider');
   if (sl) sl.max = maxPk.toFixed(3);
-  // Bike lane max: leave enough room for minimum required travel lanes
-  const bufAct = (bufPKType !== 'none' ? bufPKW : 0) + (bufBLType !== 'none' ? bufBLW : 0);
-  const maxBL = Math.max(bikeLaneMinW(), TOTAL_ROAD - designParkletWidth - bufAct - getReqLane() * getTotalLanes());
-  const blSl = document.getElementById('bikeLaneSlider');
-  if (blSl) blSl.max = maxBL.toFixed(2);
-  if (designBikeLaneW > maxBL) {
-    designBikeLaneW = parseFloat(maxBL.toFixed(2));
-    if (blSl) blSl.value = designBikeLaneW;
-    const rdEl = document.getElementById('bikeLaneReadout');
-    if (rdEl) rdEl.textContent = designBikeLaneW.toFixed(2) + ' m';
-  }
   updateMinRoadNote();
 }
 function clampParkletWidth() {
@@ -3559,8 +3555,7 @@ function saveSettings() {
     state['__bldgR'] = JSON.stringify(BLDG_R);
     state['__projectName'] = document.getElementById('projectName').value;
     state['__streetAddress'] = document.getElementById('streetAddress').value;
-    state['__bikeLane'] = designBikeLane;
-    state['__bikeLaneW'] = String(designBikeLaneW);
+    delete state['__bikeLane']; delete state['__bikeLaneW'];   // (Brief 22: the bike lane is a segment of the Section, saved with it)
     // (Brief 21 §3: the bike lane's buffers are stored once, in the cross-section; older saves' keys are only read)
     delete state['__bufPKType']; delete state['__bufPKW']; delete state['__bufBLType']; delete state['__bufBLW'];
     state['__bufferEnabled'] = designBufferEnabled ? '1' : '0';
@@ -3698,42 +3693,12 @@ function onLengthSlider(val) {
   renderMassView();
 
 }
-function onBikeLaneType(type) {
-  designBikeLane = type;
-  const btns = document.querySelectorAll('#bikeLaneToggle .seg-btn');
-  ['none','painted','protected'].forEach((t,i) => {
-    if (btns[i]) btns[i].className = 'seg-btn' + (t===type?' active':'');
-  });
-  const field = document.getElementById('bikeLaneWidthField');
-  if (field) field.style.display = type === 'none' ? 'none' : '';
-  const hint = document.getElementById('bikeLaneHint');
-  if (hint) {
-    if (type === 'none') { hint.style.display = 'none'; }
-    else {
-      const minW = bikeLaneMinW();
-      hint.style.display = '';
-      hint.textContent = type === 'painted'
-        ? `Min 1.5 m — Vancouver Engineering Design Manual`
-        : `Min 2.0 m — EDM 2026 §8.5.4.1`;
-      if (designBikeLaneW < minW) {
-        designBikeLaneW = minW;
-        const sl = document.getElementById('bikeLaneSlider');
-        if (sl) sl.value = minW;
-        document.getElementById('bikeLaneReadout').textContent = minW.toFixed(2) + ' m';
-      }
-    }
-  }
-  updateBikeBufUI();
-  onLaneEnvelopeInput();
-}
-function onBikeLaneWidth(val) {
-  const v = parseFloat(val);
-  const minW = bikeLaneMinW();
-  designBikeLaneW = Math.max(minW, v);
-  const sl = document.getElementById('bikeLaneSlider');
-  if (sl && designBikeLaneW !== v) sl.value = designBikeLaneW;
-  document.getElementById('bikeLaneReadout').textContent = designBikeLaneW.toFixed(2) + ' m';
-  onLaneEnvelopeInput();
+// Set the parklet-side bike lane (Brief 22): its segments in the Section, the one source. type 'none' | 'painted' |
+// 'protected'; width optional (else the lane's own, else the EDM default); a protected lane gets its buffer to the parking
+// lane (BIKE_DEFAULTS). The site import and the survey call this; the user edits the segments in the Section.
+function setBikeLane(type, width) {
+  if (typeof window.seSetBikeLane === 'function') window.seSetBikeLane(type, width);
+  if (typeof updateBikeBufUI === 'function') updateBikeBufUI();
 }
 function onBufferToggle(enabled) {
   designBufferEnabled = enabled;
@@ -3750,8 +3715,8 @@ function onBufferWidth(val) {
   onLaneEnvelopeInput();
 }
 function updateBikeBufUI() {
-  const hasBike = designBikeLane !== 'none';
-  const isProt = designBikeLane === 'protected';
+  const hasBike = bikeLaneType() !== 'none';
+  const isProt = bikeLaneType() === 'protected';
   const bbs = document.getElementById('bikeBufSection');
   if (bbs) bbs.style.display = hasBike ? '' : 'none';
   const bpk = document.getElementById('bufPKSection');
@@ -4261,8 +4226,6 @@ document.addEventListener('mouseup', function() {
     function _g(name, def) {
       var v = (typeof window[name] !== 'undefined') ? window[name] : undefined;
       // Also check direct closure access for key variables
-      if (name === 'designBikeLane')   v = (typeof designBikeLane   !== 'undefined') ? designBikeLane   : v;
-      if (name === 'designBikeLaneW')  v = (typeof designBikeLaneW  !== 'undefined') ? designBikeLaneW  : v;
       if (name === 'designParkletWidth') v = (typeof designParkletWidth !== 'undefined') ? designParkletWidth : v;
       if (name === 'bufPKType')  v = (typeof bufPKType  !== 'undefined') ? bufPKType  : v;
       if (name === 'bufPKW')     v = (typeof bufPKW     !== 'undefined') ? bufPKW     : v;
@@ -4288,21 +4251,10 @@ document.addEventListener('mouseup', function() {
     var _bpkt = _g('bufPKType','none');
     if (_bpkt && _bpkt !== 'none')
       _segs.push({ id:_nid(), type:'buf-pk', width:Math.round((_g('bufPKW',0.8))*1000)/1000, variant:_bpkt });
-    var _dbl = _g('designBikeLane','none');
-    if (_dbl && _dbl !== 'none')
-      _segs.push({ id:_nid(), type:'bike-lane', width:Math.round((_g('designBikeLaneW',1.5))*1000)/1000, variant:_dbl });
-    var _bblt = _g('bufBLType','none');
-    if (_bblt && _bblt !== 'none')
-      _segs.push({ id:_nid(), type:'buf-bl', width:Math.round((_g('bufBLW',0.4))*1000)/1000, variant:_bblt });
+    // (Brief 22: a bike lane is never built from globals; the site import writes its segments, setBikeLane)
     // Travel lanes
     var nL = (_g('ROAD_DIR','oneway') === 'twoway')
       ? ((_g('LANES_A',1))+(_g('LANES_B',1))) : _g('NUM_LANES',1);
-    var bikeD = 0;
-    if (_dbl && _dbl !== 'none') {
-      bikeD = _g('designBikeLaneW',1.5);
-      if (_bpkt && _bpkt !== 'none') bikeD += _g('bufPKW',0.8);
-      if (_bblt && _bblt !== 'none') bikeD += _g('bufBLW',0.4);
-    }
     for (var i = 0; i < nL; i++) _segs.push({ id:_nid(), type:'travel-lane', width:0 });
     _seNormalizeLanes();   // lane widths from the one normaliser (EDM Table 8-10 envelope)
   }
@@ -4327,10 +4279,7 @@ document.addEventListener('mouseup', function() {
     if (!_segs.length || _segs[0].type !== 'building') _segs.unshift({ id: 'building', type: 'building', width: 0 });
     ensure('sidewalk', true, _g('SIDEWALK_W', 1.8), undefined, ['building']);
     ensure('parklet', true, _g('designParkletWidth', 2.65), undefined, ['building', 'sidewalk']);
-    var bpk = _g('bufPKType', 'none'), dbl = _g('designBikeLane', 'none'), bbl = _g('bufBLType', 'none');
-    ensure('buf-pk', bpk && bpk !== 'none', _g('bufPKW', 0.8), bpk, ['building', 'sidewalk', 'parklet']);
-    ensure('bike-lane', dbl && dbl !== 'none', _g('designBikeLaneW', 1.5), dbl, ['building', 'sidewalk', 'parklet', 'buf-pk']);
-    ensure('buf-bl', bbl && bbl !== 'none', _g('bufBLW', 0.4), bbl, ['building', 'sidewalk', 'parklet', 'buf-pk', 'bike-lane']);
+    // (Brief 22: the bike lane and its buffers are segments only; a sidebar change or an import never rewrites them here)
     var nL = (_g('ROAD_DIR', 'oneway') === 'twoway') ? (_g('LANES_A', 1) + _g('LANES_B', 1)) : _g('NUM_LANES', 1);
     var lanes = _segs.filter(function(s) { return s.type === 'travel-lane'; });
     if (lanes.length < nL) {
@@ -4352,17 +4301,7 @@ document.addEventListener('mouseup', function() {
     if (sw) SIDEWALK_W = sw.width;
     var pk = _segs.find(function(s){ return s.type==='parklet'; });
     if (pk) designParkletWidth = pk.width;
-    // Bike lanes
-    // the parklet-side bike lane: one before the first travel lane (a far-side one is its own segment)
-    var _fl = _segs.findIndex(function(s){ return s.type==='travel-lane'; });
-    var bls = _segs.filter(function(s, i){ return s.type==='bike-lane' && (_fl < 0 || i < _fl); });
-    if (bls.length > 0) {
-      designBikeLaneW = bls[0].width;
-      designBikeLane = bls[0].variant || 'painted';
-    } else {
-      designBikeLane = 'none';   // the width is kept (unused while there is none): a re-added lane gets it back, and a
-      // blank design serializes the same whether or not the Section re-synced it (Brief 21 §4)
-    }
+    // (Brief 22: the bike lane is read from the segments where it is needed: bikeRun / bikeLaneType / bikeLaneWidth)
     // Buffers: read from the segments, the one store (Brief 21 §3; bufFromSegs, also used by a load and Generate)
     var _bf = bufFromSegs(_segs);
     bufPKType = _bf.bufPKType; if (_bf.bufPKType !== 'none') bufPKW = _bf.bufPKW;
@@ -4383,8 +4322,6 @@ document.addEventListener('mouseup', function() {
     set('sidewalkWidth', (SIDEWALK_W||1.8).toFixed(3));
     var ws=document.getElementById('widthSlider'); if(ws) ws.value=designParkletWidth||2.65;
     var wr=document.getElementById('widthReadout'); if(wr) wr.textContent=(designParkletWidth||2.65).toFixed(3)+' m';
-    var bs=document.getElementById('bikeLaneSlider'); if(bs) bs.value=designBikeLaneW||1.5;
-    var br=document.getElementById('bikeLaneReadout'); if(br) br.textContent=((designBikeLaneW||0)>0?(designBikeLaneW).toFixed(2):'—')+' m';
   }
 
 
@@ -4527,7 +4464,6 @@ document.addEventListener('mouseup', function() {
   function _seVariant(id, v) {
     var s = _segs.find(function(x){ return x.id===id; }); if (!s) return;
     _push(); s.variant = v;
-    if (s.type==='bike-lane') designBikeLane = v;  // _seToGlobals() below re-derives this anyway
     _seRender(); _seToGlobals(); _trigger();
   }
   function _seSelect(id) { _selId = id; _renderSel(); _renderProp(); }
@@ -5147,6 +5083,24 @@ document.addEventListener('mouseup', function() {
   window.seUndo = function(){ _seUndo(); };
   window.seRedo = function(){ _seRedo(); };
   window.seSyncFromGlobals = function(){ _recomputeScale(); _seFromGlobals(); _seRender(); };
+  // the parklet-side bike lane, set from outside the strip (setBikeLane: the site import, the survey; Brief 22): the lane
+  // segment and, for a protected lane, its buffer to the parking lane, at the EDM default widths unless a width is given;
+  // 'none' removes the lane and its buffers. The lanes are re-fitted and the model synced as for any Section edit.
+  window.seSetBikeLane = function(type, width) {
+    var r3 = function(v) { return Math.round(v * 1000) / 1000; }, run = bikeRun(_segs);
+    var lim = function() { var i = _segs.findIndex(function(x) { return x.type === 'travel-lane'; }); return i < 0 ? _segs.length : i; };
+    var after = function(types) { var at = 1, n = lim(); for (var i = 0; i < n; i++) if (types.indexOf(_segs[i].type) >= 0) at = i + 1; return at; };
+    _push();
+    if (type !== 'painted' && type !== 'protected') {
+      [run.bufPK, run.lane, run.bufBL].forEach(function(s) { if (s) _segs.splice(_segs.indexOf(s), 1); });
+    } else {
+      var D = BIKE_DEFAULTS[type];
+      if (run.lane) { run.lane.variant = type; if (width > 0) run.lane.width = r3(width); else if (run.lane.width < D.lane) run.lane.width = D.lane; }
+      else _segs.splice(after(['sidewalk', 'parklet', 'buf-pk']), 0, { id: _nid(), type: 'bike-lane', width: r3(width > 0 ? width : D.lane), variant: type });
+      if (type === 'protected' && !bikeRun(_segs).bufPK) _segs.splice(after(['sidewalk', 'parklet']), 0, { id: _nid(), type: 'buf-pk', width: D.bufPK, variant: D.bufPKType });
+    }
+    _seNormalizeLanes(); _seRender(); _seToGlobals(); _trigger();
+  };
   // a new design: no undo back into the previous one (Brief 21 §4)
   window.seClearHistory = function(){ _hist = []; _fut = []; _selId = null; _updateHistBtns(); _renderSel(); _renderProp(); };
   // seGetSegs: exposes the section editor's _segs array so buildDesignModel()
@@ -7263,7 +7217,7 @@ function _renderPlanView(o) {
     annSeg('Bike lane', pvLaneY + pvLaneH - 3 * U, { c: pvBLStroke });
     // Protected bike lane: flexible bollard row in plan at parklet/bike-lane boundary
     // Manual p.21, p.48: City installs flexible bollards at each end and as needed
-    if (designBikeLane === 'protected') {
+    if (bikeLaneType() === 'protected') {
       // every 2 m along the deck and one at each end (Manual p.48); DRAW_SYMBOLS.post: a 0.1 m dot at 'general'
       const bollardY = _corrEdgeY, bR = 0.05 * pvSC;
       bikePostZs(PARKLET_M, 1.1).forEach(function(z) { s += _sym(function(P) { DRAW_SYMBOLS.post(P, PK_X + z * HS, bollardY, bR, { data: " data-post='1'" }); }); });
@@ -8705,7 +8659,7 @@ function renderMassView() {
     sidewalkWidth: SW,
     totalRoad:     _dm3d.totalRoad,
     bikeLaneWidth: bld,
-    bikeLaneType:  typeof designBikeLane      !== 'undefined' ? designBikeLane      : null,
+    bikeLaneType:  bikeLaneType(),
     bufferEnabled: typeof designBufferEnabled  !== 'undefined' ? designBufferEnabled  : false,
     bufferWidth:   (typeof designBufferEnabled !== 'undefined' && designBufferEnabled && typeof designBufferW !== 'undefined') ? designBufferW : 0,
     numLanes:      typeof NUM_LANES            !== 'undefined' ? NUM_LANES           : null,
@@ -8939,11 +8893,11 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
   // Bike lane surface and markings
   if (bld > 0.05) {
-    const blOk = designBikeLaneW >= bikeLaneMinW() - 0.001;
+    const blOk = bikeLaneWidth() >= bikeLaneMinW() - 0.001;
     const bufA3d = _bpS ? _bpS.width : (bufPKType !== 'none' ? bufPKW : 0);
     const bufB3d = _bbS ? _bbS.width : (bufBLType !== 'none' ? bufBLW : 0);
     const blX0 = _blS ? _blS.x0 : PW + bufA3d;
-    const blX1 = _blS ? _blS.x1 : blX0 + designBikeLaneW;
+    const blX1 = _blS ? _blS.x1 : blX0 + bikeLaneWidth();
     // Buffer A surface (parklet side)
     if (bufA3d > 0.01 && _bpS) {
       mplane(_bpS.x0, ZS, _bpS.x1, ZE, 0.003, DS.segColor3D('buf-pk'), 0.9).userData.seg = _bpS.id;
@@ -8961,8 +8915,8 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // Edge stripe at bike lane / traffic boundary
     mplane(blX1 - 0.05, ZS, blX1 + 0.05, ZE, 0.005, blOk ? 0x2a7aaa : 0xB42C2C, 0.85);
     // Chevrons inside bike lane
-    const chW = Math.min(designBikeLaneW * 0.38, 0.28);
-    const chMx = blX0 + designBikeLaneW / 2;
+    const chW = Math.min((blX1 - blX0) * 0.38, 0.28);
+    const chMx = (blX0 + blX1) / 2;
     for (let z = ZS + 1.0; z < ZE - 0.3; z += 2.4) {
       mplane(chMx - chW, z, chMx, z + 0.18, 0.006, 0xffffff, 0.9);
       mplane(chMx, z, chMx + chW, z + 0.18, 0.006, 0xffffff, 0.9);
@@ -8970,7 +8924,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // Protected bike lane: flexible bollards at parklet/bike-lane boundary
     // Manual p.21, p.48: "City will supply and install flexible bollards at each end of the parklet as needed"
     // Manual p.21: to ensure visibility to passing cyclists/motorists
-    if (designBikeLane === 'protected') {
+    if (bikeLaneType() === 'protected') {
       const matBoll = new THREE.MeshStandardMaterial({color: 0xf07030, roughness: 0.65});
       const matRefl = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.3, metalness: 0.05});
       const geomBoll = new THREE.CylinderGeometry(0.038, 0.062, 0.75, 8);
@@ -9288,21 +9242,7 @@ if (s['__roadWidth']) {
     if (s['__enclosure']) { try { ENCLOSURE = ENC.norm(JSON.parse(s['__enclosure'])); } catch(e) {} }
     else if (s['__roadWidth'] !== undefined) ENCLOSURE = ENC.norm(Object.assign(JSON.parse(JSON.stringify(ENC.LEGACY)), { migrated: 'pre-21-12' }));
     if (s['__bldgR']) { try { BLDG_R = JSON.parse(s['__bldgR']); } catch(e) {} }
-    if (s['__bikeLane']) {
-      designBikeLane = s['__bikeLane'];
-      designBikeLaneW = parseFloat(s['__bikeLaneW']) || 1.5;
-      const slEl = document.getElementById('bikeLaneSlider');
-      const rdEl = document.getElementById('bikeLaneReadout');
-      const wfEl = document.getElementById('bikeLaneWidthField');
-      const hnEl = document.getElementById('bikeLaneHint');
-      if (slEl) slEl.value = designBikeLaneW;
-      if (rdEl) rdEl.textContent = designBikeLaneW.toFixed(2) + ' m';
-      if (wfEl) wfEl.style.display = designBikeLane !== 'none' ? '' : 'none';
-      if (hnEl) hnEl.style.display = 'none';
-      document.querySelectorAll('#bikeLaneToggle .seg-btn').forEach(function(btn) {
-        btn.classList.toggle('active', btn.textContent.trim().toLowerCase() === designBikeLane);
-      });
-    }
+    // (Brief 22: the autosave's old __bikeLane keys are not read; the bike lane is in the saved design's segments)
     if (s['__bufPKType']) {
       bufPKType = s['__bufPKType'];
       bufPKW = parseFloat(s['__bufPKW']) || 0.8;
@@ -17119,8 +17059,6 @@ function pkSerialize() {
       bldgR:          typeof BLDG_R          !== 'undefined' ? BLDG_R          : null,
       parkletWidth:   typeof designParkletWidth  !== 'undefined' ? designParkletWidth  : 2.65,
       parkletLength:  typeof designParkletLength !== 'undefined' ? designParkletLength : 19.8,
-      bikeLane:       typeof designBikeLane  !== 'undefined' ? designBikeLane  : 'none',
-      bikeLaneW:      typeof designBikeLaneW !== 'undefined' ? designBikeLaneW : 1.5,
       bufferEnabled:  typeof designBufferEnabled !== 'undefined' ? !!designBufferEnabled : false,
       bufferW:        typeof designBufferW   !== 'undefined' ? designBufferW   : 0.9,
       // (Brief 21 §3: the bike lane's buffers are stored once, as crossSection segments; bufPKType etc. are read from them)
@@ -17264,8 +17202,8 @@ function pkApplyDesignState(raw) {
     if (s.bldgR        !== null && s.bldgR !== undefined && typeof BLDG_R !== 'undefined') BLDG_R = s.bldgR;
     if (s.parkletWidth  !== undefined && typeof designParkletWidth  !== 'undefined') designParkletWidth  = s.parkletWidth;
     if (s.parkletLength !== undefined && typeof designParkletLength !== 'undefined') designParkletLength = s.parkletLength;
-    if (s.bikeLane      !== undefined && typeof designBikeLane      !== 'undefined') designBikeLane      = s.bikeLane;
-    if (s.bikeLaneW     !== undefined && typeof designBikeLaneW     !== 'undefined') designBikeLaneW     = s.bikeLaneW;
+    // (Brief 22) a save from before the cross-section was stored kept its bike lane only here: written as segments below
+    var _legacyBike = (s.bikeLane === 'painted' || s.bikeLane === 'protected') && !(Array.isArray(data.crossSection) && data.crossSection.some(function(q) { return q.type === 'bike-lane'; })) ? [s.bikeLane, +s.bikeLaneW || 0] : null;
     if (s.bufferEnabled !== undefined && typeof designBufferEnabled  !== 'undefined') designBufferEnabled = !!s.bufferEnabled;
     if (s.bufferW       !== undefined && typeof designBufferW        !== 'undefined') designBufferW       = s.bufferW;
     if (s.bufPKType !== undefined && typeof bufPKType !== 'undefined') bufPKType = s.bufPKType;
@@ -17390,6 +17328,7 @@ function pkApplyDesignState(raw) {
   // The saved cross-section replaces the one rebuilt from the globals (older saves have none).
   var _segsIn = Array.isArray(data.crossSection) && data.crossSection.length ? data.crossSection : null;
   if (_segsIn && typeof window.seSetSegs === 'function') window.seSetSegs(_segsIn);
+  if (typeof _legacyBike !== 'undefined' && _legacyBike && typeof setBikeLane === 'function') setBikeLane(_legacyBike[0], _legacyBike[1]);
 
   // Full re-render (with saved segments the strip is already right: do not rebuild it)
   pkReRenderAll(_segsIn ? 'section-edit' : 'load');
@@ -17549,7 +17488,7 @@ var DEFAULT_STATE = Object.freeze({
   site: { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, roadDir: 'oneway', lanesA: 1, lanesB: 1,
     bldgL: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
     bldgR: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
-    parkletWidth: 2.65, parkletLength: 19.8, bikeLane: 'none', bikeLaneW: 1.5, bufferEnabled: false, bufferW: 0.9,
+    parkletWidth: 2.65, parkletLength: 19.8, bufferEnabled: false, bufferW: 0.9,
     lat: 49.2827, lon: -123.1207, streetBearing: 0, parkletSide: 'east', contextZ: 600, sheets: {} },
   section: { z: null, dir: -1, depth: 6, depthBack: 0, x0: null, x1: null, yTop: null },
   crossSection: [{ type: 'sidewalk', width: 1.8 }, { type: 'parklet', width: 2.65 }, { type: 'travel-lane', width: 2.985 }],
@@ -19541,8 +19480,8 @@ window.debugViewSync = function() {
     'Parklet length (m)':  typeof designParkletLength !== 'undefined' ? designParkletLength : '?',
     'Sidewalk width (m)':  typeof SIDEWALK_W          !== 'undefined' ? SIDEWALK_W          : '?',
     'Total road (m)':      typeof TOTAL_ROAD          !== 'undefined' ? TOTAL_ROAD          : '?',
-    'Bike lane type':      typeof designBikeLane      !== 'undefined' ? designBikeLane      : '?',
-    'Bike lane width (m)': typeof designBikeLaneW     !== 'undefined' ? designBikeLaneW     : '?',
+    'Bike lane type':      bikeLaneType(),
+    'Bike lane width (m)': bikeLaneWidth(),
     'Buffer enabled':      typeof designBufferEnabled  !== 'undefined' ? designBufferEnabled  : '?',
     'Buffer width (m)':    typeof designBufferW        !== 'undefined' ? designBufferW        : '?',
     'NUM_LANES':           typeof NUM_LANES            !== 'undefined' ? NUM_LANES           : '?',
@@ -20445,7 +20384,7 @@ GEN.siteFromLive = function() {
   var L = designParkletLength;
   return { road: TOTAL_ROAD, route: state['route_type'] === 'bus_truck' ? 'bus_truck' : 'standard',
     dir: ROAD_DIR, lanes: NUM_LANES, lanesA: LANES_A, lanesB: LANES_B, sidewalk: SIDEWALK_W,
-    bike: designBikeLane || 'none', bikeW: designBikeLaneW || 1.5, frontage: [0, +L.toFixed(2)] };
+    bike: bikeLaneType(), bikeW: bikeLaneWidth() || 1.5, frontage: [0, +L.toFixed(2)] };
 };
 GEN.loadPrefs = function() {
   var p = GEN.defaultPrefs();
@@ -20681,17 +20620,17 @@ GEN.r3 = function(v) { return Math.round(v * 1000) / 1000; };
 // values in, rebuilds DESIGN_MODEL from them (buildDesignModel, with the candidate's segments
 // and no furniture), runs fn, and restores every value in a finally block. Synchronous: no
 // render, no save, no DOM, so nothing observable touches the live design.
-GEN.G_KEYS = ['TOTAL_ROAD', 'SIDEWALK_W', 'NUM_LANES', 'ROAD_DIR', 'LANES_A', 'LANES_B', 'designBikeLane', 'designBikeLaneW',
+GEN.G_KEYS = ['TOTAL_ROAD', 'SIDEWALK_W', 'NUM_LANES', 'ROAD_DIR', 'LANES_A', 'LANES_B',
   'bufPKType', 'bufPKW', 'bufBLType', 'bufBLW', 'designParkletWidth', 'designParkletLength', 'designBufferEnabled', 'designBufferW', 'BLDG_L', 'BLDG_R'];
 GEN.getG = function() {
   return { TOTAL_ROAD: TOTAL_ROAD, SIDEWALK_W: SIDEWALK_W, NUM_LANES: NUM_LANES, ROAD_DIR: ROAD_DIR, LANES_A: LANES_A, LANES_B: LANES_B,
-    designBikeLane: designBikeLane, designBikeLaneW: designBikeLaneW, bufPKType: bufPKType, bufPKW: bufPKW, bufBLType: bufBLType, bufBLW: bufBLW,
+    bufPKType: bufPKType, bufPKW: bufPKW, bufBLType: bufBLType, bufBLW: bufBLW,
     designParkletWidth: designParkletWidth, designParkletLength: designParkletLength, designBufferEnabled: designBufferEnabled, designBufferW: designBufferW,
     BLDG_L: BLDG_L, BLDG_R: BLDG_R };
 };
 GEN.setG = function(g) {
   TOTAL_ROAD = g.TOTAL_ROAD; SIDEWALK_W = g.SIDEWALK_W; NUM_LANES = g.NUM_LANES; ROAD_DIR = g.ROAD_DIR; LANES_A = g.LANES_A; LANES_B = g.LANES_B;
-  designBikeLane = g.designBikeLane; designBikeLaneW = g.designBikeLaneW; bufPKType = g.bufPKType; bufPKW = g.bufPKW; bufBLType = g.bufBLType; bufBLW = g.bufBLW;
+  bufPKType = g.bufPKType; bufPKW = g.bufPKW; bufBLType = g.bufBLType; bufBLW = g.bufBLW;
   designParkletWidth = g.designParkletWidth; designParkletLength = g.designParkletLength; designBufferEnabled = g.designBufferEnabled; designBufferW = g.designBufferW;
   BLDG_L = g.BLDG_L; BLDG_R = g.BLDG_R;
 };
@@ -20705,7 +20644,7 @@ GEN.withScratch = function(ds, fn) {
   try {
     var s = ds.site, bf = (ds.crossSection && ds.crossSection.length) ? bufFromSegs(ds.crossSection) : { bufPKType: s.bufPKType || 'none', bufPKW: s.bufPKW || 0.8, bufBLType: s.bufBLType || 'none', bufBLW: s.bufBLW || 0.4 };
     GEN.setG({ TOTAL_ROAD: s.totalRoad, SIDEWALK_W: s.sidewalkW, NUM_LANES: s.numLanes, ROAD_DIR: s.roadDir, LANES_A: s.lanesA, LANES_B: s.lanesB,
-      designBikeLane: s.bikeLane, designBikeLaneW: s.bikeLaneW, bufPKType: bf.bufPKType, bufPKW: bf.bufPKW, bufBLType: bf.bufBLType, bufBLW: bf.bufBLW,
+      bufPKType: bf.bufPKType, bufPKW: bf.bufPKW, bufBLType: bf.bufBLType, bufBLW: bf.bufBLW,
       designParkletWidth: s.parkletWidth, designParkletLength: s.parkletLength, designBufferEnabled: s.bufferEnabled, designBufferW: s.bufferW,
       BLDG_L: s.bldgL, BLDG_R: s.bldgR });
     Object.keys(ds.compliance).forEach(function(k) { state[k] = ds.compliance[k]; });
@@ -21954,6 +21893,17 @@ RPT.compliance = function(d) {
   var note = d.n.pass + ' pass  ·  ' + d.n.fail + ' fail  ·  ' + d.n.unclear + ' not confirmed' + (d.provisional ? '  ·  provisional' : '');
   return RPT.textSheet('C-001', 'Compliance', note, RPT.compBlocks(d), true);
 };
+// C-002 (Brief 22): what the Section puts beside the parklet, read from the segments (the bike lane's one source): the
+// segment against its traffic edge and the run out to the first travel lane
+RPT.besideParklet = function(DM) {
+  var cs = DM.crossSection || [], pi = cs.findIndex(function(s) { return s.type === 'parklet'; });
+  if (pi < 0) return 'No parklet segment in the Section.';
+  var name = function(s) { var n = (RPT.SEG[s.type] || s.type), v = s.variant && s.variant !== 'none' ? ' (' + String(s.variant).replace(/_/g, ' ') + ')' : ''; if (s.type === 'buf-pk') n = 'Buffer to the bike lane'; if (s.type === 'buf-bl') n = 'Buffer to the traffic'; return n + v + ', ' + RPT.fx(s.width, 2) + ' m'; };
+  var run = []; for (var i = pi + 1; i < cs.length && cs[i].type !== 'travel-lane'; i++) run.push(cs[i]);
+  var bt = bikeLaneType(cs), lane = cs.slice(pi + 1).find(function(s) { return s.type === 'travel-lane'; });
+  return 'Beside the parklet (from the Section): ' + (run.length ? name(run[0]) : 'the travel lane') + '. ' + (run.length ? 'Out to the first travel lane: ' + run.map(name).join('; ') + '. ' : '') +
+    'Bike lane: ' + (bt === 'none' ? 'none' : bt + ', ' + RPT.fx(bikeLaneWidth(cs), 2) + ' m') + '. The rightmost travel lane' + (lane ? ' (' + RPT.fx(lane.width, 2) + ' m)' : '') + ' is the first beyond ' + (run.length ? 'that run' : 'the parklet') + '.';
+};
 // ── C-002 Lane envelope (EDM Table 8-10) ───────────────────────────────────────────────────────────────
 RPT.lanes = function(d) {
   var DM = d.DM, route = DM.street.route, env = [];
@@ -21964,6 +21914,7 @@ RPT.lanes = function(d) {
   return RPT.textSheet('C-002', 'Lane envelope (EDM Table 8-10)', '', [
     { h2: 'EDM Table 8-10: travel lane widths (m); this design\'s route in bold' }, { table: { cols: [{ t: 'Route', w: 0.25 }, { t: 'Lane role', w: 0.25 }, { t: 'Absolute min.', w: 0.17, num: true }, { t: 'Preferred', w: 0.17, num: true }, { t: 'Max.', w: 0.16, num: true }], rows: env } },
     { p: 'Route of this design: ' + (route === 'bus_truck' ? 'bus / truck' : 'standard') + (DM.inputs.route_type && DM.inputs.route_type.entered ? '' : ' (route type not entered; standard assumed)') + '. Rightmost = the lane next to the parklet (or its bike lane / buffer); single = a lone travel lane. Below preferred needs City Engineer approval (note 4); above maximum is an exception only (note 8), never beyond ' + LANE_EXCEPTION_MAX + ' m.' },
+    { p: RPT.besideParklet(DM) },
     { h2: 'This design (m)' }, { table: { cols: [{ t: 'Lane', w: 0.05, num: true }, { t: 'Direction', w: 0.1 }, { t: 'Role', w: 0.1 }, { t: 'Width', w: 0.08, num: true }, { t: 'Abs. min.', w: 0.08, num: true }, { t: 'Preferred', w: 0.08, num: true }, { t: 'Max.', w: 0.07, num: true }, { t: 'Band', w: 0.24 }, { t: 'C02 min.', w: 0.08, num: true }, { t: 'C02', w: 0.12 }], rows: lanes.length ? lanes : [['-', 'No travel lane.', '', '', '', '', '', '', '', '']] } },
     { p: 'C02 (Parklet Manual p. 20): the adjacent travel lane stays at least 3.0 m (3.2 m on bus / truck routes). Widths are the Section\'s travel-lane segments.' }], true);
 };
@@ -22443,7 +22394,7 @@ RPT.planBase = function(P, G, F, mode, o) {
       if (mode === 'technical') DRAW_SYMBOLS.bike(P, xa + 0.3 * (xb - xa), bkY, bkR, { cls: 'context' });
       else for (var bz = Math.ceil(F.zA / 12) * 12 + 6; bz < F.zB; bz += 12) DRAW_SYMBOLS.bike(P, F.sx(bz), bkY, bkR, { cls: 'context' });
       // protected: the flexible posts on its traffic side, every 2 m along the deck and one at each end, as on screen
-      if (typeof designBikeLane !== 'undefined' && designBikeLane === 'protected') {
+      if (bikeLaneType() === 'protected') {
         bikePostZs(G.DM.parklet.length, 1.1).forEach(function(z) { if (z >= F.zA && z <= F.zB) DRAW_SYMBOLS.post(P, F.sx(z), y0 + h, 0.05 * F.k); });
       }
     }
@@ -24202,7 +24153,7 @@ RVZ.build = function(o) {
         var st = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(1.1, (s.x1 - s.x0) * 0.72), 2.2), RVZ.decal('bike', '#FFFFFF', 0.92));
         st.rotation.set(-Math.PI / 2, 0, dz < 0 ? Math.PI : 0, 'YXZ'); st.position.set(cxs, 0.005, z); st.renderOrder = 1; root.add(st);
       }
-      if (typeof designBikeLane !== 'undefined' && designBikeLane === 'protected') {
+      if (bikeLaneType() === 'protected') {
         var bx = lanes.length ? lanes[0].x0 : s.x1;
         for (var bz = 0; bz <= L; bz += 2) bollard(bx, bz);
       }
@@ -26160,7 +26111,7 @@ SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', estimate: 
 SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', estimate: 'Estimate', user: 'You', survey: 'Survey' };   // no abbreviations in labels (Brief 21 §2)
 // Site-tab fields that carry a tag: key -> the element whose .ff label gets it
 SMP.FIELDS = { sidewalk: 'sidewalkWidth', address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
-  roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'bikeLaneToggle' };
+  roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'csPanel' };
 SMP.CRIT_FIELDS = { c2: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'routeType', 'bikeLane', 'farParking', 'farBike'], c1: ['parkingRestrictions'] };
 
 // ── Provenance tags in the Site tab; editing a field flips it to 'user'; a click confirms ─────
@@ -26685,7 +26636,7 @@ SMP.importContext = async function() {
 SMP.snapshot = function() {
   var strip = function(list) { return (list || []).map(function(b) { var o = Object.assign({}, b); delete o.__prov; return o; }); };
   var ids = function(list) { return (list || []).map(function(o) { return o.id + '@' + o.xM + ',' + o.yM; }); };
-  return JSON.stringify({ road: TOTAL_ROAD, sw: SIDEWALK_W, dir: ROAD_DIR, n: NUM_LANES, a: LANES_A, b: LANES_B, bike: designBikeLane, bikeW: designBikeLaneW, route: state.route_type,
+  return JSON.stringify({ road: TOTAL_ROAD, sw: SIDEWALK_W, dir: ROAD_DIR, n: NUM_LANES, a: LANES_A, b: LANES_B, bike: bikeLaneType(), bikeW: bikeLaneWidth(), route: state.route_type,
     segs: (window.seGetSegs ? window.seGetSegs() : []).map(function(s) { return s.type + ':' + (+s.width).toFixed(3) + ':' + (s.variant || ''); }),
     L: strip(BLDG_L.buildings), R: strip(BLDG_R.buildings), cf: ids(state.curb_features), tr: ids(state.street_trees), ts: ids(state.transit_stops), pr: state.parking_restrictions || '' });
 };
@@ -26784,7 +26735,7 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
     var a = document.getElementById('lanesA'), b = document.getElementById('lanesB'); if (a) a.value = near; if (b) b.value = far; onLanesAChange(); onLanesBChange();
     ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, src, plan.ids, at, lnote); }); s.lanes = (near + far) + ' lanes (two-way, ' + near + '+' + far + ')';   // the total first: '6 lanes (two-way, 3+3)'
   }
-  onBikeLaneType(nearBike || 'none'); if (plan.bike.v) SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : plan.ids, bsrc === 'cov' ? bikeways.at : at, plan.bike.note); s.bike = nearBike || 'none';
+  setBikeLane(nearBike || 'none'); if (plan.bike.v) SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : plan.ids, bsrc === 'cov' ? bikeways.at : at, plan.bike.note); s.bike = nearBike || 'none';
   var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), rt = /^(trunk|primary|secondary)$/.test(hw) || bus.length ? 'bus_truck' : 'standard';
   onRouteTypeToggle(rt);
   SMP.set('routeType', 'osm', plan.ids, at, 'suggested: highway=' + (t.highway || '?') + (bus.length ? '; bus route' + (bus.length > 1 ? 's ' : ' ') + bus.map(function(r) { return String(r.tags.ref || r.tags.name || r.id); }).filter(function(v, i, a) { return a.indexOf(v) === i; }).join(', ') : '; no bus route on the way') + (stops.length ? '; ' + stops.length + ' bus stop' + (stops.length > 1 ? 's' : '') + ' within 80 m' : ''));
@@ -27237,9 +27188,6 @@ var UI_TIPS = [
   ['#widthSlider', 'Width of the deck across the street, in metres.'],
   ['#lengthSlider', 'Length of the deck along the curb, in metres.'],
   ['.btn-solve', 'Widens the parklet as far as the travel lanes allow at their minimum width (C02).'],
-  ['[onclick*="onBikeLaneType(\'none\')"]', 'No bike lane on this street.'],
-  ['[onclick*="onBikeLaneType(\'painted\')"]', 'A painted bike lane beside the parklet.'],
-  ['[onclick*="onBikeLaneType(\'protected\')"]', 'A bike lane protected by a buffer and flexible posts.'],
   ['[onclick*="onBufferToggle(false)"]', 'No planted buffer beside the parklet.'],
   ['[onclick*="onBufferToggle(true)"]', 'Adds a planted buffer beside the parklet.'],
   ['[onclick*="cadShowFootprintEditor"]', 'Opens the editor for the deck&rsquo;s outline.'],
@@ -27897,7 +27845,7 @@ SURV.apply = function() {
     notes.push('surveyed lane widths ' + widths.map(function(w) { return w.toFixed(2); }).join(' / ') + ' m (curb to curb); the model spreads the travel lanes by EDM Table 8-10 from the surveyed curb-to-curb width');
   }
   var bl = cluster(byKind('bikeLane').map(function(r) { return r.mx; }));
-  if (bl.length >= 2 && typeof designBikeLane !== 'undefined' && designBikeLane !== 'none') { var bw = +(bl[1] - bl[0]).toFixed(3); designBikeLaneW = bw; surveyed.bikeLane = bw; line.bikeLane = bw; }
+  if (bl.length >= 2 && bikeLaneType() !== 'none') { var bw = +(bl[1] - bl[0]).toFixed(3); setBikeLane(bikeLaneType(), bw); surveyed.bikeLane = bw; line.bikeLane = bw; }
   // the grade: top-of-curb elevations along the street
   var toc = byKind('toc').filter(function(r) { return r.z !== null; });
   if (toc.length >= 2) {
@@ -28426,13 +28374,9 @@ RPT.sheetDetails = function(d) {
   RPT._encDims = drawn;
   return sh;
 };
-// the Design tab's bike-lane switch follows the model (a load or a Section edit changes designBikeLane without it)
-function uiSyncBikeToggle() {
-  if (typeof designBikeLane === 'undefined') return;
-  var btns = document.querySelectorAll('#bikeLaneToggle .seg-btn');
-  ['none', 'painted', 'protected'].forEach(function(k, i) { if (btns[i]) btns[i].classList.toggle('active', designBikeLane === k); });
-  var fld = document.getElementById('bikeLaneWidthField'); if (fld) fld.style.display = designBikeLane === 'none' ? 'none' : '';
-}
+// (Brief 22: the Design tab's bike-lane card is gone; the lane is a segment of the Section)
+function uiSyncBikeToggle() {}
+
 // one refresh after anything the model or the tabs change
 (function() {
   var after = function() { try { uiDesignDims(); uiSiteStepStatus(); uiEmptyStates(); uiSyncBikeToggle(); if (typeof updateMinRoadNote === 'function') updateMinRoadNote(); } catch (e) {} };   // (the C02 note reads the bike corridor with its buffers)
