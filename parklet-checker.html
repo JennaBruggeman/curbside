@@ -26275,6 +26275,223 @@ SM.use = function() {
 };
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('smModal').classList.contains('open')) SM.close(); });
 </script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// GIS CELLS (Brief 24 Part B): the site data the app reads, from curbside-data (1 km cells, rebuilt weekly)
+// GIS.LAYERS is the one registry: the site map's layers and Layers tab, the legend, the cache keys, the provenance
+// text and the import all read it; nothing else in the app names a layerId. A cell-layer file is fetched only when
+// that layer is on (or the import needs it) and its cell is in view +-1; files are kept in IndexedDB 'pkt-gis'
+// (cellId|layerId|schemaVersion), shown at once from there and refreshed in the background when index.json says the
+// layer is newer. Every request carries the viewport's generation: a response for an older generation is dropped.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var GIS = { SCHEMA: 1, MAX_CELLS: 12, LS: 'pkt_gis_layers', DB: 'pkt-gis', INDEX_TTL: 24 * 3600 * 1000,
+  BASE: 'https://jennabruggeman.github.io/curbside-data/', gen: 0, genLog: [], cs: new Map(), lru: new Map(), view: [], _idx: null };
+// on a development host, ?gis=fixtures reads the vendored fixtures (test/gis-fixtures/): every VERIFY runs offline
+(function() { if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && /[?&]gis=fixtures\b/.test(location.search)) { GIS.BASE = 'test/gis-fixtures/'; GIS.fixtures = true; } })();
+// feeds: the site facts a layer derives (import reads it even when it is off); imports: the import reads its objects
+GIS.LAYERS = [
+  { id: 'buildings', label: 'Buildings', group: 'OSM', geometry: 'polygon', style: { colour: '#9AA0A6', opacity: 0.32 }, defaultOn: true, legend: 'Footprints, with the City civic address and the use', feeds: [], imports: true, live: true },
+  { id: 'streets', label: 'Streets', group: 'OSM', geometry: 'line', style: { colour: '#E8A33D', width: 2 }, defaultOn: true, legend: 'The ways the map snaps to: lanes, one-way, cycleway and parking tags', feeds: ['roadDir', 'laneCount', 'bikeLane'], imports: true, live: true },
+  { id: 'bikeways', label: 'Bikeways', group: 'City', geometry: 'line', style: { colour: '#2E9E5B', width: 3 }, defaultOn: true, legend: 'Painted, protected, shared and local-street bikeways (the side is approximate)', feeds: ['bikeLane'] },
+  { id: 'truck-routes', label: 'Truck routes', group: 'City', geometry: 'line', style: { colour: '#8E5B3F', width: 3 }, defaultOn: false, legend: 'Truck routes and restricted-access truck routes', feeds: ['routeType'] },
+  { id: 'one-way', label: 'One-way streets', group: 'City', geometry: 'line', style: { colour: '#8C6BC8', width: 3 }, defaultOn: false, legend: 'The City\'s one-way street blocks', feeds: ['roadDir'] },
+  { id: 'bus-routes', label: 'Bus routes', group: 'TransLink', geometry: 'line', style: { colour: '#D6453D', width: 2 }, defaultOn: false, legend: 'Bus route shapes', feeds: ['routeType'] },
+  { id: 'row-width', label: 'Right-of-way widths', group: 'City', geometry: 'point', style: { colour: '#6B7C8C', radius: 3 }, defaultOn: false, legend: 'Property line to property line, not curb to curb', feeds: ['row'] },
+  { id: 'bus-stops', label: 'Bus stops', group: 'TransLink', geometry: 'point', style: { colour: '#D6453D', radius: 4.5 }, defaultOn: true, legend: 'Stops, with the routes that call there', feeds: [], imports: true },
+  { id: 'hydrants', label: 'Fire hydrants', group: 'City', geometry: 'point', style: { colour: '#C0392B', radius: 3.5 }, defaultOn: true, legend: 'Fire hydrants (C05)', feeds: [], imports: true },
+  { id: 'trees', label: 'Street trees', group: 'City', geometry: 'point', style: { colour: '#3F8F3F', radius: 3 }, defaultOn: true, legend: 'Public trees, with the species and the diameter', feeds: [], imports: true },
+  { id: 'transit-stations', label: 'Rapid transit stations', group: 'City', geometry: 'point', style: { colour: '#1B6FB8', radius: 5 }, defaultOn: false, legend: 'SkyTrain stations', feeds: [], imports: true },
+  { id: 'pois', label: 'Shops and places', group: 'OSM', geometry: 'point', style: { colour: '#C99A2E', radius: 3 }, defaultOn: false, legend: 'Shops, offices and amenities (they set a building\'s use)', feeds: [], imports: true, live: true }
+];
+GIS.GROUPS = { City: 'City of Vancouver', OSM: 'OpenStreetMap', TransLink: 'TransLink' };
+GIS.byId = function(id) { return GIS.LAYERS.find(function(l) { return l.id === id; }); };
+// the toggle set: a per-viewer convenience (localStorage), never part of the design
+GIS.on = (function() { var o = {}; GIS.LAYERS.forEach(function(l) { o[l.id] = l.defaultOn; }); try { var s = JSON.parse(localStorage.getItem(GIS.LS) || 'null'); if (s) Object.keys(o).forEach(function(k) { if (typeof s[k] === 'boolean') o[k] = s[k]; }); } catch (e) {} return o; })();
+GIS.saveOn = function() { try { localStorage.setItem(GIS.LS, JSON.stringify(GIS.on)); } catch (e) {} };
+
+// ── The grid (index.json › grid): UTM zone 10N, the build's own projection (build/lib/geo.js) ────────────────────
+GIS.utm = function(lon, lat) {
+  var A = 6378137, F = 1 / 298.257223563, K0 = 0.9996, E2 = F * (2 - F), EP2 = E2 / (1 - E2), L0 = -123 * Math.PI / 180;
+  var p = lat * Math.PI / 180, s = Math.sin(p), c = Math.cos(p), t = Math.tan(p), N = A / Math.sqrt(1 - E2 * s * s), T = t * t, C = EP2 * c * c, a = c * (lon * Math.PI / 180 - L0);
+  var M = A * ((1 - E2 / 4 - 3 * E2 * E2 / 64 - 5 * Math.pow(E2, 3) / 256) * p - (3 * E2 / 8 + 3 * E2 * E2 / 32 + 45 * Math.pow(E2, 3) / 1024) * Math.sin(2 * p) + (15 * E2 * E2 / 256 + 45 * Math.pow(E2, 3) / 1024) * Math.sin(4 * p) - (35 * Math.pow(E2, 3) / 3072) * Math.sin(6 * p));
+  return [K0 * N * (a + (1 - T + C) * Math.pow(a, 3) / 6 + (5 - 18 * T + T * T + 72 * C - 58 * EP2) * Math.pow(a, 5) / 120) + 500000,
+    K0 * (M + N * t * (a * a / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(a, 4) / 24 + (61 - 58 * T + T * T + 600 * C - 330 * EP2) * Math.pow(a, 6) / 720))];
+};
+GIS.cellAt = function(lon, lat) { var g = GIS._idx && GIS._idx.grid; if (!g) return null; var u = GIS.utm(lon, lat); return [Math.floor((u[0] - g.origin[0]) / g.size), Math.floor((u[1] - g.origin[1]) / g.size)]; };
+// the cells a lon / lat box covers, with n neighbours all round
+GIS.cellsIn = function(w, s, e, n, ring) {
+  var cs = [[w, s], [w, n], [e, s], [e, n]].map(function(p) { return GIS.cellAt(p[0], p[1]); }); if (!cs[0]) return [];
+  var x0 = Math.min.apply(null, cs.map(function(c) { return c[0]; })) - ring, x1 = Math.max.apply(null, cs.map(function(c) { return c[0]; })) + ring;
+  var y0 = Math.min.apply(null, cs.map(function(c) { return c[1]; })) - ring, y1 = Math.max.apply(null, cs.map(function(c) { return c[1]; })) + ring, out = [];
+  for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) out.push(x + '_' + y);
+  return out;
+};
+
+// ── IndexedDB 'pkt-gis': cells (cellId|layerId|schemaVersion) and meta (the index) ────────────────────────────────
+GIS._db = function() {
+  if (GIS._dbp) return GIS._dbp;
+  GIS._dbp = new Promise(function(res, rej) {
+    var q = indexedDB.open(GIS.DB, 1);
+    q.onupgradeneeded = function() { q.result.createObjectStore('cells', { keyPath: 'key' }); q.result.createObjectStore('meta', { keyPath: 'key' }); };
+    q.onsuccess = function() { res(q.result); }; q.onerror = function() { rej(q.error); };
+  });
+  return GIS._dbp;
+};
+GIS.idb = async function(store, mode, fn) {
+  try { var db = await GIS._db(); return await new Promise(function(res, rej) { var t = db.transaction(store, mode), r = fn(t.objectStore(store)); t.oncomplete = function() { res(r && r.result); }; t.onerror = function() { rej(t.error); }; t.onabort = function() { rej(t.error); }; }); }
+  catch (e) { return undefined; }
+};
+GIS.idbGet = function(store, key) { return GIS.idb(store, 'readonly', function(s) { return s.get(key); }); };
+GIS.idbPut = function(store, v) { return GIS.idb(store, 'readwrite', function(s) { return s.put(v); }); };
+GIS.idbDel = function(store, key) { return GIS.idb(store, 'readwrite', function(s) { return s.delete(key); }); };
+GIS.idbKeys = function(store) { return GIS.idb(store, 'readonly', function(s) { return s.getAllKeys(); }); };
+
+// ── index.json: once a session, stale-while-revalidate (24 h in IndexedDB) ─────────────────────────────────────────
+GIS.fetchJSON = async function(url, signal) { var r = await fetch(url, { cache: 'no-cache', signal: signal }); if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } return r.json(); };
+GIS.index = async function() {
+  if (GIS._idx) return GIS._idx;
+  if (GIS._idxP) return GIS._idxP;
+  GIS._idxP = (async function() {
+    var key = 'index|' + GIS.BASE, c = await GIS.idbGet('meta', key);
+    var fetchIt = async function() {
+      var j = await GIS.fetchJSON(GIS.BASE + 'index.json');
+      if (!j || !j.grid || !j.layers || !j.cells) throw new Error('not a curbside-data index');
+      GIS.idbPut('meta', { key: key, data: j, storedAt: Date.now() });
+      var old = GIS._idx; GIS._idx = j; GIS.onIndex(j, old); return j;
+    };
+    if (c && c.data) {
+      GIS._idx = c.data;
+      if (Date.now() - c.storedAt > GIS.INDEX_TTL) fetchIt().catch(function() {});   // shown now, refreshed behind
+      return GIS._idx;
+    }
+    try { return await fetchIt(); } catch (e) { GIS._idxErr = e; GIS._idxP = null; throw e; }
+  })();
+  return GIS._idxP;
+};
+// a newer index: a layer whose schemaVersion changed drops its whole cache; a newer layer refetches what is in view
+GIS.onIndex = function(j, old) {
+  GIS.LAYERS.forEach(function(L) {
+    var m = j.layers[L.id], o = old && old.layers[L.id]; if (!m) return;
+    if (o && o.schemaVersion !== m.schemaVersion) GIS.dropLayer(L.id);
+    else if (o && o.updatedAt !== m.updatedAt) GIS.cs.forEach(function(v, k) { if (k.split('|')[1] === L.id && v.source !== 'osm-live') v.stale = true; });
+  });
+  GIS.refresh();
+};
+GIS.dropLayer = async function(lid) {
+  var keys = (await GIS.idbKeys('cells')) || [];
+  for (var k of keys) if (String(k).split('|')[1] === lid) await GIS.idbDel('cells', k);
+  GIS.cs.forEach(function(v, k) { if (k.split('|')[1] === lid) GIS.cs.delete(k); });
+  GIS.dirty(lid);
+};
+
+// ── A cell-layer: idle -> loading -> ready | error ─────────────────────────────────────────────────────────────────
+// why (the Layers tab's text): 'nodata' (the cell is not in the index), 'offline' (no network and nothing cached),
+// 'error' (the file could not be read)
+GIS.key = function(cell, lid) { return cell + '|' + lid; };
+GIS.valid = function(fc) { return fc && fc.type === 'FeatureCollection' && Array.isArray(fc.features) && fc.features.every(function(f) { return f && f.id && f.geometry && f.properties; }); };
+GIS.load = async function(cell, lid, gen, signal, opts) {
+  opts = opts || {};
+  var idx = await GIS.index(), k = GIS.key(cell, lid), cur = GIS.cs.get(k);
+  if (cur && cur.st === 'ready' && !cur.stale && !opts.force) return cur;
+  if (cur && cur.st === 'loading' && cur.p) return cur.p;
+  var entry = idx.cells[cell] && idx.cells[cell][lid], meta = idx.layers[lid];
+  if (!idx.cells[cell]) { var nd = { st: 'error', why: 'nodata', fc: null }; GIS.cs.set(k, nd); return nd; }
+  if (!entry || !meta) { var em = { st: 'ready', fc: { type: 'FeatureCollection', features: [] }, updatedAt: meta && meta.updatedAt }; GIS.cs.set(k, em); GIS.dirty(lid); return em; }
+  var dbKey = k + '|' + meta.schemaVersion, st = { st: 'loading', gen: gen };
+  GIS.cs.set(k, st);
+  st.p = (async function() {
+    var c = await GIS.idbGet('cells', dbKey);
+    if (c && !GIS.valid(c.fc)) { await GIS.idbDel('cells', dbKey); c = null; GIS.log('corrupt ' + dbKey + ': dropped, refetched'); }   // corrupt: dropped, refetched silently
+    if (c) {
+      var ready = { st: 'ready', fc: c.fc, updatedAt: c.updatedAt, source: c.source || 'cells', liveAt: c.liveAt || null };
+      if (c.source === 'osm-live' || c.updatedAt === meta.updatedAt || opts.cacheOnly) { GIS.cs.set(k, ready); GIS.dirty(lid); return ready; }
+      GIS.cs.set(k, Object.assign(ready, { stale: true })); GIS.dirty(lid);   // shown now; the newer file follows
+    }
+    if (opts.cacheOnly) { var nc = { st: 'error', why: 'offline', fc: null }; GIS.cs.set(k, nc); return nc; }
+    try {
+      var n = entry[2] > 1 ? entry[2] : 1, parts = [];
+      for (var i = 1; i <= n; i++) parts.push(GIS.fetchJSON(GIS.BASE + 'cells/' + cell + '/' + lid + (n > 1 ? '.' + i : '') + '.json', signal));
+      var got = await Promise.all(parts), fc = { type: 'FeatureCollection', features: [].concat.apply([], got.map(function(g) { return g.features || []; })) };
+      if (!GIS.valid(fc)) throw new Error('not a cell file');
+      if (gen != null && gen < GIS.gen) {   // a pan moved on while this was in flight: never applied
+        GIS.genLog.push({ key: k, gen: gen, current: GIS.gen, t: Date.now() });
+        if (!c) GIS.cs.delete(k); return null;
+      }
+      GIS.idbPut('cells', { key: dbKey, fc: fc, updatedAt: meta.updatedAt, storedAt: Date.now(), source: 'cells' });
+      var r = { st: 'ready', fc: fc, updatedAt: meta.updatedAt, source: 'cells' }; GIS.cs.set(k, r); GIS.dirty(lid); return r;
+    } catch (e) {
+      if (e && e.name === 'AbortError') { if (!c) GIS.cs.delete(k); return null; }
+      if (c) { var kept = GIS.cs.get(k); if (kept) kept.stale = false; return kept; }   // the cached file stays
+      var er = { st: 'error', why: navigator.onLine === false || (e && /fetch|network/i.test(e.message)) ? 'offline' : 'error', fc: null, err: e && e.message }; GIS.cs.set(k, er); GIS.dirty(lid); return er;
+    }
+  })();
+  return st.p;
+};
+// the layers and cells wanted now: for the view (a new generation, the older one's requests aborted) or for an import
+GIS.ensure = function(lids, cells, opts) {
+  opts = opts || {};
+  return Promise.all([].concat.apply([], cells.map(function(c) { return lids.map(function(l) { return GIS.load(c, l, opts.gen, opts.signal, opts); }); })));
+};
+GIS.setView = function(cells) {
+  GIS.gen++; if (GIS._ctl) GIS._ctl.abort(); GIS._ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  GIS.view = cells; var now = Date.now(); cells.forEach(function(c) { GIS.lru.set(c, now); });
+  var lids = GIS.LAYERS.filter(function(l) { return GIS.on[l.id]; }).map(function(l) { return l.id; });
+  GIS.evict();
+  return GIS.ensure(lids, cells, { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal });
+};
+// at most MAX_CELLS cells resident; the least recently in view go (never one in view, never one an import holds)
+GIS.evict = function() {
+  var res = new Set(); GIS.cs.forEach(function(v, k) { res.add(k.split('|')[0]); });
+  if (res.size <= GIS.MAX_CELLS) return;
+  var keep = new Set(GIS.view.concat(GIS._held || [])), out = [...res].filter(function(c) { return !keep.has(c); }).sort(function(a, b) { return (GIS.lru.get(a) || 0) - (GIS.lru.get(b) || 0); });
+  var n = res.size - GIS.MAX_CELLS, gone = {};
+  out.slice(0, n).forEach(function(c) { GIS.cs.forEach(function(v, k) { if (k.split('|')[0] === c) { GIS.cs.delete(k); gone[k.split('|')[1]] = 1; } }); GIS.lru.delete(c); });
+  Object.keys(gone).forEach(GIS.dirty);
+};
+GIS.refresh = function() { if (GIS.view.length) GIS.setView(GIS.view); };
+// (until the map is wired, a change only marks the layer: B3)
+GIS.dirty = GIS.dirty || function() {};
+GIS.log = function(s) { (GIS._log = GIS._log || []).push(s); if (GIS._log.length > 200) GIS._log.shift(); };
+
+// ── A layer's features across the resident cells, deduplicated by id (a line's pieces in neighbouring cells joined) ─
+GIS.features = function(lid) {
+  var by = new Map();
+  GIS.cs.forEach(function(v, k) {
+    if (k.split('|')[1] !== lid || v.st !== 'ready' || !v.fc) return;
+    v.fc.features.forEach(function(f) {
+      var o = by.get(f.id);
+      if (!o) { by.set(f.id, { type: 'Feature', id: f.id, properties: f.properties, geometry: f.geometry }); return; }
+      var g = f.geometry, h = o.geometry;
+      if ((g.type === 'LineString' || g.type === 'MultiLineString') && (h.type === 'LineString' || h.type === 'MultiLineString')) {
+        var parts = (h.type === 'LineString' ? [h.coordinates] : h.coordinates).concat(g.type === 'LineString' ? [g.coordinates] : g.coordinates);
+        var seen = {}; parts = parts.filter(function(p) { var s = JSON.stringify(p); return seen[s] ? false : (seen[s] = 1); });
+        o.geometry = { type: 'MultiLineString', coordinates: parts };
+      }
+    });
+  });
+  return [...by.values()];
+};
+// a line's pieces chained end to start where they meet (a way clipped at cell edges, whole again)
+GIS.joinParts = function(parts) {
+  var out = parts.map(function(p) { return p.slice(); }), eq = function(a, b) { return Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6; };
+  for (var m = true; m; ) {
+    m = false;
+    for (var i = 0; i < out.length && !m; i++) for (var j = 0; j < out.length && !m; j++) {
+      if (i === j) continue; var A = out[i], B = out[j];
+      if (eq(A[A.length - 1], B[0])) { out[i] = A.concat(B.slice(1)); out.splice(j, 1); m = true; }
+      else if (eq(A[A.length - 1], B[B.length - 1])) { out[i] = A.concat(B.slice(0, -1).reverse()); out.splice(j, 1); m = true; }
+    }
+  }
+  return out;
+};
+// the state of a layer over the cells in view, for its row: loading / the reason nothing is shown / stale / live
+GIS.rowState = function(lid) {
+  var idx = GIS._idx, meta = idx && idx.layers[lid], st = { loading: 0, ready: 0, nodata: 0, offline: 0, error: 0, live: null, stale: !!(meta && meta.stale) };
+  GIS.view.forEach(function(c) { var v = GIS.cs.get(GIS.key(c, lid)); if (!v) return; if (v.st === 'loading') st.loading++; else if (v.st === 'ready') { st.ready++; if (v.source === 'osm-live') st.live = v.liveAt; } else st[v.why || 'error']++; });
+  return st;
+};
+</script>
+
 <style>
 /* -- Site from map (Brief 13) phase 2: provenance tags, imported objects -------------------- */
 .prov-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 7px; font: 600 11px/16px var(--font-ui, sans-serif); letter-spacing: .01em; vertical-align: 1px; cursor: pointer; border: 1px solid currentColor; background: transparent; }
