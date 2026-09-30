@@ -835,6 +835,18 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - `RPT.collectRenders` prefers `blobs.output`, which has no baked caption.
     - `renderEntry` writes JPEG q85.
   - **Neighbourhood:** `DM.site.neighbourhood`, from the tree import's `local_area` (`state.__neighbourhood`).
+- **§9 Punch list (commit "ux: punch list"):**
+  - **Search fields:** the library searches have autocomplete off.
+  - **Clear renders:** `RVZP.countCached()` shows the count on the button.
+  - **Report overlay:** `RPT.overlay(src, title, extra)` and `RPT.closeOverlay()`, closed by Esc or the Back button.
+    - The sample opens there (`RPT.openSample`); inside the sample page, `RPT.sampleBack` posts `curbside:close-report`.
+    - Your own report opens there too: `RPT.preview` (#rptPreviewBtn).
+  - **Measure (`MSR`):**
+    - `MSR.targets` gathers the snap targets: V (vertices), E (edges) and S (lines).
+    - `MSR.snapAt(ev)` returns `{x, z, name, kind: vertex | edge | line | grid | raw}`.
+    - `MSR.lock` applies the Shift lock; `MSR.click`, `MSR.move`, `MSR.pin` and `MSR.clear` handle the interaction.
+    - `MSR.draw` draws the overlay group `#pvMsr`. `renderPlanView` is wrapped to redraw it on screen renders only.
+    - `planMD` calls `MSR.click`; the old measure drawing is gone.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

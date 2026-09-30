@@ -290,6 +290,14 @@ var CONFIG = {
 .conn-go:hover { background: var(--accent); color: #fff; }
 .ax-gate { padding: 10px 12px; color: #E2E5E8; font-size: 12px; }
 .pk-form-hint { font-size: 11px; opacity: .75; margin-top: 4px; line-height: 1.4; }
+/* Brief 21 §9: the report overlay */
+#rptOverlay { position: fixed; inset: 0; z-index: 10050; display: flex; flex-direction: column; background: #DADADA; }
+#rptOverlay .rpt-ov-bar { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 16px; background: #17191C; color: #F2F2F0; font-size: 13px; flex-shrink: 0; }
+#rptOverlay .rpt-ov-sp { flex: 1 1 auto; }
+#rptOverlay .rpt-ov-back, #rptOverlay .rpt-ov-dl { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 4px; cursor: pointer; text-decoration: none; }
+#rptOverlay .rpt-ov-back { border: 0; background: #3AA8E4; color: #17191C; font-weight: 600; }
+#rptOverlay .rpt-ov-dl { border: 1px solid #3AA8E4; color: #3AA8E4; }
+#rptOverlay .rpt-ov-frame { flex: 1 1 auto; width: 100%; border: 0; }
 #viewportGrid #planTabPlan .svg-wrap { flex:1 1 auto; min-height:0; overflow:hidden; padding:0; }
 #viewportGrid #planView { width:100%; height:100%; }
 #viewportGrid #seRoot { flex:1 1 auto; min-height:0; overflow:auto; }
@@ -579,7 +587,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section" id="designShapeSec">        <div class="sb-section-lbl">Parklet shape editor</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit the deck&rsquo;s shape</button>        <div class="design-dims" id="designDims" aria-live="polite"><span>Length</span> <span id="lengthReadout" class="readout">19.8 m</span> <span>&times; width</span> <span id="widthReadout" class="readout">2.650 m</span></div>        <span class="hint">Set by the shape; the width also follows the Parklet segment in the Section.</span>        <div class="lane-badge" id="laneReadout"></div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street context</div>        <div class="ff">          <label>Bike lane</label>          <div class="seg-group" id="bikeLaneToggle">            <button class="seg-btn active" onclick="onBikeLaneType('none')">None</button>            <button class="seg-btn" onclick="onBikeLaneType('painted')">Painted</button>            <button class="seg-btn" onclick="onBikeLaneType('protected')">Protected</button>          </div>          <span class="hint" id="bikeLaneHint" style="display:none"></span>        </div>        <div class="sl-field" id="bikeLaneWidthField" style="display:none">          <div class="sl-hdr">            <label>Bike lane width</label>            <span id="bikeLaneReadout" class="readout">1.50 m</span>          </div>          <input type="range" id="bikeLaneSlider" min="1.2" max="3.5" step="0.05" value="1.5" oninput="onBikeLaneWidth(this.value)">        </div>      <span class='hint design-buf-hint'>Buffers beside the bike lane are segments of the street: add them in the Section (Add segment).</span></div>
       <div class='sb-section' id='lhsFurnSection'>
         <div class='sb-section-lbl'>Library</div>
-        <input type='search' id='lhsFwSearch' class='lib-search' placeholder='Search furniture, street components, people' aria-label='Search the library' oninput='lhsFwSearchFn(this.value)'>
+        <input type='search' id='lhsFwSearch' name='curbside-library-search' autocomplete='off' spellcheck='false' class='lib-search' placeholder='Search furniture, street components, people' aria-label='Search the library' oninput='lhsFwSearchFn(this.value)'>
         <div id='lhsFwCats' class='lib-chips' role='toolbar' aria-label='Library categories'></div>
         <label class='lib-opts'><input type='checkbox' id='lhsFwPresets' onchange='flSetShowPresets(this.checked)'> Show manufacturer presets</label>
         <div class='lib-mine' role='group' aria-label='My furniture'><button type='button' onclick='FLU.openImport()' title='Adds your own 3D model (GLB, glTF or OBJ) to My furniture.'>Import 3D model&hellip;</button><button type='button' onclick='FLU.openTrace()' title='Draws a new piece from its plan outline, with a height per region.'>New furniture&hellip;</button><button type='button' onclick='FLU.openManage()' title='Renames, duplicates, exports or deletes your own pieces.'>My furniture&hellip;</button></div>
@@ -731,7 +739,8 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <div id='rptModeNote' style='font-size:11px;color:var(--text-mu);line-height:1.5;margin-bottom:6px'>The drawing set in colour, with the renders on the title sheet.</div>
   <div id='rptRenders'></div>
   <button class='ctx-btn ctx-btn-full' id='pdfExportBtn' onclick='RPT.print()' style='margin-bottom:6px' title='17 x 11 in landscape sheets, drawings at true scale, as a PDF file.'>&#8595; Download report (PDF)</button>
-  <button class='ctx-btn ctx-btn-full' id='rptSampleBtn' onclick='RPT.openSample()' style='margin-bottom:6px' title='A finished report of a bundled reference design, in the selected type. Opens in a new tab; your design is not touched.'>See a sample report</button>
+  <button class='ctx-btn ctx-btn-full' id='rptPreviewBtn' onclick='RPT.preview()' style='margin-bottom:6px' title='Builds your report and shows it here, over the app, with Download; Back to Curbside or Esc closes it.'>Preview report</button>
+  <button class='ctx-btn ctx-btn-full' id='rptSampleBtn' onclick='RPT.openSample()' style='margin-bottom:6px' title='A finished report of a bundled reference design, in the selected type. Opens over the app; Back to Curbside or Esc closes it, and your design is not touched.'>See a sample report</button>
   <button class='ctx-btn ctx-btn-full' onclick='window.print()' style='margin-bottom:4px'>&#128438; Print (browser dialog)</button>
 </div></div>
     </div>
@@ -827,7 +836,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div id='libraryCanvas' style='display:none;flex-direction:column;flex:1;overflow:hidden'><div class='fl-topbar-new' id='flTopbar'>
   <span style='font-size:11px;font-weight:600;color:var(--ink)'>Furniture Library</span>
   <span style='font-size:11px;color:var(--muted);margin-left:4px'>Generic archetypes &middot; presets: Vestre 2024/25, mmcit&eacute; Kup&eacute;</span>
-  <input type='search' id='flSrch' placeholder='Search furniture...' oninput='flBuildVisualLibrary()' style='margin-left:12px;width:170px;font-size:11px;padding:3px 7px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--ink);outline:none;'>
+  <input type='search' id='flSrch' name='curbside-furniture-search' autocomplete='off' spellcheck='false' placeholder='Search furniture...' oninput='flBuildVisualLibrary()' style='margin-left:12px;width:170px;font-size:11px;padding:3px 7px;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--ink);outline:none;'>
   <label style='display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-left:10px;cursor:pointer;user-select:none;white-space:nowrap;'><input type='checkbox' id='flPresetsToggle' onchange='flSetShowPresets(this.checked)' style='margin:0;'> Manufacturer presets</label>
   <div id='flCatBar' style='display:flex;gap:0;overflow-x:auto;margin-left:12px;flex:1'></div>
 </div>
@@ -5580,9 +5589,133 @@ function _pvExtDown(e, i, mode) {
   var up = function(ev) { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); apply(ev); try { saveSettings(); } catch (err) {} };
   document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
 }
+
+// ── MEASURE (Brief 21 §9): a measurement that snaps and says what it snapped to ─────────────────────────
+// Within 8 screen px, in priority order: an object's vertex (deck corners, railing posts, furniture corners and
+// centres, end pieces, site objects, trees), then an object's edge (the foot of the perpendicular), then a segment
+// line (the curb, each lane edge, the frontage), then the grid. Shift locks the second point horizontal or vertical
+// (on screen); Alt measures the raw point. A measurement stays until the next click or Esc; clicking its readout pins
+// it as a temporary dimension. Nothing here is saved with the design or printed.
+var MSR = { p1: null, p2: null, cur: null, pins: [], R: 8, alt: false, shift: false };
+MSR.segName = function(s) {
+  return { 'travel-lane': 'lane edge', 'bike-lane': 'bike lane edge', parklet: 'parking lane edge', parking: 'parking lane edge', 'buf-pk': 'buffer edge', 'buf-bl': 'buffer edge',
+    planting: 'planting edge', transit: 'transit lane edge', 'turn-lane': 'turn lane edge', curb: 'curb' }[s.type] || String(s.type || 'segment').replace(/-/g, ' ') + ' edge';
+};
+MSR.targets = function() {
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, V = [], E = [], S = [];
+  var ol = DM.parklet.outline, dv = ol ? ol.verts.map(function(v) { return { x: v.y, z: v.x }; }) : [{ x: LM.deckX0, z: 0 }, { x: LM.deckX1, z: 0 }, { x: LM.deckX1, z: L }, { x: LM.deckX0, z: L }];
+  dv.forEach(function(p) { V.push({ x: p.x, z: p.z, name: 'deck corner' }); });
+  dv.forEach(function(p, i) { E.push({ a: p, b: dv[(i + 1) % dv.length], name: 'deck edge' }); });
+  var R = PARKLET_RAIL, k = 1;
+  for (var z = R.firstPost; z < L - 0.1; z += R.post) V.push({ x: LM.deckX1, z: +(z + R.postW / 2).toFixed(4), name: 'railing post ' + (k++) });
+  (DM.parklet.ends || []).forEach(function(e) { var nm = e.kind === 'wheel-stop' ? 'wheel stop' : 'end planter'; [[e.x0, e.z0], [e.x1, e.z0], [e.x1, e.z1], [e.x0, e.z1]].forEach(function(c) { V.push({ x: c[0], z: c[1], name: nm + ' corner' }); }); });
+  (window.FL3D && FL3D.placed || []).forEach(function(inst) {
+    var sp = flInstSpec(inst), nm = sp ? (FL_ARCHETYPES[sp.type].user ? FL_ARCHETYPES[sp.type].label : FL_ARCHETYPES[sp.type].label.toLowerCase()) : 'object', cs;
+    try { cs = getFurnitureCorners(inst).map(function(c) { return { x: c.wx, z: c.wz }; }); } catch (e) { return; }
+    cs.forEach(function(c) { V.push({ x: c.x, z: c.z, name: nm + ' corner' }); });
+    cs.forEach(function(c, i) { E.push({ a: c, b: cs[(i + 1) % cs.length], name: nm + ' edge' }); });
+    V.push({ x: inst.x, z: inst.z, name: nm + ' centre' });
+  });
+  var st = typeof state !== 'undefined' ? state : {};
+  (st.curb_features || []).forEach(function(f) { if (typeof f.xM === 'number') V.push({ x: typeof f.yM === 'number' ? f.yM : -0.22, z: f.xM, name: { H: 'hydrant', P: 'pole', S: 'signal box' }[f.type] || 'site object' }); });
+  (st.manholes || []).forEach(function(m) { if (typeof m.xM === 'number') V.push({ x: typeof m.yM === 'number' ? m.yM : 0, z: m.xM, name: 'manhole centre' }); });
+  (st.transit_stops || []).forEach(function(t) { if (typeof t.xM === 'number') V.push({ x: typeof t.yM === 'number' ? t.yM : -1, z: t.xM, name: t.kind === 'rapid' ? 'station' : 'bus stop' }); });
+  (DM.vegetation || []).forEach(function(v) { V.push({ x: v.x, z: v.z, name: v.type === 'tree' ? (v.genus ? v.genus + ' tree' : 'tree') : 'planter' }); });
+  // segment lines, across the street at constant x
+  S.push({ x: LM.sidewalkL.x1, name: 'curb' });
+  S.push({ x: LM.sidewalkL.x0, name: 'frontage' });
+  var seen = {}; seen[LM.sidewalkL.x1.toFixed(3)] = 1;
+  (DM.crossSection || []).forEach(function(s) { if (s.type === 'sidewalk') return; var kx = (+s.x1).toFixed(3); if (seen[kx]) return; seen[kx] = 1; S.push({ x: s.x1, name: MSR.segName(s) }); });
+  if (LM.roadRight != null && !seen[(+LM.roadRight).toFixed(3)]) S.push({ x: LM.roadRight, name: 'far curb' });
+  return { V: V, E: E, S: S };
+};
+MSR._scr = function(svg, m, x, z) { var p = worldToPlan(x, z), q = svg.createSVGPoint(); q.x = p.px; q.y = p.py; return q.matrixTransform(m); };
+// the snapped world point under the pointer: {x, z, name, kind}
+MSR.snapAt = function(ev) {
+  var svg = document.getElementById('planView'), m = svg && svg.getScreenCTM(); if (!m) return null;
+  var q = svg.createSVGPoint(); q.x = ev.clientX; q.y = ev.clientY; var pp = q.matrixTransform(m.inverse()), w = planToWorld(pp.x, pp.y), raw = { x: w.x, z: w.z };
+  if (ev.altKey) return { x: raw.x, z: raw.z, name: 'point', kind: 'raw' };
+  var T = MSR.targets(), R = MSR.R, best = null, d, sc = function(x, z) { return MSR._scr(svg, m, x, z); };
+  T.V.forEach(function(v) { var s = sc(v.x, v.z); d = Math.hypot(s.x - ev.clientX, s.y - ev.clientY); if (d <= R && (!best || d < best.d)) best = { x: v.x, z: v.z, name: v.name, kind: 'vertex', d: d }; });
+  if (best) return best;
+  T.E.forEach(function(e) {
+    var ax = e.a.x, az = e.a.z, bx = e.b.x, bz = e.b.z, l2 = (bx - ax) * (bx - ax) + (bz - az) * (bz - az); if (l2 < 1e-12) return;
+    var t = Math.max(0, Math.min(1, ((raw.x - ax) * (bx - ax) + (raw.z - az) * (bz - az)) / l2)), fx = ax + t * (bx - ax), fz = az + t * (bz - az), s = sc(fx, fz);
+    d = Math.hypot(s.x - ev.clientX, s.y - ev.clientY); if (d <= R && (!best || d < best.d)) best = { x: fx, z: fz, name: e.name, kind: 'edge', d: d };
+  });
+  if (best) return best;
+  T.S.forEach(function(l) { var s = sc(l.x, raw.z); d = Math.hypot(s.x - ev.clientX, s.y - ev.clientY); if (d <= R && (!best || d < best.d)) best = { x: l.x, z: raw.z, name: l.name, kind: 'line', d: d }; });
+  if (best) return best;
+  var g = cadStep();
+  return { x: Math.round(raw.x / g) * g, z: Math.round(raw.z / g) * g, name: 'grid', kind: 'grid' };
+};
+// Shift: the second point on the first one's horizontal (same world x) or vertical (same z), whichever is nearer
+MSR.lock = function(p, ev) {
+  if (!ev.shiftKey || !MSR.p1 || !p) return p;
+  var svg = document.getElementById('planView'), m = svg.getScreenCTM(), a = MSR._scr(svg, m, MSR.p1.x, MSR.p1.z), b = MSR._scr(svg, m, p.x, p.z);
+  return Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? Object.assign({}, p, { x: MSR.p1.x, locked: 'horizontal' }) : Object.assign({}, p, { z: MSR.p1.z, locked: 'vertical' });
+};
+MSR.click = function(ev) {
+  var p = MSR.lock(MSR.snapAt(ev), ev); if (!p) return;
+  if (!MSR.p1 || MSR.p2) { MSR.p1 = p; MSR.p2 = null; } else MSR.p2 = p;
+  MSR.cur = null; MSR.draw();
+};
+MSR.move = function(ev) {
+  if (!_pvMeasureMode) return;
+  var svg = document.getElementById('planView'); if (!svg || !svg.contains(ev.target)) { if (MSR.cur) { MSR.cur = null; MSR.draw(); } return; }
+  MSR.cur = MSR.lock(MSR.snapAt(ev), ev); MSR.draw();
+};
+MSR.clear = function() { MSR.p1 = null; MSR.p2 = null; MSR.cur = null; MSR.draw(); };
+MSR.pin = function() { if (MSR.p1 && MSR.p2) { MSR.pins.push({ p1: MSR.p1, p2: MSR.p2 }); MSR.p1 = null; MSR.p2 = null; MSR.draw(); } };
+MSR.reading = function(a, b) { var dx = b.x - a.x, dz = b.z - a.z; return { d: Math.hypot(dx, dz), dx: dx, dz: dz }; };
+// the overlay: a group on top of the Plan, redrawn without redrawing the Plan
+MSR.draw = function() {
+  var svg = document.getElementById('planView'); if (!svg) return;
+  var g = svg.querySelector('#pvMsr'); if (g) g.remove();
+  if (!_pvMeasureMode) return;
+  var m = svg.getScreenCTM(); if (!m) return;
+  var U = 1 / Math.max(1e-6, Math.abs(m.a)), f = function(v) { return (+v).toFixed(2); }, P = function(p) { return worldToPlan(p.x, p.z); }, o = [];
+  var col = (DRAW_STYLE.UI && DRAW_STYLE.UI.measure) || '#FF6B00';
+  var dim = function(a, b, pinned, idx) {
+    var A = P(a), B = P(b), r = MSR.reading(a, b), mx = (A.px + B.px) / 2, my = (A.py + B.py) / 2;
+    o.push("<line x1='" + f(A.px) + "' y1='" + f(A.py) + "' x2='" + f(B.px) + "' y2='" + f(B.py) + "' stroke='" + col + "' stroke-width='" + f(1.4 * U) + "'" + (pinned ? '' : " stroke-dasharray='" + f(4 * U) + ' ' + f(3 * U) + "'") + '/>');
+    [A, B].forEach(function(p) { o.push("<circle cx='" + f(p.px) + "' cy='" + f(p.py) + "' r='" + f(3 * U) + "' fill='" + col + "' stroke='#fff' stroke-width='" + f(U) + "'/>"); });
+    var l1 = r.d.toFixed(2) + ' m', l2 = 'Δx ' + r.dx.toFixed(2) + '  Δz ' + r.dz.toFixed(2), l3 = a.name + ' → ' + b.name;
+    var w = Math.max(l1.length * 7, l2.length * 5.6, l3.length * 5.6) * U + 12 * U, h = (pinned ? 30 : 44) * U, x0 = mx - w / 2, y0 = my - h - 6 * U;
+    o.push("<g data-msr='" + (pinned ? 'pin' : 'readout') + "'" + (pinned ? '' : " style='cursor:pointer' onmousedown='event.stopPropagation();MSR.pin()'") + '>' + (pinned ? '' : '<title>Click to pin this measurement (it is not saved or printed)</title>') +
+      "<rect x='" + f(x0) + "' y='" + f(y0) + "' width='" + f(w) + "' height='" + f(h) + "' rx='" + f(2 * U) + "' fill='#FFFFFF' fill-opacity='0.94' stroke='" + col + "' stroke-width='" + f(U) + "'/>" +
+      "<text x='" + f(mx) + "' y='" + f(y0 + 13 * U) + "' text-anchor='middle' font-family='" + DRAW_STYLE.FONT + "' font-size='" + f(11 * U) + "' font-weight='700' fill='" + col + "' data-msr-d='1'>" + l1 + '</text>' +
+      "<text x='" + f(mx) + "' y='" + f(y0 + 25 * U) + "' text-anchor='middle' font-family='" + DRAW_STYLE.FONT + "' font-size='" + f(9 * U) + "' fill='#444'>" + l2 + '</text>' +
+      (pinned ? '' : "<text x='" + f(mx) + "' y='" + f(y0 + 37 * U) + "' text-anchor='middle' font-family='" + DRAW_STYLE.FONT + "' font-size='" + f(9 * U) + "' fill='#444' data-msr-names='1'>" + l3.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</text>') + '</g>');
+  };
+  MSR.pins.forEach(function(q, i) { dim(q.p1, q.p2, true, i); });
+  if (MSR.p1) dim(MSR.p1, MSR.p2 || MSR.cur || MSR.p1, false);
+  // the snap marker: what the pointer is on
+  var c = MSR.cur; if (c && (!MSR.p1 || !MSR.p2 || true)) {
+    var C = P(c), mk = c.kind === 'vertex' ? "<rect x='" + f(C.px - 4 * U) + "' y='" + f(C.py - 4 * U) + "' width='" + f(8 * U) + "' height='" + f(8 * U) + "' fill='none' stroke='" + col + "' stroke-width='" + f(1.5 * U) + "'/>"
+      : c.kind === 'edge' ? "<path d='M " + f(C.px - 5 * U) + ' ' + f(C.py + 4 * U) + ' L ' + f(C.px) + ' ' + f(C.py - 5 * U) + ' L ' + f(C.px + 5 * U) + ' ' + f(C.py + 4 * U) + " Z' fill='none' stroke='" + col + "' stroke-width='" + f(1.5 * U) + "'/>"
+      : "<circle cx='" + f(C.px) + "' cy='" + f(C.py) + "' r='" + f(4 * U) + "' fill='none' stroke='" + col + "' stroke-width='" + f(1.5 * U) + "'/>";
+    o.push("<g data-msr='snap' data-snap-kind='" + c.kind + "'>" + mk + "<text x='" + f(C.px + 8 * U) + "' y='" + f(C.py - 8 * U) + "' font-family='" + DRAW_STYLE.FONT + "' font-size='" + f(10 * U) + "' fill='" + col + "' stroke='#fff' stroke-width='" + f(3 * U) + "' paint-order='stroke' data-msr-snap='1'>" + String(c.name).replace(/&/g, '&amp;').replace(/</g, '&lt;') + (c.locked ? ' (' + c.locked + ')' : '') + '</text></g>');
+  }
+  var ns = 'http://www.w3.org/2000/svg', gg = document.createElementNS(ns, 'g'); gg.setAttribute('id', 'pvMsr'); gg.innerHTML = o.join('');
+  svg.appendChild(gg);
+};
+// the Plan redraws its whole SVG: the overlay goes back on top (screen only, never a paper render)
+(function() {
+  var _rpv = renderPlanView;
+  renderPlanView = function(o) { var r = _rpv.apply(this, arguments); if (!o || !o.svg) { try { MSR.draw(); } catch (e) {} } return r; };
+  window.renderPlanView = renderPlanView;
+})();
+document.addEventListener('mousemove', function(e) { if (typeof _pvMeasureMode !== 'undefined' && _pvMeasureMode) MSR.move(e); });
+window.addEventListener('keydown', function(e) {
+  if (typeof _pvMeasureMode === 'undefined' || !_pvMeasureMode) return;
+  var tag = (e.target && e.target.tagName) || ''; if (/^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
+  if (e.key === 'Escape' && (MSR.p1 || MSR.pins.length)) { e.preventDefault(); e.stopPropagation(); if (MSR.p1) MSR.clear(); else { MSR.pins = []; MSR.draw(); } }
+}, true);
 function _pvToggleMeasure() {
   _pvMeasureMode = !_pvMeasureMode;
   _pvMeasureP1 = null; _pvMeasureP2 = null;
+  MSR.p1 = null; MSR.p2 = null; MSR.cur = null; MSR.pins = [];   // pins are temporary: they go with the tool
   var btn = document.getElementById('pvMeasureBtn');
   if (btn) btn.classList.toggle('active', _pvMeasureMode);
   var svg = document.getElementById('planView');
@@ -6882,25 +7015,7 @@ const C03_REQ = 6;
       s += `<text x='${(_ltx+4).toFixed(1)}' y='${(_lty+6).toFixed(1)}' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' fill='#333'>${_snCoord}</text>`;
     }
   }
-  // Measure tool rendering
-  if (_pvMeasureMode && _pvMeasureP1) {
-    var _mp1 = worldToPlan(_pvMeasureP1.wx, _pvMeasureP1.wz), mp1x = _mp1.px, mp1y = _mp1.py;
-    s += `<circle cx='${mp1x.toFixed(1)}' cy='${mp1y.toFixed(1)}' r='3' fill='${DRAW_STYLE.UI.measure}'${KU(1, 'halo')}/>`;
-    if (_pvMeasureP2) {
-      var _mp2 = worldToPlan(_pvMeasureP2.wx, _pvMeasureP2.wz), mp2x = _mp2.px, mp2y = _mp2.py;
-      var mdX = _pvMeasureP2.wx - _pvMeasureP1.wx;
-      var mdZ = _pvMeasureP2.wz - _pvMeasureP1.wz;
-      var mdist = Math.sqrt(mdX*mdX + mdZ*mdZ);
-      var mangle = Math.atan2(mdZ, mdX) * 180 / Math.PI;
-      var mmidx = (mp1x+mp2x)/2, mmidy = (mp1y+mp2y)/2;
-      s += `<line x1='${mp1x.toFixed(1)}' y1='${mp1y.toFixed(1)}' x2='${mp2x.toFixed(1)}' y2='${mp2y.toFixed(1)}'${KU(1, 'measure', { dash: [3, 2] })}/>`;
-      s += `<circle cx='${mp2x.toFixed(1)}' cy='${mp2y.toFixed(1)}' r='3' fill='${DRAW_STYLE.UI.measure}'${KU(1, 'halo')}/>`;
-      s += `<rect x='${(mmidx-38).toFixed(1)}' y='${(mmidy-20).toFixed(1)}' width='76' height='36' fill='white' opacity='0.92'${KU(0.75, 'measure')}/>`;
-      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy-7).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' font-weight='700' fill='#FF6B00'>${mdist.toFixed(2)} m</text>`;
-      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy+3).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' fill='#888'>X${mdX.toFixed(2)} Z${mdZ.toFixed(2)}</text>`;
-      s += `<text x='${mmidx.toFixed(1)}' y='${(mmidy+12).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9 * U).toFixed(2)}' fill='#888'>${mangle.toFixed(1)}\xb0</text>`;
-    }
-  }
+  // (the Measure tool draws its own overlay: MSR.draw, Brief 21 §9)
   // the railing on the traffic side (edge), the parklet outline (object)
   s += `<line x1='${PK_X}' y1='${(PK_Y+pvPkH).toFixed(2)}' x2='${PK_X+PK_W}' y2='${(PK_Y+pvPkH).toFixed(2)}'${K('edge')}/>`;
   { const _pkSeg = _pvXS.find(function(sg){ return sg.type === 'parklet'; });
@@ -7449,16 +7564,8 @@ function planMD(e) {
   const pos = planSVGCoords(e);
   if (typeof _pkPickFrontage !== 'undefined' && _pkPickFrontage) return;   // picking a frontage: the click places the parklet
   // ── Measure mode click ────────────────────────────────────────────────
-  if (_pvMeasureMode) {
-    var _mw = planToWorld(pos.x, pos.y), mwx = _mw.x, mwz = _mw.z;
-    if (!_pvMeasureP1 || _pvMeasureP2) {
-      // Start new measurement
-      _pvMeasureP1 = {wx: mwx, wz: mwz};
-      _pvMeasureP2 = null;
-    } else {
-      _pvMeasureP2 = {wx: mwx, wz: mwz};
-    }
-    renderPlanView();
+  if (_pvMeasureMode) {   // Brief 21 §9: MSR snaps, names what it hit, Shift locks, Alt is raw
+    MSR.click(e);
     e.preventDefault();
     return;
   }
@@ -22318,15 +22425,54 @@ RPT.renderEntry = async function(blob, preset, model, created, cp, cam, key) {
 RPT.SAMPLE_BAND = 'SAMPLE REPORT — reference design, not your parklet';
 RPT.SAMPLE_KEY_NOTE = 'Rendered with the author’s Replicate account for this sample; your own renders use the key you add in Connections.';   // Brief 21 §7
 RPT.SAMPLE_RENDERED = '2026-09-25T13:37:00Z';   // the reference renders: Nano Banana Pro, Render 4 of the 7-piece test design
-RPT.openSample = function() { window.open('parklet-checker.html?sample=' + RPT.mode(), '_blank', 'noopener'); };
+// ── Report overlay (Brief 21 §9): the sample report and your own report open over the app, never away from it ──
+// "Back to Curbside" (top right) or Esc closes the overlay; the design underneath is untouched. The sample runs in its own
+// document (the iframe), on in-memory storage, as before.
+RPT.overlay = function(src, title, extra) {
+  RPT.closeOverlay();
+  var o = document.createElement('div'); o.id = 'rptOverlay'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', title);
+  o.innerHTML = "<div class='rpt-ov-bar'><b>" + RPT.esc(title) + "</b><span class='rpt-ov-sp'></span>" + (extra || '') +
+    "<button type='button' class='rpt-ov-back' onclick='RPT.closeOverlay()' title='Closes the report and returns to your design (Esc).'>&larr; Back to Curbside</button></div>" +
+    "<iframe class='rpt-ov-frame' title='" + RPT.esc(title) + "' src='" + src + "'></iframe>";
+  document.body.appendChild(o);
+  var b = o.querySelector('.rpt-ov-back'); if (b) b.focus();
+  return o;
+};
+RPT.closeOverlay = function() {
+  var o = document.getElementById('rptOverlay'); if (!o) return false;
+  var f = o.querySelector('iframe'); if (f && /^blob:/.test(f.src)) setTimeout(function(u) { URL.revokeObjectURL(u); }.bind(null, f.src), 1000);
+  o.remove(); return true;
+};
+window.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('rptOverlay')) { e.preventDefault(); e.stopPropagation(); RPT.closeOverlay(); } }, true);
+// the sample page inside the overlay asks to close it (its own Back button, or Esc pressed inside it)
+window.addEventListener('message', function(e) { if (e.origin === location.origin && e.data === 'curbside:close-report') RPT.closeOverlay(); });
+RPT.openSample = function() { return RPT.overlay('parklet-checker.html?sample=' + RPT.mode(), 'Sample report (' + RPT.mode() + '): a reference design, not your parklet'); };
+// your own report, previewed before you download it
+RPT.preview = async function() {
+  var btn = document.getElementById('rptPreviewBtn'), lbl = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing the preview...'; }
+  try {
+    var r = await RPT.make(), url = URL.createObjectURL(r.blob);
+    return RPT.overlay(url, 'Your report: ' + r.pages + ' pages', "<a class='rpt-ov-dl' href='" + url + "' download='" + RPT.esc(r.name) + "' title='Saves this PDF.'>&#8595; Download</a>");
+  } catch (e) { console.error('[report]', e); pkToast('The preview could not be prepared: ' + (e && e.message ? e.message : e), 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = lbl; } }
+};
+// the sample page's own way back: inside the overlay it asks the app to close it; opened on its own (the landing page's
+// link) it goes back to where the user came from, else to the tool
+RPT.sampleBack = function() {
+  if (window.parent && window.parent !== window) { window.parent.postMessage('curbside:close-report', location.origin); return; }
+  if (history.length > 1) history.back(); else location.href = 'parklet-checker.html';
+};
 RPT.runSample = async function() {
   var mode = window.PK_SAMPLE === 'technical' ? 'technical' : 'schematic', bar = document.createElement('div');
   bar.id = 'rptSampleBar';
   bar.style.cssText = 'position:fixed;left:0;right:0;top:0;height:44px;z-index:10001;display:flex;align-items:center;gap:16px;padding:0 16px;background:#17191C;color:#F2F2F0;font:13px/1.3 "DM Sans",Arial,sans-serif;';
   bar.innerHTML = "<b>" + RPT.esc(RPT.SAMPLE_BAND) + "</b><span id='rptSampleMsg' style='color:#B8BCC2'>Preparing the " + mode + " sample report...</span>" +
     "<span style='margin-left:auto;display:flex;gap:8px'><a href='parklet-checker.html?sample=" + (mode === 'technical' ? 'schematic' : 'technical') + "' style='color:#3AA8E4'>" + (mode === 'technical' ? 'Schematic' : 'Technical') + " sample</a>" +
-    "<button type='button' id='rptSamplePrint' disabled style='font:inherit;padding:6px 12px;border-radius:4px;border:0;background:#3AA8E4;color:#17191C;cursor:pointer'>Download PDF</button></span>";
+    "<button type='button' id='rptSamplePrint' disabled style='font:inherit;padding:6px 12px;border-radius:4px;border:0;background:#3AA8E4;color:#17191C;cursor:pointer'>Download PDF</button>" +
+    "<button type='button' id='rptSampleBack' onclick='RPT.sampleBack()' title='Closes the sample and returns to Curbside (Esc). Your design is not touched.' style='font:inherit;padding:6px 12px;border-radius:4px;border:1px solid #3AA8E4;background:transparent;color:#3AA8E4;cursor:pointer'>&larr; Back to Curbside</button></span>";
   document.body.appendChild(bar);
+  window.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); RPT.sampleBack(); } });
   var msg = function(s) { var e = document.getElementById('rptSampleMsg'); if (e) e.textContent = s; };
   try {
     var ds = await (await fetch('demo/sample-design.json', { cache: 'no-store' })).json();
@@ -24736,6 +24882,13 @@ RVZP._tx = async function(mode, fn) {
 RVZP.dbGet = function(key) { return RVZP._tx('readonly', function(s) { return s.get(key); }); };
 RVZP.dbPut = function(v) { return RVZP._tx('readwrite', function(s) { return s.put(v); }); };
 RVZP.dbAll = function() { return RVZP._tx('readonly', function(s) { return s.getAll(); }); };
+// the Clear renders button carries the number of cached renders (Brief 21 §9)
+RVZP.countCached = async function() {
+  var b = document.getElementById('rvzpClear'); if (!b) return 0;
+  var n = 0; try { n = ((await RVZP.dbAll()) || []).length; } catch (e) {}
+  b.textContent = 'Clear renders (' + n + ')'; b.disabled = !n;
+  return n;
+};
 RVZP.clear = async function() {
   await RVZP._tx('readwrite', function(s) { return s.clear(); });
   RVZP.entries = {}; RVZP.status = {};
@@ -24874,7 +25027,7 @@ RVZP.ui = function() {
       "<button type='button' class='rvz-chip' id='rvzpReset'>Use the generated prompt</button>" +
       "<button type='button' class='rvz-btn rvz-primary' id='rvzpGo'>Render 4</button>" +
       "<ul class='rvzp-list' id='rvzpList'></ul>" +
-      "<div class='rvz-row'><button type='button' class='rvz-btn' id='rvzpGal'>Gallery</button><button type='button' class='rvz-btn' id='rvzpClear'>Clear renders</button></div>" +
+      "<div class='rvz-row'><button type='button' class='rvz-btn' id='rvzpGal'>Gallery</button><button type='button' class='rvz-btn' id='rvzpClear' title='Deletes every cached render in this browser (all designs). Renders already in a downloaded report are not affected.'>Clear renders</button></div>" +
     '</div>';
   rail.appendChild(sec);
   var view = document.getElementById('rvzView'), gal = document.createElement('div');
@@ -24911,6 +25064,7 @@ RVZP._syncUI = function() {
   if (document.activeElement !== g('rvzpPrompt')) g('rvzpPrompt').value = pr.text;
   g('rvzpPromptNote').textContent = pr.edited ? '(edited: for this run only)' : '(generated from the model)';
   g('rvzpGo').disabled = RVZP.busy || !ok;
+  RVZP.countCached();
   g('rvzpList').innerHTML = RVZ.PRESETS.map(function(p) { var s = RVZP.status[p[0]]; return "<li><span>" + p[1] + "</span><span class='rvzp-st rvzp-" + (s ? s.st : 'idle') + "'>" + (s ? s.st + (s.note ? ': ' + s.note : '') : (RVZP.entries[p[0]] ? 'ready' : 'not rendered')) + '</span></li>'; }).join('');
 };
 RVZP._loadEntries = async function() {
