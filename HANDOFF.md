@@ -746,6 +746,22 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - The view toggles return to their defaults, the Plan fits again and the 3D home reframes. The Section editor's undo history is cleared (`seClearHistory`).
   - **+ New:** `pkCreateDesign` builds the row from `pkDefaultState` (it used to copy the open design and clear only some keys). Signed out, `pkNewDesign` applies the blank locally.
   - **Also:** the Section editor keeps the bike-lane width when there is none (it had zeroed it). Nothing reads the width then, and a blank now serializes the same whether or not the Section re-synced it.
+- **§5 Section extents (commit 6):**
+  - **Model:** `SECTION` / `DESIGN_MODEL.section` gain `depthBack`, `x0`, `x1` and `yTop`; `depth` is also returned as `depthFwd`, and `setSection` accepts either name.
+    - `sectionResolve(L, zMin, zMax, s, LM)` defaults `x0` / `x1` to 5 m past the face of the building the cut passes through on each side (else the frontage). It clamps them to include the sidewalk and the whole road. It returns `zBack`.
+    - Saved with the design, and in `DEFAULT_STATE`.
+  - **Scene:** `getSectionScene` drops anything wholly outside `x0`–`x1` and gathers `behind` (between `zBack` and the cut).
+  - **Screen Section (`sectionFrame` / `_drawSection`):**
+    - It spans exactly `x0`–`x1`; the fixed 24 px poche column is gone, and `roadEnd` / `farStart` mark the road's drawn end.
+    - Past the road: the far curb and sidewalk, and the far building the cut passes through, cut from its face (`sectionCutBuildingR`; `data-face-far`).
+    - Behind the cut: fine dashed hidden lines (`data-sec='behind'`).
+    - Fit view fits `x1 − x0`. `yTop` (the Section header's "Top" field) replaces the auto-fit in `sectionExtentM`.
+  - **Plan:**
+    - The box runs from the back edge to the forward edge and from `x0` to `x1`, with four edge handles (`_pvSecDown` what 1–4: depth, depthBack, x0, x1), snapped to 0.5 m and with their values shown.
+    - The cut line and its tags span the box. The 3D section box uses the same extents.
+  - **Report:**
+    - A-201 draws the same rectangle (the far side, the hidden lines) at `RPT.sectionScale`: 1:50 when it and its height fit, else the next scale whose width fits (1:100, 1:200, 1:250). Its chain runs the whole road.
+    - A-101 / A-102 markers span `x0`–`x1` within their crops.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

@@ -2531,7 +2531,7 @@ function buildDesignModel() {
     DESIGN_MODEL.parklet.railing = Object.assign({}, PARKLET_RAIL, { rails: PARKLET_RAIL.rails.slice() });
     DESIGN_MODEL.parklet.levels = Object.assign({}, PARKLET_LEVELS);
     // Section A-A (Brief 08): the resolved cut every view reads.
-    if (typeof sectionResolve === 'function') DESIGN_MODEL.section = sectionResolve(L, LM.sceneMinZ, LM.sceneMaxZ);
+    if (typeof sectionResolve === 'function') DESIGN_MODEL.section = sectionResolve(L, LM.sceneMinZ, LM.sceneMaxZ, null, LM);
   })();
   // Trees and planters: one entry per plant in every planting / buffer segment whose content
   // is trees or planters. The only place this list is computed -- Plan, Section and 3D all
@@ -3651,18 +3651,12 @@ document.addEventListener('mouseup', function() {
   function _recomputeScale() {
     SECTION_PX_PER_M = 60;
     if (!_fitMode) return;
-    var m = _segs.reduce(function(a, s){ return a + (s.type === 'building' ? 0 : s.width); }, 0);
-    var tr = (typeof TOTAL_ROAD !== 'undefined') ? TOTAL_ROAD : 0;
-    var alloc = _segs.reduce(function(a, s){ return a + (s.type === 'building' || s.type === 'sidewalk' ? 0 : s.width); }, 0);
-    m += Math.abs(tr - alloc);   // the unallocated (or over) gap is drawn too
-    // the building columns' metres (buffer and setback) are part of the width to fit; only their 24 px of poche is fixed
-    // (Brief 21 audit: subtracting their pixels at 60 px/m left nothing to fit into behind an 8 m setback, so FIT did nothing)
-    var nb = _segs.filter(function(s){ return s.type === 'building'; }).length;
-    var avail = _vpWidth() - 26 - nb * 24;
-    m += nb * _bldgM();
+    // the section's box across, x0 .. x1 (Brief 21 §5), fitted to the viewport
+    var DM = (typeof DESIGN_MODEL !== 'undefined') ? DESIGN_MODEL : null, sec = DM && DM.section, LM = DM && DM.landmarks;
+    var m = (sec && typeof sec.x0 === 'number' && LM) ? Math.max(sec.x1, LM.allocatedRight) - Math.min(sec.x0, LM.sidewalkL.x0) : 0;
+    var avail = _vpWidth() - 26;
     if (m > 0 && avail > 40) SECTION_PX_PER_M = Math.max(4, Math.min(120, avail / m));
-  }
-  function _segPx(w) { return Math.max(8, Math.round(w * SECTION_PX_PER_M)); }
+  }  function _segPx(w) { return Math.max(8, Math.round(w * SECTION_PX_PER_M)); }
   // Near-building column: 24 px of poche plus room for the vegetated buffer and the deepest near
   // setback, so a set-back facade (cut or beyond) sits at its true distance from the sidewalk.
   function _bldgM() {
@@ -4003,7 +3997,7 @@ document.addEventListener('mouseup', function() {
   // [left, right] px of a strip item in frame f: the building column (poche outboard of the buffer
   // and setback), a segment (its model x0..x1), or the unallocated width after the last segment.
   function _boxOf(s, f) {
-    if (s === 'unalloc') return sectionSpan(f.allocatedRight, f.xR, f);
+    if (s === 'unalloc') return sectionSpan(f.allocatedRight, f.roadEnd, f);
     if (s.type === 'building') {
       var b = sectionSpan(f.xL, f.sidewalkX0, f);
       return f.mir ? [b[0], b[1] + f.poche] : [b[0] - f.poche, b[1]];
@@ -4499,7 +4493,7 @@ document.addEventListener('mouseup', function() {
   function seInit() {
     var root=document.getElementById('seRoot'); if(!root) return;
     // Re-init: drop header buttons from a previous build before recreating them.
-    document.querySelectorAll('#csTools #seUndoBtn, #csTools #seRedoBtn, #csTools #seFitBtn').forEach(function(b){ b.remove(); });
+    document.querySelectorAll('#csTools #seUndoBtn, #csTools #seRedoBtn, #csTools #seFitBtn, #csTools #seTopLbl').forEach(function(b){ b.remove(); });
 
     root.innerHTML =
       // Toolbar
@@ -4507,6 +4501,7 @@ document.addEventListener('mouseup', function() {
         '<button id="seUndoBtn" onclick="seUndo()" disabled>Undo</button>'+
         '<button id="seRedoBtn" onclick="seRedo()" disabled>Redo</button>'+
         '<button id="seFitBtn" onclick="seFit()">Fit view</button>'+
+        '<label id="seTopLbl" class="se-top" title="The section drawing&rsquo;s top, in metres above the road; empty: it fits the tallest building or tree it sees.">Top <input type="number" id="seTop" min="3" max="80" step="0.5" placeholder="auto" onchange="setSection({ yTop: parseFloat(this.value) > 0 ? parseFloat(this.value) : null })"> m</label>'+
         '<span style="flex:1"></span>'+
         '<span style="font-size:11px;color:var(--muted)">Click to select &middot; Drag to reorder &middot; Drag edge to resize &middot; Del to remove</span>'+
       '</div>'+
@@ -4528,7 +4523,7 @@ document.addEventListener('mouseup', function() {
     // stays directly below as the Section toolstrip. The help line becomes the label tooltip.
     var _csTools = document.getElementById('csTools'), _seRow = root.firstElementChild;
     if (_csTools && _seRow) {
-      ['seUndoBtn', 'seRedoBtn', 'seFitBtn'].forEach(function(id) {
+      ['seUndoBtn', 'seRedoBtn', 'seFitBtn', 'seTopLbl'].forEach(function(id) {
         var b = _seRow.querySelector('#' + id); if (b) _csTools.appendChild(b);
       });
       var _lbl = document.querySelector('#csPanel .vp-lbl');
@@ -4609,26 +4604,41 @@ document.addEventListener('mouseup', function() {
 //   depth  how far beyond the cut the elevation reaches, m (0.5 .. the scene edge; default 6)
 // SECTION holds what the user set (saved); DESIGN_MODEL.section the resolved value every view
 // reads ({z, dir, depth, zFar}). Plan derives its pixels from it through worldToPlan.
-var SECTION = { z: null, dir: -1, depth: 6 };
-function sectionResolve(L, zMin, zMax, s) {
+var SECTION = { z: null, dir: -1, depth: 6, depthBack: 0, x0: null, x1: null, yTop: null };
+// The section's box (Brief 21 §5): depth (= depthFwd) beyond the cut, depthBack behind it (drawn as hidden lines),
+// x0 .. x1 across (into the near and the far buildings; by default 5 m past the face of the building the cut passes
+// through on each side), yTop the drawing's top (null: the auto-fit, sectionExtentM).
+function sectionResolve(L, zMin, zMax, s, LM) {
   s = s || SECTION || {};   // SECTION is hoisted: undefined until its line runs
   var z = (typeof s.z === 'number' && isFinite(s.z)) ? s.z : L / 2;
   z = Math.max(0, Math.min(L, z));
   var dir = s.dir === 1 ? 1 : -1;
-  var room = Math.max(0.5, dir > 0 ? zMax - z : z - zMin);
-  var d = (typeof s.depth === 'number' && isFinite(s.depth)) ? s.depth : 6;
+  var room = Math.max(0.5, dir > 0 ? zMax - z : z - zMin), roomB = Math.max(0, dir > 0 ? z - zMin : zMax - z);
+  var dv = typeof s.depthFwd === 'number' && isFinite(s.depthFwd) ? s.depthFwd : s.depth;
+  var d = (typeof dv === 'number' && isFinite(dv)) ? dv : 6;
   d = Math.max(0.5, Math.min(room, d));
-  return { z: +z.toFixed(3), dir: dir, depth: +d.toFixed(3), zFar: +(z + dir * d).toFixed(3) };
-}
-// The one way to change the section. patch: any of {z, dir, depth}. opts.live = while dragging
+  var db = (typeof s.depthBack === 'number' && isFinite(s.depthBack)) ? Math.max(0, Math.min(roomB, s.depthBack)) : 0;
+  var DM = typeof DESIGN_MODEL !== 'undefined' ? DESIGN_MODEL : null;
+  LM = LM || (DM && DM.landmarks) || null;
+  var at = function(side) { return ((DM && DM.buildings && DM.buildings[side]) || []).find(function(b) { var f = b.footprint; return f && f.visible && f.z0 <= z && f.z1 >= z; }); };
+  var bL = at('L'), bR = at('R');
+  var nf = bL ? bL.footprint.faceX : (LM ? LM.buildingL.innerFaceX : -1.8), ff = bR ? bR.footprint.faceX : (LM ? LM.buildingR.innerFaceX : 7.4);
+  var swL = LM ? LM.sidewalkL.x0 : -1.8, rr = LM ? Math.max(LM.roadRight, LM.allocatedRight) : 5.6;
+  var x0 = (typeof s.x0 === 'number' && isFinite(s.x0)) ? s.x0 : nf - 5, x1 = (typeof s.x1 === 'number' && isFinite(s.x1)) ? s.x1 : ff + 5;
+  x0 = Math.max(Math.min(nf, swL) - 60, Math.min(swL, x0)); x1 = Math.min(Math.max(ff, rr) + 60, Math.max(rr, x1));
+  var yTop = (typeof s.yTop === 'number' && isFinite(s.yTop) && s.yTop > 0) ? Math.max(3, s.yTop) : null;
+  return { z: +z.toFixed(3), dir: dir, depth: +d.toFixed(3), depthFwd: +d.toFixed(3), depthBack: +db.toFixed(3), zFar: +(z + dir * d).toFixed(3),
+    zBack: +(z - dir * db).toFixed(3), x0: +x0.toFixed(3), x1: +x1.toFixed(3), yTop: yTop };
+}// The one way to change the section. patch: any of {z, dir, depth}. opts.live = while dragging
 // (no save, cheap redraws); opts.silent = model only.
 var _secLiveT = null;
 function setSection(patch, opts) {
   opts = opts || {};
-  if (patch) Object.keys(patch).forEach(function(k) { SECTION[k] = patch[k]; });
+  if (patch) Object.keys(patch).forEach(function(k) { SECTION[k === 'depthFwd' ? 'depth' : k] = patch[k]; });
   var dm = _dmCurrent(), LM = dm.landmarks;
-  DESIGN_MODEL.section = sectionResolve(dm.parklet.length, LM.sceneMinZ, LM.sceneMaxZ);
+  DESIGN_MODEL.section = sectionResolve(dm.parklet.length, LM.sceneMinZ, LM.sceneMaxZ, null, LM);
   if (typeof state !== 'undefined') state['__section'] = JSON.stringify(SECTION);
+  var _ti = document.getElementById('seTop'); if (_ti && document.activeElement !== _ti) _ti.value = SECTION.yTop == null ? '' : SECTION.yTop;   // the Top field (Brief 21 §5)
   if (opts.silent) return DESIGN_MODEL.section;
   if (!opts.live && typeof saveSettings === 'function') saveSettings();
   if (typeof window.seRefreshLayout === 'function') window.seRefreshLayout();
@@ -4646,7 +4656,7 @@ function _3dSectionHelper() {
   if (old) { _3d.scene.remove(old); old.traverse(function(o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
   var DM = _dmCurrent(), LM = DM.landmarks, sec = DM.section;
   if (sec && !(typeof _3dSectionOn !== 'undefined' && !_3dSectionOn)) {
-    var x0 = LM.buildingL.innerFaceX, x1 = LM.buildingR.innerFaceX, W = x1 - x0;
+    var x0 = typeof sec.x0 === 'number' ? sec.x0 : LM.buildingL.innerFaceX, x1 = typeof sec.x1 === 'number' ? sec.x1 : LM.buildingR.innerFaceX, W = x1 - x0;   // the box (Brief 21 §5)
     var H = Math.min(12, Math.max(4, LM.buildingL.height, LM.buildingR.height));
     var ACC = 0x3AA8E4, grp = new THREE.Group();
     grp.name = 'sectionHelper';
@@ -4657,9 +4667,10 @@ function _3dSectionHelper() {
     var edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(W, H)), new THREE.LineBasicMaterial({ color: ACC, fog: false }));
     edge.position.copy(plane.position);
     grp.add(edge);
-    var bg = new THREE.BoxGeometry(W, H, sec.depth);
+    var zb = typeof sec.zBack === 'number' ? sec.zBack : sec.z, bd = Math.abs(sec.zFar - zb);
+    var bg = new THREE.BoxGeometry(W, H, Math.max(0.01, bd));
     var box = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ color: ACC, transparent: true, opacity: 0.05, depthWrite: false, fog: false }));
-    box.position.set((x0 + x1) / 2, H / 2, (sec.z + sec.zFar) / 2);
+    box.position.set((x0 + x1) / 2, H / 2, (zb + sec.zFar) / 2);
     grp.add(box);
     var bEdge = new THREE.LineSegments(new THREE.EdgesGeometry(bg), new THREE.LineBasicMaterial({ color: ACC, transparent: true, opacity: 0.55, fog: false }));
     bEdge.position.copy(box.position);
@@ -4683,15 +4694,18 @@ function getSectionCutWorldZ() { return getSectionCutLocation(); }
 //   are the strip's own poche, so they never appear in 'cut'.
 function getSectionScene(sec) {
   var DM = _dmCurrent(), LM = DM.landmarks, TOL = 0.05;
-  sec = sec || DM.section || sectionResolve(DM.parklet.length, LM.sceneMinZ, LM.sceneMaxZ);
-  var z = sec.z, dir = sec.dir === 1 ? 1 : -1, zFar = z + dir * sec.depth;
-  var lo = Math.min(z, zFar), hi = Math.max(z, zFar), L = DM.parklet.length;
-  var out = { section: { z: z, dir: dir, depth: sec.depth, zFar: zFar }, cut: [], beyond: [] };
+  sec = sec || DM.section || sectionResolve(DM.parklet.length, LM.sceneMinZ, LM.sceneMaxZ, null, LM);
+  var z = sec.z, dir = sec.dir === 1 ? 1 : -1, zFar = z + dir * sec.depth, db = sec.depthBack || 0, zBack = z - dir * db;
+  var lo = Math.min(z, zFar), hi = Math.max(z, zFar), bLo = Math.min(z, zBack), bHi = Math.max(z, zBack), L = DM.parklet.length;
+  var xa = typeof sec.x0 === 'number' ? sec.x0 : -Infinity, xb = typeof sec.x1 === 'number' ? sec.x1 : Infinity;
+  var out = { section: { z: z, dir: dir, depth: sec.depth, zFar: zFar, depthBack: db, zBack: zBack, x0: sec.x0, x1: sec.x1 }, cut: [], beyond: [], behind: [] };
   function add(it, canCut) {
+    if (it.x1 < xa - TOL || it.x0 > xb + TOL) return;   // outside the section's width x0 .. x1 (Brief 21 §5)
     it.d = ((it.z0 + it.z1) / 2 - z) * dir;
     var isCut = it.z0 <= z + TOL && it.z1 >= z - TOL;
     if (isCut) { if (canCut !== false) out.cut.push(it); return; }
     if (it.z1 >= lo && it.z0 <= hi) out.beyond.push(it);
+    else if (db > 0 && it.z1 >= bLo && it.z0 <= bHi) out.behind.push(it);   // behind the cut, within depthBack: hidden lines
   }
   // vegetation (trees, planters)
   (DM.vegetation || []).forEach(function(v, i) {
@@ -4765,6 +4779,7 @@ function getSectionScene(sec) {
       z0: Math.max(0, lo) + (dir > 0 ? TOL * 2 : 0), z1: Math.min(L, hi) - (dir < 0 ? TOL * 2 : 0), data: { shape: true } }, false);
   }
   out.beyond.sort(function(a, b) { return b.d - a.d; });   // far to near: draw in this order
+  out.behind.sort(function(a, b) { return a.d - b.d; });
   return out;
 }
 
@@ -4810,6 +4825,7 @@ function sectionNotes(scene, DM) {
   return out.slice(0, 12).map(function(q, i) { q.n = i + 1; return q; });
 }
 function sectionExtentM(DM) {
+  if (DM.section && typeof DM.section.yTop === 'number') return DM.section.yTop;   // set by hand (Brief 21 §5): no auto-fit
   var L = DM.parklet.length, sec = DM.section || { z: L / 2, zFar: L / 2 }, lo = Math.min(sec.z, sec.zFar), hi = Math.max(sec.z, sec.zFar);
   var cb = (typeof PARKLET_LEVELS !== 'undefined' && PARKLET_LEVELS.curbTop) || 0.15, top = 0;
   ['L', 'R'].forEach(function(side) {
@@ -4824,25 +4840,32 @@ function sectionExtentM(DM) {
 }
 function sectionFrame(DM, o) {
   o = o || {};
-  var LM = DM.landmarks, SC = o.pxPerM || 60, sb = 0;
-  ((DM.buildings && DM.buildings.L) || []).forEach(function(b) { if (b.footprint && b.footprint.visible) sb = Math.max(sb, b.footprint.setback || 0); });
-  var xL = LM.sidewalkL.x0 - (LM.bufferW || 0) - sb;
+  var LM = DM.landmarks, SC = o.pxPerM || 60;
   var rem = Math.round((DM.totalRoad - DM.allocated) * 1000) / 1000;
-  var xR = LM.allocatedRight + Math.abs(rem);
-  var W = Math.max(o.minWidth || 0, SECTION_POCHE_PX + (xR - xL) * SC);
+  var roadEnd = LM.allocatedRight + Math.abs(rem);   // the road's drawn end (the far curb, or the over-allocation's)
+  // across (Brief 21 §5): exactly the section's box, x0 .. x1 (into the near and the far buildings); no fixed poche column
+  var sec = DM.section || {}, xL = typeof sec.x0 === 'number' ? Math.min(sec.x0, LM.sidewalkL.x0) : LM.sidewalkL.x0 - 5;
+  var xR = typeof sec.x1 === 'number' ? Math.max(sec.x1, roadEnd) : roadEnd;
+  var POCHE = 0, W = Math.max(o.minWidth || 0, POCHE + (xR - xL) * SC);
   var mir = !!(DM.section && DM.section.dir === 1);
   // the vertical extent (Brief 18): 14 px of headroom over sectionExtentM, the ground, 32 px below it
   // (below the ground: at least 0.9 m, so the ground's hatch band and its stipple below 0.5 m show: Brief 19 E)
   var extM = sectionExtentM(DM), gY = Math.round(14 + extM * SC), stripH = gY + Math.max(SECTION_H - SECTION_GROUND_Y, Math.round(0.9 * SC));
   return { SC: SC, xL: xL, xR: xR, W: W, H: stripH + (o.labels === 'paper' ? 44 : 0), groundY: gY, stripH: stripH, extM: extM,
-    mir: mir, xs: mir ? -1 : 1, x0: mir ? W - SECTION_POCHE_PX + xL * SC : SECTION_POCHE_PX - xL * SC,
-    poche: SECTION_POCHE_PX, minWidth: o.minWidth || 0, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
+    mir: mir, xs: mir ? -1 : 1, x0: mir ? W - POCHE + xL * SC : POCHE - xL * SC,
+    poche: POCHE, minWidth: o.minWidth || 0, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
+    roadEnd: roadEnd, farStart: Math.max(roadEnd, LM.roadRight),
     swRaise: Math.round(PARKLET_LEVELS.curbTop * SC), deckTk: Math.max(3, Math.round(PARKLET_LEVELS.deckThk * SC)) };
 }
 function worldToSection(x, y, f) { return { px: f.x0 + f.xs * x * f.SC, py: f.groundY - (y || 0) * f.SC }; }
 function sectionToWorld(px, py, f) { return { x: (px - f.x0) / (f.xs * f.SC), y: (f.groundY - (py || f.groundY)) / f.SC }; }
 // px span [left, right] of world x0..x1 in frame f (either direction)
 function sectionSpan(x0, x1, f) { var a = worldToSection(x0, 0, f).px, b = worldToSection(x1, 0, f).px; return [Math.min(a, b), Math.max(a, b)]; }
+// The far building the cut passes through (Brief 21 §5: drawn cut when the box reaches it), or null.
+function sectionCutBuildingR(DM) {
+  var z = DM.section ? DM.section.z : 0;
+  return ((DM.buildings && DM.buildings.R) || []).find(function(b) { var f = b.footprint; return f && f.visible && f.z0 <= z && f.z1 >= z; }) || null;
+}
 // The near building the cut passes through (its poche), or null (a gap between buildings).
 function sectionCutBuildingL(DM) {
   var z = DM.section ? DM.section.z : 0;
@@ -5024,14 +5047,34 @@ function _drawSection(svgEl, o) {
  ss = s; })();
     arch += ss;
   }
-  // schematic (Brief 19 E): the ground fades from its hatch band to a light stipple below 0.5 m
+  // the far side (Brief 21 §5, when the box reaches past the road): the far curb and sidewalk to the face of the building
+  // the cut passes through (or to the box's end), and that building cut from its face to x1 (or its rear wall)
+  if (f.xR > f.farStart + 0.01) {
+    var fs0 = U(f.farStart), cbR = sectionCutBuildingR(DM), ffx = cbR ? Math.max(f.farStart, Math.min(f.xR, cbR.footprint.faceX)) : f.xR, fs1 = U(ffx);
+    if (fs1 - fs0 > 0.5) {
+      var _fsR = R(fs0, SW_TOP, fs1 - fs0, GROUND_Y - SW_TOP + m(0.12));
+      arch += '<rect x="' + f2(fs0) + '" y="' + SW_TOP + '" width="' + f2(fs1 - fs0) + '" height="' + (STRIP_H - SW_TOP) + '" fill="' + P.slab + '" data-far-sidewalk="1"/>' + band('concrete', _fsR);
+      arch += '<line x1="' + f2(fs0) + '" y1="' + SW_TOP + '" x2="' + f2(fs1) + '" y2="' + SW_TOP + '"' + K('cut') + '/>';
+      arch += '<line x1="' + f2(fs0) + '" y1="' + GROUND_Y + '" x2="' + f2(fs0) + '" y2="' + SW_TOP + '"' + K('cut') + '/>';
+      arch += earth(fs0, fs1, GROUND_Y + m(0.12));
+    }
+    if (cbR && ffx < f.xR - 0.01) {
+      var fxe = Math.min(f.xR, cbR.footprint.backX), fx1 = U(fxe), roofR = Math.max(0, SW_TOP - m(cbR.height || 8));
+      if (fx1 - fs1 > 0.5) {
+        arch += '<rect x="' + f2(fs1) + '" y="' + f2(SW_TOP) + '" width="' + f2(fx1 - fs1) + '" height="' + f2(STRIP_H - SW_TOP) + '" fill="' + P.soil + '"/>';
+        arch += pocheRect(fs1, roofR, fx1 - fs1, SW_TOP - roofR).replace(/data-poche="1"/g, 'data-poche="1" data-far="1"');
+        arch += '<line x1="' + f2(fs1) + '" y1="' + f2(roofR) + '" x2="' + f2(fx1) + '" y2="' + f2(roofR) + '"' + K('cut') + ' data-roof="1"/>';
+        arch += '<line x1="' + f2(fs1) + '" y1="' + f2(roofR) + '" x2="' + f2(fs1) + '" y2="' + f2(SW_TOP) + '"' + K('cut') + ' data-face-far="1"/>';
+      }
+    }
+  }  // schematic (Brief 19 E): the ground fades from its hatch band to a light stipple below 0.5 m
   if (!isTech) arch += '<rect x="0" y="' + f2(GROUND_Y + m(0.5)) + '" width="' + f2(W) + '" height="' + f2(Math.max(0, STRIP_H - GROUND_Y - m(0.5))) + '" fill="url(#' + DK.pid + '-stipple)" data-stipple="1"/>';
   arch += '<line x1="0" y1="' + GROUND_Y + '" x2="' + f2(W) + '" y2="' + GROUND_Y + '"' + K('cut') + '/>';
   arch += '</g>';
   // ── objects at the cut and beyond it (Brief 08), in the mirror-aware frame; no entourage ────
   var scene;
   try { scene = getSectionScene(DM.section); } catch (e) { console.warn('[section] getSectionScene failed', e); scene = { cut: [], beyond: [] }; }
-  scene = { section: scene.section, cut: scene.cut.filter(function(it) { return it.kind !== 'entourage'; }), beyond: scene.beyond.filter(function(it) { return it.kind !== 'entourage'; }) };
+  scene = { section: scene.section, cut: scene.cut.filter(function(it) { return it.kind !== 'entourage'; }), beyond: scene.beyond.filter(function(it) { return it.kind !== 'entourage'; }), behind: (scene.behind || []).filter(function(it) { return it.kind !== 'entourage'; }) };
   var CS = DM.crossSection, pkSurface = GROUND_Y - SW_RAISE - DECK_TK;
   function X(wx) { return worldToSection(wx, 0, f).px; }
   function Y(mm) { return mm * SC; }
@@ -5206,7 +5249,7 @@ function _drawSection(svgEl, o) {
       edges.push(sp[0], sp[1]);
     });
     if (Math.abs(f.remaining) >= 0.001) {
-      var su = sectionSpan(f.allocatedRight, f.xR, f);
+      var su = sectionSpan(f.allocatedRight, f.roadEnd, f);
       if (su[1] - su[0] >= LBL * 2.6) lab += "<text x='" + f1((su[0] + su[1]) / 2) + "' y='" + f1(cy - 4) + "' text-anchor='middle' " + FNT + " font-size='" + f2(LBL) + "' fill='" + (f.over ? T.fail : MIDC) + "'>" + Math.abs(f.remaining).toFixed(2) + '</text>';
       edges.push(su[0], su[1]);
     }
@@ -5231,7 +5274,22 @@ function _drawSection(svgEl, o) {
     });
     keysSvg = '<g data-layer="keys">' + PK.body() + '</g>';
   } catch (e) { console.warn('[section] notes', e); }
-  var cutArch = bg + s + arch;
+  // behind the cut (Brief 21 §5): what lies within depthBack, as hidden lines (fine, dashed, no fill), over the drawing
+  var hv = '', HID = " fill='none'" + K1('fine', { c: BINK, dash: 'hidden' });
+  (scene.behind || []).forEach(function(it) {
+    var d = it.data || {}, cx = (it.x0 + it.x1) / 2, g = open('behind', it);
+    if (it.kind === 'tree' && d.v) {
+      var v = d.v, gy = d.atRoadLevel ? GROUND_Y : SW_TOP, r = Math.max(0.15, v.canopyR || 0.4), ch = v.form ? v.clearH : 2.0, top = v.form ? Math.max(v.heightM, v.clearH + 1) : 2.0 + 1.12 * r;
+      g += "<ellipse cx='" + f1(X(v.x)) + "' cy='" + f1(gy - Y((ch + top) / 2)) + "' rx='" + f1(Y(r)) + "' ry='" + f1(Y((top - ch) / 2)) + "'" + HID + " data-canopy='1'/>";
+      g += "<line x1='" + f1(X(v.x)) + "' y1='" + f1(gy) + "' x2='" + f1(X(v.x)) + "' y2='" + f1(gy - Y(ch)) + "'" + HID + '/>';
+    } else if (it.kind === 'building' && d.f) {
+      g += rectXY(X(d.f.faceX), X(d.f.backX), SW_TOP, Math.max(0, SW_TOP - Y(it.y1)), HID);
+    } else {
+      var b0 = surf(cx); g += rectXY(X(it.x0), X(it.x1), b0, b0 - Y(Math.max(0.05, it.y1 - it.y0)), HID);
+    }
+    hv += g + '</g>';
+  });
+  sv += hv ? "<g data-layer='behind'>" + hv + '</g>' : '';  var cutArch = bg + s + arch;
   svgEl.setAttribute('width', f2(W)); svgEl.setAttribute('height', String(H));
   svgEl.setAttribute('viewBox', '0 0 ' + f2(W) + ' ' + H);
   svgEl.innerHTML = cutArch.replace('<g data-layer="cut-drawing"', finishObjects('<g data-layer="beyond">' + bv + '</g>') + '<g data-layer="cut-drawing"') +
@@ -6998,23 +7056,34 @@ const manholes = state['manholes'] || [];
   // Sized in screen px (U), like the dimension chains.
   if (_pvSectionOn) {
     const _sec = _pvDM.section, INK = DK.T.ink, MID = DK.T.anno;
-    const _sX = worldToPlan(0, _sec.z).px, _fX = worldToPlan(0, _sec.zFar).px;
+    const _sX = worldToPlan(0, _sec.z).px, _fX = worldToPlan(0, _sec.zFar).px, _bX = worldToPlan(0, _sec.zBack != null ? _sec.zBack : _sec.z).px;
     const _sd = _sec.dir * _zSign;                          // screen sense of the looking direction
-    const _top = -CTX_TOP + 16 * U, _bot = OPP_BOTTOM - 16 * U;
-    const _rT = Math.min(SW_Y, _pvFaceNY), _rB = _pvOppSW1;
+    // the box across (Brief 21 §5): x0 .. x1, into the near and far buildings; the cut line and its tags span it
+    const _y0 = worldToPlan(_sec.x0 != null ? _sec.x0 : 0, _sec.z).py, _y1 = worldToPlan(_sec.x1 != null ? _sec.x1 : 0, _sec.z).py;
+    const _rT = Math.min(_y0, _y1), _rB = Math.max(_y0, _y1), _top = _rT - 16 * U, _bot = _rB + 16 * U;
     const f1 = function(v) { return v.toFixed(2); };
     const FNT = `font-family='${DRAW_STYLE.FONT}'`;
-    // depth rectangle
-    s += `<rect x='${f1(Math.min(_sX, _fX))}' y='${f1(_rT)}' width='${f1(Math.abs(_fX - _sX))}' height='${f1(_rB - _rT)}' fill='${DRAW_STYLE.UI.secFill}'${KU(0.8, 'accent', { dash: [5, 3] })} pointer-events='none' data-pvsl='depth'/>`;
-    // cutting-plane line, full drawing height: DRAW_STYLE's object weight, centre line
-    s += `<line x1='${f1(_sX)}' y1='${f1(-CTX_TOP)}' x2='${f1(_sX)}' y2='${f1(OPP_BOTTOM)}'${K('object', { dash: 'centre' })} pointer-events='none' data-pvsl='vl'/>`;
-    // hit areas: the line (z) and the far edge (depth)
-    s += `<rect x='${f1(_sX - 7 * U)}' y='${f1(-CTX_TOP)}' width='${f1(14 * U)}' height='${f1(OPP_BOTTOM + CTX_TOP)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,0)' data-pvsl='hit'><title>Drag to move the section cut</title></rect>`;
-    s += `<rect x='${f1(_fX - 6 * U)}' y='${f1(_rT)}' width='${f1(12 * U)}' height='${f1(_rB - _rT)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,1)' data-pvsl='hitDepth'><title>Drag to set the section depth</title></rect>`;
-    // far-edge grip
-    const _gm = (_rT + _rB) / 2;
-    s += `<line x1='${f1(_fX)}' y1='${f1(_gm - 9 * U)}' x2='${f1(_fX)}' y2='${f1(_gm + 9 * U)}'${KU(2.4, 'accent', { cap: 'round' })} pointer-events='none'/>`;
-    // A tags: circle + arrowhead in the looking direction; click flips it
+    const _bxL = Math.min(_bX, _fX), _bxR = Math.max(_bX, _fX);
+    // the box: behind the cut (depthBack) to beyond it (depth), x0 .. x1
+    s += `<rect x='${f1(_bxL)}' y='${f1(_rT)}' width='${f1(_bxR - _bxL)}' height='${f1(_rB - _rT)}' fill='${DRAW_STYLE.UI.secFill}'${KU(0.8, 'accent', { dash: [5, 3] })} pointer-events='none' data-pvsl='depth'/>`;
+    // cutting-plane line over the box's extent: DRAW_STYLE's object weight, centre line
+    s += `<line x1='${f1(_sX)}' y1='${f1(_rT)}' x2='${f1(_sX)}' y2='${f1(_rB)}'${K('object', { dash: 'centre' })} pointer-events='none' data-pvsl='vl'/>`;
+    // hit areas: the line (z); the box's four edges: forward (depth), back (depthBack), x0, x1 (the section tool's handles)
+    s += `<rect x='${f1(_sX - 7 * U)}' y='${f1(_rT)}' width='${f1(14 * U)}' height='${f1(_rB - _rT)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,0)' data-pvsl='hit'><title>Drag to move the section cut</title></rect>`;
+    const _gm = (_rT + _rB) / 2, _cx = (_bxL + _bxR) / 2, _hw = Math.max(24 * U, (_bxR - _bxL) * 0.5);
+    const _edge = function(x, what, tip, val, lx) {
+      s += `<rect x='${f1(x - 6 * U)}' y='${f1(_rT)}' width='${f1(12 * U)}' height='${f1(_rB - _rT)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,${what})' data-pvsl='hit${what}'><title>${tip}</title></rect>`;
+      s += `<line x1='${f1(x)}' y1='${f1(_gm - 9 * U)}' x2='${f1(x)}' y2='${f1(_gm + 9 * U)}'${KU(2.4, 'accent', { cap: 'round' })} pointer-events='none'/>`;
+      s += `<text x='${f1(lx)}' y='${f1(_gm + 3.5 * U)}' text-anchor='middle' ${FNT} font-size='${f1(10 * U)}' font-weight='600' fill='${DRAW_STYLE.UI.accent}' pointer-events='none' data-pvsl='v${what}'>${val}</text>`;
+    };
+    _edge(_fX, 1, 'Drag to set how far beyond the cut the section looks', _sec.depth.toFixed(1) + ' m', _fX + Math.sign(_fX - _sX || 1) * 20 * U);
+    _edge(_bX, 2, 'Drag to show what lies behind the cut, as dashed hidden lines', (_sec.depthBack || 0).toFixed(1) + ' m', _bX + Math.sign(_bX - _sX || -1) * 20 * U);
+    [[_y0, 3, 'Drag to set how far into the near buildings the section reaches'], [_y1, 4, 'Drag to set how far into the far buildings the section reaches']].forEach(function(q) {
+      const y = q[0];
+      s += `<rect x='${f1(_bxL)}' y='${f1(y - 6 * U)}' width='${f1(Math.max(12 * U, _bxR - _bxL))}' height='${f1(12 * U)}' fill='transparent' style='cursor:ns-resize' onmousedown='_pvSecDown(event,${q[1]})' data-pvsl='hit${q[1]}'><title>${q[2]}</title></rect>`;
+      s += `<line x1='${f1(_cx - 9 * U)}' y1='${f1(y)}' x2='${f1(_cx + 9 * U)}' y2='${f1(y)}'${KU(2.4, 'accent', { cap: 'round' })} pointer-events='none'/>`;
+      { const w = q[1] === 3 ? _sec.x0 : _sec.x1; s += `<text x='${f1(_cx + 14 * U)}' y='${f1(y + (q[1] === 3 ? -4 : 11) * U)}' ${FNT} font-size='${f1(10 * U)}' font-weight='600' fill='${DRAW_STYLE.UI.accent}' pointer-events='none' data-pvsl='v${q[1]}'>${w.toFixed(1)} m</text>`; }
+    });    // A tags: circle + arrowhead in the looking direction; click flips it
     const R = 8 * U;
     [_top, _bot].forEach(function(ty, i) {
       const ax = _sX + _sd * R, tip = _sX + _sd * (R + 9 * U);
@@ -7026,7 +7095,7 @@ const manholes = state['manholes'] || [];
     // label at the top tag, on the looking side: "A-A  DEPTH 6.0 M" (value 11 px, label 10 px caps)
     // Kept inside the drawing (0..VW), clear of the dimension chains: on the looking side if it
     // fits, else the other side; without the depth if neither fits.
-    const _dTxt = `DEPTH ${_sec.depth.toFixed(1)} M`, _gap = (R + 13 * U);
+    const _dTxt = `depth ${_sec.depth.toFixed(1)} m`, _gap = (R + 13 * U);
     const _wFull = (_pvTW('A–A', 11) + 6 + _pvTW(_dTxt, 10, .06)) * U, _wShort = _pvTW('A–A', 11) * U;
     const _fits = function(side, w) { return side > 0 ? _sX + _gap + w <= VW : _sX - _gap - w >= 0; };
     let _side = _sd > 0 ? 1 : -1, _full = true;
@@ -7091,9 +7160,19 @@ function _pvSecDown(e, what) {
     const q = p.matrixTransform(m.inverse());
     return planToWorld(q.x, q.y).z;
   }
+  function xAt(ev) {
+    const m = svg.getScreenCTM(); if (!m) return null;
+    const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY;
+    const q = p.matrixTransform(m.inverse());
+    return planToWorld(q.x, q.y).x;
+  }
+  const snap = function(v) { return Math.round(v * 2) / 2; };   // the box's edges snap to 0.5 m (Brief 21 §5)
   function apply(ev, live) {
+    const sec = DESIGN_MODEL.section;
+    if (what >= 3) { const x = xAt(ev); if (x === null || !isFinite(x)) return; setSection(what === 3 ? { x0: snap(x) } : { x1: snap(x) }, { live: live }); return; }
     const z = zAt(ev); if (z === null || !isFinite(z)) return;
-    if (what === 1) { const sec = DESIGN_MODEL.section; setSection({ depth: Math.max(0.5, (z - sec.z) * sec.dir) }, { live: live }); }
+    if (what === 1) setSection({ depth: Math.max(0.5, snap((z - sec.z) * sec.dir)) }, { live: live });
+    else if (what === 2) setSection({ depthBack: Math.max(0, snap((sec.z - z) * sec.dir)) }, { live: live });
     else setSection({ z: z }, { live: live });
   }
   function move(ev) { apply(ev, true); }
@@ -15417,7 +15496,8 @@ function pkSerialize() {
       sheets: JSON.parse(JSON.stringify(SITE_SHEETS || {}))   // the sheet crops the user set (Brief 17, 4b)
     },
     // Section A-A (Brief 08): cut position, looking direction, depth (world m)
-    section: (typeof SECTION !== 'undefined') ? { z: SECTION.z, dir: SECTION.dir, depth: SECTION.depth } : null,
+    section: (typeof SECTION !== 'undefined') ? { z: SECTION.z, dir: SECTION.dir, depth: SECTION.depth, depthBack: SECTION.depthBack || 0,
+      x0: SECTION.x0 == null ? null : SECTION.x0, x1: SECTION.x1 == null ? null : SECTION.x1, yTop: SECTION.yTop == null ? null : SECTION.yTop } : null,
     // The cross-section as the Section editor holds it, in order (Brief 09): segments that no
     // global carries (planting, parking, turn / transit lanes, curbs, edited lane widths)
     // survive a load. The building column is implicit.
@@ -15577,6 +15657,9 @@ function pkApplyDesignState(raw) {
     SECTION.z = typeof data.section.z === 'number' ? data.section.z : null;
     SECTION.dir = data.section.dir === 1 ? 1 : -1;
     if (typeof data.section.depth === 'number') SECTION.depth = data.section.depth;
+    // the box (Brief 21 §5); older saves have none: the defaults
+    SECTION.depthBack = typeof data.section.depthBack === 'number' ? data.section.depthBack : 0;
+    ['x0', 'x1', 'yTop'].forEach(function(k) { SECTION[k] = typeof data.section[k] === 'number' ? data.section[k] : null; });
     if (typeof state !== 'undefined') state['__section'] = JSON.stringify(SECTION);
   }
 
@@ -15810,7 +15893,7 @@ var DEFAULT_STATE = Object.freeze({
     bldgR: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
     parkletWidth: 2.65, parkletLength: 19.8, bikeLane: 'none', bikeLaneW: 1.5, bufferEnabled: false, bufferW: 0.9,
     lat: 49.2827, lon: -123.1207, streetBearing: 0, parkletSide: 'east', contextZ: 600, sheets: {} },
-  section: { z: null, dir: -1, depth: 6 },
+  section: { z: null, dir: -1, depth: 6, depthBack: 0, x0: null, x1: null, yTop: null },
   crossSection: [{ type: 'sidewalk', width: 1.8 }, { type: 'parklet', width: 2.65 }, { type: 'travel-lane', width: 2.985 }],
   compliance: { parking_restrictions: '', route_type: '', intersection_dist: '', slope: '', hydrant_dist: '', driveway_dist: '', pole_dist: '',
     pole_trolley: '', signal_box_dist: '', manhole_dist: '', fire_exit_block: '', drainage_clear: '', boulevard_clear: '', parking_setback: '',
@@ -20418,7 +20501,7 @@ RPT.sheetSite = function(d) {
   var xa = F.sx(zB), xb = F.sx(zA), ya = F.sy(xTop), yb = F.sy(xBot), hostAt = null;
   P.clipOpen("<rect x='" + xa + "' y='" + ya + "' width='" + (xb - xa) + "' height='" + (yb - ya) + "'/>");
   // the section marker's two tags (drawn last, RPT.secMarker below): the building labels step aside from them
-  var secX = F.sx(G.sec.z), tagY = [Math.max(F.sy(LM.sidewalkL.x0 - 2), ya) - 4.2, Math.min(F.sy(LM.roadRight + 2), yb) + 4.2];
+  var secX = F.sx(G.sec.z), tagY = [Math.max(F.sy(G.sec.x0), ya) - 4.2, Math.min(F.sy(G.sec.x1), yb) + 4.2];
   var labelX = function(cx, ty, w, lo, hi) {   // the label's centre x, clear of the tags, within [lo, hi]; null when it cannot be
     var hits = function(c) { return tagY.some(function(y) { return c - w / 2 < secX + 7.2 && c + w / 2 > secX - 7.2 && ty - RPT.TX.tag * 0.74 < y + 4 && ty + RPT.TX.tag * 0.22 > y - 4; }); };
     if (!hits(cx)) return cx;
@@ -20452,7 +20535,7 @@ RPT.sheetSite = function(d) {
   var pc = [(F.sx(0) + F.sx(G.L)) / 2, F.sy((LM.deckX0 + LM.deckX1) / 2)];
   if (near) P.text(pc[0], pc[1] + 0.9, 'Parklet', RPT.TX.tag, { anchor: 'middle', bold: true });
   // the section cut and the key dimensions
-  RPT.secMarker(P, F.sx(G.sec.z), F.sy(LM.sidewalkL.x0 - 2), F.sy(LM.roadRight + 2), G.sec.dir === 1, [ya, yb]);   // the section's extent, frontage to far curb, 2 m past each end (Brief 19b), within the crop
+  RPT.secMarker(P, F.sx(G.sec.z), F.sy(G.sec.x0), F.sy(G.sec.x1), G.sec.dir === 1, [ya, yb]);   // the section's box across, x0 .. x1 (Brief 21 §5), within the crop
   // across, right of the drawing: the sidewalk and curb to curb; along, under the deck: its length
   var ax = RPT.cropStops([LM.sidewalkL.x0, 0, LM.roadRight], xTop, xBot);
   if (ax.length > 1) RPT.chain(P, { side: 'right', edge: xb, row: 0, at: ax.map(function(x) { return F.sy(x); }), from: xb, vals: ax.slice(1).map(function(x, i) { return RPT.fmt(x - ax[i]); }) });
@@ -20569,7 +20652,7 @@ RPT.sheetLayout = function(d) {
     var near = c.z < 0 ? 0 : G.L, sd = c.z < 0 ? 'lo' : 'hi'; if (sideRow[sd] > 2) return;
     clearDim(sideRow[sd]++, near, c.z, Math.abs(c.z - near), req, id);
   });
-  RPT.secMarker(P, F.sx(G.sec.z), F.sy(LM.sidewalkL.x0 - 2), F.sy(LM.roadRight + 2), G.sec.dir === 1, [ya, yb]);   // the section's extent, frontage to far curb, 2 m past each end (Brief 19b), within the crop
+  RPT.secMarker(P, F.sx(G.sec.z), F.sy(G.sec.x0), F.sy(G.sec.x1), G.sec.dir === 1, [ya, yb]);   // the section's box across, x0 .. x1 (Brief 21 §5), within the crop
   var keys = [
     { t: 'Segments from the Section editor, chained with the overall, frontage to far curb.', at: [xa - 20, (F.sy(0) + F.sy(LM.roadRight)) / 2] },
     { t: hz != null && zs.indexOf(hz) >= 0 ? 'The deck located from the host frontage (' + (host.name || host.use || 'host') + ').' : 'The deck located along the curb from its start.', at: [F.sx(G.L / 2), ay - 9] },
@@ -20673,9 +20756,12 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
 // A-201's scale (Brief 19b): 1:50 when the section (the building face less 1 m, or the sidewalk less 0.4 m, to the first
 // lane plus 0.4 m; its height sectionExtentM) and its rows fit the drawing area, else 1:100, never smaller
 RPT.sectionScale = function(d) {
-  var G = RPT.geo(d), LM = G.LM, cb = sectionCutBuildingL(G.DM), cbf = cb ? cb.footprint : null, lane = G.segs.find(function(s) { return s.type === 'travel-lane'; });
-  var xL = Math.min(LM.sidewalkL.x0 - 0.4, cbf ? cbf.faceX - 1.0 : Infinity), xR = (lane ? lane.x1 : LM.roadRight) + 0.4, ext = sectionExtentM(G.DM);
-  return (xR - xL) * 20 + 70 <= RPT.DA.w && (ext + 0.9) * 20 + 86 <= RPT.DA.h ? 50 : 100;
+  // Brief 21 §5: the section's box across (x0 .. x1, as on screen); 1:50 when it and its height fit, else the next scale out
+  // whose width fits (1:100, 1:200, 1:250); what is taller than the drawing area is clipped at its top
+  var G = RPT.geo(d), LM = G.LM, sec = G.sec, xL = Math.min(typeof sec.x0 === 'number' ? sec.x0 : LM.sidewalkL.x0, LM.sidewalkL.x0), xR = Math.max(typeof sec.x1 === 'number' ? sec.x1 : LM.roadRight, LM.roadRight), ext = sectionExtentM(G.DM);
+  var wFits = function(s) { return (xR - xL) * 1000 / s + 70 <= RPT.DA.w; };
+  if (wFits(50) && (ext + 0.9) * 20 + 86 <= RPT.DA.h) return 50;
+  return wFits(100) ? 100 : wFits(200) ? 200 : 250;
 };
 // every sheet's scale from one place (Brief 19b): the sheets draw at it, the drawing list prints it
 RPT.SCALE_OF = {
@@ -20687,7 +20773,8 @@ RPT.sheetSection = function(d) {
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), FI = RPT.fills(d.mode), lv = G.lv, R = G.rail, tech = d.mode === 'technical', T = DRAW_STYLE.t(d.mode);
   // across: from 1 m into the building the cut passes through (else the sidewalk less 0.4 m) to the end of the first lane
   var cb = sectionCutBuildingL(G.DM), cbf = cb ? cb.footprint : null;
-  var lane = G.segs.find(function(s) { return s.type === 'travel-lane'; }), xL = Math.min(LM.sidewalkL.x0 - 0.4, cbf ? cbf.faceX - 1.0 : Infinity), xR = (lane ? lane.x1 : LM.roadRight) + 0.4;
+  // across (Brief 21 §5): the section's box, x0 .. x1, the same rectangle the screen draws
+  var xL = Math.min(typeof G.sec.x0 === 'number' ? G.sec.x0 : LM.sidewalkL.x0, LM.sidewalkL.x0), xR = Math.max(typeof G.sec.x1 === 'number' ? G.sec.x1 : LM.roadRight, LM.roadRight), xRd = Math.min(xR, Math.max(LM.roadRight, LM.allocatedRight)), lane = null;   // the chain runs the whole road now
   // up (Brief 18): the Section's extent (sectionExtentM, as on screen); 1:50, or the next scale out when the drawing and
   // its rows do not fit the drawing area, never shrunk
   // (Brief 19b: 1:50 when it fits, else 1:100, never smaller; what is taller than the drawing area is clipped at its top)
@@ -20750,9 +20837,21 @@ RPT.sheetSection = function(d) {
   var sw = rectXY(sx0, -0.15, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', cls: 'object' }); hat(sw, 'concrete');
   rectXY(xL, -0.15, -0.1, lv.curbTop - 0.1, { fill: FI.earth, w: 0 });
   var cbq = rectXY(-0.15, 0, -0.3, lv.curbTop, { fill: '#FFFFFF', cls: 'cut' }); hat(cbq, 'concrete');
-  var rd = rectXY(0, xR, -0.1, 0, { fill: '#FFFFFF', cls: 'object' }); hat(rd, 'asphalt');
+  var rd = rectXY(0, xRd, -0.1, 0, { fill: '#FFFFFF', cls: 'object' }); hat(rd, 'asphalt');
   hat(rectXY(sx0, -0.15, lv.curbTop - 0.1 - eb, lv.curbTop - 0.1, { fill: eFill, w: 0, data: " data-earth='1'" }), 'earth', { band: false });
-  hat(rectXY(0, xR, -0.1 - eb, -0.1, { fill: eFill, w: 0, data: " data-earth='1'" }), 'earth', { band: false });
+  hat(rectXY(0, xRd, -0.1 - eb, -0.1, { fill: eFill, w: 0, data: " data-earth='1'" }), 'earth', { band: false });
+  // the far side (Brief 21 §5): its curb, its sidewalk to the building face, and the far building the cut passes through,
+  // cut from its face to x1 (or its rear wall)
+  if (xR > xRd + 0.01) {
+    var cbR = sectionCutBuildingR(G.DM), fcb = cbR ? cbR.footprint : null, ffx = fcb ? Math.max(xRd + 0.15, Math.min(xR, fcb.faceX)) : xR;
+    var fcq = rectXY(xRd, Math.min(xR, xRd + 0.15), -0.3, lv.curbTop, { fill: '#FFFFFF', cls: 'cut' }); hat(fcq, 'concrete');
+    if (ffx > xRd + 0.16) { var fsw = rectXY(xRd + 0.15, ffx, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', cls: 'object', data: " data-far-sidewalk='1'" }); hat(fsw, 'concrete'); rectXY(xRd + 0.15, ffx, -0.1, lv.curbTop - 0.1, { fill: FI.earth, w: 0 }); }
+    if (fcb && ffx < xR - 0.01) {
+      var fbe = Math.min(xR, fcb.backX), fbh = lv.curbTop + (cbR.height || 8);
+      poche(ffx, fbe, lv.curbTop, fbh);
+      P.line(X(ffx), Y(fbh), X(fbe), Y(fbh), { cls: 'cut' }); P.line(X(ffx), Y(lv.curbTop), X(ffx), Y(fbh), { cls: 'cut', data: " data-face-far='1'" });
+    }
+  }
   if (cbf) {
     var bh = lv.curbTop + (cb.height || 8);
     poche(xL, cbf.faceX, lv.curbTop, bh);
@@ -20768,6 +20867,17 @@ RPT.sheetSection = function(d) {
     if (it.kind === 'furniture') furn(it, true);
     else if (it.kind === 'tree' && it.data && it.data.v) tree(it, true);
     else if (it.kind === 'end-planter' || it.kind === 'wheel-stop') endPiece(it, true);
+  });
+  // behind the cut (Brief 21 §5): within depthBack, as hidden lines (fine, dashed, no fill), as on screen
+  (scn.behind || []).forEach(function(it) {
+    var HD = { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-behind='1'" };
+    if (it.kind === 'tree' && it.data && it.data.v) {
+      var v = it.data.v, b0 = v.x < 0 ? lv.curbTop : 0, r = Math.max(0.15, v.canopyR || 0.4), ch = v.form ? v.clearH : 2.0, tp = v.form ? Math.max(v.heightM, v.clearH + 1) : 2 + 1.12 * r;
+      if (v.x < xL || v.x > xR) return;
+      P.ellipse(X(v.x), Y(b0 + (ch + tp) / 2), r * k, (tp - ch) / 2 * k, HD); P.line(X(v.x), Y(b0), X(v.x), Y(b0 + ch), HD);
+    } else if (it.kind === 'building' && it.data && it.data.f) {
+      var bf2 = it.data.f; rectXY(Math.max(xL, Math.min(bf2.faceX, bf2.backX)), Math.min(xR, Math.max(bf2.faceX, bf2.backX)), lv.curbTop, lv.curbTop + (it.y1 || 8), HD);
+    } else { var bb = baseOf(it); rectXY(it.x0, it.x1, bb, bb + Math.max(0.05, it.y1 - it.y0), HD); }
   });
   // the railing on the traffic side: a post (elevation) and the two rails (cut: steel, solid)
   var rpx0 = LM.deckX1 - R.postW, post = rectXY(rpx0, LM.deckX1, lv.deckTop, lv.deckTop + R.h, { fill: RPT.MARK.post, w: 0, data: " data-rail-h='" + R.h + "'" });
@@ -25181,6 +25291,8 @@ document.addEventListener('keydown', function(e) {
 </script>
 <style>
 /* ── Structure, continued (Brief 21 §3) ── */
+#csTools .se-top { display: inline-flex; align-items: center; gap: 3px; font: 500 12px var(--font-ui); color: var(--d-mid); }
+#csTools .se-top input { width: 46px; padding: 1px 3px; font: 12px var(--font-ui); border: 1px solid var(--d-lt); border-radius: 3px; background: var(--d-paper); color: var(--d-ink); }
 /* the Check tab: the table is the main area; the verdict above it */
 #workspaceCheck { flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; background: var(--d-xlt); padding: 16px 20px 28px; gap: 12px; box-sizing: border-box; }
 #workspaceCheck > * { flex-shrink: 0; }
