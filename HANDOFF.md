@@ -888,6 +888,14 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - A-301 details 1 and 2 are drawn from the traffic side's archetype (`RPT.sheetDetails`). Its dimensions are measured on the parts and tagged `data-enc-dim`, and `RPT._encDims` holds the last set.
     - S-001 has the Enclosure block (`RPT.encBlocks`); X-001 cites E2, E3, E4/G13 and E5.
   - **Library:** `FL_RETIRED` hides Railing and Edge rail from the library.
+- **§13 City-supplied items (commit 14):**
+  - **Model:** `DESIGN_MODEL.cityItems` holds a wheel stop and a flexible bollard per end: `{type: wheelStop|flexBollard, end: A|B, provenance: 'city-supplied', nominal, x, z, x0..z1, y0, y1}`. They are generated in `buildDesignModel`, in the C13 1.5 m setback, centred on the parking lane. `DESIGN_MODEL.parklet.ends` is gone.
+  - **Drawing:**
+    - `DRAW_SYMBOLS.cityWheelStop` and `flexBollard` draw the symbols; `RPT.cityPlan` places them on A-101, A-102 and A-103, and A-102 carries `RPT.CITY_NOTE`.
+    - The screen Plan draws them outside the deck. Its 1.10 m wheel-stop zones are gone: the deck runs 0 .. L, as in 3D.
+    - A-301 has three details.
+  - **3D and export:** grey context with `userData.city`, `_expLayer` 'CONTEXT_CITY' (`PX.collect` exports it with the Context tick). RX puts them on a top-level `CONTEXT_CITY` layer. RVZ draws them as context.
+  - **Kept out of:** S-001, the materials table and the checks. X-001's Assumptions has the row. `FL_RETIRED` also hides the Wheel stop piece.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

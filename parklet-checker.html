@@ -1190,7 +1190,7 @@ return n >= 2.4 ? 'pass' : null;
   
 }
 ,  {
-    id: 'c13',    num: '13',    title: 'Minimum 1.5 m setback from adjacent parking spaces',    requirement: 'The parklet must be set back a minimum 1.5 m from adjacent parking spaces, measured from the parking meter or a point in between 2 parking meters.',    page: 62,    status: 'unclear',    siteCondition: 'Unknown. Enter the setback distance from adjacent parking meters at each end below.',    note: 'Measure from the edge of the parklet footprint (including wheel stops) to the adjacent parking meter or midpoint between meters.',    inputId: 'parking_setback',    inputLabel: 'Setback from adjacent parking space / meter (each end)',    inputUnit: 'm',    inputType: 'number',    evalFn: (val) => {
+    id: 'c13',    num: '13',    title: 'Minimum 1.5 m setback from adjacent parking spaces',    requirement: 'The parklet must be set back a minimum 1.5 m from adjacent parking spaces, measured from the parking meter or a point in between 2 parking meters.',    page: 62,    status: 'unclear',    siteCondition: 'Unknown. Enter the setback distance from adjacent parking meters at each end below.',    note: 'Measure from the edge of the parklet footprint to the adjacent parking meter or midpoint between meters. The City places its wheel stop and flexible bollard within this setback (Parklet Manual p. 48, 59).',    inputId: 'parking_setback',    inputLabel: 'Setback from adjacent parking space / meter (each end)',    inputUnit: 'm',    inputType: 'number',    evalFn: (val) => {
       const n = parseFloat(val);
       if (isNaN(n)) return null;
       return n >= 1.5 ? 'pass' : 'fail';
@@ -3049,15 +3049,21 @@ function buildDesignModel() {
     var hb = host == null ? null : DM.buildings.L[host];
     DM.site.host = hb ? { side: 'L', index: host, use: hb.use, frontage: hb.frontage, name: hb.name, storeys: hb.storeys } : null;
   })();
-  // Parklet end pieces: a wheel stop on the road just past each deck end (a 1.8 m x 0.15 m x 0.10 m block, 0.25 m
-  // clear of the deck). World m. The end planters are the enclosure's ends now (Brief 21 §12).
+  // City-supplied items (Brief 21 §13): "The City will supply and install a wheel stop at either end of the parklet as
+  // needed" (Parklet Manual p. 48; flexible bollards too, p. 59). Generated, never edited: one wheel stop and one flexible
+  // bollard per end, inside the C13 1.5 m parking setback, centred on the parking lane. The Manual gives no size or offset:
+  // the positions are nominal (the City sets them), the sizes a common 1.8 m stop and a 0.2 m post. Not the design's:
+  // no schedule, no materials, no check reads them. World m (x across, z along, y above the road).
   (function() {
     var LM = DESIGN_MODEL.landmarks, L = DESIGN_MODEL.parklet.length, x0 = LM.deckX0, x1 = LM.deckX1;
-    var cx = (x0 + x1) / 2, ws = Math.min(1.8, Math.max(0.2, x1 - x0 - 0.2)) / 2;
-    DESIGN_MODEL.parklet.ends = [
-      { kind: 'wheel-stop', end: 0, x0: cx - ws, x1: cx + ws, y0: 0, y1: 0.10, z0: -0.40, z1: -0.25 },
-      { kind: 'wheel-stop', end: 1, x0: cx - ws, x1: cx + ws, y0: 0, y1: 0.10, z0: L + 0.25, z1: L + 0.40 }
-    ];
+    var cx = (x0 + x1) / 2, hw = Math.min(1.8, Math.max(0.2, x1 - x0 - 0.2)) / 2, br = 0.1;
+    var item = function(type, end, z) {
+      var ws = type === 'wheelStop';
+      return { type: type, end: end, provenance: 'city-supplied', nominal: true, label: ws ? 'Wheel stop' : 'Flexible bollard', x: cx, z: z,
+        x0: ws ? cx - hw : cx - br, x1: ws ? cx + hw : cx + br, z0: z - (ws ? 0.075 : br), z1: z + (ws ? 0.075 : br), y0: 0, y1: ws ? 0.10 : 0.90 };
+    };
+    DESIGN_MODEL.cityItems = [item('wheelStop', 'A', -0.35), item('flexBollard', 'A', -1.05), item('wheelStop', 'B', L + 0.35), item('flexBollard', 'B', L + 1.05)];
+    delete DESIGN_MODEL.parklet.ends;
     // the deck levels every view and the report's drawings read; the enclosure (Brief 21 §12), resolved on this deck
     DESIGN_MODEL.parklet.levels = Object.assign({}, PARKLET_LEVELS);
     DESIGN_MODEL.enclosure = ENC.resolve(DESIGN_MODEL);
@@ -5283,9 +5289,9 @@ function getSectionScene(sec) {
     add({ kind: 'manhole', key: 'mh:' + (mh.id != null ? mh.id : i), x0: mx - R, x1: mx + R, y0: 0, y1: 0.04,
       z0: mh.xM - R, z1: mh.xM + R, data: { mh: mh } });
   });
-  // parklet end pieces: end planters and wheel stops (DESIGN_MODEL.parklet.ends)
-  (DM.parklet.ends || []).forEach(function(e, i) {
-    add({ kind: e.kind, key: 'end:' + i, x0: e.x0, x1: e.x1, y0: e.y0, y1: e.y1, z0: e.z0, z1: e.z1, data: { end: e } });
+  // the City-supplied wheel stops and flexible bollards (Brief 21 §13), on the road in the parking setback
+  (DM.cityItems || []).forEach(function(c, i) {
+    add({ kind: 'city', key: 'city:' + i, x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1, z0: c.z0, z1: c.z1, data: { item: c } });
   });
   // the enclosure (Brief 21 §12): each side as one item over its footprint (heights above the deck); the traffic side runs
   // the deck's length, so the plane always cuts it
@@ -5724,7 +5730,7 @@ function _drawSection(svgEl, o) {
         g += rectXY(X(it.x0), X(it.x1), GROUND_Y, pkSurface, SIL);   // the deck and its structure, one outline
       } else if (it.kind === 'enclosure') {
         g += _encDraw(it, false);
-      } else if (it.kind === 'wheel-stop') {
+      } else if (it.kind === 'city') {   // a City-supplied wheel stop or bollard: context, not the design
         g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), SIL);
       }
       bv += g + '</g>';
@@ -5777,8 +5783,8 @@ function _drawSection(svgEl, o) {
         g += rectXY(X(it.x0), X(it.x1), surf(cx), surf(cx) - 3, solid('fill.steel'));
       } else if (it.kind === 'enclosure') {
         g += _encDraw(it, true);
-      } else if (it.kind === 'wheel-stop') {
-        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), solid('fill.concrete'));
+      } else if (it.kind === 'city') {
+        g += rectXY(X(it.x0), X(it.x1), GROUND_Y, GROUND_Y - Y(it.y1), " fill='" + T.mid + "' fill-opacity='0.5'" + K1('context', { c: BINK }));
       }
       sv += g + '</g>';
     });
@@ -6035,7 +6041,7 @@ MSR.targets = function() {
     var b = ENC.toWorld(r, { u0: 0, u1: r.len, v0: 0, v1: r.depth, y0: 0, y1: 0 }, 0), nm = (r.side === 'traffic' ? 'enclosure' : 'end enclosure') + ' corner';
     [[b.x0, b.z0], [b.x1, b.z0], [b.x1, b.z1], [b.x0, b.z1]].forEach(function(c) { V.push({ x: c[0], z: c[1], name: nm }); });
   });
-  (DM.parklet.ends || []).forEach(function(e) { var nm = 'wheel stop'; [[e.x0, e.z0], [e.x1, e.z0], [e.x1, e.z1], [e.x0, e.z1]].forEach(function(c) { V.push({ x: c[0], z: c[1], name: nm + ' corner' }); }); });
+  (DM.cityItems || []).forEach(function(e) { if (e.type === 'flexBollard') { V.push({ x: e.x, z: e.z, name: 'City bollard' }); return; } [[e.x0, e.z0], [e.x1, e.z0], [e.x1, e.z1], [e.x0, e.z1]].forEach(function(c) { V.push({ x: c[0], z: c[1], name: 'City wheel stop corner' }); }); });
   (window.FL3D && FL3D.placed || []).forEach(function(inst) {
     var sp = flInstSpec(inst), nm = sp ? (FL_ARCHETYPES[sp.type].user ? FL_ARCHETYPES[sp.type].label : FL_ARCHETYPES[sp.type].label.toLowerCase()) : 'object', cs;
     try { cs = getFurnitureCorners(inst).map(function(c) { return { x: c.wx, z: c.wz }; }); } catch (e) { return; }
@@ -6754,6 +6760,17 @@ var DRAW_SYMBOLS = {
     var d = Math.max(0.25 * k, Math.min(w, h) * 0.12);
     [-0.28, 0.28].forEach(function(t) { P.circle(x + (w > h ? t * w : 0), y + (w > h ? 0 : t * h), d, { cls: 'fine' }); });
   },
+  // the City-supplied items (Brief 21 §13): a wheel stop as a short solid bar (w x h, at least 0.5 mm thick); a flexible
+  // bollard as a filled circle in a ring (r at least 0.45 mm)
+  cityWheelStop: function(P, x, y, w, h, o) {
+    o = o || {}; var k = P.ctx.k; if (w > h) h = Math.max(h, 0.5 * k); else w = Math.max(w, 0.5 * k);
+    P.rect(x - w / 2, y - h / 2, w, h, { fill: 'ink', cls: 'none', data: o.data });
+  },
+  flexBollard: function(P, x, y, r, o) {
+    o = o || {}; var k = P.ctx.k; r = Math.max(r, 0.45 * k);
+    P.circle(x, y, r * 1.8, { cls: 'fine', fill: 'none', data: o.data });
+    P.circle(x, y, r, { fill: 'ink', cls: 'none' });
+  },
   // a numbered hex key, 5.2 mm across: its note is in the sheet's annotation column
   hexKey: function(P, x, y, n) {
     var k = P.ctx.k, r = 2.6 * k, pts = [];
@@ -6886,7 +6903,7 @@ function _renderPlanView(o) {
   const _pvXS    = _pvDM.crossSection;
   const _pvPkW   = _pvLM.deckW;
   const PARKLET_M = _pvDM.parklet.length;
-  const WS_M = 1.1;   // wheel-stop overhang per end (fixed)
+  const WS_M = 0;     // Brief 21 §13: the deck runs the whole parklet (0 .. L, as 3D and the sheets); the City's wheel stops sit outside it
   const DECK_M = Math.max(0.1, PARKLET_M - 2 * WS_M);
   const CONTEXT_M = Math.max(2, (SHOWN_M - PARKLET_M) / 2);
   const PK_X = Math.round(CONTEXT_M * HS);
@@ -7198,7 +7215,7 @@ function _renderPlanView(o) {
     if (designBikeLane === 'protected') {
       // every 2 m along the deck and one at each end (Manual p.48); DRAW_SYMBOLS.post: a 0.1 m dot at 'general'
       const bollardY = _corrEdgeY, bR = 0.05 * pvSC;
-      bikePostZs(PARKLET_M, WS_M).forEach(function(z) { s += _sym(function(P) { DRAW_SYMBOLS.post(P, PK_X + z * HS, bollardY, bR, { data: " data-post='1'" }); }); });
+      bikePostZs(PARKLET_M, 1.1).forEach(function(z) { s += _sym(function(P) { DRAW_SYMBOLS.post(P, PK_X + z * HS, bollardY, bR, { data: " data-post='1'" }); }); });
     }
   }
   // Vegetated buffer strip between the sidewalk and the building frontage (landmarks.bufferL,
@@ -7294,15 +7311,16 @@ const C03_REQ = 6;
     });
 }
   
-// ── Parklet footprint: wheel stops + deck ────  
+// ── Parklet footprint: the deck; the City's wheel stops and bollards ────
 
-  if (_clipD) s += `<g clip-path='url(#pkSC)'>`;
-  // the wheel-stop zones at each end: the parking lane's fill and a wheel stop (1.80 x 0.15 m) 0.25 m clear of the deck
-  [[PK_X, PK_X+WS_PX, 1],[PK_X+PK_W-WS_PX, PK_X+PK_W, -1]].forEach(([lx,rx,sd]) => {
-    s += `<rect x='${lx}' y='${PK_Y}' width='${rx-lx}' height='${pvPkH}' fill='${DRAW_STYLE.seg('parking', DK.mode)}'/>`;
-    const wx = sd > 0 ? rx - 0.325 * HS : lx + 0.325 * HS;
-    if (LODn >= 1) s += _sym(function(P) { DRAW_SYMBOLS.wheelStop(P, wx, PK_Y + pvPkH / 2, 0.15 * HS, Math.min(1.8 * pvSC, pvPkH * 0.8)); });
+  // the City-supplied wheel stop and flexible bollard at each end (Brief 21 §13), in the C13 1.5 m parking setback outside
+  // the deck, at their nominal places (DESIGN_MODEL.cityItems); symbols only, the City sets them
+  if (LODn >= 1) (_pvDM.cityItems || []).forEach(function(c) {
+    const p = worldToPlan(c.x, c.z);
+    if (c.type === 'wheelStop') { const a = worldToPlan(c.x0, c.z0), b = worldToPlan(c.x1, c.z1); s += _sym(function(P) { DRAW_SYMBOLS.cityWheelStop(P, p.px, p.py, Math.abs(b.px - a.px), Math.abs(b.py - a.py), { data: " data-city='wheelStop' data-end='" + c.end + "'" }); }); }
+    else s += _sym(function(P) { DRAW_SYMBOLS.flexBollard(P, p.px, p.py, 0.1 * pvSC, { data: " data-city='flexBollard' data-end='" + c.end + "'" }); });
   });
+  if (_clipD) s += `<g clip-path='url(#pkSC)'>`;
   // the deck, and (technical) the timber band at its edges: lines along the boards, which run along the street; at the
   // far tier the parklet is one filled rectangle (Brief 19 A)
   const _dkR = function(a) { return `<rect x='${DECK_X}' y='${PK_Y}' width='${DECK_W}' height='${pvPkH}'${a}/>`; };
@@ -7455,7 +7473,7 @@ const C03_REQ = 6;
   }
   annObj(PK_X, PK_Y, PK_X + PK_W, PK_Y + pvPkH);   // the parklet: segment labels keep off it
   annText('object', 'Parklet', DECK_X + DECK_W / 2, PK_Y + pvPkH / 2 - 2 * U, { role: 'body', c: 'ink', anchor: 'middle', axis: 'y', at: [DECK_X + DECK_W / 2, PK_Y + pvPkH / 2] });
-  annText('object', DRAW_STYLE.fmt(DECK_M) + ' deck / ' + DRAW_STYLE.fmt(PARKLET_M) + ' overall', DECK_X + DECK_W / 2, PK_Y + pvPkH / 2 + DRAW_STYLE.fs(DK, 'tag') + 1 * U, { tier: 'mid', anchor: 'middle', axis: 'y', at: [DECK_X + DECK_W / 2, PK_Y + pvPkH / 2] });
+  annText('object', DRAW_STYLE.fmt(DECK_M) + ' deck', DECK_X + DECK_W / 2, PK_Y + pvPkH / 2 + DRAW_STYLE.fs(DK, 'tag') + 1 * U, { tier: 'mid', anchor: 'middle', axis: 'y', at: [DECK_X + DECK_W / 2, PK_Y + pvPkH / 2] });
   
 // Clearance labels of site objects (driveways, hydrants, poles, signals): kept inside the drawing (the margin
 // to its right belongs to the dimension chains, e.g. SIDEWALK) and de-collided the way the key plan places its
@@ -7646,12 +7664,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
         if (b.lbl) txt(b.p, hy + 11.5 * U, b.d.lbl, _PX.lbl, 'middle', MID, ` letter-spacing='${(0.6 * U).toFixed(2)}'`);
       });
     };
-    if (LODn < 2) hChain([{ x1: PK_X + WS_PX, x2: PK_X + PK_W - WS_PX, val: DRAW_STYLE.fmt(DECK_M), lbl: '' }], HY1);   // mid: the deck's length
-    else hChain([
-      { x1: PK_X, x2: PK_X + WS_PX, val: DRAW_STYLE.fmt(WS_M), lbl: '' },
-      { x1: PK_X + WS_PX, x2: PK_X + PK_W - WS_PX, val: DRAW_STYLE.fmt(DECK_M), lbl: '' },
-      { x1: PK_X + PK_W - WS_PX, x2: PK_X + PK_W, val: DRAW_STYLE.fmt(WS_M), lbl: '' }
-    ], HY1);
+    hChain([{ x1: PK_X, x2: PK_X + PK_W, val: DRAW_STYLE.fmt(DECK_M), lbl: '' }], HY1);   // the deck's length (Brief 21 §13: no wheel-stop zones in it)
     if (LODn >= 2) [PK_X, PK_X + PK_W].forEach(function(x) { ext(x, HY1 + 3 * U, x, HY2 + 3 * U); });
     if (LODn >= 2) hChain([
       { x1: 0, x2: PK_X, val: DRAW_STYLE.fmt(CONTEXT_M), lbl: '' },
@@ -9015,6 +9028,16 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   // The enclosure (Brief 21 §12): every side's parts from ENC, on the deck surface, in their materials; a part with an
   // opacity (a perforated sheet, the planting) is drawn translucent
   ENC.worldParts(DESIGN_MODEL, DECK_H).forEach(function(q) { const mesh = ENC.mesh3D(q); mesh.userData.expLayer = _expLayer; g.add(mesh); });
+  // The City-supplied wheel stops and flexible bollards (Brief 21 §13): neutral grey context on the road at their nominal
+  // places; not the design's (not selectable, not counted), exported on CONTEXT_CITY
+  _expLayer = 'CONTEXT_CITY';
+  (DESIGN_MODEL.cityItems || []).forEach(function(c) {
+    let m;
+    if (c.type === 'wheelStop') m = mbox(c.x0, 0, c.z0, c.x1, c.y1, c.z1, 0x9C9C98, 0.9);
+    else { m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, c.y1, 16), new THREE.MeshStandardMaterial({ color: 0x9C9C98, roughness: 0.8 })); m.position.set(c.x, c.y1 / 2, c.z); m.castShadow = true; m.userData.expLayer = _expLayer; g.add(m); }
+    m.userData.city = c.type; m.userData.label = 'City ' + c.label.toLowerCase() + ' (' + c.end + ' end, nominal)';
+  });
+  _expLayer = 'Parklet';
 
   _expLayer = 'Context';
   // Right curb
@@ -9666,8 +9689,8 @@ function skeRender() {
   var bb = skeBBox(sh);
   if (bb.z1 - bb.z0 >= 2 * SKE_WS + SKE_MIN_EDGE) [[bb.z0, bb.z0 + SKE_WS], [bb.z1 - SKE_WS, bb.z1]].forEach(function(w) {
     var a = X(w[1]), c = X(w[0]);
-    o.push("<g data-ske='ws'><title>Wheel-stop zone: 1.10 m at each end of the deck, where the end planters sit</title>" + rect(a, yc, c - a, yl - yc, 'url(#skeWS)') + '</g>');
-    if (c - a > 44) o.push(text((a + c) / 2, yl - 5, 'Wheel stop', 9.5, '#8b877f', 'middle'));
+    o.push("<g data-ske='ws'><title>End zone: 1.10 m at each end of the deck, kept clear of seating; the end enclosure stands in it (the City's wheel stops are on the road, outside the deck)</title>" + rect(a, yc, c - a, yl - yc, 'url(#skeWS)') + '</g>');
+    if (c - a > 44) o.push(text((a + c) / 2, yl - 5, 'End zone', 9.5, '#8b877f', 'middle'));
   });
   // the segment's ends along the curb
   [zs, ze].forEach(function(x) { o.push(line(x, yc - mY, x, yl + mY, '#9a9994', 1, " stroke-dasharray='3 3'")); });
@@ -11482,8 +11505,8 @@ function flKeyDims(key) {
 // only with opts.presets -- the manufacturer presets. opts: {cat, search, presets}.
 var FL_SHOW_PRESETS = false;
 // Archetypes the library no longer offers (Brief 21 §12): the railings are the enclosure's now (the Design tab's Edge
-// card). A design that placed one keeps it, drawn as before.
-var FL_RETIRED = { railing: 1, edge_rail: 1 };
+// card); the wheel stop is the City's (§13: DESIGN_MODEL.cityItems). A design that placed one keeps it, drawn as before.
+var FL_RETIRED = { railing: 1, edge_rail: 1, wheel_stop: 1 };
 function flLibraryItems(opts) {
   opts = opts || {};
   var q = (opts.search || '').toLowerCase().trim(), items = [];
@@ -18423,7 +18446,7 @@ PX.collect = function(layers) {
     if (!o.isMesh || !o.visible || !o.geometry) return;
     if (PX.isHelper(o)) return;
     var layer = PX.layerOf(o);
-    if (!layers[layer]) return;
+    if (!layers[layer] && !(layer === 'CONTEXT_CITY' && layers.Context)) return;   // the City's items go with the context (Brief 21 §13)
     var geo = o.geometry, g2 = geo.index ? geo.toNonIndexed() : geo;
     var pos = g2.attributes.position;
     if (!pos || pos.count < 3) { if (g2 !== geo) g2.dispose(); return; }
@@ -18759,9 +18782,13 @@ RX.build = async function(opts) {
   });
   var EN = DM.enclosure;
   stats.enclosure = { archetype: EN.archetype, sides: EN.runs.map(function(r) { return r.side + ':' + r.id; }), posts: EN.runs[0].parts.filter(function(q) { return q.role === 'post'; }).length, height: +EN.height.toFixed(3), top: +encTop.toFixed(3), buffer: EN.bufferDepth };
-  // ── Parklet › Wheel stops
-  (DM.parklet.ends || []).forEach(function(e, i) {
-    if (e.kind === 'wheel-stop') addB(boxB(e.x0, e.x1, e.y0, e.y1, e.z0, e.z1), 'Parklet::Wheel stops', 'Wheel stop ' + (e.end + 1), FILL.concrete);
+  // ── CONTEXT_CITY (Brief 21 §13): the City-supplied wheel stops and flexible bollards, at their nominal places; not the
+  // parklet's (a top-level layer of its own)
+  (DM.cityItems || []).forEach(function(c) {
+    var br = null;
+    if (c.type === 'wheelStop') br = boxB(c.x0, c.x1, c.y0, c.y1, c.z0, c.z1);
+    else { br = new rh.Cylinder(new rh.Circle(0.1), c.y1).toBrep(true, true); var pc = RX.P(c.x, 0, c.z); br.transform(rh.Transform.translationXYZ(pc[0], pc[1], 0)); }
+    addB(br, 'CONTEXT_CITY', 'City ' + c.label.toLowerCase() + ', end ' + c.end + ' (nominal; supplied and installed by the City)', '#9C9C98');
   });
   // ── Parklet › Furniture › <archetype>: one block per schedule group, an instance per piece
   var placed = (window.FL3D && FL3D.placed || []).filter(function(p) { return p.archetype && !flIsEntourage(p.archetype); });
@@ -20869,7 +20896,7 @@ GEN.TURN = 1.5;       // entry turning space, m (square)
 GEN.ENTRY_PER = 8;    // one more entry per this many metres of deck
 GEN.CELL = 0.1;       // flood-fill grid, m
 GEN.REACH = 0.3;      // a wheelchair space counts as at a seat if within this of it, m
-GEN.END_PL = 1.02;    // the end planters occupy 0.08..1.02 from each deck end (DESIGN_MODEL.parklet.ends)
+GEN.END_PL = 1.02;    // the old end planters' inner face; a footprint's zA / zBd (the enclosure's ends, Brief 21 §12) take its place
 GEN.BENCH_T = { bench: 1, backless_bench: 1, planter_bench: 1, seat_wall: 1 };
 GEN.KNEE_T = { table: 1, cafe_table: 1, communal_table: 1 };   // open-legged, 0.70-0.80 m high: knee clearance
 GEN.ZONES = {};
@@ -21906,7 +21933,8 @@ RPT.sources = function(d) {
   var model = [['Travel lane widths', 'the Section editor\'s travel-lane segments against EDM Table 8-10 (' + DM.lanes.map(function(a) { return RPT.fx(a.width, 2) + ' m'; }).join(', ') + ')'],
     ['Deck area', 'the ' + DM.parklet.shape + ' footprint, ' + RPT.fx(DM.parklet.area, 2) + ' m2'], ['Compliance', 'each check\'s own result for the inputs above; an input not entered leaves its check not confirmed'],
     ['Seats, route, entries', 'the generator\'s metrics of the current layout (access model)'], ['Enclosure, deck levels', 'DESIGN_MODEL.enclosure (' + ENC.describe(DM) + ') and PARKLET_LEVELS, the numbers the 3D, the render and these drawings share']];
-  var assume = [['Furniture positions', 'the model\'s; not field-measured'], ['Buildings', 'heights and depths are entered or imported estimates, for context only']];
+  var assume = [['Furniture positions', 'the model\'s; not field-measured'], ['Buildings', 'heights and depths are entered or imported estimates, for context only'],
+    ['Wheel stops and bollards', 'City-supplied; drawn nominally in the 1.5 m parking setback']];   // Brief 21 §13
   if (hr && !hr.entered) assume.push(['Host building programme', 'not entered: the default (' + hr.b.use + ', ' + hr.b.frontage + ' frontage) is used for the renders, the prompts and the Generate bias']);
   assume.push(['Library dimensions', 'those marked DI are interpreted, not source data'], ['Drawings', 'schematic, for the pre-application: not construction drawings; no structural or construction feasibility is assessed']);
   var two = function(a, b) { return [{ t: a, w: 0.36 }, { t: b, w: 0.64 }]; };
@@ -22306,7 +22334,7 @@ RPT.geo = function(d) {
     cf: ((typeof state !== 'undefined' && state.curb_features) || []).map(function(o) { return { type: o.type, z: +o.xM, x: LM.roadLeft + (typeof o.yM === 'number' ? o.yM : -0.3), id: o.id }; }),
     mh: ((typeof state !== 'undefined' && state.manholes) || []).map(function(o) { return { z: +o.xM, x: +o.yM, id: o.id }; }),
     trees: (DM.vegetation || []).filter(function(v) { return v.type === 'tree'; }), planters: (DM.vegetation || []).filter(function(v) { return v.type === 'planter'; }),
-    transit: DM.transit || [], enc: DM.enclosure, lv: DM.parklet.levels, ends: DM.parklet.ends || [], sec: DM.section,
+    transit: DM.transit || [], enc: DM.enclosure, lv: DM.parklet.levels, city: DM.cityItems || [], sec: DM.section,
     c13: num('parking_setback', 1.5), c03: num('intersection_dist', 6), trolley: typeof state !== 'undefined' && state.pole_trolley === 'yes',
     fail: function(id) { return rows[id] && rows[id].status === 'fail'; }
   };
@@ -22490,6 +22518,7 @@ RPT.sheetSite = function(d) {
   var lod = lodTier(2000 / sc), near = lod === 'near';
   RPT.planBase(P, G, F, d.mode, {});
   RPT.planObjects(P, G, F, { genus: near, labels: near, layers: RPT.SHEET_LAYERS.A101 });
+  RPT.cityPlan(P, F, d);   // the City's wheel stops and bollards (Brief 21 §13): symbols, no note (A-102 has it)
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
   var pc = [(F.sx(0) + F.sx(G.L)) / 2, F.sy((LM.deckX0 + LM.deckX1) / 2)];
@@ -22543,9 +22572,10 @@ RPT.sheetLayout = function(d) {
   var xa = F.sx(zB), xb = F.sx(zA), ya = F.sy(xTop), yb = F.sy(xBot), zoneAt = null;
   P.clipOpen("<rect x='" + xa + "' y='" + ya + "' width='" + (xb - xa) + "' height='" + (yb - ya) + "'/>");
   RPT.planBase(P, G, F, d.mode, { boards: true, hatchSidewalk: true });
-  // the parklet's own pieces: the enclosure (Brief 21 §12: its plan symbol per side), the wheel stops
+  // the parklet's own pieces: the enclosure (Brief 21 §12: its plan symbol per side); the City's wheel stops and bollards
+  // (§13: symbols, with the one note)
   RPT.encPlan(P, F, d, { posts: false });
-  G.ends.forEach(function(e) { P.rect(F.sx(e.z1), F.sy(e.x0), (e.z1 - e.z0) * k, (e.x1 - e.x0) * k, { fill: RPT.fills(d.mode).ws, cls: 'edge' }); });
+  var cityAt = RPT.cityPlan(P, F, d);
   RPT.planFurn(P, G, F, d);
   RPT.planObjects(P, G, F, { layers: RPT.SHEET_LAYERS.A102 });
   // clearance zones: DRAW_STYLE's zone line (fine, dashed; red when that check fails), the rule ID in its lozenge
@@ -22618,6 +22648,7 @@ RPT.sheetLayout = function(d) {
     { t: hz != null && zs.indexOf(hz) >= 0 ? 'The deck located from the host frontage (' + (host.name || host.use || 'host') + ').' : 'The deck located along the curb from its start.', at: [F.sx(G.L / 2), ay - 9] },
     { t: 'Clearance zones dashed, with their rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal, C09 chamber, C13 parking); red: the check fails.', at: zoneAt },
     { t: 'Furniture tags: schedule S-001.', at: null },
+    { t: RPT.CITY_NOTE, at: cityAt },
     { t: 'Section A-A: sheet A-201; deck plan A-103.', at: [F.sx(G.sec.z) + 10, F.sy(LM.sidewalkL.x0) - 6] }
   ];
   return RPT.dsheet(d, 'A-102', 'Layout plan', sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: xBot, north: true });
@@ -22657,8 +22688,8 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   }
   // the wheel stops; the enclosure (Brief 21 §12): each side's plan symbol with its posts, a grid line through each
   // traffic-side post
-  var wsAt = null, EN = G.enc, rT = EN.runs[0];
-  G.ends.forEach(function(e) { if (e.z1 < zA || e.z0 > zB) return; P.rect(sx(e.z1), sy(e.x0), (e.z1 - e.z0) * k, (e.x1 - e.x0) * k, { fill: FI.ws, cls: 'edge' }); wsAt = [sx((e.z0 + e.z1) / 2), sy(e.x1) + 6]; });
+  var EN = G.enc, rT = EN.runs[0];
+  RPT.cityPlan(P, F, d, { zA: zA, zB: zB });   // the City's wheel stops and bollards (Brief 21 §13): symbols only, not dimensioned
   var encAt = RPT.encPlan(P, F, d, { posts: true, zA: Math.max(0, za), zB: Math.min(L, zb) }), plAt = encAt.endA || encAt.endB || null;
   var dTop = sy(LM.deckX0), dBot = sy(LM.deckX1), yBub = dTop - RPT.DIM.first - RPT.DIM.step * 2 - 10;   // the grid bubbles above the dimension rows over the deck
   var posts = rT.parts.filter(function(q) { return q.role === 'post'; }).map(function(q) { return +((q.u0 + q.u1) / 2).toFixed(4); }).sort(function(a, b) { return a - b; });
@@ -22681,27 +22712,17 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   // dimensions. Over the deck: row 0 the end planters, row 1 the post spacing. Under it: row 0 each wheel stop from the
   // deck end (the gap, the stop), row 1 the deck length on this sheet. Right: the deck width.
   var lenHere = Math.min(L, zb) - Math.max(0, za);
-  G.ends.forEach(function(e) {
-    if (e.z1 < zA || e.z0 > zB) return;
-    if (e.kind === 'wheel-stop') {
-      var zs = e.end ? [L, e.z0, e.z1] : [0, e.z1, e.z0];
-      var pts = [[sx(zs[0]), dBot], [sx(zs[1]), sy(e.x1)], [sx(zs[2]), sy(e.x1)]].sort(function(u, w) { return u[0] - w[0]; });
-      RPT.chain(P, { side: 'bottom', edge: dBot, row: 0, at: pts.map(function(q) { return q[0]; }), from: pts.map(function(q) { return q[1]; }), vals: [RPT.fmt((pts[1][0] - pts[0][0]) / k), RPT.fmt((pts[2][0] - pts[1][0]) / k)], data: " data-ws-dim='1'" });
-    }
-  });
   // the end enclosures' depth over the deck (row 0), the post spacing (row 1)
   [EN.runs[1], EN.runs[2]].forEach(function(r) { var b = ENC.toWorld(r, { u0: 0, u1: r.len, v0: 0, v1: r.depth, y0: 0, y1: 0 }, 0); if (b.z1 < zA || b.z0 > zB) return; RPT.chain(P, { side: 'top', edge: dTop, row: 0, at: [sx(b.z1), sx(b.z0)], vals: [RPT.fmt(b.z1 - b.z0)] }); });
   if (posts.length > 1) { var pa = posts.filter(function(z) { return z >= za && z <= zb; }); if (pa.length > 1) RPT.chain(P, { side: 'top', edge: dTop, row: 1, at: [sx(pa[1]), sx(pa[0])], vals: [RPT.fmt(pa[1] - pa[0]) + ' typ.'] }); }
   RPT.chain(P, { side: 'bottom', edge: dBot, row: 1, at: [sx(Math.min(L, zb)), sx(Math.max(0, za))], vals: [RPT.fmt(lenHere) + (nParts > 1 ? ' (of ' + RPT.fmt(L) + ')' : '')], data: " data-deck-len='" + lenHere.toFixed(3) + "'" });
   RPT.chain(P, { side: 'right', edge: sx(Math.max(0, za)), row: 0, at: [dTop, dBot], vals: [RPT.fmt(LM.deckX1 - LM.deckX0)] });
-  var ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; });
   var keys = [
     { t: 'Grid lines 1, 2, 3 ... at the enclosure posts on the traffic side' + (posts.length > 1 ? ', ' + (posts[1] - posts[0]).toFixed(2) + ' m apart, the first at ' + posts[0].toFixed(2) + ' m' : '') + '.', at: null },
     { t: 'Enclosure: ' + ENC.describe(G.DM) + ': details A-301.', at: encAt.traffic || null },
     { t: 'Hatched: the accessible route, clear width ' + (typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92) + ' m or more from the entries.', at: routeAt },
     { t: 'Entry turning space, ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(2) + ' m square.', at: entryAt },
     { t: 'End enclosure: ' + EN.runs[1].name.toLowerCase() + ', ' + EN.runs[1].depth.toFixed(2) + ' m deep, ' + EN.runs[1].top.toFixed(2) + ' m high' + (EN.runs[2].id !== EN.runs[1].id ? '; far end ' + EN.runs[2].name.toLowerCase() : '') + '.', at: plAt },
-    { t: ws ? 'Wheel stop ' + (ws.x1 - ws.x0).toFixed(2) + ' x ' + (ws.z1 - ws.z0).toFixed(2) + ', 0.25 m clear of the deck end.' : 'Wheel stops 0.25 m clear of each deck end.', at: wsAt },
     { t: 'Furniture tags: schedule S-001.', at: null }
   ];
   var id = nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103';
@@ -22771,8 +22792,8 @@ RPT.sheetSection = function(d) {
       bare: v.segId === null && typeof treeBare === 'function' && treeBare(v, treeSeasonNow()), seed: treeSeed(v), trunk: !cut, c: 'ink',
       fill: col, fop: tech ? null : tier, op: tech ? null : tier, crownC: tech ? null : 'fill.plantingDark', crownCls: tech ? null : 'fine', data: " data-canopy='1'" + (tech ? '' : " data-tier='" + tier + "'") });
   };
-  var endPiece = function(it, cut) {
-    var e = it.data.end; rectXY(e.x0, e.x1, 0, e.y1, cut ? { fill: FI.ws, cls: 'object' } : SIL);
+  var endPiece = function(it, cut) {   // a City-supplied wheel stop or bollard (Brief 21 §13): street context, drawn light
+    rectXY(it.x0, it.x1, 0, it.y1, cut ? { fill: RPT.MID, fop: 0.35, cls: 'context' } : SIL);
   };
   // the enclosure (Brief 21 §12): RPT.encSection, the parts the plane cuts and those beyond it
   var encC = { rectXY: rectXY, hat: hat, sec: G.sec, lv: lv, tech: tech, FI: FI };
@@ -22784,7 +22805,7 @@ RPT.sheetSection = function(d) {
     if (it.kind === 'building') { var bf = it.data.f; rectXY(Math.max(xL, Math.min(bf.faceX, bf.backX)), Math.min(xR, Math.max(bf.faceX, bf.backX)), lv.curbTop, lv.curbTop + (it.y1 || 8), Object.assign({ data: " data-bldg-beyond='1'" }, SIL)); }
     else if (it.kind === 'furniture') furn(it, false);
     else if (it.kind === 'tree' && it.data && it.data.v) tree(it, false);
-    else if (it.kind === 'wheel-stop') endPiece(it, false);
+    else if (it.kind === 'city') endPiece(it, false);
     else if (it.kind === 'enclosure') RPT.encSection(encC, it, false);
   });
   // the cut: the ground, the sidewalk slab (from the building face), curb, road; an earth hatch in a 2 mm band under each
@@ -22823,7 +22844,7 @@ RPT.sheetSection = function(d) {
   scn.cut.forEach(function(it) {
     if (it.kind === 'furniture') furn(it, true);
     else if (it.kind === 'tree' && it.data && it.data.v) tree(it, true);
-    else if (it.kind === 'wheel-stop') endPiece(it, true);
+    else if (it.kind === 'city') endPiece(it, true);
     else if (it.kind === 'enclosure') RPT.encSection(encC, it, true);
   });
   // behind the cut (Brief 21 §5): within depthBack, as hidden lines (fine, dashed, no fill), as on screen
@@ -24269,7 +24290,7 @@ RVZ.build = function(o) {
   });
 
   // The parklet: the deck (sketched shape or rectangle) from the road to 0.215 m, the road-side
-  // railing, the end planters and wheel stops of DESIGN_MODEL.parklet.ends
+  // enclosure (DESIGN_MODEL.enclosure) and the City's wheel stops and bollards (DESIGN_MODEL.cityItems) as context
   var sk = DESIGN_MODEL.parklet.outline, deckMat = R ? RVZ.mat('pine', 'deck') : RVZ.mat(TOK.deck);
   if (sk) {
     var shp = new THREE.Shape(), vv = sk.verts; shp.moveTo(vv[0].y, -vv[0].x);
@@ -24291,11 +24312,14 @@ RVZ.build = function(o) {
     box(q.x0, q.y0, q.z0, q.x1, q.y1, q.z1, mt, { ao: q.role === 'post' || q.role === 'body' || q.role === 'wall' ? [0.2, 0.3] : null, y0: DT, design: true, obj: oid });
     objL[oid] = oid === 'railing' ? 'railing' : 'enclosure (' + ENC.SIDE_LABEL[q.side].toLowerCase() + ')';
   });
-  (DM.parklet.ends || []).forEach(function(e) {
-    if (e.kind === 'wheel-stop') {
-      var wid = 'wheel-stop-' + e.end; objL[wid] = 'wheel stop (' + (e.end ? 'far' : 'start') + ' end)';
-      box(e.x0, 0, e.z0, e.x1, e.y1, e.z1, M('concrete', '#C8C3BA'), { ao: [0.08, 0.3], design: true, obj: wid });
-      plane(e.x0 + 0.02, e.z0 + 0.02, e.x1 - 0.02, e.z1 - 0.02, e.y1 + 0.001, M('safety_yellow', '#E4C860'), { design: true, obj: wid });
+  // the City-supplied wheel stops and flexible bollards (Brief 21 §13): street context at their nominal places, not design
+  // objects (the keep-check does not look for them)
+  (DM.cityItems || []).forEach(function(c) {
+    if (c.type === 'wheelStop') {
+      box(c.x0, 0, c.z0, c.x1, c.y1, c.z1, M('concrete', '#C8C3BA'), { ao: [0.08, 0.3] });
+      plane(c.x0 + 0.02, c.z0 + 0.02, c.x1 - 0.02, c.z1 - 0.02, c.y1 + 0.001, M('safety_yellow', '#E4C860'), {});
+    } else {
+      var bm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, c.y1, 16), M('safety_yellow', '#E4C860')); bm.position.set(c.x, c.y1 / 2, c.z); add(bm, { x0: c.x0 });
     }
   });
   // a low shrub of three foliage clumps
@@ -28171,6 +28195,19 @@ RPT.encPlan = function(P, F, d, o) {
   });
   return at;
 };
+// The City-supplied wheel stops and flexible bollards on a plan sheet (Brief 21 §13): symbols at their nominal places, no
+// dimensions (the City sets them). Returns where the note can point (the first wheel stop). A-102 carries RPT.CITY_NOTE.
+RPT.CITY_NOTE = 'Wheel stop and flexible bollard at each end, supplied and installed by the City; location to City (Parklet Manual p. 48, 59).';
+RPT.cityPlan = function(P, F, d, o) {
+  o = o || {}; var at = null;
+  (d.DM.cityItems || []).forEach(function(c) {
+    if (o.zA != null && (c.z1 < o.zA || c.z0 > o.zB)) return;
+    var x = F.sx(c.z), y = F.sy(c.x), dt = " data-city='" + c.type + "' data-end='" + c.end + "'";
+    if (c.type === 'wheelStop') { DRAW_SYMBOLS.cityWheelStop(P, x, y, (c.z1 - c.z0) * F.k, (c.x1 - c.x0) * F.k, { data: dt }); if (!at) at = [x, y - (c.x1 - c.x0) * F.k / 2 - 1]; }
+    else DRAW_SYMBOLS.flexBollard(P, x, y, 0.1 * F.k, { data: dt });
+  });
+  return at;
+};
 // RPT.encSection: an enclosure side on A-201 (c: {rectXY, hat, sec, lv, tech, FI}): the parts the plane cuts (thin: solid;
 // thicker: hatched), the rest within the view's depth in elevation (outline); schematic: the side's transparency as a band
 RPT.encSection = function(c, it, cutMode) {
@@ -28195,7 +28232,7 @@ RPT.encSection = function(c, it, cutMode) {
 // every dimension is measured on the parts and tagged with its parameter (data-enc-dim); 3 the deck edge at the curb;
 // 4 the wheel stop
 RPT.sheetDetails = function(d) {
-  var G = RPT.geo(d), P = RPT.pen(), sc = RPT.SCALE_OF.details(d), k = 1000 / sc, lv = G.lv, ws = G.ends.find(function(e) { return e.kind === 'wheel-stop'; });
+  var G = RPT.geo(d), P = RPT.pen(), sc = RPT.SCALE_OF.details(d), k = 1000 / sc, lv = G.lv;
   var EN = G.DM.enclosure, r = EN.runs[0], A = ENCLOSURE_ARCHETYPES[r.id], p = r.params, H = EN.height, FI = RPT.fills(d.mode);
   var SPL = 176, HSP = 128, mm = function(v) { return (v * 1000).toFixed(0); };
   var cell = function(n, x, y, title) { P.circle(x + 4, y + 4, 3.2, { cls: 'general' }); P.text(x + 4, y + 4 + 0.35 * RPT.TX.head, String(n), RPT.TX.head, { anchor: 'middle', bold: true }); P.text(x + 10, y + 5.2, title, RPT.TX.head, { bold: true }); P.text(x + 10 + RPT.tw(title, RPT.TX.head, true) + 3, y + 5.2, '1:10', RPT.TX.body, { c: RPT.MID }); };
@@ -28270,29 +28307,14 @@ RPT.sheetDetails = function(d) {
   RPT.dimH(P, cx0, dx0, cgy - lv.deckTop * k - 7, (gap * 1000).toFixed(0) + ' max gap (C14)', { ext: cgy - lv.deckTop * k, side: 'right' });
   RPT.dimV(P, cgy - lv.deckTop * k, cgy - lv.curbTop * k, cx0 + 72, ((lv.deckTop - lv.curbTop) * 1000).toFixed(0), { side: 'right', size: RPT.TX.tag });
   RPT.dimV(P, cgy - lv.curbTop * k, cgy, cx0 - 62, (lv.curbTop * 1000).toFixed(0) + ' curb', { side: 'left', size: RPT.TX.tag });
-  // 4 wheel stop: elevation and section, anchor pins; 0.25 m clear of the deck end
-  cell(4, SPL + 4, HSP + 4, 'Wheel stop');
-  if (ws) {
-    var wh = ws.y1 * k, ww = (ws.z1 - ws.z0) * k, ex = SPL + 18, ey = 190, endL = 0.45 * k, br = 12, shown = 2 * endL + br;
-    P.line(ex - 4, ey, ex + shown + 4, ey, { cls: 'object' });
-    P.rect(ex, ey - wh, endL, wh, { cls: 'edge', fill: FI.ws }); P.rect(ex + endL + br, ey - wh, endL, wh, { cls: 'edge', fill: FI.ws });
-    [ex + endL + 2, ex + endL + br - 2].forEach(function(bx) { P.path('M' + bx + ' ' + (ey - wh - 3) + ' l1.2 3 l-2.4 ' + (wh / 2) + ' l2.4 ' + (wh / 2) + ' l-1.2 3', { cls: 'general' }); });
-    [0.25 * (ws.x1 - ws.x0), 0.75 * (ws.x1 - ws.x0)].forEach(function(xp) { var X = xp < 0.9 ? ex + xp * k : ex + shown - ((ws.x1 - ws.x0) - xp) * k; P.line(X, ey - wh, X, ey + 8, { cls: 'general', dash: 'hidden' }); });
-    RPT.dimH(P, ex, ex + shown, ey + 13, (ws.x1 - ws.x0).toFixed(3) + ' (broken)', { ext: ey });
-    RPT.dimV(P, ey - wh, ey, ex - 4, (ws.y1 * 1000).toFixed(0), { side: 'left', ext: ex });
-    var sx1 = ex + shown + 18;
-    P.line(sx1 - 6, ey, sx1 + ww + 6, ey, { cls: 'object' });
-    P.rect(sx1, ey - wh, ww, wh, { cls: 'cut', fill: '#FFFFFF' }); P.hatch("<rect x='" + sx1 + "' y='" + (ey - wh) + "' width='" + ww + "' height='" + wh + "'/>", [sx1, ey - wh, sx1 + ww, ey], 'concrete');
-    RPT.dimH(P, sx1, sx1 + ww, ey - wh - 5, ((ws.z1 - ws.z0) * 1000).toFixed(0), { ext: ey - wh });
-  }
-  P.line(SPL, 4, SPL, 2 * HSP - 16, { cls: 'context' }); P.line(4, HSP, 2 * SPL - 12, HSP, { cls: 'context' });
+  // (the wheel stop's detail is gone: the City supplies and places it, Brief 21 §13)
+  P.line(SPL, 4, SPL, HSP - 4, { cls: 'context' }); P.line(4, HSP, 2 * SPL - 12, HSP, { cls: 'context' });
   var mats = Array.from(new Set(r.parts.filter(function(q) { return !q.fallback; }).map(function(q) { return String((flMatInfo(q.mat) || {}).label || q.mat).toLowerCase(); }))).join(', ');
   var keys = [
     { t: 'Enclosure, traffic side: ' + A.name.toLowerCase() + ', ' + mats + '; ' + A.note + '. ' + Math.round(r.transparency * 100) + ' % see-through.', at: [ox + win * k * 0.5, EY(H) - 3] },
     { t: 'Set ' + EN.bufferDepth.toFixed(2) + ' m in from the deck\'s traffic-side edge (the buffer); the ends: ' + EN.runs[1].name.toLowerCase() + (EN.runs[2].id !== EN.runs[1].id ? ' and ' + EN.runs[2].name.toLowerCase() : '') + '.', at: null },
     { t: 'Deck surface +' + (lv.deckTop - lv.curbTop).toFixed(3) + ' above the top of the curb.', at: [ox + win * k * 0.6, gy + 3] },
     { t: 'Connector plate over the gap, 13 mm max (C14).', at: [cx0 + 5, cgy - lv.deckTop * k - 3] },
-    { t: ws ? 'Wheel stop: elevation and section; two anchor pins; set ' + (ws.end ? ws.z0 - G.L : -ws.z1).toFixed(2) + ' m clear of the deck end.' : 'Wheel stop not in the model.', at: ws ? [SPL + 18 + 20, 190 - ws.y1 * k - 6] : null },
     { t: 'Drawn from the enclosure model (DESIGN_MODEL.enclosure) and PARKLET_LEVELS; dimensions in millimetres, measured on the model; not a structural design.', at: null }
   ];
   if (EN.flags.some(function(f) { return f.k === 'solid'; })) keys.push({ t: 'Solid edge: confirm with the City (Parklet Manual E4, G13).', at: null });
