@@ -2576,8 +2576,13 @@ ENC.norm = function(e) {
   return { archetype: tr, height: typeof e.height === 'number' && isFinite(e.height) ? e.height : 0.9,
     bufferDepth: typeof e.bufferDepth === 'number' && isFinite(e.bufferDepth) ? Math.max(0, e.bufferDepth) : 0.3,
     sides: { traffic: tr, endA: ok(s.endA, 'planter-wall'), endB: ok(s.endB, 'planter-wall') },
-    params: e.params && typeof e.params === 'object' ? e.params : {}, mats: e.mats && typeof e.mats === 'object' ? e.mats : {} };
+    params: e.params && typeof e.params === 'object' ? e.params : {}, mats: e.mats && typeof e.mats === 'object' ? e.mats : {},
+    // (Brief 21c) a design saved before §12: its end planters became planter walls; the note stays with the design
+    migrated: e.migrated ? String(e.migrated) : undefined };
 };
+// the one line a migrated design carries (the Check tab, X-001 Assumptions)
+ENC.MIGRATION_NOTE = 'End planters raised to 0.90 m planter walls to meet Parklet Manual E2 (0.75–1.0 m)';
+ENC.migrated = function() { return !!(typeof ENCLOSURE !== 'undefined' && ENCLOSURE && ENCLOSURE.migrated); };
 // an archetype's parameters: its defaults, what the design set, clamped to the ranges
 ENC.params = function(E, id) {
   var A = ENCLOSURE_ARCHETYPES[id], set = (E.params && E.params[id]) || {}, out = {};
@@ -2736,6 +2741,29 @@ ENC.planSVGInner = function(DM, c) {
     s += "<rect x='" + f(x) + "' y='" + f(y) + "' width='" + f(w) + "' height='" + f(h) + "' fill='" + fill + "'" + (q.fill === 'poche' ? " fill-opacity='0.55'" : '') + (q.dash ? K('fine', { dash: 'hidden' }) : K('edge')) + " data-enc='" + q.side + "' data-enc-role='" + q.role + "'/>";
   });
   return s;
+};
+// (Brief 21c) the enclosure in 3D as one merged mesh per side, material and opacity: the boxes' own geometry concatenated (so
+// the exports see every member), one draw call per group instead of one per bar
+ENC.meshes3D = function(DM, base) {
+  var groups = {}, order = [];
+  ENC.worldParts(DM, base).forEach(function(q) { var k = q.side + '|' + q.mat + '|' + (q.op < 1 ? q.op.toFixed(2) : '1'); if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(q); });
+  var box = new THREE.BoxGeometry(1, 1, 1), bp = box.attributes.position.array, bn = box.attributes.normal.array, bi = box.index.array, nv = bp.length / 3, ni = bi.length;
+  var out = order.map(function(k) {
+    var list = groups[k], q0 = list[0], n = list.length, pos = new Float32Array(n * nv * 3), nor = new Float32Array(n * nv * 3), idx = n * nv > 65535 ? new Uint32Array(n * ni) : new Uint16Array(n * ni);
+    list.forEach(function(q, i) {
+      var sx = Math.max(0.001, q.x1 - q.x0), sy = Math.max(0.001, q.y1 - q.y0), sz = Math.max(0.001, q.z1 - q.z0), cx = (q.x0 + q.x1) / 2, cy = (q.y0 + q.y1) / 2, cz = (q.z0 + q.z1) / 2, o = i * nv * 3;
+      for (var v = 0; v < nv; v++) { pos[o + v * 3] = bp[v * 3] * sx + cx; pos[o + v * 3 + 1] = bp[v * 3 + 1] * sy + cy; pos[o + v * 3 + 2] = bp[v * 3 + 2] * sz + cz; nor[o + v * 3] = bn[v * 3]; nor[o + v * 3 + 1] = bn[v * 3 + 1]; nor[o + v * 3 + 2] = bn[v * 3 + 2]; }
+      for (var j = 0; j < ni; j++) idx[i * ni + j] = bi[j] + i * nv;
+    });
+    var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1)); g.computeBoundingBox(); g.computeBoundingSphere();
+    var mi = ENC.matInfo(q0.mat), m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: parseInt(String(mi.color || '#A8B0B2').slice(1), 16), roughness: mi.rough != null ? mi.rough : 0.7 }));
+    m.castShadow = q0.op >= 1; m.receiveShadow = true;
+    m.userData.label = 'Enclosure (' + q0.side + ')'; m.userData.enc = q0.side; m.userData.expLayer = 'Parklet'; m.userData.encParts = n;
+    if (q0.op < 1) { m.material.transparent = true; m.material.opacity = q0.op; m.material.depthWrite = false; }
+    return m;
+  });
+  box.dispose();
+  return out;
 };
 // one enclosure part as a 3D box (renderMassView, ENC.fastApply): its material's colour; a part with an opacity translucent
 ENC.mesh3D = function(q) {
@@ -9029,7 +9057,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
   // The enclosure (Brief 21 §12): every side's parts from ENC, on the deck surface, in their materials; a part with an
   // opacity (a perforated sheet, the planting) is drawn translucent
-  ENC.worldParts(DESIGN_MODEL, DECK_H).forEach(function(q) { const mesh = ENC.mesh3D(q); mesh.userData.expLayer = _expLayer; g.add(mesh); });
+  ENC.meshes3D(DESIGN_MODEL, DECK_H).forEach(function(mesh) { mesh.userData.expLayer = _expLayer; g.add(mesh); });
   // The City-supplied wheel stops and flexible bollards (Brief 21 §13): neutral grey context on the road at their nominal
   // places; not the design's (not selectable, not counted), exported on CONTEXT_CITY
   _expLayer = 'CONTEXT_CITY';
@@ -9237,7 +9265,7 @@ if (s['__roadWidth']) {
     if (s['__section']) { try { Object.assign(SECTION, JSON.parse(s['__section'])); } catch(e) {} }
     // the enclosure (Brief 21 §12); an autosave from before it had the railing at the deck edge
     if (s['__enclosure']) { try { ENCLOSURE = ENC.norm(JSON.parse(s['__enclosure'])); } catch(e) {} }
-    else if (s['__roadWidth'] !== undefined) ENCLOSURE = ENC.norm(JSON.parse(JSON.stringify(ENC.LEGACY)));
+    else if (s['__roadWidth'] !== undefined) ENCLOSURE = ENC.norm(Object.assign(JSON.parse(JSON.stringify(ENC.LEGACY)), { migrated: 'pre-21-12' }));
     if (s['__bldgR']) { try { BLDG_R = JSON.parse(s['__bldgR']); } catch(e) {} }
     if (s['__bikeLane']) {
       designBikeLane = s['__bikeLane'];
@@ -17258,7 +17286,7 @@ function pkApplyDesignState(raw) {
 
   // the enclosure (Brief 21 §12): a design saved before it loads with the railing it had, at the deck edge (ENC.LEGACY)
   if (typeof ENCLOSURE !== 'undefined') {
-    ENCLOSURE = ENC.norm(JSON.parse(JSON.stringify(data.enclosure || ENC.LEGACY)));
+    ENCLOSURE = ENC.norm(JSON.parse(JSON.stringify(data.enclosure || Object.assign({}, ENC.LEGACY, { migrated: 'pre-21-12' }))));
     if (typeof state !== 'undefined') state['__enclosure'] = JSON.stringify(ENCLOSURE);
   }
 
@@ -18777,15 +18805,32 @@ RX.build = async function(opts) {
   addB(deck, 'Parklet::Deck', 'Deck (' + (ol ? 'applied outline' : 'rectangle') + ')', FILL.deck);
   var polyA = 0; for (var i = 0; i < deckPts.length; i++) { var u = deckPts[i], w = deckPts[(i + 1) % deckPts.length]; polyA += u[0] * w[1] - w[0] * u[1]; } polyA = Math.abs(polyA / 2);
   stats.deck = { solid: deck ? deck.isSolid : false, area: +polyA.toFixed(4), thickness: +deckThk.toFixed(4), volume: +(polyA * deckThk).toFixed(5) };
-  // ── Parklet › Enclosure (Brief 21 §12): every side's parts from ENC, from the deck top, named by side and member
-  var encN = {}, encTop = 0;
+  // ── Parklet › Enclosure (Brief 21 §12): every side's parts from ENC, from the deck top, named by side and member.
+  // (Brief 21c) identical members (the bars, cable runs, slats, boards, posts, the matching end planters) are one block
+  // each, its definition at the member's bottom centre, with an instance per member; a member of its own is a polysurface
+  var encGroups = {}, encOrder = [], encTop = 0, encStats = { objects: 0, blocks: 0, instances: 0 };
   ENC.worldParts(DM, LV.deckTop).forEach(function(q) {
-    var nm = ENC.SIDE_LABEL[q.side] + ' ' + (q.what || q.role), c = (encN[nm] = (encN[nm] || 0) + 1), mi = flMatInfo(q.mat) || {};
-    addB(boxB(q.x0, q.x1, q.y0, q.y1, q.z0, q.z1), 'Parklet::Enclosure', nm + (c > 1 || q.role === 'post' || q.role === 'bar' || q.role === 'slat' ? ' ' + c : ''), q.role === 'planting' ? FILL.planting : (mi.color || '#6E6E6E'));
-    encTop = Math.max(encTop, q.y1);
+    var key = [q.role, q.mat, (q.x1 - q.x0).toFixed(4), (q.z1 - q.z0).toFixed(4), (q.y1 - q.y0).toFixed(4)].join('|');
+    if (!encGroups[key]) { encGroups[key] = []; encOrder.push(key); }
+    encGroups[key].push(q); encTop = Math.max(encTop, q.y1);
+  });
+  encOrder.forEach(function(key) {
+    var list = encGroups[key], q = list[0], mi = flMatInfo(q.mat) || {}, col = q.role === 'planting' ? FILL.planting : (mi.color || '#6E6E6E'), nm = ENC.SIDE_LABEL[q.side] + ' ' + (q.what || q.role);
+    if (list.length < 2) { addB(boxB(q.x0, q.x1, q.y0, q.y1, q.z0, q.z1), 'Parklet::Enclosure', nm, col); encStats.objects++; return; }
+    var dx = q.x1 - q.x0, dy = q.z1 - q.z0, dz = q.y1 - q.y0, mm = function(v) { return Math.round(v * 1000); };
+    var geo = rh.Brep.createFromBox(new rh.Box(new rh.BoundingBox([-dx / 2, -dy / 2, 0], [dx / 2, dy / 2, dz])));
+    var same = list.every(function(p) { return (p.what || p.role) === (q.what || q.role); }), dname = 'Enclosure ' + (same ? (q.what || q.role) : q.role) + ' ' + mm(dx) + ' x ' + mm(dy) + ' x ' + mm(dz) + ' mm';
+    var idx = doc.instanceDefinitions().add(dname, (ENCLOSURE_ARCHETYPES[q.id] ? ENCLOSURE_ARCHETYPES[q.id].name + ', ' : '') + (mi.label || q.mat) + ', ' + list.length + ' members', '', '', [0, 0, 0], [geo], [attr('Parklet::Enclosure', q.role, col)]), idef = doc.instanceDefinitions().get(idx);
+    stats.blocks++; encStats.blocks++;
+    list.forEach(function(p, i) {
+      var c = RX.P((p.x0 + p.x1) / 2, p.y0, (p.z0 + p.z1) / 2);
+      doc.objects().addInstanceObject(new rh.InstanceReference(idef.id, rh.Transform.translationXYZ(c[0], c[1], c[2])), attr('Parklet::Enclosure', ENC.SIDE_LABEL[p.side] + ' ' + (p.what || p.role) + ' ' + (i + 1), col));
+      stats.instances++; encStats.instances++;
+    });
   });
   var EN = DM.enclosure;
-  stats.enclosure = { archetype: EN.archetype, sides: EN.runs.map(function(r) { return r.side + ':' + r.id; }), posts: EN.runs[0].parts.filter(function(q) { return q.role === 'post'; }).length, height: +EN.height.toFixed(3), top: +encTop.toFixed(3), buffer: EN.bufferDepth };
+  stats.enclosure = { objects: encStats.objects, blocks: encStats.blocks, instances: encStats.instances, archetype: EN.archetype,
+ sides: EN.runs.map(function(r) { return r.side + ':' + r.id; }), posts: EN.runs[0].parts.filter(function(q) { return q.role === 'post'; }).length, height: +EN.height.toFixed(3), top: +encTop.toFixed(3), buffer: EN.bufferDepth };
   // ── CONTEXT_CITY (Brief 21 §13): the City-supplied wheel stops and flexible bollards, at their nominal places; not the
   // parklet's (a top-level layer of its own)
   (DM.cityItems || []).forEach(function(c) {
@@ -21937,7 +21982,9 @@ RPT.sources = function(d) {
     ['Deck area', 'the ' + DM.parklet.shape + ' footprint, ' + RPT.fx(DM.parklet.area, 2) + ' m2'], ['Compliance', 'each check\'s own result for the inputs above; an input not entered leaves its check not confirmed'],
     ['Seats, route, entries', 'the generator\'s metrics of the current layout (access model)'], ['Enclosure, deck levels', 'DESIGN_MODEL.enclosure (' + ENC.describe(DM) + ') and PARKLET_LEVELS, the numbers the 3D, the render and these drawings share']];
   var assume = [['Furniture positions', 'the model\'s; not field-measured'], ['Buildings', 'heights and depths are entered or imported estimates, for context only'],
-    ['Wheel stops and bollards', 'City-supplied; drawn nominally in the 1.5 m parking setback']];   // Brief 21 §13
+    ['Wheel stops and bollards', 'City-supplied; drawn nominally in the 1.5 m parking setback'],   // Brief 21 §13
+    ['C18 openings', 'a single clear run of w m along the sidewalk edge, between the end enclosures and 1.5 m deep, counts floor(w / 1.8) openings (Parklet Manual E3: at least two of 1.8 m)']];   // Brief 21c
+  if (typeof ENC !== 'undefined' && ENC.migrated()) assume.push(['End planters (design saved before the enclosure)', ENC.MIGRATION_NOTE]);   // Brief 21c
   if (hr && !hr.entered) assume.push(['Host building programme', 'not entered: the default (' + hr.b.use + ', ' + hr.b.frontage + ' frontage) is used for the renders, the prompts and the Generate bias']);
   assume.push(['Library dimensions', 'those marked DI are interpreted, not source data'], ['Drawings', 'schematic, for the pre-application: not construction drawings; no structural or construction feasibility is assessed']);
   var two = function(a, b) { return [{ t: a, w: 0.36 }, { t: b, w: 0.64 }]; };
@@ -23037,7 +23084,7 @@ RPT.renderList = async function() {
   hosts.forEach(function(host) {
     var exp = host.id === 'rptRenders';
     // no Replicate key (Brief 21 §7): renders are the user's own account; the list says so, with the way in
-    var nokey = typeof CONN !== 'undefined' && !CONN.has('replicate') ? "<p class='rpt-rn-note'>" + CONN.gate('replicate') + '</p>' : '';
+    var nokey = exp && typeof CONN !== 'undefined' && !CONN.has('replicate') ? "<p class='rpt-rn-note'>" + CONN.gate('replicate') + '</p>' : '';   // Visualize has its one prompt above Render (Brief 21c)
     if (!list.length) { host.innerHTML = (exp ? "<p class='rpt-rn-note' id='rptNoRenders'>No renders of this design yet &mdash; Visualize &rsaquo; Render</p>" : "<p class='rpt-rn-note'>No renders of this design yet: Render makes one for each camera preset.</p>") + nokey; return; }
     host.innerHTML = "<p class='rpt-rn-note'>" + (exp ? 'Renders of this design (ticked ones print, each on its own sheet):' : 'Renders of this design; ticked ones print in the report:') + '</p>' + list.map(function(e) {
       var url = URL.createObjectURL(e.blobs.final), on = RPT._renderSel[e.key] !== false, dt = new Date(e.created); RPT._thumbs.push(url);
@@ -27430,6 +27477,7 @@ input[data-secret] { -webkit-text-security: disc; }
 .enc-read { display: grid; gap: 4px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--text-lo); line-height: 1.4; }
 .enc-read b { color: var(--text-hi); }
 .enc-flag, .enc-stop { color: var(--st-unclear, #d9a441); }
+.chk-migrated { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--accent-ui, #3AA8E4); font-size: 12.5px; color: var(--text-hi); background: rgba(58,168,228,.08); }
 .design-buf-hint { display: block; margin-top: 8px; }
 .se-bufrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--d-mid); }
 .se-bufrow input { width: 64px; padding: 3px 6px; font-size: 12px; border: 1px solid var(--rule); border-radius: 3px; background: var(--bg); color: var(--text); }
@@ -27477,6 +27525,10 @@ function chkAfterRender() {
   });
   var cc = document.getElementById('chkCounts');
   if (cc) cc.textContent = n.fail + ' failing · ' + n.unclear + ' not entered · ' + n.pass + ' passing' + (n.prov ? ' · ' + n.prov + ' provisional' : '');
+  // (Brief 21c) a design saved before the enclosure (Brief 21 §12): the one line saying what changed on opening it
+  var list = document.getElementById('criteriaList'), mn = document.getElementById('chkMigrated');
+  if (typeof ENC !== 'undefined' && ENC.migrated() && list) { if (!mn) { mn = document.createElement('p'); mn.id = 'chkMigrated'; mn.className = 'chk-migrated'; mn.setAttribute('role', 'note'); list.parentNode.insertBefore(mn, list); } mn.textContent = ENC.MIGRATION_NOTE + '.'; }
+  else if (mn) mn.remove();
   var se = document.getElementById('chkSideEmpty'), sc = document.getElementById('smpCheck');
   if (se) se.hidden = !!(sc && !sc.hidden);
   chkFilter(_chkF);
@@ -27563,10 +27615,10 @@ function uiVisLayout() {
     if (cam) cam.remove();
     var go = document.getElementById('rvzpGo'), body = document.getElementById('rvzpBody'), prox = document.getElementById('rvzpProxy');
     var box = document.createElement('div'); box.id = 'rvzpTop'; box.className = 'rvzp-top';
-    box.innerHTML = "<div id='rvzKeyPrompt' class='rvz-keyp' hidden><p>Photoreal renders use your own Replicate account. Add a key in Connections.</p><button type='button' class='rvz-btn' onclick='uiOpenConnections()'>Connections &rsaquo;</button></div>";
+    // (Brief 21c) the one Connections prompt: the proxy note (CONN.gate with no key), above the Render button
     (note || grid).insertAdjacentElement('afterend', box);
-    if (go) { go.textContent = 'Render (photoreal, 4 presets)'; box.appendChild(go); }
     if (prox) box.appendChild(prox);
+    if (go) { go.textContent = 'Render (photoreal, 4 presets)'; box.appendChild(go); }
     var th = document.createElement('div'); th.id = 'rvzThumbs'; th.className = 'rvz-thumbs'; box.appendChild(th);
     var row = document.getElementById('rvzpGal'); if (row && row.parentNode) box.appendChild(row.parentNode);
     // the photoreal settings (provider, strength, weather, the context photo, the prompt): folded under the renders
@@ -28016,7 +28068,8 @@ ENC.set = function(patch, o) {
   if (patch.mats) Object.keys(patch.mats).forEach(function(id) { E.mats[id] = patch.mats[id]; });
   if (typeof patch.height === 'number') E.height = o.raw ? patch.height : Math.min(ENC.H_MAX, Math.max(ENC.H_MIN, patch.height));
   if (typeof patch.bufferDepth === 'number') E.bufferDepth = o.raw ? Math.max(0, patch.bufferDepth) : Math.max(0, patch.bufferDepth);
-  if (!o.raw) E.bufferDepth = Math.min(E.bufferDepth, ENC.bufMax(E));
+  // (Brief 21c) the fast path clamps with the cached limit (else the geometric one); the generator's limit follows in the full sync
+  if (!o.raw) E.bufferDepth = Math.min(E.bufferDepth, o.fast ? ENC.bufMax(E, { quick: true }) : ENC.bufMax(E));
   E.height = +E.height.toFixed(4); E.bufferDepth = +E.bufferDepth.toFixed(4);
   ENCLOSURE = E;
   ENC._cardKey = ENC.cardKey();   // the card redraws itself here, not on the Plan's redraw (a slider mid-drag)
@@ -28025,7 +28078,11 @@ ENC.set = function(patch, o) {
     // the Edge card: the enclosure redrawn alone in Plan, Section and 3D in this frame (ENC.fastApply); the full sync
     // (every view, the consistency check) follows once the edits pause
     ENC.lastFast = ENC.fastApply();
-    clearTimeout(ENC._full); ENC._full = setTimeout(function() { if (typeof syncDesignModel === 'function') syncDesignModel('enclosure'); ENC.refreshChecks(true); }, 300);
+    clearTimeout(ENC._full); ENC._full = setTimeout(function() {
+      var mx = o.raw ? Infinity : ENC.bufMax();   // the generator's limit, now that the edits have paused
+      if (ENCLOSURE.bufferDepth > mx + 1e-9) { ENCLOSURE.bufferDepth = mx; ENC._cardKey = ENC.cardKey(); try { state.__enclosure = JSON.stringify(ENCLOSURE); if (typeof saveSettings === 'function') saveSettings(); } catch (e) {} }
+      if (typeof syncDesignModel === 'function') syncDesignModel('enclosure'); ENC.refreshChecks(true); if (!o.quiet || ENCLOSURE.bufferDepth === mx) ENC.renderCard();
+    }, 300);
     ENC.refreshChecks();
   } else {
     if (typeof syncDesignModel === 'function') syncDesignModel('enclosure'); else buildDesignModel();
@@ -28047,7 +28104,7 @@ ENC.fastApply = function() {
     var old = []; _3d.group.traverse(function(m) { if (m.isMesh && m.userData && m.userData.enc) old.push(m); });
     var parent = old.length ? old[0].parent : _3d.group;
     old.forEach(function(m) { parent.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material && m.material.dispose) m.material.dispose(); });
-    ENC.worldParts(DESIGN_MODEL, PARKLET_LEVELS.deckThk).forEach(function(q) { parent.add(ENC.mesh3D(q)); });
+    ENC.meshes3D(DESIGN_MODEL, PARKLET_LEVELS.deckThk).forEach(function(m) { parent.add(m); });
     if (typeof drawingTheme !== 'undefined' && drawingTheme.mode === 'technical' && typeof _3dApplyTechnical === 'function') _3dApplyTechnical();
     if (_3d.renderer && _3d.camera) _3d.renderer.render(_3d.scene, _3d.camera);
   }
@@ -28055,8 +28112,8 @@ ENC.fastApply = function() {
   return { model: +(t1 - t0).toFixed(1), plan: +(t2 - t1).toFixed(1), section: +(t3 - t2).toFixed(1), threeD: +(t4 - t3).toFixed(1), total: +(t4 - t0).toFixed(1) };
 };
 // the widest buffer for an enclosure on the current deck (the slider stops there); why, when it is under 0.6 m
-ENC.bufMax = function(E) {
-  E = E || ENC.norm(ENCLOSURE);
+ENC.bufMax = function(E, o) {
+  E = E || ENC.norm(ENCLOSURE); o = o || {};
   var DM = DESIGN_MODEL && DESIGN_MODEL.landmarks ? DESIGN_MODEL : _dmCurrent(), W = DM.landmarks.deckX1 - DM.landmarks.deckX0, id = E.sides.traffic;
   var geo = ENC.routeMaxBuffer(W, ENCLOSURE_ARCHETYPES[id].depth(ENC.params(E, id)));
   if (typeof GEN === 'undefined' || !GEN.layout || !DM.parklet) return geo;
@@ -28064,6 +28121,7 @@ ENC.bufMax = function(E) {
   // accessible route (GEN.ROUTE_W) in the usable width; cached per deck and archetype
   var key = JSON.stringify([W, DM.parklet.length, DM.parklet.outline ? DM.parklet.outline.verts : null, E.sides, E.params]);
   ENC._bm = ENC._bm || {}; if (ENC._bm[key] != null) return ENC._bm[key];
+  if (o.quick) return geo;   // not computed yet: the geometric bound for now
   var ok = function(b) { var e2 = JSON.parse(JSON.stringify(E)); e2.bufferDepth = b; return !!ENC.capacity(DM, e2).tpl; }, res = geo;
   if (!ok(geo) && ok(0)) {
     var lo = 0, hi = geo;
@@ -28139,7 +28197,7 @@ ENC._side = 'traffic';
 ENC.renderCard = function() {
   var host = document.getElementById('encBody'); if (!host) return;
   var DM = _dmCurrent(), EN = DM.enclosure; if (!EN) return;
-  var E = ENC.norm(ENCLOSURE), side = ENC._side, id = E.sides[side], A = ENCLOSURE_ARCHETYPES[id], p = ENC.params(E, id), mx = ENC.bufMax(E), esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;'); };
+  var E = ENC.norm(ENCLOSURE), side = ENC._side, id = E.sides[side], A = ENCLOSURE_ARCHETYPES[id], p = ENC.params(E, id), mx = ENC.bufMax(E, { quick: true }), esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;'); };
   var h = "<div class='enc-tabs' role='tablist' aria-label='Side'>" + ENC.SIDES.map(function(s) { return "<button type='button' role='tab' class='seg-btn" + (s === side ? ' active' : '') + "' aria-selected='" + (s === side) + "' data-enc-side='" + s + "' title='Choose the archetype for the " + ENC.SIDE_LABEL[s].toLowerCase() + "'>" + ENC.SIDE_LABEL[s] + '<small>' + esc(ENCLOSURE_ARCHETYPES[E.sides[s]].name) + '</small></button>'; }).join('') + '</div>';
   h += "<div class='enc-grid' role='group' aria-label='Archetype for the " + ENC.SIDE_LABEL[side].toLowerCase() + "'>" + ENC.IDS.map(function(q) { return ENC.thumb(q, q === id); }).join('') + '</div>';
   h += "<label class='enc-row' title='Height of the enclosure above the deck; a planter reads the top of its planting (Parklet Manual E2: 0.75 to 1.0 m)'><span>Height</span><input type='range' id='encH' min='0.75' max='1' step='0.01' value='" + Math.min(1, Math.max(0.75, E.height)).toFixed(2) + "'><output id='encHo'>" + E.height.toFixed(2) + ' m</output></label>';
@@ -28165,6 +28223,8 @@ ENC.renderCard = function() {
   q('#encB').onchange = function() { ENC.renderCard(); };
   q('#encMat').onchange = function() { var m = {}; m[id] = this.value; ENC.set({ mats: m }, { fast: true }); };
   host.querySelectorAll('[data-enc-p]').forEach(function(el) { el.onchange = function() { var pp = {}; pp[id] = {}; pp[id][el.dataset.encP] = el.tagName === 'SELECT' ? el.value : +el.value; ENC.set({ params: pp }, { fast: true }); }; });
+  // (Brief 21c) the buffer limit from the generator, after the card is drawn: redrawn only if it differs from the quick one
+  clearTimeout(ENC._bt); ENC._bt = setTimeout(function() { if (Math.abs(ENC.bufMax(E) - mx) > 1e-9) ENC.renderCard(); }, 50);
   // the seats: the generator's layouts (a few hundredths of a second), after the card is drawn
   clearTimeout(ENC._ct); ENC._ct = setTimeout(function() { var el = document.getElementById('encSeats'); if (!el) return; try { var c = ENC.capacity(); el.textContent = String(c.seats); el.title = c.tpl ? 'Best of the generator\'s templates on this deck: ' + c.tpl.replace(/_/g, ' ') + ', ' + c.pattern.replace(/_/g, ' ') + '; route ' + c.route.toFixed(2) + ' m' : 'No generator layout fits'; } catch (e) { el.textContent = '-'; } }, 30);
 };

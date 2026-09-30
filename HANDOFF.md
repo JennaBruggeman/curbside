@@ -896,6 +896,18 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - A-301 has three details.
   - **3D and export:** grey context with `userData.city`, `_expLayer` 'CONTEXT_CITY' (`PX.collect` exports it with the Context tick). RX puts them on a top-level `CONTEXT_CITY` layer. RVZ draws them as context.
   - **Kept out of:** S-001, the materials table and the checks. X-001's Assumptions has the row. `FL_RETIRED` also hides the Wheel stop piece.
+- **Brief 21c close-out (commits 0452fd7 .. , merged to master, tag v0.9-ux):**
+  - **19b:** already on `ux` as ecd9094; its checks re-run on the final code at the three sites (there was no `briefs/19b-sheet-fixes.md` file to apply).
+  - **Generator:**
+    - `GEN.EDGE_BAND` is gone. `GEN.edgeAt` is the enclosure's inner face, and seats stand against it. `edgeRun` places planters only (the enclosure is the edge), and only where no seat stands.
+    - `GEN.deckAt` is the footprint edge used for overhead pieces.
+    - `ENC.bufMax` bisects `ENC.capacity` (cached per key in `ENC._capM` / `ENC._bm`) for the buffer slider's stop.
+  - **Umbrella:** one definition, `FL_ARCHETYPES.umbrella` (h 2.60–2.80, canopy 1.5 m). The generator's `umbrellaAt` places it unchanged, the pole moved in to keep the canopy on the deck.
+  - **Migration:** `ENCLOSURE.migrated = 'pre-21-12'` marks a design saved before §12. `ENC.MIGRATION_NOTE` is shown in the Check tab (`#chkMigrated`) and in X-001 Assumptions.
+  - **Rhino:** identical enclosure members are one block each (`Enclosure <member> <mm> mm`) with an instance per member.
+  - **Visualize:** one Connections prompt, the `#rvzpProxy` gate above Render.
+  - **X-001:** records C18's floor(w / 1.8) rule.
+- **Tooling:** Node.js 24 LTS (portable, `%LOCALAPPDATA%\Programs\node-v24.21.0-win-x64`, not on PATH) and Playwright 1.63.0 (`tools/package.json`, `npm install` + `npx playwright install chromium` in `tools/`). See the README's Developer prerequisites.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
