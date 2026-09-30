@@ -7,8 +7,8 @@ cd /d "%~dp0.."
 set "PORT=8766"
 if defined PARKLET_PORT set "PORT=%PARKLET_PORT%"
 set "URL=http://localhost:%PORT%/"
-if exist ".render-key" (set "KEYMSG=.render-key found") else (set "KEYMSG=.render-key not found")
-if defined PROVIDER_KEY set "KEYMSG=%KEYMSG% (PROVIDER_KEY is set and takes precedence)"
+rem keys: none here - each browser adds its own in Settings - Connections; the relay keeps nothing
+set "KEYMSG=keys come from each browser, in Settings - Connections"
 
 call :answers 0
 if not errorlevel 1 (

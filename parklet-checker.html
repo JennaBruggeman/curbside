@@ -1,5 +1,22 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Curbside</title><script>
+// ── CONFIG (Brief 21 §7) ─────────────────────────────────────────────────────────────────────────────
+// The only values that tie this copy of Curbside to a backend. To run your own copy: create a free Supabase
+// project, run supabase/schema.sql in its SQL editor, and paste the project's URL and its anon (publishable)
+// key here (README.md, "Your own backend"). Only the public anon key belongs in the page -- every table is
+// behind Row Level Security, so it reads nothing without a signed-in owner. Never put a service-role key or
+// any database password here. No other key lives in the code: each user adds their own in
+// Settings > Connections, kept in their browser only.
+var CONFIG = {
+  SUPABASE_URL: 'https://hkfvcbbpbtnxyvwlawva.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_veqsMlJ5EBhCyYfI6ArHEg_Gf6awBML',
+  // Sign-up asks for an invite code, checked by the database (supabase/schema.sql), never here. To open
+  // sign-up, set INVITE_ONLY to false AND turn it off in the database (README.md, "Invite-only sign-up").
+  INVITE_ONLY: true,
+  INVITE_CONTACT: 'bangpowjenna@gmail.com',     // whom to ask for a code
+  REPO_URL: ''                                  // the public repository, once published
+};
+</script><script>
 // The sample report page (?sample=schematic|technical) runs on in-memory storage: it can never read or write the
 // user's saved state (localStorage), session or caches (IndexedDB). This runs before any other script.
 (function () {
@@ -257,6 +274,22 @@
 .flu-sug em { color: var(--warn); font-style: normal; }
 .flu-sug.ok { border-style: solid; border-color: var(--pass); }
 .flu-ask { font-size: 12px; margin-right: 4px; }
+/* Brief 21 §7: Connections and the missing-key prompt */
+.conn-intro { font-size: 12px; color: var(--muted); margin: 0 0 12px; line-height: 1.5; }
+.conn-row { padding: 10px 0; border-top: 1px solid var(--rule); }
+.conn-hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink); }
+.conn-hd span:not(.conn-st) { font-size: 12px; color: var(--muted); }
+.conn-st { margin-left: auto; font-size: 12px; color: var(--muted); }
+.conn-st.ok { color: var(--pass); } .conn-st.bad { color: var(--fail); font-weight: 600; }
+.conn-ctl { display: flex; gap: 6px; margin: 6px 0; align-items: center; flex-wrap: wrap; }
+.conn-ctl input { flex: 1 1 220px; font-family: var(--mono); }
+.conn-help { font-size: 11px; color: var(--muted); margin: 0; line-height: 1.5; }
+.conn-help a { color: var(--accent); }
+.conn-gate { display: inline; font-size: 12px; line-height: 1.5; }
+.conn-go { font: inherit; font-size: 12px; padding: 2px 8px; margin-left: 4px; border: 1px solid var(--accent); border-radius: 3px; background: transparent; color: var(--accent); cursor: pointer; }
+.conn-go:hover { background: var(--accent); color: #fff; }
+.ax-gate { padding: 10px 12px; color: #E2E5E8; font-size: 12px; }
+.pk-form-hint { font-size: 11px; opacity: .75; margin-top: 4px; line-height: 1.4; }
 #viewportGrid #planTabPlan .svg-wrap { flex:1 1 auto; min-height:0; overflow:hidden; padding:0; }
 #viewportGrid #planView { width:100%; height:100%; }
 #viewportGrid #seRoot { flex:1 1 auto; min-height:0; overflow:auto; }
@@ -574,6 +607,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 </div><div class='ctx-section' id='ctxSettings' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Settings</span></div>
 <nav style='padding:4px 0 8px;'>
   <button class='sw-nav-btn' onclick='swScrollTo("swGeneral")'>General</button>
+  <button class='sw-nav-btn' onclick='swScrollTo("swConn")'>Connections</button>
   <button class='sw-nav-btn' onclick='swScrollTo("swUnits")'>Units</button>
   <button class='sw-nav-btn' onclick='swScrollTo("swGrid")'>Grid &amp; Snap</button>
   <button class='sw-nav-btn' onclick='swScrollTo("swNorth")'>Project North</button>
@@ -724,6 +758,26 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
         <input type='text' id='settOrg' class='sett-input sw-field' placeholder='Organization' oninput='cadSaveSettings()'>
       </div>
       <div style='font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;'>Stored in this browser only; not shared between devices.</div>
+    </div>
+
+    <div id='swConn' class='sw-section'>
+      <h2 class='sw-sh'>Connections</h2>
+      <p class='conn-intro'>Photoreal renders, the Assistant and street context photos each use your own account with the service. Add a key for the ones you want; nothing else needs one.</p>
+      <div class='conn-row'>
+        <div class='conn-hd'><b>Replicate</b><span>Photoreal renders</span><span class='conn-st' id='connSt_replicate' role='status'></span></div>
+        <div class='conn-ctl'><input type='password' id='connKey_replicate' class='sett-input' autocomplete='off' spellcheck='false' aria-label='Replicate API token' title='Your Replicate API token. Press Enter to save it. Stored only in this browser; never sent to Curbside&rsquo;s servers or saved with your design.' onchange='CONN.save("replicate")'><button type='button' class='ctx-btn' id='connTest_replicate' onclick='CONN.runTest("replicate")' title='Makes one free call to Replicate with this key and says whether it works.'>Test</button><button type='button' class='ctx-btn' id='connRm_replicate' onclick='CONN.remove("replicate")' title='Deletes the key from this browser.'>Remove</button></div>
+        <p class='conn-help'>Get a token at <a href='https://replicate.com/account/api-tokens' target='_blank' rel='noopener'>replicate.com/account/api-tokens</a> (<a href='https://replicate.com/pricing' target='_blank' rel='noopener'>pricing</a>). Stored only in this browser; never sent to Curbside&rsquo;s servers or saved with your design.</p>
+      </div>
+      <div class='conn-row'>
+        <div class='conn-hd'><b>Anthropic</b><span>The Design Assistant</span><span class='conn-st' id='connSt_anthropic' role='status'></span></div>
+        <div class='conn-ctl'><input type='password' id='connKey_anthropic' class='sett-input' autocomplete='off' spellcheck='false' aria-label='Anthropic API key' title='Your Anthropic API key. Press Enter to save it. Stored only in this browser; never sent to Curbside&rsquo;s servers or saved with your design.' onchange='CONN.save("anthropic")'><button type='button' class='ctx-btn' id='connTest_anthropic' onclick='CONN.runTest("anthropic")' title='Makes one free call to Anthropic with this key and says whether it works.'>Test</button><button type='button' class='ctx-btn' id='connRm_anthropic' onclick='CONN.remove("anthropic")' title='Deletes the key from this browser.'>Remove</button></div>
+        <p class='conn-help'>Get a key at <a href='https://console.anthropic.com/settings/keys' target='_blank' rel='noopener'>console.anthropic.com/settings/keys</a> (<a href='https://www.anthropic.com/pricing#api' target='_blank' rel='noopener'>pricing</a>). Stored only in this browser; never sent to Curbside&rsquo;s servers or saved with your design.</p>
+      </div>
+      <div class='conn-row'>
+        <div class='conn-hd'><b>Mapillary</b><span>Street context photos</span><span class='conn-st' id='connSt_mapillary' role='status'></span></div>
+        <div class='conn-ctl'><input type='password' id='connKey_mapillary' class='sett-input' autocomplete='off' spellcheck='false' aria-label='Mapillary client token' title='Your Mapillary client token. Press Enter to save it. Stored only in this browser; never sent to Curbside&rsquo;s servers or saved with your design.' onchange='CONN.save("mapillary")'><button type='button' class='ctx-btn' id='connTest_mapillary' onclick='CONN.runTest("mapillary")' title='Makes one free call to Mapillary with this token and says whether it works.'>Test</button><button type='button' class='ctx-btn' id='connRm_mapillary' onclick='CONN.remove("mapillary")' title='Deletes the token from this browser.'>Remove</button></div>
+        <p class='conn-help'>Create an app and copy its client token at <a href='https://www.mapillary.com/dashboard/developers' target='_blank' rel='noopener'>mapillary.com/dashboard/developers</a> (free). Stored only in this browser; never sent to Curbside&rsquo;s servers or saved with your design.</p>
+      </div>
     </div>
 
     <div id='swUnits' class='sw-section'>
@@ -16336,8 +16390,8 @@ function _sdQuickPlace(objId) {
    ================================================================ */
 
 // ─── Configuration ────────────────────────────────────────────────
-var PK_SUPABASE_URL      = 'https://hkfvcbbpbtnxyvwlawva.supabase.co';
-var PK_SUPABASE_ANON_KEY = 'sb_publishable_veqsMlJ5EBhCyYfI6ArHEg_Gf6awBML';
+var PK_SUPABASE_URL      = CONFIG.SUPABASE_URL;        // set in the CONFIG block at the top of the file
+var PK_SUPABASE_ANON_KEY = CONFIG.SUPABASE_ANON_KEY;
 var PK_SCHEMA_VERSION    = 1;
 var PK_CONFIGURED = (PK_SUPABASE_URL !== 'YOUR_SUPABASE_URL' && PK_SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY');
 
@@ -16780,10 +16834,15 @@ async function pkSignIn(email, pass) {
   return res;
 }
 
-async function pkSignUp(name, email, pass) {
+async function pkSignUp(name, email, pass, invite) {
   if (!pkSB) return { error: { message: 'Backend not configured.' } };
-  var res = await pkSB.auth.signUp({ email: email.trim(), password: pass });
-  if (res.error) return res;
+  // the invite code rides in the user metadata; the database's sign-up check (supabase/schema.sql) refuses a wrong one
+  var res = await pkSB.auth.signUp({ email: email.trim(), password: pass, options: { data: { display_name: name.trim(), invite_code: String(invite || '').trim() } } });
+  if (res.error) {
+    if (/invite/i.test(res.error.message || '') || (CONFIG.INVITE_ONLY && /database error/i.test(res.error.message || '')))
+      res.error.message = 'That invite code was not accepted. Invite code required — contact ' + CONFIG.INVITE_CONTACT + '.';
+    return res;
+  }
   // Create profile row
   var userId = res.data.user && res.data.user.id;
   if (userId) {
@@ -17283,6 +17342,10 @@ function pkBuildAuthModalHTML() {
     '<input type="password" id="pkSUPass" class="pk-form-input" placeholder="Password (8+ characters)"></div>',
     '<div class="pk-form-group"><label class="pk-form-label">Confirm Password</label>',
     '<input type="password" id="pkSUPass2" class="pk-form-input" placeholder="Confirm password" onkeydown="if(event.key===\'Enter\')pkDoSignUp()"></div>',
+    // invite-only sign-up (Brief 21 §7): the code is checked by the database, never here
+    (CONFIG.INVITE_ONLY ? '<div class="pk-form-group"><label class="pk-form-label">Invite code</label>' +
+      '<input type="text" id="pkSUInvite" class="pk-form-input" autocomplete="off" placeholder="Invite code" title="Sign-up is by invitation. Ask ' + CONFIG.INVITE_CONTACT + ' for a code." onkeydown="if(event.key===\'Enter\')pkDoSignUp()">' +
+      '<div class="pk-form-hint">Invite code required &mdash; contact ' + CONFIG.INVITE_CONTACT + '</div></div>' : ''),
     '<div class="pk-error-msg" id="pkSUError"></div>',
     '<button class="pk-btn-primary" id="pkSUBtn" onclick="pkDoSignUp()">Create Account</button>',
     '</div>',
@@ -17656,9 +17719,11 @@ async function pkDoSignUp() {
   if (!email.trim()) { if (err) err.textContent = 'Please enter your email.'; return; }
   if (pass.length < 8) { if (err) err.textContent = 'Password must be at least 8 characters.'; return; }
   if (pass !== pass2)  { if (err) err.textContent = 'Passwords do not match.'; return; }
+  var invite = ((document.getElementById('pkSUInvite') || {}).value || '').trim();
+  if (CONFIG.INVITE_ONLY && !invite) { if (err) err.textContent = 'Invite code required — contact ' + CONFIG.INVITE_CONTACT + '.'; return; }
   if (btn) btn.disabled = true;
   pkShowLoading('Creating account…');
-  var res = await pkSignUp(name, email, pass);
+  var res = await pkSignUp(name, email, pass, invite);
   pkHideLoading();
   if (btn) btn.disabled = false;
   if (res.error) { if (err) err.textContent = res.error.message || 'Sign up failed.'; return; }
@@ -18137,15 +18202,12 @@ document.addEventListener('DOMContentLoaded', PX.updateNote);
     <button class='ax-ib' title='Close' onclick='AX.toggle(false)'>&times;</button>
   </div>
   <div id='axMsgs'></div>
+  <div class='ax-gate' id='axGate' hidden></div>
   <div class='ax-chips' id='axChips'></div>
   <div id='axSettings'>
-    <label>Anthropic API key (stored only in this browser)</label>
-    <input id='axKey' type='password' placeholder='sk-ant-…' autocomplete='off'>
     <label>Model</label>
-    <input id='axModel' type='text' placeholder='claude-sonnet-4-5'>
-    <label>Proxy URL (optional — leave blank to call Anthropic directly)</label>
-    <input id='axProxy' type='text' placeholder='https://<project>.supabase.co/functions/v1/parklet-assistant'>
-    <div class='ax-warn'>Direct mode puts your key in this browser. Fine for your own machine; for anything shared, deploy the proxy (see HANDOFF.md) and leave the key blank.</div>
+    <input id='axModel' type='text' placeholder='claude-sonnet-4-5' title='The Claude model the Assistant uses.'>
+    <div class='ax-warn'>Your Anthropic key is in <button type='button' class='conn-go' onclick='CONN.open("anthropic")' title='Opens Settings at Connections.'>Settings &rsaquo; Connections</button>: kept in this browser only, sent straight to Anthropic.</div>
     <div class='ax-row'><button class='ctx-btn' onclick='AX.saveSettings()'>Save</button><button class='ctx-btn' onclick='AX.toggleSettings()'>Close</button></div>
   </div>
   <div id='axInputRow'>
@@ -18163,29 +18225,138 @@ document.addEventListener('DOMContentLoaded', PX.updateNote);
    Backend: direct browser call to api.anthropic.com with the user's
    key, or an optional proxy URL that holds the key server-side.
    ================================================================ */
+/* ================================================================
+   CONNECTIONS (Brief 21 §7) -- the user's own keys for the paid services
+   ----------------------------------------------------------------
+   Replicate (photoreal renders), Anthropic (the Assistant), Mapillary (street context photos). Each
+   is the user's own account: its key is entered in Settings > Connections and kept in this browser
+   only, in one namespaced localStorage object. Never in Supabase, the design state, an export or a
+   log. The Replicate key goes, per call, in a header to the Curbside relay (tools/serve.ps1), which
+   forwards it and keeps nothing; the Anthropic key goes straight to Anthropic from the browser.
+   ================================================================ */
+var CONN = { LS: 'pkt_connections' };
+CONN.ROWS = {
+  replicate: { name: 'Replicate', what: 'Photoreal renders', get: 'https://replicate.com/account/api-tokens', price: 'https://replicate.com/pricing', ph: 'r8_…',
+    gate: 'Photoreal renders use your own Replicate account.' },
+  anthropic: { name: 'Anthropic', what: 'The Design Assistant', get: 'https://console.anthropic.com/settings/keys', price: 'https://www.anthropic.com/pricing#api', ph: 'sk-ant-…',
+    gate: 'The Assistant uses your own Anthropic account.' },
+  mapillary: { name: 'Mapillary', what: 'Street context photos', get: 'https://www.mapillary.com/dashboard/developers', price: null, ph: 'MLY|…',
+    gate: 'Street context photos use your own Mapillary account.' }
+};
+CONN.all = function() { try { var o = JSON.parse(localStorage.getItem(CONN.LS) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
+CONN.get = function(id) { var v = CONN.all()[id]; return typeof v === 'string' ? v.trim() : ''; };
+CONN.has = function(id) { return !!CONN.get(id); };
+CONN.set = function(id, v) {
+  var o = CONN.all(); v = String(v || '').trim();
+  if (v) o[id] = v; else delete o[id];
+  try { localStorage.setItem(CONN.LS, JSON.stringify(o)); } catch (e) {}
+  CONN.changed(id);
+};
+// keys from before Connections (the Assistant's own settings, the Mapillary field) move here, once
+CONN.migrate = function() {
+  try {
+    var o = CONN.all(), ch = false, ax = JSON.parse(localStorage.getItem('px_ax_cfg_v1') || '{}') || {};
+    if (ax.apiKey || ax.proxy) { if (ax.apiKey && !o.anthropic) o.anthropic = String(ax.apiKey).trim(); delete ax.apiKey; delete ax.proxy; localStorage.setItem('px_ax_cfg_v1', JSON.stringify(ax)); ch = true; }
+    var mt = localStorage.getItem('pkt_mapillary_token'); if (mt !== null) { if (mt.trim() && !o.mapillary) o.mapillary = mt.trim(); localStorage.removeItem('pkt_mapillary_token'); ch = true; }
+    if (ch) localStorage.setItem(CONN.LS, JSON.stringify(o));
+  } catch (e) {}
+};
+CONN.migrate();
+// the prompt shown in place of a feature's controls while its key is missing
+CONN.gate = function(id) {
+  var r = CONN.ROWS[id];
+  return "<span class='conn-gate' data-conn-gate='" + id + "'>" + r.gate + " <button type='button' class='conn-go' onclick='CONN.open(\"" + id + "\")' title='Opens Settings at Connections, where you add your " + r.name + " key.'>Add a key in Connections &rarr;</button></span>";
+};
+CONN.open = function(id) {
+  if (typeof AX !== 'undefined' && AX.toggle) try { AX.toggle(false); } catch (e) {}
+  if (typeof appSetMode === 'function') appSetMode('settings');
+  setTimeout(function() { if (typeof swScrollTo === 'function') swScrollTo('swConn'); var f = id && document.getElementById('connKey_' + id); if (f) f.focus(); }, 80);
+};
+// after a key is added or removed: every place that depends on one
+CONN.changed = function(id) {
+  CONN.renderRows();
+  try { if (id === 'replicate' && typeof RVZP !== 'undefined' && RVZP.checkProxy) RVZP.checkProxy(); } catch (e) {}
+  try { if (id === 'mapillary' && typeof MLY !== 'undefined' && MLY.renderBox) MLY.renderBox(); } catch (e) {}
+  try { if (id === 'anthropic' && typeof AX !== 'undefined' && AX.gate) AX.gate(); } catch (e) {}
+  try { if (typeof RPT !== 'undefined' && RPT.renderList) RPT.renderList(); } catch (e) {}
+};
+CONN.status = function(id, t, cls) { var e = document.getElementById('connSt_' + id); if (e) { e.textContent = t; e.className = 'conn-st' + (cls ? ' ' + cls : ''); } };
+CONN.renderRows = function() {
+  Object.keys(CONN.ROWS).forEach(function(id) {
+    var f = document.getElementById('connKey_' + id), k = CONN.get(id); if (!f) return;
+    f.value = ''; f.placeholder = k ? 'Saved · ends ' + k.slice(-4) : CONN.ROWS[id].ph;
+    var rm = document.getElementById('connRm_' + id), ts = document.getElementById('connTest_' + id); if (rm) rm.disabled = !k; if (ts) ts.disabled = !k;
+    var st = document.getElementById('connSt_' + id); if (st && !st.getAttribute('data-sticky')) CONN.status(id, k ? 'Key saved' : 'No key', k ? 'ok' : '');
+  });
+};
+CONN.save = function(id) {
+  var f = document.getElementById('connKey_' + id), v = f ? f.value.trim() : ''; if (!v) return;
+  CONN.set(id, v); CONN.status(id, 'Saved. Test it to check it works.', 'ok');
+};
+CONN.remove = function(id) { CONN.set(id, ''); CONN.status(id, 'Removed from this browser', ''); };
+// one cheap call with the key: {ok, msg}
+CONN.test = async function(id) {
+  var k = CONN.get(id); if (!k) return { ok: false, msg: 'No key to test.' };
+  try {
+    if (id === 'replicate') {
+      var r = await fetch('/render-proxy/test', { headers: { 'X-Render-Proxy': '1', 'X-Provider-Key': k }, cache: 'no-store' }).catch(function() { return null; });
+      if (!r || r.status === 404) return { ok: false, msg: 'Renders go through the Curbside relay, which is not running here (tools/start.cmd). The key is saved; test again once it runs.' };
+      var j = await r.json().catch(function() { return {}; });
+      return j.ok ? { ok: true, msg: j.mode === 'mock' ? 'OK (the relay is in mock mode)' : 'OK: Replicate accepts this key' } : { ok: false, msg: j.error || 'Replicate did not accept this key' };
+    }
+    if (id === 'anthropic') {
+      var h = { 'x-api-key': k, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+      var a = await fetch('https://api.anthropic.com/v1/models?limit=1', { headers: h });
+      if (a.ok) return { ok: true, msg: 'OK: Anthropic accepts this key' };
+      return { ok: false, msg: a.status === 401 ? 'Anthropic did not accept this key' : 'Anthropic answered HTTP ' + a.status };
+    }
+    if (id === 'mapillary') {
+      var m = await fetch('https://graph.mapillary.com/images?fields=id&limit=1&bbox=-123.121,49.283,-123.119,49.285', { headers: { Authorization: 'OAuth ' + k } });
+      if (m.ok) return { ok: true, msg: 'OK: Mapillary accepts this token' };
+      return { ok: false, msg: m.status === 401 || m.status === 403 ? 'Mapillary did not accept this token' : 'Mapillary answered HTTP ' + m.status };
+    }
+  } catch (e) { return { ok: false, msg: 'Could not reach ' + CONN.ROWS[id].name + ' from this browser (' + (e.message || e) + ').' }; }
+  return { ok: false, msg: 'Unknown service' };
+};
+CONN.runTest = async function(id) {
+  var st = document.getElementById('connSt_' + id); if (st) st.setAttribute('data-sticky', '1');
+  CONN.status(id, 'Testing…', '');
+  var r = await CONN.test(id);
+  CONN.status(id, r.msg, r.ok ? 'ok' : 'bad');
+  return r;
+};
+window.addEventListener('load', function() { CONN.renderRows(); });
 var AX = { history: [], undoSnap: null, busy: false, maxTurns: 12 };
 AX.API_URL = 'https://api.anthropic.com/v1/messages';
 AX.DEFAULT_MODEL = 'claude-sonnet-4-5';
 AX.CFG_KEY = 'px_ax_cfg_v1';
 
 /* ── settings ─────────────────────────────────────────────── */
-AX.cfg = function() { try { return JSON.parse(localStorage.getItem(AX.CFG_KEY) || '{}'); } catch(e) { return {}; } };
+// the key is the user's own, from Settings > Connections (Brief 21 §7); the call goes straight from this
+// browser to Anthropic -- there is no relay hop. This object keeps only the model choice.
+AX.cfg = function() { var c = {}; try { c = JSON.parse(localStorage.getItem(AX.CFG_KEY) || '{}') || {}; } catch(e) {} return { model: c.model, apiKey: CONN.get('anthropic') }; };
 AX.saveSettings = function() {
-  var c = { apiKey: (document.getElementById('axKey').value || '').trim(), model: (document.getElementById('axModel').value || '').trim() || AX.DEFAULT_MODEL, proxy: (document.getElementById('axProxy').value || '').trim() };
+  var c = { model: (document.getElementById('axModel').value || '').trim() || AX.DEFAULT_MODEL };
   try { localStorage.setItem(AX.CFG_KEY, JSON.stringify(c)); } catch(e) {}
   AX.refreshLbl(); AX.toggleSettings(false); pkToast('Assistant settings saved', 'success');
 };
-AX.loadSettingsUI = function() { var c = AX.cfg(); document.getElementById('axKey').value = c.apiKey || ''; document.getElementById('axModel').value = c.model || AX.DEFAULT_MODEL; document.getElementById('axProxy').value = c.proxy || ''; AX.refreshLbl(); };
-AX.refreshLbl = function() { var c = AX.cfg(), l = document.getElementById('axModelLbl'); if (l) l.textContent = (c.proxy ? 'proxy · ' : '') + (c.model || AX.DEFAULT_MODEL); };
+AX.loadSettingsUI = function() { var c = AX.cfg(); document.getElementById('axModel').value = c.model || AX.DEFAULT_MODEL; AX.refreshLbl(); AX.gate(); };
+AX.refreshLbl = function() { var c = AX.cfg(), l = document.getElementById('axModelLbl'); if (l) l.textContent = c.model || AX.DEFAULT_MODEL; };
 AX.toggleSettings = function(force) { var s = document.getElementById('axSettings'); var on = force === undefined ? !s.classList.contains('open') : !!force; s.classList.toggle('open', on); };
-AX.configured = function() { var c = AX.cfg(); return !!(c.apiKey || c.proxy); };
+AX.configured = function() { return CONN.has('anthropic'); };
+// without a key: the Connections prompt in place of the input
+AX.gate = function() {
+  var g = document.getElementById('axGate'), row = document.getElementById('axInputRow'), ch = document.getElementById('axChips'), ok = AX.configured();
+  if (g) { g.hidden = ok; g.innerHTML = ok ? '' : CONN.gate('anthropic'); }
+  if (row) row.hidden = !ok; if (ch) ch.hidden = !ok;
+};
 
 /* ── panel ────────────────────────────────────────────────── */
 AX.toggle = function(force) {
   var p = document.getElementById('axPanel'), b = document.getElementById('axToggleBtn');
   var on = force === undefined ? !p.classList.contains('open') : !!force;
   p.classList.toggle('open', on); if (b) b.classList.toggle('ax-on', on);
-  if (on) { AX.loadSettingsUI(); if (!AX.history.length) AX.welcome(); if (!AX.configured()) AX.toggleSettings(true); setTimeout(function() { document.getElementById('axInput').focus(); }, 50); }
+  if (on) { AX.loadSettingsUI(); if (!AX.history.length) AX.welcome(); if (AX.configured()) setTimeout(function() { document.getElementById('axInput').focus(); }, 50); }
 };
 AX.welcome = function() {
   AX.sys('I can change the parklet, the street, site objects and furniture, and tell you what it does to compliance. Try one of these, or describe what you want.');
@@ -18361,7 +18532,7 @@ AX.call = function(messages) {
 AX.send = function() {
   if (AX.busy) return;
   var inp = document.getElementById('axInput'), text = (inp.value || '').trim(); if (!text) return;
-  if (!AX.configured()) { AX.toggleSettings(true); AX.sys('Add an API key or proxy URL in settings first.', true); return; }
+  if (!AX.configured()) { AX.gate(); return; }
   inp.value = ''; inp.style.height = ''; document.getElementById('axChips').innerHTML = '';
   AX.add('ax-u', AX.esc(text));
   AX.history.push({ role: 'user', content: text });
@@ -20912,7 +21083,7 @@ RPT.sources = function(d) {
   var mly = (d.renders || []).filter(function(r) { return r.mapillary; });
   if (mly.length) std.push(['Mapillary (CC BY-SA)', 'context photo for the photoreal renders: ' + mly.map(function(r) { return r.mapillary; }).join('; ')]);
   // the design's renders (printed on A-000 in the schematic report): listed in both reports
-  (d.renders || []).forEach(function(r, i) { std.push(['Visualisation ' + (i + 1) + ': ' + (RPT.PRESET_LBL[r.preset] || r.preset) + ' view', 'AI-assisted, indicative; ' + r.provider + ', rendered ' + r.date + (r.camera ? '; ' + r.camera : '')]); });
+  (d.renders || []).forEach(function(r, i) { std.push(['Visualisation ' + (i + 1) + ': ' + (RPT.PRESET_LBL[r.preset] || r.preset) + ' view', 'AI-assisted, indicative; ' + r.provider + ', rendered ' + r.date + (r.camera ? '; ' + r.camera : '') + (r.note ? '. ' + r.note : '')]); });
   var brands = {}; d.placed.forEach(function(p) { var pr = flPreset(p.objId); if (pr) brands[pr.brand] = (brands[pr.brand] || []).concat([pr.name + (pr.src ? ' - ' + pr.src : '')]); });
   Object.keys(brands).forEach(function(b) { std.push([b + ' product data', Array.from(new Set(brands[b])).join('; ')]); });
   std.push(['DM Sans (SIL Open Font License 1.1)', 'the report\'s typeface, embedded'], ['jsPDF, svg2pdf.js (MIT)', 'the PDF engine (tools/vendor)']);
@@ -22081,7 +22252,9 @@ RPT.renderList = async function() {
   hosts.forEach(function(host) {
     var exp = host.id === 'rptRenders';
     if (exp && RPT.mode() === 'technical') { host.innerHTML = "<p class='rpt-rn-note'>Technical: the renders are listed on X-001; their images print in the schematic report.</p>"; return; }
-    if (!list.length) { host.innerHTML = exp ? "<p class='rpt-rn-note' id='rptNoRenders'>No renders of this design yet &mdash; Visualize &rsaquo; Render</p>" : "<p class='rpt-rn-note'>No renders of this design yet: Render makes one for each camera preset.</p>"; return; }
+    // no Replicate key (Brief 21 §7): renders are the user's own account; the list says so, with the way in
+    var nokey = typeof CONN !== 'undefined' && !CONN.has('replicate') ? "<p class='rpt-rn-note'>" + CONN.gate('replicate') + '</p>' : '';
+    if (!list.length) { host.innerHTML = (exp ? "<p class='rpt-rn-note' id='rptNoRenders'>No renders of this design yet &mdash; Visualize &rsaquo; Render</p>" : "<p class='rpt-rn-note'>No renders of this design yet: Render makes one for each camera preset.</p>") + nokey; return; }
     host.innerHTML = "<p class='rpt-rn-note'>" + (exp ? 'Renders of this design (ticked ones print, each on its own sheet):' : 'Renders of this design; ticked ones print in the report:') + '</p>' + list.map(function(e) {
       var url = URL.createObjectURL(e.blobs.final), on = RPT._renderSel[e.key] !== false, dt = new Date(e.created); RPT._thumbs.push(url);
       return "<label class='rpt-rn'><input type='checkbox' data-key='" + RPT.esc(e.key) + "'" + (on ? ' checked' : '') + "><img src='" + url + "' alt=''>" +
@@ -22120,6 +22293,7 @@ RPT.renderEntry = async function(blob, preset, model, created, cp, cam, key) {
 // page runs on in-memory storage (the shim at the top of the document), never signs in, never reads or
 // writes the user's design, state or caches; opening it changes nothing in the app.
 RPT.SAMPLE_BAND = 'SAMPLE REPORT — reference design, not your parklet';
+RPT.SAMPLE_KEY_NOTE = 'Rendered with the author’s Replicate account for this sample; your own renders use the key you add in Connections.';   // Brief 21 §7
 RPT.SAMPLE_RENDERED = '2026-09-25T13:37:00Z';   // the reference renders: Nano Banana Pro, Render 4 of the 7-piece test design
 RPT.openSample = function() { window.open('parklet-checker.html?sample=' + RPT.mode(), '_blank', 'noopener'); };
 RPT.runSample = async function() {
@@ -22142,7 +22316,8 @@ RPT.runSample = async function() {
       var out = [];
       for (var p of ['street', 'sidewalk', 'corner', 'aerial']) {
         var res = await fetch('demo/render-' + p + '.jpg', { cache: 'no-store' }); if (!res.ok) continue;
-        out.push(await RPT.renderEntry(await res.blob(), p, 'google/nano-banana-pro', RPT.SAMPLE_RENDERED, null, cams[p], 'demo|' + p));
+        var en = await RPT.renderEntry(await res.blob(), p, 'google/nano-banana-pro', RPT.SAMPLE_RENDERED, null, cams[p], 'demo|' + p);
+        en.note = RPT.SAMPLE_KEY_NOTE; out.push(en);
       }
       return out;
     };
@@ -24132,16 +24307,18 @@ RVZP.currentPrompt = function() {
 
 // ── Provider adapters: {submit(images, prompt, params) -> job, poll(job) -> Blob | null} ──────
 RVZP._hdr = { 'X-Render-Proxy': '1' };
+// the user's own Replicate key (Settings > Connections) rides along on each relay call, which keeps nothing
+RVZP.hdrs = function() { var h = { 'X-Render-Proxy': '1' }, k = CONN.get('replicate'); if (k) h['X-Provider-Key'] = k; return h; };
 RVZP.adapters = {
   replicate: {
     submit: async function(images, prompt, params) {
-      var r = await fetch('/render-proxy/submit', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, RVZP._hdr), body: JSON.stringify({ images: images, prompt: prompt.text, negative: prompt.negative, params: params }) });
+      var r = await fetch('/render-proxy/submit', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, RVZP.hdrs()), body: JSON.stringify({ images: images, prompt: prompt.text, negative: prompt.negative, params: params }) });
       var j = await r.json().catch(function() { return {}; });
       if (!r.ok || !j.id) throw new Error(j.error || ('proxy ' + r.status));
       return j;
     },
     poll: async function(job) {
-      var r = await fetch('/render-proxy/poll?id=' + encodeURIComponent(job.id), { headers: RVZP._hdr });
+      var r = await fetch('/render-proxy/poll?id=' + encodeURIComponent(job.id), { headers: RVZP.hdrs() });
       var t = r.headers.get('content-type') || '';
       if (r.ok && /^image\//.test(t)) return await r.blob();
       var j = await r.json().catch(function() { return {}; });
@@ -24161,8 +24338,9 @@ RVZP.checkProxy = async function() {
     catch (e) { return null; } finally { clearTimeout(t); }
   }
   var h = await get('/render-proxy/health');
-  if (h && h.ok) RVZP.proxy = { proxy: true, provider: h.provider, key: h.keyPresent ? 'present' : 'missing', mode: h.mode || 'live', models: h.models, port: h.port };
-  else { var s = await get('/render-proxy/status'); RVZP.proxy = s && s.proxy ? s : { proxy: false, why: 'down' }; }
+  // the relay holds no key: whether renders can run depends on this browser's Replicate key (mock mode needs none)
+  if (h && h.ok) RVZP.proxy = { proxy: true, provider: h.provider, key: CONN.has('replicate') || h.mode === 'mock' ? 'present' : 'missing', mode: h.mode || 'live', models: h.models, port: h.port };
+  else { var s = await get('/render-proxy/status'); RVZP.proxy = s && s.proxy ? Object.assign(s, { key: CONN.has('replicate') || s.mode === 'mock' ? 'present' : 'missing' }) : { proxy: false, why: 'down' }; }
   if (RVZP.proxy.proxy && RVZP.proxy.key !== 'present') RVZP.proxy.why = 'nokey';
   RVZP._syncUI();
   return RVZP.proxy;
@@ -24170,7 +24348,7 @@ RVZP.checkProxy = async function() {
 RVZP.WHY = {
   file: 'You opened the file directly. Photoreal needs the app served from the local server. Run tools/start.cmd, or open http://localhost:8766/parklet-checker.html.',
   down: 'The local server isn\'t running. Run tools/start.cmd.',
-  nokey: 'Server is running but .render-key is missing in the repo root.'
+  nokey: 'Photoreal renders use your own Replicate account. Add a key in Connections.'
 };
 RVZP.ready = function() { return !!(RVZP.proxy && RVZP.proxy.proxy && RVZP.proxy.key === 'present'); };
 
@@ -24621,6 +24799,9 @@ RVZP._syncUI = function() {
   var g = function(id) { return document.getElementById(id); }; if (!g('rvzpOn')) return;
   var P = RVZP.proxy, ok = RVZP.ready(), note = g('rvzpProxy');
   g('rvzpOn').disabled = !ok; if (!ok) { RVZP.o.on = false; g('rvzpOn').checked = false; }
+  // no Replicate key: the Connections prompt in place of the controls (Brief 21 §7)
+  var gated = !!(P && P.proxy && P.key !== 'present'); g('rvzpOn').parentNode.hidden = gated;
+  if (gated) { note.innerHTML = CONN.gate('replicate'); g('rvzpBody').hidden = true; return; }
   note.textContent = !P ? 'Checking for the local render proxy…'
     : !P.proxy ? RVZP.WHY[P.why || 'down']
     : P.key !== 'present' ? RVZP.WHY.nokey
@@ -25838,7 +26019,7 @@ SMP.sourcesList = function() {
 // cached render, shown under it in the gallery and listed on the report's Sources sheet.
 // ════════════════════════════════════════════════════════════════════════════════════════════
 var MLY = { API: 'https://graph.mapillary.com/images', R: 40, FACE: 70, photos: null };
-MLY.token = function() { try { return (localStorage.getItem('pkt_mapillary_token') || '').trim(); } catch (e) { return ''; } };
+MLY.token = function() { return CONN.get('mapillary'); };   // Settings > Connections (Brief 21 §7)
 MLY.site = function() { var sm = state.__siteMap; return sm ? { lat: sm.lat, lon: sm.lon, side: sm.sideBearing } : { lat: +SITE_ORIENT.lat, lon: +SITE_ORIENT.lon, side: siteDerive(SITE_ORIENT).sideBearing }; };
 RVZP.ref = function() { return RVZP.o.ctxOn && RVZP.kind() === 'edit' && RVZP.o.ctxRef ? RVZP.o.ctxRef : null; };
 // Rank candidate images (the API's rows) for the site: within 40 m, no panoramas, facing the side
@@ -25856,7 +26037,7 @@ MLY.rank = function(rows, s) {
 };
 MLY.find = async function() {
   var tk = MLY.token(), s = MLY.site(), msg = document.getElementById('mlyMsg');
-  if (!tk) { if (msg) msg.textContent = 'Paste your Mapillary client token first (mapillary.com > Developers > your app).'; return null; }
+  if (!tk) { if (msg) msg.innerHTML = CONN.gate('mapillary'); return null; }
   var T = SM.enu(s.lat, s.lon), a = T.from(-MLY.R, -MLY.R), b = T.from(MLY.R, MLY.R);
   var url = MLY.API + '?fields=id,thumb_256_url,thumb_1024_url,compass_angle,computed_compass_angle,geometry,captured_at,creator,is_pano&limit=100&bbox=' + [a.lon, a.lat, b.lon, b.lat].map(function(v) { return v.toFixed(6); }).join(',');
   if (msg) msg.textContent = 'Looking for street photos within 40 m...';
@@ -25884,12 +26065,10 @@ MLY.renderBox = function(keepMsg) {
   var body = document.getElementById('rvzpCtxBody'); if (!body) return;
   body.hidden = !RVZP.o.ctxOn; if (!RVZP.o.ctxOn) return;
   var msg = document.getElementById('mlyMsg'), m = keepMsg && msg ? msg.textContent : '', ref = RVZP.o.ctxRef;
-  body.innerHTML = "<label class='rvz-lbl2' for='mlyTok'>Mapillary client token <span class='rvz-dim'>(kept in this browser only)</span></label><input type='password' id='mlyTok' autocomplete='off' spellcheck='false' placeholder='MLY|...'>" +
-    "<button type='button' class='rvz-btn' id='mlyFind'>Find street photos (40 m)</button><p class='rvz-note' id='mlyMsg' role='status'></p>" +
+  if (!MLY.token()) { body.innerHTML = "<p class='rvz-note'>" + CONN.gate('mapillary') + '</p>'; return; }   // the token is in Connections (Brief 21 §7)
+  body.innerHTML = "<button type='button' class='rvz-btn' id='mlyFind' title='Finds up to three Mapillary photos within 40 m that face the parklet.'>Find street photos (40 m)</button><p class='rvz-note' id='mlyMsg' role='status'></p>" +
     (MLY.photos && MLY.photos.length ? "<div class='mly-thumbs'>" + MLY.photos.map(function(p) { return "<button type='button' data-id='" + SM.esc(p.id) + "' class='" + (ref && ref.id === p.id ? 'on' : '') + "' aria-pressed='" + !!(ref && ref.id === p.id) + "' title='" + SM.esc(p.attribution + ', ' + Math.round(p.dist) + ' m away, facing ' + Math.round(p.heading) + ' deg') + "'><img alt='Street photo by " + SM.esc(p.creator) + "' src='" + SM.esc(p.thumb) + "'></button>"; }).join('') + '</div>' : '') +
     "<p class='rvz-note'>" + (ref ? 'Using: ' + SM.esc(ref.attribution) + '. It is sent as the third image with: use it only for the street and buildings.' : 'No context photo picked.') + '</p>';
-  var tok = document.getElementById('mlyTok'); tok.value = MLY.token() ? '********' : '';
-  tok.addEventListener('change', function() { if (tok.value === '********') return; try { if (tok.value.trim()) localStorage.setItem('pkt_mapillary_token', tok.value.trim()); else localStorage.removeItem('pkt_mapillary_token'); } catch (e) {} tok.value = MLY.token() ? '********' : ''; });
   document.getElementById('mlyFind').addEventListener('click', function() { MLY.find(); });
   Array.from(body.querySelectorAll('.mly-thumbs button')).forEach(function(b) { b.addEventListener('click', function() { MLY.pick(b.getAttribute('data-id')); }); });
   if (m) document.getElementById('mlyMsg').textContent = m;

@@ -21,7 +21,7 @@ $tag = ''
 try { $tag = (& git -C $Root describe --tags --abbrev=0 2>$null) } catch {}
 if (-not $tag) { $tag = 'untagged' }
 $ref = ''
-$u = [regex]::Match($app, "SUPABASE_URL\s*=\s*'https://([a-z0-9]+)\.supabase\.co'")
+$u = [regex]::Match($app, "SUPABASE_URL\s*[:=]\s*'https://([a-z0-9]+)\.supabase\.co'")   # CONFIG.SUPABASE_URL (Brief 21 sec. 7)
 if ($u.Success) { $ref = $u.Groups[1].Value }
 
 $new = [regex]::Replace($idx, '<!-- CHECKS:BEGIN[\s\S]*?<!-- CHECKS:END -->', { param($x) $block })

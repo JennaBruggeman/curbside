@@ -1,6 +1,6 @@
 # Uploads one generated 1024 x 768 PNG to Replicate's Files API and prints the returned file URL.
-# ASCII only. The key comes from PROVIDER_KEY or .render-key (repo root), as tools/serve.ps1 reads
-# it; it is never printed. -Mode raw (default): the multipart body built as raw bytes by
+# ASCII only. A developer diagnostic: the key comes from the REPLICATE_API_TOKEN environment variable of
+# the shell that runs it (never a file in the repo); it is never printed. -Mode raw (default): the multipart body built as raw bytes by
 # tools/multipart.ps1 (the one serve.ps1 uses); -Mode dotnet: MultipartFormDataContent, for comparison.
 param([ValidateSet('raw', 'dotnet')][string]$Mode = 'raw', [switch]$Delete)
 $ErrorActionPreference = 'Stop'
@@ -8,8 +8,8 @@ Add-Type -AssemblyName System.Net.Http, System.Drawing
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 . (Join-Path $Root 'tools\multipart.ps1')
-$key = if ($env:PROVIDER_KEY) { $env:PROVIDER_KEY.Trim() } else { ([IO.File]::ReadAllText((Join-Path $Root '.render-key'))).Trim() }
-if (-not $key) { throw 'no key' }
+$key = [string]$env:REPLICATE_API_TOKEN; $key = $key.Trim()
+if (-not $key) { throw 'set REPLICATE_API_TOKEN in this shell first' }
 
 # a 1024 x 768 test image: a gradient and a grid
 $bmp = New-Object Drawing.Bitmap 1024, 768
