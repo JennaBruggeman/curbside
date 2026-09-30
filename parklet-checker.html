@@ -21994,13 +21994,17 @@ RPT.schedule = function(d) {
   var rows = d.groups.map(function(g) {
     var sp = g.sp, a = sp ? FL_ARCHETYPES[sp.type] : null, pr = g.row.pr;
     return [{ t: g.tag, b: true }, g.row.item + (a && a.cat === 'entourage' ? ' (entourage, not built)' : ''), g.row.dims, g.row.mats || '-', String(g.n),
-      pr ? pr.brand + ' ' + pr.name + (pr.art && pr.art !== 'not extracted' ? ', art. ' + pr.art : '') + (pr.src ? ' (' + pr.src + ')' : '') : 'generic archetype'];
+      pr ? pr.brand + ' ' + pr.name + (pr.art && pr.art !== 'not extracted' ? ', art. ' + pr.art : '') + (pr.src ? ' (' + pr.src + ')' : '') : a && a.user ? FLU.label(a) : 'generic archetype'];   // Brief 22 item 9: the provenance
   });
   if (!rows.length) rows = [['-', 'No furniture placed.', '', '', '0', '']];
   rows.push([{ t: '', b: true }, { t: 'Total', b: true }, '', { t: d.groups.length + ' types', b: true }, { t: String(d.placed.length), b: true }, '']);
   return RPT.textSheet('S-001', 'Furniture schedule', '', [{ table: { cols: [{ t: 'Tag', w: 0.05 }, { t: 'Item', w: 0.2 }, { t: 'Size l x d x h', w: 0.13, num: true }, { t: 'Material', w: 0.3 }, { t: 'Count', w: 0.06, num: true }, { t: 'Source', w: 0.26 }], rows: rows } },
-    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.cardBlocks(d), RPT.encBlocks(d)), true);
+    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.userNote(d), RPT.cardBlocks(d), RPT.encBlocks(d)), true);
 };
+// Provenance (Brief 22 item 9): a user piece's tag carries a trailing dot (F3•); S-001 says what its figures rest on
+RPT.USER_DOT = '•';
+RPT.USER_NOTE = 'User-supplied furniture: dimensions from the supplied model; other specifications as entered by the applicant, not verified.';
+RPT.userNote = function(d) { return RPT.userGroups(d).length ? [{ p: RPT.USER_NOTE + ' Its tags carry a dot (F1' + RPT.USER_DOT + ').' }] : []; };
 // S-001's user pieces (Brief 22 item 8): each spec card as a row; an empty field prints "not stated"
 RPT.userGroups = function(d) { return d.groups.filter(function(g) { var a = g.sp && FL_ARCHETYPES[g.sp.type]; return a && a.user; }); };
 RPT.cardBlocks = function(d) {
@@ -23164,7 +23168,7 @@ RPT.groupsFor = function(placed) {
     if (!byKey[key]) { byKey[key] = { key: key, inst: p, sp: sp, row: row, n: 0, ids: [] }; groups.push(byKey[key]); }
     byKey[key].n++; byKey[key].ids.push(p.id);
   });
-  groups.forEach(function(g, i) { g.tag = 'F' + (i + 1); g.ids.forEach(function(id) { tags[id] = g.tag; }); });
+  groups.forEach(function(g, i) { var a = g.sp && FL_ARCHETYPES[g.sp.type]; g.tag = 'F' + (i + 1) + (a && a.user ? RPT.USER_DOT : ''); g.ids.forEach(function(id) { tags[id] = g.tag; }); });   // a user piece's tag: F3• (Brief 22 item 9)
   return { groups: groups, tags: tags };
 };
 
@@ -23227,6 +23231,9 @@ RPT.sheetTitle = function(d, drw) {
     function(X, Y) { DRAW_SYMBOLS.busStop(P, X, Y); }, 'Bus stop',
     function(X, Y) { RPT.sym.grid(P, X, Y, '1'); }, 'Grid line at a railing post', function(X, Y) { RPT.sym.level(P, X, Y + 1, '', true); }, 'Level (datum: top of curb)',
     function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone'];
+  if (RPT.userGroups(d).length) syms.push(function(X, Y) { var fs = TX.tag, w = RPT.tw('F1' + RPT.USER_DOT, fs, true) + 1.6; DRAW_SYMBOLS.ftag(P, { box: [X - w / 2, Y - fs / 2 - 0.6, X + w / 2, Y + fs / 2 + 0.6], cx: X, cy: Y, a: [X - w / 2 - 3, Y], e: [X - w / 2, Y], tag: 'F1' + RPT.USER_DOT }, fs); },
+    'Furniture tag, S-001; a dot: user-supplied, not verified');   // Brief 22 item 9
+
   for (var i = 0; i < syms.length; i += 2) { syms[i](lx + 8, ly - 1); P.text(lx + 20, ly, syms[i + 1], TX.tag); ly += 5.4; }
   ly += 2;
   [['concrete', 'Concrete'], ['timber', 'Timber deck, along the boards'], ['planting', 'Planting'], ['earth', 'Earth, subgrade'], ['poche', 'Cut building'], ['cut', 'Cut steel, thin material'], ['route', 'Accessible route']].forEach(function(q) {
