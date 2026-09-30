@@ -298,6 +298,24 @@ var CONFIG = {
 #rptOverlay .rpt-ov-back { border: 0; background: #3AA8E4; color: #17191C; font-weight: 600; }
 #rptOverlay .rpt-ov-dl { border: 1px solid #3AA8E4; color: #3AA8E4; }
 #rptOverlay .rpt-ov-frame { flex: 1 1 auto; width: 100%; border: 0; }
+/* Brief 21 §11: the survey step and the Check tab's Survey panel */
+#survBody .surv-p, #survBody .surv-msg { font-size: 11px; line-height: 1.45; color: var(--c-text-dim, #9aa0a6); margin: 4px 0 6px; }
+#survBody .surv-msg.bad { color: #f87171; font-weight: 600; }
+#survBody .surv-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+#survBody .surv-row label { display: inline-flex; gap: 4px; align-items: center; font-size: 11px; }
+#survBody input[type=number] { width: 78px; }
+#survBody input[type=text] { width: 110px; }
+#survBody .surv-sub { font-size: 11px; font-weight: 600; margin-top: 6px; }
+#survBody .surv-file { position: relative; display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border: 1px dashed currentColor; border-radius: 3px; font-size: 11px; cursor: pointer; margin: 4px 0; }
+#survBody .surv-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+#survBody .surv-map summary { font-size: 11px; cursor: pointer; margin: 4px 0; }
+#survBody .surv-map code { font-size: 11px; width: 52px; display: inline-block; }
+#survPanel { margin: 0 0 12px; padding: 8px 10px; border: 1px solid #C2185B; border-radius: 4px; font-size: 12px; }
+#survPanel h3 { margin: 0 0 4px; font-size: 13px; }
+#survPanel p { margin: 4px 0; line-height: 1.4; }
+#survPanel .surv-flag { color: #b07800; }
+#survPanel .surv-tab { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+#survPanel .surv-tab th, #survPanel .surv-tab td { text-align: left; padding: 2px 4px; border-bottom: 1px solid rgba(128,128,128,.3); }
 #viewportGrid #planTabPlan .svg-wrap { flex:1 1 auto; min-height:0; overflow:hidden; padding:0; }
 #viewportGrid #planView { width:100%; height:100%; }
 #viewportGrid #seRoot { flex:1 1 auto; min-height:0; overflow:auto; }
@@ -16652,7 +16670,11 @@ function pkSerialize() {
       transit_stops:(typeof state !== 'undefined' && state['transit_stops']) ? JSON.parse(JSON.stringify(state['transit_stops'])) : [],
       prov:         (typeof state !== 'undefined' && state['__prov'])        ? JSON.parse(JSON.stringify(state['__prov']))        : {},
       siteMap:      (typeof state !== 'undefined' && state['__siteMap'])     ? JSON.parse(JSON.stringify(state['__siteMap']))     : null,
-      place:        (typeof state !== 'undefined' && state['__place'])       ? JSON.parse(JSON.stringify(state['__place']))       : null   // Brief 18 D: pkZ, corners
+      place:        (typeof state !== 'undefined' && state['__place'])       ? JSON.parse(JSON.stringify(state['__place']))       : null,   // Brief 18 D: pkZ, corners
+      // Brief 21: the neighbourhood (§8), the applied survey and the code map (§11)
+      neighbourhood:(typeof state !== 'undefined' && typeof state['__neighbourhood'] === 'string') ? state['__neighbourhood'] : '',
+      survey:       (typeof state !== 'undefined' && state['__survey'])      ? JSON.parse(JSON.stringify(state['__survey']))      : null,
+      surveyMap:    (typeof state !== 'undefined' && state['__surveyMap'])   ? JSON.parse(JSON.stringify(state['__surveyMap']))   : null
     },
     furniture: {
       placed: (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? FL3D.placed.map(function(inst) {
@@ -16825,6 +16847,9 @@ function pkApplyDesignState(raw) {
       state['__prov']        = data.siteObjects.prov          || {};
       state['__siteMap']     = data.siteObjects.siteMap       || null;
       state['__place']       = data.siteObjects.place         || { pkZ: 0, corners: [] };
+      state['__neighbourhood'] = data.siteObjects.neighbourhood || '';
+      state['__survey']      = data.siteObjects.survey        || null;
+      state['__surveyMap']   = data.siteObjects.surveyMap     || null;
     }
   }
 
@@ -17037,7 +17062,7 @@ var DEFAULT_STATE = Object.freeze({
     pole_trolley: '', signal_box_dist: '', manhole_dist: '', fire_exit_block: '', drainage_clear: '', boulevard_clear: '', parking_setback: '',
     platform_gap: '', load_capacity: '' },
   siteObjects: { manholes: [], curb_features: [], driveways: [], pkShape: null, street_trees: [], transit_stops: [], prov: {}, siteMap: null,
-    place: { pkZ: 0, corners: [] } },
+    place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, surveyMap: null },
   furniture: { placed: [], userDefs: [] }
 });
 function pkDefaultState(name, address) {
@@ -21292,7 +21317,7 @@ RPT.data = function(mode) {
   // Site from map (Brief 13): a check that depends on unconfirmed imported site data is provisional,
   // and so is the overall status until every imported item is confirmed
   var sp = typeof SMP !== 'undefined'; rows.forEach(function(r) { r.provisional = sp && SMP.isProvisional(r.id); });
-  var prov = sp && SMP.anyPending();
+  var prov = (sp && SMP.anyPending()) || !!(typeof state !== 'undefined' && state.__survey);   // a survey never lifts provisional status (Brief 21 §11)
   var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.slice() : [], gt = RPT.groupsFor(placed);
   return { mode: mode === 'technical' ? 'technical' : 'schematic', sample: !!window.PK_SAMPLE, DM: DM, rows: rows, n: n, overall: prov ? 'provisional' : n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
     opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null, groups: gt.groups, tags: gt.tags,
@@ -21417,6 +21442,8 @@ RPT.sources = function(d) {
   Object.keys(dates).filter(function(k) { return /^CoV /.test(k); }).sort().forEach(function(k) { std.push(['City of Vancouver open data: ' + k.slice(4), 'fetched ' + day(dates[k])]); });
   var mly = (d.renders || []).filter(function(r) { return r.mapillary; });
   if (mly.length) std.push(['Mapillary (CC BY-SA)', 'context photo for the photoreal renders: ' + mly.map(function(r) { return r.mapillary; }).join('; ')]);
+  var SV = typeof state !== 'undefined' ? state.__survey : null;   // Brief 21 §11: the survey's facts
+  if (SV) std.push(['Site survey', SV.file + ', ' + SV.date + (SV.surveyor ? ', ' + SV.surveyor : '') + '; frame: ' + SV.frame + (SV.placement ? ' (' + SV.placement + ')' : '') + '; ' + SV.points + ' points; ' + SV.inputs.length + ' of ' + SV.inputsM + ' inputs surveyed' + (SV.flagged && SV.flagged.notFound.length ? '; ' + SV.flagged.notFound.length + ' imported feature(s) not found on site' : '')]);
   // the design's renders (printed on A-000 in the schematic report): listed in both reports
   (d.renders || []).forEach(function(r, i) { std.push(['Visualisation ' + (i + 1) + ': ' + (RPT.PRESET_LBL[r.preset] || r.preset) + ' view', 'AI-assisted, indicative; ' + r.provider + ', rendered ' + r.date + (r.camera ? '; ' + r.camera : '') + (r.note ? '. ' + r.note : '')]); });
   var brands = {}; d.placed.forEach(function(p) { var pr = flPreset(p.objId); if (pr) brands[pr.brand] = (brands[pr.brand] || []).concat([pr.name + (pr.src ? ' - ' + pr.src : '')]); });
@@ -22470,8 +22497,8 @@ RPT.sheetDetails = function(d) {
 // Brief 21 §8: renders first, in both modes: the cover (the hero render full-bleed), one full-bleed sheet per ticked
 // render, then the drawing sheets, schedules, compliance and sources; the modes differ only in drawing style
 RPT.SHEETS = {
-  schematic: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources'],
-  technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'sources']
+  schematic: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'survey', 'sources'],
+  technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 RPT.sheetList = function(d) {
@@ -22482,7 +22509,7 @@ RPT.sheetList = function(d) {
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
     var M = { cover: ['V-000', 'Cover', 'NTS'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
       section: ['A-201', 'Section A-A', '1:' + RPT.SCALE_OF.section(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
-      compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], sources: ['X-001', 'Sources', '-'] }[k];
+      compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
   });
   return out;
@@ -22498,7 +22525,8 @@ RPT.BUILDERS = {
   details: function(d) { return RPT.sheetDetails(d); },
 
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
-  lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); }
+  lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); },
+  survey: function(d) { return RPT.surveySheet(d); }   // S-002 (Brief 21 §11)
 };
 // Furniture groups (one schedule row each: item, size, finish, preset) and the tag every placed piece carries
 // on the plans: made once per report, so the schedule and the drawings agree.
@@ -22946,6 +22974,8 @@ RPT.sheetCover = function(d, drw, op) {
     P.text(x + 48, sy + 7.6, 'Preliminary: not for construction', TX.body, { anchor: 'middle', bold: true, data: " data-cover='1'" });
     P.text(x + 102, sy + 4.8, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail,', TX.body, { data: " data-cover='1'" });
     P.text(x + 102, sy + 9.8, d.n.unclear + ' not confirmed' + (d.provisional ? ' (provisional)' : ''), TX.body, { data: " data-cover='1'" });
+    var sv = typeof SURV !== 'undefined' && SURV.summary ? SURV.summary() : null;   // Brief 21 §11
+    if (sv) P.text(x + 102, sy + 14.8, sv, TX.body, { data: " data-cover='1'" });
   } };
 };
 // a render sheet: the render across the whole sheet, a caption strip along the bottom (the sheet id, the view,
@@ -25661,8 +25691,8 @@ Object.defineProperty(SMP, 'R', { get: function() { return Math.min(SMP.INNER_R,
 SMP.prov = function() { if (!state.__prov || typeof state.__prov !== 'object') state.__prov = {}; return state.__prov; };
 SMP.set = function(key, source, id, at, note) { if (SMP._touched && SMP._touched.indexOf(key) < 0) SMP._touched.push(key); SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; };
 SMP.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
-SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', estimate: 'estimate', user: 'you' };
-SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', estimate: 'Estimate', user: 'You' };   // no abbreviations in labels (Brief 21 §2)
+SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', estimate: 'estimate', user: 'you', survey: 'site survey' };
+SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', estimate: 'Estimate', user: 'You', survey: 'Survey' };   // no abbreviations in labels (Brief 21 §2)
 // Site-tab fields that carry a tag: key -> the element whose .ff label gets it
 SMP.FIELDS = { sidewalk: 'sidewalkWidth', address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
   roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'bikeLaneToggle' };
@@ -25725,7 +25755,7 @@ SMP.objects = function() {
   return o;
 };
 SMP.unconfirmed = function() { return SMP.objects().filter(function(o) { return !o.obj.confirmed; }); };
-SMP.fieldPending = function(keys) { var P = SMP.prov(); return keys.filter(function(k) { return P[k] && P[k].source !== 'user'; }); };
+SMP.fieldPending = function(keys) { var P = SMP.prov(); return keys.filter(function(k) { return P[k] && P[k].source !== 'user' && P[k].source !== 'survey'; }); };   // a surveyed value is confirmed (Brief 21 §11)
 // A check is provisional while an import it depends on is unconfirmed
 SMP.isProvisional = function(critId) {
   var un = SMP.unconfirmed();
@@ -25764,7 +25794,7 @@ SMP.renderCheck = function() {
   SMP.renderAdvice();
   var host = document.getElementById('smpCheck');
   if (!host) { var cl = document.getElementById('criteriaList'); if (!cl) return; host = document.createElement('div'); host.id = 'smpCheck'; var sd = document.getElementById('chkSide'); if (sd) sd.appendChild(host); else cl.parentNode.insertBefore(host, cl); }   // the confirm-on-site list: the Check tab's left panel (Brief 21 §3)
-  var objs = SMP.objects(), P = SMP.prov(), fields = Object.keys(P).filter(function(k) { return P[k].source !== 'user' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); });
+  var objs = SMP.objects(), P = SMP.prov(), fields = Object.keys(P).filter(function(k) { return P[k].source !== 'user' && P[k].source !== 'survey' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); });
   if (!objs.length && !fields.length) { host.hidden = true; host.innerHTML = ''; return; }
   host.hidden = false;
   var n = objs.filter(function(o) { return !o.obj.confirmed; }).length + fields.length;
@@ -27175,6 +27205,382 @@ function uiSiteStepStatus() {
   };
   set(1, s1 ? 'done' : 'next'); set(2, s2 ? 'done' : s1 ? 'next' : 'wait'); set(3, s3 ? 'done' : s2 ? 'next' : 'wait');
 }
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
+// SITE SURVEY (Brief 21 §11): a third provenance level, 'survey', above the estimate and what the user typed.
+// One import path for a point file (CSV / TXT / DXF points), DXF linework (points on named layers) and the filled
+// S-002 template. A point file in a local frame is placed by two known points (e.g. two deck corners); lat / lon
+// goes through the site frame. Every point shows on the Plan before anything changes. Apply: each surveyed feature
+// is matched to an existing one within 0.5 m (objects) and updated; unmatched ones are added and flagged; existing
+// ones inside the surveyed extent with no counterpart are flagged "not found on site" (never deleted). Curb, lane and
+// building lines recompute the street's widths; top-of-curb points the grade. Every check re-runs; the Survey panel
+// shows before -> after per check. The design stays provisional; Undo restores the estimates.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════
+var SURV = { draft: null, undoSnap: null, TOL_OBJ: 0.5, TOL_LINE: 0.3 };
+SURV.KINDS = { curb: 'Curb face', hydrant: 'Fire hydrant', pole: 'Pole', signal: 'Signal controller', manhole: 'Manhole / catch basin', tree: 'Street tree',
+  busStop: 'Bus stop', driveway: 'Driveway', building: 'Building face', lane: 'Lane line', bikeLane: 'Bike lane line', toc: 'Top of curb (elevation)', ignore: 'Ignore' };
+SURV.DEFAULT_MAP = { CURB: 'curb', EOP: 'curb', HYD: 'hydrant', POLE: 'pole', SIG: 'signal', MH: 'manhole', CB: 'manhole', TREE: 'tree', BS: 'busStop', DW: 'driveway', BLDG: 'building', LANE: 'lane', BL: 'bikeLane', TOC: 'toc' };
+SURV.map = function() { var m = (typeof state !== 'undefined' && state.__surveyMap) || {}; return Object.assign({}, SURV.DEFAULT_MAP, m); };
+SURV.kindOf = function(code) { var M = SURV.map(), c = String(code || '').trim().toUpperCase(); if (M[c]) return M[c]; var base = c.replace(/[\d_\-.]+$/, ''); return M[base] || null; };
+// the surveyable inputs: what "N of M inputs surveyed" counts (M = 14)
+SURV.INPUTS = [
+  { id: 'sidewalk', label: 'Sidewalk width', kinds: ['curb', 'building'] }, { id: 'roadWidth', label: 'Curb-to-curb width', kinds: ['curb'] },
+  { id: 'parkingLane', label: 'Parking lane width', kinds: ['lane'] }, { id: 'travelLanes', label: 'Travel lane widths (C02)', kinds: ['lane'] },
+  { id: 'bikeLane', label: 'Bike lane width', kinds: ['bikeLane'] }, { id: 'slope', label: 'Street slope (C04)', kinds: ['toc'] },
+  { id: 'hydrant_dist', label: 'Hydrant clearance (C05)', kinds: ['hydrant'] }, { id: 'driveway_dist', label: 'Driveway setback (C06)', kinds: ['driveway'] },
+  { id: 'pole_dist', label: 'Pole clearance (C07)', kinds: ['pole'] }, { id: 'signal_box_dist', label: 'Signal box clearance (C08)', kinds: ['signal'] },
+  { id: 'manhole_dist', label: 'Manhole clearance (C09)', kinds: ['manhole'] }, { id: 'boulevard_clear', label: 'Pedestrian clearance (C12)', kinds: ['curb', 'building'] },
+  { id: 'busZone', label: 'Bus zone (C01)', kinds: ['busStop'] }, { id: 'trees', label: 'Street trees', kinds: ['tree'] }];
+// which surveyed kinds drive each check
+SURV.DRIVERS = { c1: ['busStop'], c2: ['curb', 'lane', 'bikeLane'], c4: ['toc'], c5: ['hydrant'], c6: ['driveway'], c7: ['pole'], c8: ['signal'], c9: ['manhole'], c12: ['curb', 'building'] };
+
+// ── parsing ──────────────────────────────────────────────────────────────────────────────────────────
+SURV.num = function(v) { var n = parseFloat(String(v == null ? '' : v).trim().replace(',', '.')); return isFinite(n) ? n : null; };
+SURV.parse = function(text, name) {
+  if (/\.dxf$/i.test(name || '') || /^\s*0\s*\r?\n\s*SECTION/i.test(text)) return SURV.parseDXF(text);
+  var lines = String(text).split(/\r?\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l && !/^#/.test(l); });
+  if (!lines.length) throw new Error('the file is empty');
+  var split = function(l) { return l.indexOf(',') >= 0 ? l.split(',') : l.indexOf(';') >= 0 ? l.split(';') : l.indexOf('\t') >= 0 ? l.split('\t') : l.split(/\s+/); };
+  var first = split(lines[0]).map(function(s) { return s.trim(); }), hasHead = first.filter(function(s) { return SURV.num(s) === null; }).length >= 2, col = {};
+  if (hasHead) {
+    first.forEach(function(h, i) { var k = h.toLowerCase().replace(/[^a-z]/g, '');
+      if (/^(code|desc|description|feature|layer)$/.test(k) && col.code == null) col.code = i;
+      else if (/^(x|e|east|easting|lon|lng|longitude)$/.test(k)) col.x = i; else if (/^(y|n|north|northing|lat|latitude)$/.test(k)) col.y = i;
+      else if (/^(z|elev|elevation|h|height|rl)$/.test(k)) col.z = i; else if (/^(dbh|dbhcm|diameter)$/.test(k)) col.dbh = i;
+      else if (/^(species|genus|name)$/.test(k)) col.species = i; else if (/^(id|pt|point|no|number)$/.test(k)) col.id = i; });
+    lines = lines.slice(1);
+  }
+  var rows = [];
+  lines.forEach(function(l, li) {
+    var f = split(l).map(function(s) { return s.trim(); }), c = col;
+    if (!hasHead) {   // code, x, y, z[, dbh, species] -- or id, code, x, y, z ...: the code is the first non-numeric field
+      var ci = f.findIndex(function(s) { return SURV.num(s) === null; }); if (ci < 0) return;
+      c = { code: ci, x: ci + 1, y: ci + 2, z: ci + 3, dbh: ci + 4, species: ci + 5, id: ci > 0 ? 0 : null };
+    }
+    var x = SURV.num(f[c.x]), y = SURV.num(f[c.y]); if (x === null || y === null) return;
+    rows.push({ i: rows.length, line: li + (hasHead ? 2 : 1), id: c.id != null ? f[c.id] : String(rows.length + 1), code: String(f[c.code] || '').toUpperCase(), x: x, y: y, z: SURV.num(f[c.z]),
+      dbh: c.dbh != null ? SURV.num(f[c.dbh]) : null, species: c.species != null && f[c.species] && SURV.num(f[c.species]) === null ? f[c.species] : null });
+  });
+  if (!rows.length) throw new Error('no rows with a code and two coordinates');
+  return rows;
+};
+// DXF: POINT entities (the layer is the code) and the vertices of LINE / LWPOLYLINE / POLYLINE on named layers
+SURV.parseDXF = function(text) {
+  var L = String(text).split(/\r?\n/), pairs = [], ents = [], cur = null, inEnt = false;
+  for (var i = 0; i + 1 < L.length; i += 2) pairs.push([parseInt(L[i], 10), L[i + 1].trim()]);
+  pairs.forEach(function(p) {
+    if (p[0] === 2 && p[1] === 'ENTITIES') inEnt = true;
+    if (!inEnt) return;
+    if (p[0] === 0) { if (cur) ents.push(cur); cur = { t: p[1], layer: '', x: [], y: [], z: [] }; return; }
+    if (!cur) return;
+    if (p[0] === 8) cur.layer = p[1]; else if (p[0] === 10) cur.x.push(+p[1]); else if (p[0] === 20) cur.y.push(+p[1]); else if (p[0] === 30) cur.z.push(+p[1]); else if (p[0] === 11) cur.x.push(+p[1]); else if (p[0] === 21) cur.y.push(+p[1]);
+  });
+  if (cur) ents.push(cur);
+  var rows = [], line = 0;
+  ents.forEach(function(e) {
+    if (!/^(POINT|LINE|LWPOLYLINE|VERTEX)$/.test(e.t)) return;
+    var lid = e.t === 'POINT' ? null : 'L' + (++line);
+    e.x.forEach(function(x, k) { if (e.y[k] == null) return; rows.push({ i: rows.length, line: null, id: e.t.toLowerCase() + (rows.length + 1), code: String(e.layer || '').toUpperCase(), x: x, y: e.y[k], z: e.z[k] != null ? e.z[k] : null, dbh: null, species: null, lineId: lid }); });
+  });
+  if (!rows.length) throw new Error('no POINT, LINE or polyline entities in the DXF');
+  return rows;
+};
+
+// ── the frame: survey (x = easting, y = northing) -> the model's plan (x across, z along) ──────────────
+// A right-handed survey frame lands on the model's ground as (u, v) = (x, -z) (x cross z = -y), so the fit is a
+// rotation and a translation in (u, v); the scale is not fitted, only reported (it should be 1).
+SURV.solve = function(pairs) {
+  if (!pairs || pairs.length < 2) throw new Error('two placement points are needed');
+  var a = pairs[0], b = pairs[1], su = [b.s[0] - a.s[0], b.s[1] - a.s[1]], mu = [b.m.x - a.m.x, -(b.m.z - a.m.z)];
+  var ls = Math.hypot(su[0], su[1]), lm = Math.hypot(mu[0], mu[1]); if (ls < 1e-6) throw new Error('the two placement points are the same');
+  var th = Math.atan2(mu[1], mu[0]) - Math.atan2(su[1], su[0]), c = Math.cos(th), s = Math.sin(th);
+  var tu = a.m.x - (c * a.s[0] - s * a.s[1]), tv = -a.m.z - (s * a.s[0] + c * a.s[1]);
+  return { th: th, c: c, s: s, tu: tu, tv: tv, scale: lm / ls, misfit: Math.abs(lm - ls),
+    to: function(x, y) { var u = c * x - s * y + tu, v = s * x + c * y + tv; return { x: u, z: -v }; } };
+};
+// the model points a placement can use: the deck corners and the site objects
+SURV.anchors = function() {
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, out = [
+    { key: 'deckA0', name: 'Deck corner, start, curb side', x: LM.deckX0, z: 0 }, { key: 'deckA1', name: 'Deck corner, start, road side', x: LM.deckX1, z: 0 },
+    { key: 'deckB0', name: 'Deck corner, end, curb side', x: LM.deckX0, z: L }, { key: 'deckB1', name: 'Deck corner, end, road side', x: LM.deckX1, z: L }];
+  (state.curb_features || []).forEach(function(f, i) { if (typeof f.xM === 'number') out.push({ key: 'cf' + i, name: ({ H: 'Hydrant', P: 'Pole', S: 'Signal box' }[f.type] || 'Object') + ' at z ' + f.xM.toFixed(1), x: typeof f.yM === 'number' ? f.yM : -0.22, z: f.xM }); });
+  return out;
+};
+SURV.anchor = function(key) { return SURV.anchors().find(function(a) { return a.key === key; }) || null; };
+// a draft: the file's rows placed in the model, each with its kind; nothing in the design changes
+SURV.prepare = function(o) {
+  var rows = SURV.parse(o.text, o.name), frame = o.frame || 'local', F = null, out = { file: o.name || 'survey', date: o.date || new Date().toISOString().slice(0, 10), surveyor: o.surveyor || '', frame: frame, rows: rows };
+  if (frame === 'latlon') { var SF = SMP.frame(); F = { to: function(x, y) { var w = SF.w(y, x); return { x: w.x, z: w.z }; }, scale: 1, misfit: 0 }; out.placement = 'latitude / longitude (the site frame)'; }
+  else {
+    var P = (o.pairs || []).map(function(p) { var m = p.m || SURV.anchor(p.anchor); if (!m) throw new Error('unknown placement point ' + p.anchor); return { s: p.s, m: m }; });
+    F = SURV.solve(P); out.placement = P.map(function(p) { return '(' + p.s[0] + ', ' + p.s[1] + ') = ' + (p.m.name || 'model ' + p.m.x.toFixed(2) + ', ' + p.m.z.toFixed(2)); }).join('; ');
+    out.scale = +F.scale.toFixed(5); out.misfit = +F.misfit.toFixed(3);
+  }
+  rows.forEach(function(r) { var p = F.to(r.x, r.y); r.mx = +p.x.toFixed(3); r.mz = +p.z.toFixed(3); r.kind = SURV.kindOf(r.code); });
+  out.unknown = rows.filter(function(r) { return !r.kind; }).map(function(r) { return r.code; }).filter(function(c, i, a) { return a.indexOf(c) === i; });
+  var zs = rows.map(function(r) { return r.mz; }); out.extent = { z0: Math.min.apply(null, zs) - SURV.TOL_OBJ, z1: Math.max.apply(null, zs) + SURV.TOL_OBJ };
+  SURV.draft = out;
+  try { renderPlanView(); } catch (e) {}
+  return out;
+};
+
+// ── the Plan preview: every point in its own colour, the kind's code beside it ─────────────────────
+SURV.COLOR = '#C2185B';
+SURV.draw = function() {
+  var svg = document.getElementById('planView'); if (!svg) return;
+  var g = svg.querySelector('#pvSurv'); if (g) g.remove();
+  var D = SURV.draft; if (!D) return;
+  var m = svg.getScreenCTM(); if (!m) return;
+  var U = 1 / Math.max(1e-6, Math.abs(m.a)), f = function(v) { return (+v).toFixed(2); }, o = [];
+  D.rows.forEach(function(r) {
+    var p = worldToPlan(r.mx, r.mz), col = r.kind && r.kind !== 'ignore' ? SURV.COLOR : '#888888';
+    o.push("<g data-survey='" + r.i + "' data-kind='" + (r.kind || 'unknown') + "'><circle cx='" + f(p.px) + "' cy='" + f(p.py) + "' r='" + f(3.5 * U) + "' fill='" + col + "' stroke='#fff' stroke-width='" + f(U) + "'/>" +
+      "<text x='" + f(p.px + 5 * U) + "' y='" + f(p.py - 4 * U) + "' font-family='" + DRAW_STYLE.FONT + "' font-size='" + f(9 * U) + "' fill='" + col + "' stroke='#fff' stroke-width='" + f(2.5 * U) + "' paint-order='stroke'>" + SM.esc(r.code + (r.kind ? '' : ' ?')) + '</text></g>');
+  });
+  var gg = document.createElementNS('http://www.w3.org/2000/svg', 'g'); gg.setAttribute('id', 'pvSurv'); gg.innerHTML = o.join(''); svg.appendChild(gg);
+};
+(function() { var _r = renderPlanView; renderPlanView = function(o) { var r = _r.apply(this, arguments); if (!o || !o.svg) { try { SURV.draw(); } catch (e) {} } return r; }; window.renderPlanView = renderPlanView; })();
+
+// ── the checks, before and after ────────────────────────────────────────────────────────────────────
+SURV.checkState = function() {
+  var out = {};
+  criteria.forEach(function(c) { out[c.id] = { status: getCriterionStatus(c), value: c.inputId ? (state[c.inputId] === undefined ? null : state[c.inputId]) : null, num: c.num, title: c.title }; });
+  var DM = _dmCurrent(); out.c2.value = (DM.lanes || []).map(function(l) { return (+l.width).toFixed(2); }).join(' + ');
+  return out;
+};
+
+// ── apply ───────────────────────────────────────────────────────────────────────────────────────────
+SURV.apply = function() {
+  var D = SURV.draft; if (!D) throw new Error('prepare a survey first');
+  SURV.undoSnap = JSON.stringify(pkSerialize());
+  var before = SURV.checkState(), at = new Date().toISOString(), DM = _dmCurrent(), LM = DM.landmarks, surveyed = {}, notes = [];
+  var prov = function(r) { return { source: 'survey', dataset: D.file, id: r.id, fetchedAt: at, surveyDate: D.date }; };
+  var byKind = function(k) { return D.rows.filter(function(r) { return r.kind === k; }); };
+  var inExt = function(z) { return z >= D.extent.z0 && z <= D.extent.z1; };
+  // objects: match within 0.5 m, update, keep the estimate; add the unmatched; flag the ones not found
+  var objects = function(kind, list, filter, make) {
+    var pts = byKind(kind); if (!pts.length) return;
+    var arr = (state[list] || []).slice(), used = {};
+    pts.forEach(function(r) {
+      var best = -1, bd = SURV.TOL_OBJ;
+      arr.forEach(function(o, i) { if (used[i] || !filter(o)) return; var d = Math.hypot((typeof o.yM === 'number' ? o.yM : 0) - r.mx, (+o.xM) - r.mz); if (d <= bd) { bd = d; best = i; } });
+      if (best >= 0) {
+        var o = arr[best]; used[best] = 1;
+        o.estimate = { xM: o.xM, yM: o.yM, prov: o.prov || null }; o.xM = r.mz; o.yM = r.mx; o.prov = prov(r); o.confirmed = true; o.surveyed = true; o.surveyMoved = +bd.toFixed(3); delete o.notFoundOnSite;
+        if (kind === 'tree') { if (r.dbh) o.dbhCm = r.dbh; if (r.species) o.species = r.species; }
+      } else { var n = make(r); n.prov = prov(r); n.confirmed = true; n.surveyed = true; n.newFromSurvey = true; arr.push(n); used[arr.length - 1] = 1; }
+    });
+    arr.forEach(function(o, i) { if (!used[i] && filter(o) && inExt(+o.xM) && !o.surveyed) o.notFoundOnSite = true; });
+    state[list] = arr; surveyed[kind] = pts.length;
+  };
+  objects('hydrant', 'curb_features', function(o) { return o.type === 'H'; }, function(r) { return { id: 'svy-' + r.id, type: 'H', xM: r.mz, yM: r.mx }; });
+  objects('pole', 'curb_features', function(o) { return o.type === 'P'; }, function(r) { return { id: 'svy-' + r.id, type: 'P', xM: r.mz, yM: r.mx }; });
+  objects('signal', 'curb_features', function(o) { return o.type === 'S'; }, function(r) { return { id: 'svy-' + r.id, type: 'S', xM: r.mz, yM: r.mx }; });
+  objects('manhole', 'manholes', function() { return true; }, function(r) { return { id: 'svy-' + r.id, xM: r.mz, yM: r.mx }; });
+  objects('tree', 'street_trees', function() { return true; }, function(r) { return { id: 'svy-' + r.id, xM: r.mz, yM: r.mx, species: r.species || '', dbhCm: r.dbh, height: null }; });
+  objects('busStop', 'transit_stops', function(o) { return o.kind !== 'rapid'; }, function(r) { return { id: 'svy-' + r.id, kind: 'bus', name: '', xM: r.mz, yM: r.mx }; });
+  objects('driveway', 'driveways', function() { return true; }, function(r) { return { id: 'svy-' + r.id, xM: r.mz, yM: r.mx }; });
+  // lines: the near and far curbs, the building face, the lane and bike-lane lines (x across, relative to the near curb)
+  var mean = function(a) { return a.reduce(function(s, v) { return s + v; }, 0) / a.length; };
+  var cluster = function(xs) { xs = xs.slice().sort(function(a, b) { return a - b; }); var out = []; xs.forEach(function(x) { var c = out[out.length - 1]; if (c && x - c[c.length - 1] <= SURV.TOL_LINE) c.push(x); else out.push([x]); }); return out.map(mean); };
+  var curb = byKind('curb'), mid = LM.roadCenterX != null ? LM.roadCenterX : (LM.roadRight || 6) / 2;
+  var nearC = curb.filter(function(r) { return r.mx < mid; }).map(function(r) { return r.mx; }), farC = curb.filter(function(r) { return r.mx >= mid; }).map(function(r) { return r.mx; });
+  var cN = nearC.length ? mean(nearC) : null, cF = farC.length ? mean(farC) : null, bldg = byKind('building').map(function(r) { return r.mx; });
+  var line = { nearCurb: cN, farCurb: cF };
+  if (cN !== null || bldg.length) {
+    var front = bldg.length ? mean(bldg) : LM.sidewalkL.x0, ref = cN !== null ? cN : LM.sidewalkL.x1, sw = +(ref - front).toFixed(3);
+    if (sw >= 0.3) { var el = document.getElementById('sidewalkWidth'); if (el) { el.value = sw; onSidewalkWidthChange(); } SMP.set('sidewalk', 'survey', D.file, at, (bldg.length ? 'building face ' : 'frontage line ') + 'to the surveyed curb'); surveyed.sidewalk = sw; surveyed.boulevard_clear = sw; line.sidewalk = sw; }
+    if (cN !== null && Math.abs(cN - LM.sidewalkL.x1) > 0.005) notes.push('the surveyed curb is ' + (cN - LM.sidewalkL.x1).toFixed(3) + ' m from the model curb at the placement points (the deck edge stays at the curb)');
+  }
+  if (cN !== null && cF !== null) {
+    var rw = +(cF - cN).toFixed(3), rel = document.getElementById('roadWidth');
+    if (rel) { rel.value = rw; onRoadWidthChange(); } SMP.set('roadWidth', 'survey', D.file, at, 'near to far curb, ' + nearC.length + ' + ' + farC.length + ' points'); surveyed.roadWidth = rw; line.roadWidth = rw;
+  }
+  var lanes = cluster(byKind('lane').map(function(r) { return r.mx; }));
+  if (lanes.length && cN !== null) {
+    var edges = [cN].concat(lanes).concat(cF !== null ? [cF] : []), widths = []; for (var i = 1; i < edges.length; i++) widths.push(+(edges[i] - edges[i - 1]).toFixed(3));
+    line.laneLines = lanes.map(function(x) { return +(x - cN).toFixed(3); }); line.measuredWidths = widths;
+    surveyed.parkingLane = widths[0]; surveyed.travelLanes = widths.slice(1);
+    notes.push('surveyed lane widths ' + widths.map(function(w) { return w.toFixed(2); }).join(' / ') + ' m (curb to curb); the model spreads the travel lanes by EDM Table 8-10 from the surveyed curb-to-curb width');
+  }
+  var bl = cluster(byKind('bikeLane').map(function(r) { return r.mx; }));
+  if (bl.length >= 2 && typeof designBikeLane !== 'undefined' && designBikeLane !== 'none') { var bw = +(bl[1] - bl[0]).toFixed(3); designBikeLaneW = bw; surveyed.bikeLane = bw; line.bikeLane = bw; }
+  // the grade: top-of-curb elevations along the street
+  var toc = byKind('toc').filter(function(r) { return r.z !== null; });
+  if (toc.length >= 2) {
+    var zs = toc.map(function(r) { return r.mz; }), es = toc.map(function(r) { return r.z; }), mz = mean(zs), me = mean(es), sxy = 0, sxx = 0;
+    zs.forEach(function(z, k) { sxy += (z - mz) * (es[k] - me); sxx += (z - mz) * (z - mz); });
+    if (sxx > 1e-6) { var sl = +(Math.abs(sxy / sxx) * 100).toFixed(2); state.slope = sl; var se = document.getElementById('slope'); if (se) se.value = sl; handleInput('c4', 'slope', sl); SMP.set('slope', 'survey', D.file, at, toc.length + ' top-of-curb points, least-squares grade'); surveyed.slope = sl; line.slope = sl; }
+  }
+  // every check re-runs from the updated objects and lines
+  try { updateCurbFeatureDists(); } catch (e) {} try { updateManholeCrit(); } catch (e) {} try { updateDrivewayDist(); } catch (e) {}
+  ['hydrant', 'pole', 'signal', 'manhole', 'driveway', 'busStop', 'tree'].forEach(function(k) { if (surveyed[k]) surveyed[{ hydrant: 'hydrant_dist', pole: 'pole_dist', signal: 'signal_box_dist', manhole: 'manhole_dist', driveway: 'driveway_dist', busStop: 'busZone', tree: 'trees' }[k]] = surveyed[k]; });
+  SURV.draft = null;
+  try { SMP.refresh(); } catch (e) { try { syncDesignModel('survey'); } catch (e2) {} }
+  var after = SURV.checkState(), changes = [];
+  criteria.forEach(function(c) {
+    var b = before[c.id], a = after[c.id], drv = (SURV.DRIVERS[c.id] || []).filter(function(k) { return byKind(k).length; });
+    if (String(b.value) !== String(a.value) || b.status !== a.status || drv.length)
+      changes.push({ id: c.id, num: c.num, title: c.title, before: b.value, after: a.value, statusBefore: b.status, statusAfter: a.status, drivers: drv.map(function(k) { return SURV.KINDS[k] + ' (' + byKind(k).map(function(r) { return r.id; }).join(', ') + ')'; }) });
+  });
+  var inputs = SURV.INPUTS.filter(function(q) { return surveyed[q.id] !== undefined; }).map(function(q) { return q.id; });
+  var flagged = { notFound: [], added: [] };
+  ['curb_features', 'manholes', 'street_trees', 'transit_stops', 'driveways'].forEach(function(lst) { (state[lst] || []).forEach(function(o) { if (o.notFoundOnSite) flagged.notFound.push(lst + ' ' + o.id); if (o.newFromSurvey && o.prov && o.prov.fetchedAt === at) flagged.added.push(lst + ' ' + o.id); }); });
+  state.__survey = { file: D.file, date: D.date, surveyor: D.surveyor, frame: D.frame, placement: D.placement, scale: D.scale, misfit: D.misfit, points: D.rows.length, unknown: D.unknown, appliedAt: at,
+    extent: D.extent, lines: line, inputs: inputs, inputsM: SURV.INPUTS.length, changes: changes, flagged: flagged, notes: notes };
+  try { saveSettings(); } catch (e) {}
+  SURV.renderPanel();
+  return state.__survey;
+};
+SURV.undo = function() {
+  if (!SURV.undoSnap) return false;
+  var snap = JSON.parse(SURV.undoSnap);
+  pkApplyDesignState(snap); SURV.undoSnap = null; SURV.draft = null;
+  state.__survey = (snap.siteObjects && snap.siteObjects.survey) || null;   // the survey record as it was before
+  try { SMP.refresh(); } catch (e) {} SURV.renderPanel();
+  return true;
+};
+SURV.summary = function() { var S = typeof state !== 'undefined' ? state.__survey : null; return S ? S.inputs.length + ' of ' + S.inputsM + ' inputs surveyed' : null; };
+
+// ── the Check tab's Survey panel: per check, before -> after, the result, the points that drove it ────
+SURV.renderPanel = function() {
+  var side = document.getElementById('chkSide'); if (!side) return;
+  var host = document.getElementById('survPanel'), S = state.__survey;
+  if (!S) { if (host) host.remove(); return; }
+  if (!host) { host = document.createElement('div'); host.id = 'survPanel'; side.insertBefore(host, side.firstChild); }
+  var st = function(s) { return s === 'pass' ? 'Pass' : s === 'fail' ? 'Fail' : 'Not entered'; };
+  host.innerHTML = '<h3>Survey</h3><p>' + SM.esc(S.file) + ' (' + SM.esc(S.date) + (S.surveyor ? ', ' + SM.esc(S.surveyor) : '') + '): ' + S.points + ' points; ' + SURV.summary() + '. The design stays provisional until the City confirms it.</p>' +
+    '<table class="surv-tab"><thead><tr><th>Check</th><th>Before</th><th>After</th><th>Result</th></tr></thead><tbody>' +
+    S.changes.map(function(c) { return '<tr><td title="' + SM.esc(c.drivers.join('; ')) + '">C' + c.num + '</td><td>' + SM.esc(c.before == null ? '-' : String(c.before)) + '</td><td>' + SM.esc(c.after == null ? '-' : String(c.after)) + '</td><td>' + st(c.statusBefore) + (c.statusAfter !== c.statusBefore ? ' → <b>' + st(c.statusAfter) + '</b>' : '') + '</td></tr>'; }).join('') + '</tbody></table>' +
+    (S.flagged.notFound.length ? '<p class="surv-flag">Not found on site (kept, flagged): ' + S.flagged.notFound.length + '</p>' : '') + (S.flagged.added.length ? '<p class="surv-flag">Added from the survey (flagged): ' + S.flagged.added.length + '</p>' : '') +
+    (S.unknown && S.unknown.length ? '<p class="surv-flag">Codes not in the map (listed, not applied): ' + SM.esc(S.unknown.join(', ')) + '</p>' : '') +
+    "<button type='button' class='smp-confirm' onclick='SURV.undo()' title='Restores every value the survey changed to its estimate.'>Undo the survey</button>";
+};
+
+// ── S-002: every confirm-on-site item with its value now and a blank "measured" column; the same list as a CSV
+SURV.items = function() {
+  var DM = _dmCurrent(), P = SMP.prov(), v = function(k) { var x = state[k]; return x === undefined || x === null || x === '' ? '' : String(x); }, out = [];
+  out.push({ key: 'sidewalk_width', item: 'Sidewalk width, frontage to curb face', unit: 'm', now: (+DM.landmarks.sidewalkW).toFixed(2), src: (P.sidewalk || {}).source || 'estimate' });
+  out.push({ key: 'road_width', item: 'Curb-to-curb width', unit: 'm', now: (+DM.totalRoad).toFixed(2), src: (P.roadWidth || {}).source || 'estimate' });
+  (DM.crossSection || []).forEach(function(s) { if (s.type !== 'sidewalk') out.push({ key: 'seg_' + s.id, item: (s.type || '').replace(/-/g, ' ') + ' width', unit: 'm', now: (+s.width).toFixed(2), src: 'model' }); });
+  [['slope', 'Street slope along the curb (C04)', '%'], ['hydrant_dist', 'Nearest hydrant to the deck (C05)', 'm'], ['driveway_dist', 'Nearest driveway to the deck (C06)', 'm'], ['pole_dist', 'Nearest pole to the deck (C07)', 'm'],
+   ['signal_box_dist', 'Nearest signal box to the deck (C08)', 'm'], ['manhole_dist', 'Nearest manhole / valve to the deck (C09)', 'm'], ['intersection_dist', 'Nearest intersection / crosswalk (C03)', 'm']].forEach(function(q) { out.push({ key: q[0], item: q[1], unit: q[2], now: v(q[0]), src: (P[q[0]] || {}).source || (v(q[0]) ? 'entered' : '') }); });
+  SMP.objects().forEach(function(o) { var f = o.obj; out.push({ key: 'obj_' + o.list + '_' + f.id, item: o.label + ' at ' + SMP.where(f), unit: 'm (z)', now: (+f.xM).toFixed(2), src: (f.prov || {}).source || '' }); });
+  return out;
+};
+SURV.template = function() {
+  var rows = [['key', 'item', 'unit', 'current', 'measured']].concat(SURV.items().map(function(r) { return [r.key, r.item, r.unit, r.now, '']; }));
+  var csv = rows.map(function(r) { return r.map(function(c) { c = String(c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(','); }).join('\n');
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'curbside-site-survey-template.csv'; document.body.appendChild(a); a.click(); a.remove();
+  return csv;
+};
+// a filled template: the measured values go in with provenance 'survey' (the same Survey panel and Undo)
+SURV.applyTemplate = function(text, name) {
+  var lines = String(text).split(/\r?\n/).filter(Boolean), head = lines.shift().split(',').map(function(s) { return s.trim().toLowerCase(); }), ki = head.indexOf('key'), mi = head.indexOf('measured');
+  if (ki < 0 || mi < 0) throw new Error('not a Curbside survey template (key and measured columns)');
+  var parseRow = function(l) { var out = [], cur = '', q = false; for (var i = 0; i < l.length; i++) { var ch = l[i]; if (q) { if (ch === '"' && l[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; } else if (ch === '"') q = true; else if (ch === ',') { out.push(cur); cur = ''; } else cur += ch; } out.push(cur); return out; };
+  SURV.undoSnap = JSON.stringify(pkSerialize());
+  var before = SURV.checkState(), at = new Date().toISOString(), done = [];
+  lines.forEach(function(l) {
+    var f = parseRow(l), k = (f[ki] || '').trim(), v = SURV.num(f[mi]); if (!k || v === null) return;
+    if (k === 'sidewalk_width') { var e1 = document.getElementById('sidewalkWidth'); if (e1) { e1.value = v; onSidewalkWidthChange(); } SMP.set('sidewalk', 'survey', name, at, 'S-002 template'); done.push('sidewalk'); }
+    else if (k === 'road_width') { var e2 = document.getElementById('roadWidth'); if (e2) { e2.value = v; onRoadWidthChange(); } SMP.set('roadWidth', 'survey', name, at, 'S-002 template'); done.push('roadWidth'); }
+    else if (/^(slope|hydrant_dist|driveway_dist|pole_dist|signal_box_dist|manhole_dist|intersection_dist)$/.test(k)) {
+      var c = criteria.find(function(q) { return q.inputId === k; }); state[k] = v; var e3 = document.getElementById(k); if (e3) e3.value = v; if (c) handleInput(c.id, k, v); SMP.set(k, 'survey', name, at, 'S-002 template'); done.push(k);
+    }
+  });
+  try { SMP.refresh(); } catch (e) {}
+  var after = SURV.checkState(), changes = criteria.filter(function(c) { return String(before[c.id].value) !== String(after[c.id].value) || before[c.id].status !== after[c.id].status; })
+    .map(function(c) { return { id: c.id, num: c.num, title: c.title, before: before[c.id].value, after: after[c.id].value, statusBefore: before[c.id].status, statusAfter: after[c.id].status, drivers: ['S-002 template'] }; });
+  var map = { sidewalk: 'sidewalk', roadWidth: 'roadWidth', slope: 'slope', hydrant_dist: 'hydrant_dist', driveway_dist: 'driveway_dist', pole_dist: 'pole_dist', signal_box_dist: 'signal_box_dist', manhole_dist: 'manhole_dist' };
+  state.__survey = { file: name, date: at.slice(0, 10), surveyor: '', frame: 'S-002 template', placement: 'values typed on site', points: done.length, unknown: [], appliedAt: at, inputs: done.map(function(k) { return map[k]; }).filter(Boolean), inputsM: SURV.INPUTS.length, changes: changes, flagged: { notFound: [], added: [] }, notes: [] };
+  try { saveSettings(); } catch (e) {}
+  SURV.renderPanel();
+  return state.__survey;
+};
+// the report's S-002 sheet (a text sheet: the items, their values now, a blank column to measure into)
+RPT.surveySheet = function(d) {
+  var S = state.__survey, rows = SURV.items().map(function(r) { return [r.item, r.now ? r.now + ' ' + r.unit : '-', r.src || '-', '']; });
+  var blocks = [{ h2: 'Confirm on site' }, { p: 'Measure each item on site and write the value in the last column; enter them in Curbside with the survey template (Site > Survey), or import a survey point file.' },
+    { table: { cols: [{ t: 'Item', w: 0.46 }, { t: 'Value now', w: 0.18, num: true }, { t: 'Source', w: 0.16 }, { t: 'Measured', w: 0.2 }], rows: rows } }];
+  if (S) blocks.push({ h2: 'Survey applied' }, { kv: [['File', S.file], ['Date', S.date + (S.surveyor ? ', ' + S.surveyor : '')], ['Frame', S.frame + (S.placement ? ': ' + S.placement : '')], ['Points', String(S.points)], ['Inputs surveyed', S.inputs.length + ' of ' + S.inputsM]] });
+  return RPT.textSheet('S-002', 'Site survey', 'values to confirm on site', blocks);
+};
+
+// the Site tab's step 4: Survey (optional)
+SURV.ui = function() {
+  var s3 = document.getElementById('siteStep3'); if (!s3) return;
+  var s4 = document.getElementById('siteStep4');
+  if (!s4) {
+    s4 = document.createElement('div'); s4.className = 'site-step'; s4.id = 'siteStep4';
+    s4.innerHTML = "<div class='site-step-hd'><span class='site-step-n'>4</span><span class='site-step-t'>Survey (optional)</span><span class='site-step-st' id='siteStep4St'></span></div><div class='site-step-body' id='survBody'></div>";
+    s3.insertAdjacentElement('afterend', s4);
+  }
+  var b = document.getElementById('survBody'); if (!b || b.dataset.built) { SURV.syncUI(); return; }
+  b.dataset.built = '1';
+  var anchors = SURV.anchors().map(function(a) { return "<option value='" + a.key + "'>" + SM.esc(a.name) + '</option>'; }).join('');
+  b.innerHTML =
+    "<p class='surv-p'>Raise the site data to measured values: a survey point file (CSV, TXT or DXF points, rows of code, x, y, z), DXF linework on named layers, or the S-002 template filled in on site.</p>" +
+    "<label class='surv-file' title='A survey point file: CSV or TXT (code, x, y, z; optional dbh, species columns) or DXF (points and polylines on layers named by code).'><input type='file' id='survFile' accept='.csv,.txt,.dxf' onchange='SURV.readFile(this.files[0])'><span id='survFileLbl'>Choose a survey file…</span></label>" +
+    "<div class='surv-row'><label title='The coordinate frame of the file: a local survey frame (placed by two known points) or latitude / longitude.'>Frame <select id='survFrame' onchange='SURV.syncUI()'><option value='local'>Local (x, y)</option><option value='latlon'>Longitude, latitude</option></select></label></div>" +
+    "<div id='survPlace'><div class='surv-sub'>Place it by two known points</div>" +
+    [1, 2].map(function(n) { return "<div class='surv-row'><label title='The survey coordinates of known point " + n + ".'>x <input type='number' step='0.001' id='survSx" + n + "'></label><label title='The survey coordinates of known point " + n + ".'>y <input type='number' step='0.001' id='survSy" + n + "'></label><label title='Which point of the model this is.'>is <select id='survAn" + n + "'>" + anchors + '</select></label></div>'; }).join('') + '</div>' +
+    "<div class='surv-row'><label title='Who surveyed it: printed on the Sources sheet.'>Surveyor <input type='text' id='survWho' placeholder='name, firm'></label><label title='The survey date.'>Date <input type='date' id='survDate'></label></div>" +
+    "<details class='surv-map'><summary title='Which survey code means which feature. Unknown codes are listed, never dropped silently.'>Code map</summary><div id='survMap'></div></details>" +
+    "<div class='surv-row'><button type='button' class='ctx-btn' id='survPrev' onclick='SURV.uiPreview()' title='Places every point on the Plan in its own colour; nothing in the design changes yet.'>Preview</button><button type='button' class='ctx-btn' id='survApply' onclick='SURV.uiApply()' disabled title='Updates the matched features, adds and flags the rest, recomputes the widths and the grade, re-runs every check.'>Apply</button><button type='button' class='ctx-btn' id='survUndo' onclick='SURV.undo();SURV.syncUI()' title='Restores the estimates the survey replaced.'>Undo</button></div>" +
+    "<div class='surv-msg' id='survMsg' role='status'></div>" +
+    "<div class='surv-row'><button type='button' class='ctx-btn' onclick='SURV.template()' title='A CSV of every item to confirm on site, with its value now and a blank measured column (the S-002 sheet).'>Survey template (CSV)</button><label class='surv-file' title='The template with the measured column filled in: the values go in as surveyed.'><input type='file' accept='.csv' onchange='SURV.readTemplate(this.files[0])'><span>Import filled template…</span></label></div>";
+  var d = document.getElementById('survDate'); if (d) d.value = new Date().toISOString().slice(0, 10);
+  var a2 = document.getElementById('survAn2'); if (a2 && a2.options.length > 2) a2.selectedIndex = 2;
+  SURV.renderMap(); SURV.syncUI();
+};
+SURV.renderMap = function() {
+  var el = document.getElementById('survMap'); if (!el) return;
+  var M = SURV.map(), opts = function(cur) { return Object.keys(SURV.KINDS).map(function(k) { return "<option value='" + k + "'" + (k === cur ? ' selected' : '') + '>' + SURV.KINDS[k] + '</option>'; }).join(''); };
+  el.innerHTML = Object.keys(M).map(function(c) { return "<div class='surv-row'><code>" + SM.esc(c) + "</code><select onchange='SURV.setCode(\"" + c + "\", this.value)' aria-label='" + SM.esc(c) + "' title='The feature a point coded " + SM.esc(c) + " is.'>" + opts(M[c]) + '</select></div>'; }).join('') +
+    "<div class='surv-row'><input type='text' id='survNewCode' placeholder='new code' style='width:80px' title='A code your surveyor uses that is not in the map.'><select id='survNewKind' title='The feature the new code is.'>" + opts('curb') + "</select><button type='button' class='ctx-btn' onclick='SURV.setCode(document.getElementById(\"survNewCode\").value, document.getElementById(\"survNewKind\").value)' title='Adds the code to the map.'>Add</button></div>";
+};
+SURV.setCode = function(code, kind) { code = String(code || '').trim().toUpperCase(); if (!code) return; state.__surveyMap = Object.assign({}, state.__surveyMap || {}); state.__surveyMap[code] = kind; try { saveSettings(); } catch (e) {} SURV.renderMap(); if (SURV.draft) SURV.uiPreview(); };
+SURV.readFile = function(file) {
+  if (!file) return; var fr = new FileReader();
+  fr.onload = function() { SURV._file = { name: file.name, text: String(fr.result) }; var l = document.getElementById('survFileLbl'); if (l) l.textContent = file.name; SURV.syncUI(); };
+  fr.readAsText(file);
+};
+SURV.readTemplate = function(file) {
+  if (!file) return; var fr = new FileReader();
+  fr.onload = function() { try { var S = SURV.applyTemplate(String(fr.result), file.name); SURV.msg(S.inputs.length + ' values applied as surveyed; see the Check tab’s Survey panel.'); } catch (e) { SURV.msg(e.message || String(e), true); } SURV.syncUI(); };
+  fr.readAsText(file);
+};
+SURV.msg = function(t, bad) { var el = document.getElementById('survMsg'); if (el) { el.textContent = t; el.classList.toggle('bad', !!bad); } };
+SURV.uiOpts = function() {
+  var g = function(id) { return document.getElementById(id); }, fr = (g('survFrame') || {}).value || 'local';
+  return { text: SURV._file && SURV._file.text, name: SURV._file && SURV._file.name, frame: fr, surveyor: (g('survWho') || {}).value || '', date: (g('survDate') || {}).value || '',
+    pairs: fr === 'local' ? [1, 2].map(function(n) { return { s: [SURV.num(g('survSx' + n).value), SURV.num(g('survSy' + n).value)], anchor: g('survAn' + n).value }; }) : null };
+};
+SURV.uiPreview = function() {
+  try {
+    var o = SURV.uiOpts(); if (!o.text) throw new Error('choose a survey file first');
+    if (o.frame === 'local' && o.pairs.some(function(p) { return p.s[0] === null || p.s[1] === null; })) throw new Error('type the survey x and y of both known points');
+    var D = SURV.prepare(o), byK = {};
+    D.rows.forEach(function(r) { var k = r.kind || 'unknown'; byK[k] = (byK[k] || 0) + 1; });
+    SURV.msg(D.rows.length + ' points on the Plan: ' + Object.keys(byK).map(function(k) { return byK[k] + ' ' + (SURV.KINDS[k] || 'unknown code').toLowerCase(); }).join(', ') +
+      (D.unknown.length ? '. Unknown codes (listed, not applied): ' + D.unknown.join(', ') : '') + (D.misfit != null ? '. Placement: the two known points are ' + D.misfit.toFixed(3) + ' m further apart or closer in the model than in the file (scale ' + D.scale + ').' : '.'));
+  } catch (e) { SURV.draft = null; try { renderPlanView(); } catch (e2) {} SURV.msg(e.message || String(e), true); }
+  SURV.syncUI();
+};
+SURV.uiApply = function() {
+  try { var S = SURV.apply(); SURV.msg('Applied: ' + SURV.summary() + '. ' + S.changes.length + ' checks re-run; see the Check tab’s Survey panel.' + (S.flagged.notFound.length ? ' ' + S.flagged.notFound.length + ' imported feature(s) not found on site (kept, flagged).' : '')); }
+  catch (e) { SURV.msg(e.message || String(e), true); }
+  SURV.syncUI();
+};
+SURV.syncUI = function() {
+  var g = function(id) { return document.getElementById(id); };
+  var pl = g('survPlace'); if (pl) pl.hidden = ((g('survFrame') || {}).value || 'local') !== 'local';
+  if (g('survApply')) g('survApply').disabled = !SURV.draft;
+  if (g('survUndo')) g('survUndo').disabled = !SURV.undoSnap;
+  var st = g('siteStep4St'), box = g('siteStep4'); if (st && box) { var done = !!(state.__survey); st.textContent = done ? 'Done' : 'Optional'; box.dataset.st = done ? 'done' : 'next'; }
+};
+(function() { var _u = window.uiSiteSteps; if (typeof _u === 'function') { uiSiteSteps = function() { var r = _u.apply(this, arguments); try { SURV.ui(); } catch (e) { console.warn('[survey] ui', e); } return r; }; window.uiSiteSteps = uiSiteSteps; } })();
+(function() { var _d = SMP.decorateChecks; SMP.decorateChecks = function() { var r = _d.apply(this, arguments); try { SURV.renderPanel(); } catch (e) {} return r; }; })();
 // the Design tab's bike-lane switch follows the model (a load or a Section edit changes designBikeLane without it)
 function uiSyncBikeToggle() {
   if (typeof designBikeLane === 'undefined') return;

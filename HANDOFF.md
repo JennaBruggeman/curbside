@@ -854,6 +854,20 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   - **Export:** `RX.export()` downloads the file; `RX.exportGLB()` downloads the 3D view as glTF.
   - **rhino3dm:** pinned at `RX.URL` (8.35.0).
   - **Menu:** `PX.export` routes `3dm` and `glb` to RX.
+- **§11 Site survey (commit 12):**
+  - **Parsing:** `SURV.parse` (CSV / TXT) and `SURV.parseDXF` (POINT and polyline vertices, with the layer as the code). `SURV.kindOf` maps codes (`SURV.DEFAULT_MAP` plus `state.__surveyMap`).
+  - **Preview:** `SURV.prepare({text, name, frame: local|latlon, pairs: [{s: [x, y], anchor}], surveyor, date})`. It places the rows (`SURV.solve`: rotation and translation, with the scale and misfit reported) and draws them on the Plan (`#pvSurv`, `SURV.draw` on the wrapped `renderPlanView`).
+  - **Apply:** `SURV.apply()`.
+    - Objects match within 0.5 m (update, keep the estimate, confirm), are added (`newFromSurvey`) or are flagged (`notFoundOnSite`).
+    - Curb, building, lane and bike-lane lines set the sidewalk width, curb-to-curb width and bike lane; TOC points set the slope. Provenance is `survey`.
+    - The checks re-run; the result goes in `state.__survey` (file, date, surveyor, frame, placement, points, inputs out of 14, per-check changes, flags).
+  - **Undo:** `SURV.undo()` restores the snapshot taken before Apply.
+  - **Display:**
+    - The Check tab's Survey panel is `#survPanel` (`SURV.renderPanel`).
+    - The cover line comes from `SURV.summary()`; X-001 carries the survey facts; the report stays provisional.
+    - S-002 is `RPT.surveySheet`, with the template from `SURV.template()` and `SURV.applyTemplate()`.
+    - The UI is step 4 of the Site tab (`SURV.ui`).
+  - **Also:** the saved design now carries `siteObjects.neighbourhood`, `survey` and `surveyMap`. `SMP` treats `survey` provenance as confirmed.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
