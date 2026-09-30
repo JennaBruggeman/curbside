@@ -680,6 +680,25 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
   | Overlaps A-102 / A-201 | 0 / 0 | 0 / 0 | 0 / 0 |
   | Full report, both modes: pages, overlaps, outside | 15, 0, 0 | 16, 0, 0 | 14, 0, 0 |
 - **Key-symbol offset:** measured with getBBox on the rendered SVG, which is within the brief's 0.2 mm on both axes.
+
+## Interface makeover (Brief 21, branch ux from drawing-style after 19b; one commit per section; not merged)
+- **§1 Audit (commit 1):** `briefs/21-ux-audit.md` with journey screenshots in `briefs/21-ux-audit/`.
+  - 465 controls, 0 click errors, 5 BROKEN (from the journey and the key handlers), 7 PARTIAL.
+- **§1 BROKEN fixed (commit 2):**
+  - **B1 Section FIT:** `_recomputeScale` solves for px/m with the building columns' metres (`_bldgM`: buffer + deepest near setback) in the width, and only their 24 px of poche fixed. The fit minimum is now 4 px/m.
+  - **B2 Section after an import:** `_vpHeight` centres the parklet sideways when it is wholly out of view (not on every width change, so a drag doesn't jump).
+  - **B3 3D home camera:** it stood behind `ZS` (now the context radius) and the near building's back wall. It now stands over the far curb (`XCR`), half the deck length before the deck's start, at max(0.6 L, 10 m), looking back at the deck. It is lifted in 6 m steps while a canopy (`userData.veg`) is on the line to the target.
+  - **B4 Plan scale bar:** nice lengths run to 2000 m. `DRAW_SYMBOLS.scaleBar` keeps 0 and the length and drops any middle value that would touch a neighbour. The report's 100 mm bars are unchanged.
+  - **B5 Ctrl+Z / Ctrl+Y:** the Section editor's keys (undo, redo, Delete, arrows, Esc) act only while `#seRoot` is on screen.
+  - **Verified (`t_b21_fix.js`, three sites, after the import and the 7-piece design):**
+
+    | | Robson & Burrard | Commercial & 1st | W 41st & Dunbar |
+    |---|---|---|---|
+    | Section at 1:1 after the import: strip / view (px), parklet in view | 1422 / 396, yes (scrolled 632) | 1308 / 396, yes (326) | 1734 / 396, yes (560) |
+    | FIT: strip / view (px) | 396 / 396 | 396 / 396 | 396 / 396 |
+    | 3D home: camera (m), distance, canopy hits on the line of sight | (11.2, 10.6, -8.8), 21.0 m, 0 | (14.4, 10.6, -8.8), 21.5 m, 0 | (17.6, 10.6, -8.8), 22.1 m, 0 |
+    | Scale-bar values at fit / zoom 3 / zoom 18, overlaps | 0 200 m / 0 20 50 100 m / 0 4 10 20 m, 0 | same, 0 | 0 200 m / 0 50 100 m / 0 4 10 20 m, 0 |
+    | Parking 2.40 → 2.30 in the Section; Ctrl+Z on Generate, then on Site | 2.30, then 2.40 | 2.30, then 2.40 | 2.30, then 2.40 |
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

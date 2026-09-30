@@ -3317,7 +3317,7 @@ function _pvAppendAnno(svg, vb, sb, baseW) {
   const pxPerM = vb.pxM / U, ctx = DRAW_STYLE.screenCtx(DS.mode(), U, pxPerM), P = DRAW_STYLE.pen(ctx);
   const cx = vx + visW - 33 * U, cy = vy + 31 * U, n = window._pvNorthV || { x: 1, y: 0 };
   DRAW_SYMBOLS.north(P, cx, cy, n, { r: 9 / DRAW_STYLE.SCREEN.pxPerMm });
-  const nice = [1, 2, 5, 10, 20, 50, 100];
+  const nice = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000];   // to 2 km: the city context reaches 1 km (Brief 21 audit)
   let m = nice[0];
   nice.forEach(function(v) { if (v * pxPerM <= 110) m = v; });
   // the bar ends clear of the north arrow's box by its last label's width (Brief 19: 'N' met '100 m' on a turned street)
@@ -3635,18 +3635,22 @@ document.addEventListener('mouseup', function() {
     var tr = (typeof TOTAL_ROAD !== 'undefined') ? TOTAL_ROAD : 0;
     var alloc = _segs.reduce(function(a, s){ return a + (s.type === 'building' || s.type === 'sidewalk' ? 0 : s.width); }, 0);
     m += Math.abs(tr - alloc);   // the unallocated (or over) gap is drawn too
+    // the building columns' metres (buffer and setback) are part of the width to fit; only their 24 px of poche is fixed
+    // (Brief 21 audit: subtracting their pixels at 60 px/m left nothing to fit into behind an 8 m setback, so FIT did nothing)
     var nb = _segs.filter(function(s){ return s.type === 'building'; }).length;
-    var avail = _vpWidth() - 26 - nb * _bldgPx();
-    if (m > 0 && avail > 40) SECTION_PX_PER_M = Math.max(8, Math.min(120, avail / m));
+    var avail = _vpWidth() - 26 - nb * 24;
+    m += nb * _bldgM();
+    if (m > 0 && avail > 40) SECTION_PX_PER_M = Math.max(4, Math.min(120, avail / m));
   }
   function _segPx(w) { return Math.max(8, Math.round(w * SECTION_PX_PER_M)); }
   // Near-building column: 24 px of poche plus room for the vegetated buffer and the deepest near
   // setback, so a set-back facade (cut or beyond) sits at its true distance from the sidewalk.
-  function _bldgPx() {
+  function _bldgM() {
     var DM = (typeof DESIGN_MODEL !== 'undefined') ? DESIGN_MODEL : null, LM = DM && DM.landmarks, sb = 0;
     ((DM && DM.buildings && DM.buildings.L) || []).forEach(function(b) { if (b.footprint && b.footprint.visible) sb = Math.max(sb, b.footprint.setback || 0); });
-    return 24 + Math.round(((LM ? LM.bufferW : 0) + sb) * SECTION_PX_PER_M);
+    return (LM ? LM.bufferW : 0) + sb;
   }
+  function _bldgPx() { return 24 + Math.round(_bldgM() * SECTION_PX_PER_M); }
   // Looking +Z (Brief 08) mirrors the section: world +X runs to the left, the sidewalk and the
   // building move to the right. Derived from DESIGN_MODEL.section.dir, nothing else.
   function _mir() { var s = (typeof DESIGN_MODEL !== 'undefined') && DESIGN_MODEL.section; return !!(s && s.dir === 1); }
@@ -4063,6 +4067,12 @@ document.addEventListener('mouseup', function() {
     var mh = avail > 120 ? avail + 'px' : '';
     vp.style.maxHeight = mh;
     if (vp._seH !== f.stripH || vp._seMH !== mh) { vp._seH = f.stripH; vp._seMH = mh; vp.scrollTop = vp.scrollHeight; }   // a new extent or a new height: to the ground
+    // the parklet out of sight sideways (an import widens the street past the viewport at 1:1): centre it (Brief 21 audit)
+    var pk = _segs.find(function(s) { return s.type === 'parklet'; });
+    if (pk && vp.scrollWidth > vp.clientWidth + 1) {
+      var pb = _boxOf(pk, f);
+      if (pb && (pb[1] < vp.scrollLeft || pb[0] > vp.scrollLeft + vp.clientWidth)) vp.scrollLeft = Math.max(0, (pb[0] + pb[1]) / 2 - vp.clientWidth / 2);
+    }
   }
   window.seViewportHeight = function() { _vpHeight(_frame); };
 
@@ -4442,6 +4452,8 @@ document.addEventListener('mouseup', function() {
   // ── Keyboard ───────────────────────────────────────────────────────
   function _onKey(e) {
     if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
+    // only while the Section editor is on screen (Brief 21 audit: Ctrl+Z on another tab undid Section edits unseen)
+    var _root=document.getElementById('seRoot'); if (!_root || !_root.offsetWidth) return;
     if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'){ e.preventDefault(); _seUndo(); return; }
     if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key.toLowerCase()==='z'||e.key.toLowerCase()==='y')){ e.preventDefault(); _seRedo(); return; }
     if(!_selId) return;
@@ -6000,11 +6012,16 @@ var DRAW_SYMBOLS = {
     o = o || {}; var k = P.ctx.k, h = 1.6 * k, st = [0, 0.1, 0.2, 0.5, 1];
     for (var i = 0; i + 1 < st.length; i++) P.rect(x + st[i] * L, y, (st[i + 1] - st[i]) * L, h, { fill: i % 2 ? 'paper' : 'ink', cls: 'context' });
     P.rect(x, y + h + 0.2 * k, L, 0.4 * k, { fill: o.base || 'ink', cls: 'none', data: o.data });
-    st.forEach(function(t, i) {
-      var v = +(t * m).toFixed(2);
-      if (i === 1 && 0.1 * L < P.fs('tag') * 2.4) return;   // the 0.1 value only where it clears its neighbours
-      P.text(x + t * L, y - 0.8 * k, i === st.length - 1 ? v + ' m' : String(v), P.fs('tag'), { anchor: i === 0 ? 'start' : 'middle', c: 'ink' });
+    // the values: 0 and the length always; a middle value only where it clears both its kept neighbours (Brief 21 audit:
+    // on a short bar 0.2 / 0.5 / 1 printed over one another)
+    var fs = P.fs('tag'), gap = fs * 0.4, lab = st.map(function(t, i) {
+      var v = +(t * m).toFixed(2), s = i === st.length - 1 ? v + ' m' : String(v), w = s.length * fs * 0.56, cx = x + t * L;
+      return { s: s, x: cx, i: i, a: i === 0 ? cx : cx - w / 2, b: i === 0 ? cx + w : cx + w / 2 };
     });
+    var last = lab[lab.length - 1], kept = [lab[0]];
+    lab.slice(1, -1).forEach(function(q) { if (q.a >= kept[kept.length - 1].b + gap && q.b + gap <= last.a) kept.push(q); });
+    kept.push(last);
+    kept.forEach(function(q) { P.text(q.x, y - 0.8 * k, q.s, fs, { anchor: q.i === 0 ? 'start' : 'middle', c: 'ink' }); });
     return L;
   }
 };
@@ -8324,12 +8341,23 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // X: behind near building back wall + 2 m clearance so it is fully visible.
     // Z: south of ZS to see the near end of the deck.
     // H: tall enough to clear buildings and see deck surfaces.
-    const _lmBX = _LM.buildingL.outerFaceX;
-    const _camClear = Math.max(2.0, SW * 0.5);
-    const camX = _lmBX - _camClear;
-    const camZ = ZS - Math.max(L * 0.2, 2.5);
-    const camH = Math.max(L * 0.8, Math.abs(camX - roadCX) * 0.9, 10);
+    // (Brief 21 audit: an imported building's back wall can be 40 m deep and ZS runs out to the context radius, which put
+    // the camera 600 m back, clamped by the controls to 60 m down the street axis inside a street tree. The camera now
+    // stands over the far curb, before the deck's start, looking back across the road at the deck: no building between;
+    // it is lifted clear of any canopy in its view.)
+    const camX = XCR;
+    const camZ = -Math.max(L * 0.5, 6);
+    let camH = Math.max(L * 0.6, 10);
     _3d.camera.position.set(camX, camH, camZ);
+    const _tgt = _3d.controls.target, _rc = new THREE.Raycaster();
+    g.updateMatrixWorld(true);
+    for (let _k = 0; _k < 6; _k++) {
+      const _d = _3d.camera.position.clone().sub(_tgt), _len = _d.length();
+      _rc.set(_tgt, _d.normalize()); _rc.far = _len;
+      const _blk = _rc.intersectObjects(g.children, true).some(function(h) { for (let o = h.object; o; o = o.parent) if (o.userData && o.userData.veg != null) return true; return false; });
+      if (!_blk) break;
+      camH += 6; _3d.camera.position.set(camX, camH, camZ);
+    }
   }
   const slopePct = parseFloat(state['slope']) || 0;
   _3d.group.rotation.x = -Math.atan(slopePct / 100);
