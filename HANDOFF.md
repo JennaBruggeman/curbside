@@ -715,6 +715,29 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - `_vpHeight` keeps a Section viewport down to 60 px (was 120), so the drawing still scrolls to the ground at three views.
   - **Kept, logged:** the compass pairs N-S / E-W / NE-SW / NW-SE (they fit the five-way switch; the tooltips spell them out), "AI-assisted" and the library's SF / CALC / DI codes (spelled out in their legend).
   - **Verified (`t_b21_tips.js`, every tab with every left-column panel open):** 430 controls, 0 without a tooltip; 0 headers under 12 px or in capitals; the tooltip is hidden at 250 ms and shown at 350 ms, and the native title is gone.
+- **§3 Structure (commit 4):**
+  - **Top bar:**
+    - Tabs in use order: Site · Generate · Design · Furniture · Check · Visualize · Export.
+    - Settings is in the account menu, which opens signed out too (Sign in…, Settings).
+    - The name field shows `pkShowProjectName()`: the saved design's name, else the typed one, else "Untitled parklet". **+ New** opens the new-design dialog. **?** (or the ? key) opens `uiShowHelp()`: every shortcut (`UI_SHORTCUTS`) and what the tool checks.
+  - **Left column:**
+    - `#cadTools` has the class `cad-empty` (hidden) while nothing is selected (`cadToolsUpdate`).
+    - One Move block: `cadNudge(dx, dz)` moves one grid step in the Plan's directions, and so do the keyboard arrows. They used to be true-compass moves.
+  - **Design:**
+    - The panel is: Parklet shape editor (edit button, read-only length × width `uiDesignDims()` from the applied shape, lane badge), Street context (bike lane), Library.
+    - The bike lane's buffers are set only in the Section: palette items `buf-pk` / `buf-bl` (shown with a parklet-side bike lane), variants raised / planters / trees. `bufFromSegs(segs)` reads them for `_seToGlobals`, the Generate scratch and loads. `pkSerialize` and `saveSettings` no longer store them; older saves' keys are still read.
+    - The vegetated buffer is set in the Section's sidewalk properties ("Planted strip at the building face").
+  - **Visualize (`uiVisLayout`):**
+    - The rail is moved into the left column, in this order: Render (camera presets, photoreal Render, the renders with tick boxes, the key prompt `#rvzKeyPrompt` → `uiOpenConnections()`, Gallery / Clear renders, "Photoreal options"), Output, Sun, Appearance.
+    - `RPT.renderList` fills both `#rvzThumbs` and Export's `#rptRenders` with the same ticks.
+  - **Check:**
+    - `#workspaceCheck` (the viewports are hidden) holds the verdict and the table. `buildCriterion` renders rows (ids kept for `handleInput`); `render()` sorts failures first; `CHECK_SHORT` gives each row its short name and requirement.
+    - `chkAfterRender` fills Measured ("not entered"), the provisional chip and the counts. `chkFilter` provides All / Failing / Provisional / Passing.
+    - `chkShowMe(id)` opens Design, zooms the Plan onto the deck and rings the rule's marks for 5 s (`CHECK_VIEW`, `CHECK_MARKS`). The confirm-on-site list (`#smpCheck`) is in the left column.
+  - **Export:** the report card is in the main area under `#verdictBannerExp`, a copy of the Check tab's banner kept by a MutationObserver. The verdict banner shows on no other tab.
+  - **Empty states:** `uiEmpty` covers Furniture with nothing placed, Export without a located site, and Generate before a run.
+  - **Site:** `uiSiteSteps()` regroups the first panel into 1 Locate · 2 Import context · 3 Place parklet, with Done / Next / Waiting (`uiSiteStepStatus`).
+  - **Refresh:** `syncDesignModel` and `appSetMode` are wrapped once to refresh these, with the bike-lane switch synced from the model.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
