@@ -14,11 +14,11 @@ _To be written by Jenna._
 
 1. **Open the site** at the link above. The landing page shows the four stages and the checks; *See a sample
    report* opens a finished report of a reference design without an account.
-2. **Sign in, or create an account** with an invite code (sign-up is by invitation; ask the contact shown on the
-   form). Signing in lists your designs and opens none.
+2. **Sign in, or create an account.** Sign-up is normally by invite code; during the class review (until 9 October
+   2026) it is open and asks for none. Signing in lists your designs and opens none.
 3. **Choose a site.** With no site, the drawings show *Choose a site*. Click **Locate on map**, search an address
    or pan to it, click the street, then click again on the parklet's side, and **Use this location**.
-4. **Import street context.** The Site tab fetches the existing street (lanes, direction, route type, bike lane,
+4. **Import street context** (the button in the same panel). It fetches the existing street (lanes, direction, route type, bike lane,
    right-of-way width), the buildings and the City's site objects (hydrants, trees, bus stops). Each value shows its
    source and date; **Override** corrects one. A deck of the default length is then placed at the host frontage.
 5. **Design.** In **Design**, shape the deck, set the enclosure on each side (Edge), edit the street in the Section

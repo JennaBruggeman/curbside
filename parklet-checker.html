@@ -12,9 +12,11 @@ var CONFIG = {
   SUPABASE_ANON_KEY: 'sb_publishable_veqsMlJ5EBhCyYfI6ArHEg_Gf6awBML',
   // Sign-up asks for an invite code, checked by the database (supabase/schema.sql), never here. To open
   // sign-up, set INVITE_ONLY to false AND turn it off in the database (README.md, "Invite-only sign-up").
-  INVITE_ONLY: true,
+  // Open for the class review until 2026-10-09 (app_settings.invite_only is false in the database too): set both back
+  // to true after that date (HANDOFF.md, "Review period").
+  INVITE_ONLY: false,
   INVITE_CONTACT: 'bangpowjenna@gmail.com',     // whom to ask for a code
-  REPO_URL: ''                                  // the public repository, once published
+  REPO_URL: 'https://github.com/JennaBruggeman/curbside'   // the public repository
 };
 </script><script>
 // The sample report page (?sample=schematic|technical) runs on in-memory storage: it can never read or write the
@@ -27179,6 +27181,12 @@ SMP.sourcesList = function() {
 .pk-s0-card p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--c-text-dim, #9AA0A6); }
 .pk-s0-card ol { margin: 0; padding-left: 1.3em; font-size: 13px; line-height: 1.6; color: var(--c-text, #F2F2F0); }
 .ttab.ttab-off { opacity: .42; cursor: not-allowed; }
+.pk-s0-acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.pk-s0-go { font-weight: 600; }
+.pk-s0-done { color: var(--c-text-dim, #9AA0A6); }
+.pk-s0-done b { color: var(--c-text, #F2F2F0); font-weight: 600; }
+.pk-s0-msg { min-height: 1.4em; font-size: 12px; }
+.pk-s0-msg:empty { display: none; }
 body.pk-stage0 .canvas-toolbar, body.pk-stage0 #cadTools { display: none !important; }   /* nothing to fit or draw before a site */
 </style>
 <script>
@@ -27375,6 +27383,8 @@ var SEED = { DECK_L: 19.8, DECK_W: 2.65, GATED: ['generate', 'design', 'check', 
 // the hidden stage-0 globals: what the views could draw before a site exists (never shown, never saved)
 SEED.NOMINAL = { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L };
 function pkStage() { return PK_NOSTREET ? 0 : (typeof FL3D !== 'undefined' && FL3D && FL3D.placed && FL3D.placed.length ? 2 : 1); }
+// the import's message line, repeated in the stage-0 panel (ids dropped, so the Retry button is not doubled by id)
+SEED.msgCopy = function() { var m = document.getElementById('smpMsg'); return m ? m.innerHTML.replace(/\sid='[^']*'/g, '') : ''; };
 SEED.parklet = function(rep) {
   PK_NOSTREET = false;
   designParkletLength = SEED.DECK_L; designParkletWidth = SEED.DECK_W; state.pkShape = null;
@@ -27422,11 +27432,19 @@ function pkStageSync() {
   if (!ov && grid) {
     if (getComputedStyle(grid).position === 'static') grid.style.position = 'relative';
     ov = document.createElement('div'); ov.id = 'pkStage0'; ov.className = 'pk-stage0'; ov.setAttribute('role', 'region'); ov.setAttribute('aria-label', 'Choose a site');
-    ov.innerHTML = "<div class='pk-s0-card'><h2>Choose a site</h2><p>There is no street yet. A design starts from a real curb:</p>" +
-      "<ol><li>Locate on map: search the address, click the street, then the parklet's side.</li><li>Import street context: the existing street, its buildings and the City's site objects.</li></ol>" +
-      "<p>A deck of the default length is then placed at the host frontage, and the checks run on the site's facts.</p>" +
-      "<button type='button' class='ctx-btn' onclick='appSetMode(\"site\"); SM.open()'>Locate on map</button></div>";
     grid.appendChild(ov);
+  }
+  if (ov && s0) {
+    // the panel leads through both steps: once the site is located, the import is its button (the Site setup panel
+    // that also has one may be closed), with the import's progress under it
+    var sm = typeof state !== 'undefined' && state.__siteMap, busy = typeof SMP !== 'undefined' && SMP._busy;
+    ov.innerHTML = "<div class='pk-s0-card'><h2>Choose a site</h2><p>There is no street yet. A design starts from a real curb:</p>" +
+      "<ol><li" + (sm ? " class='pk-s0-done'" : '') + ">Locate on map: search the address, click the street, then the parklet's side." + (sm ? ' <b>Located: ' + SM.esc(sm.name || 'the street') + (sm.parkletSide ? ', ' + SM.esc(sm.parkletSide) + ' side' : '') + '.</b>' : '') + "</li>" +
+      "<li>Import street context: the existing street, its buildings and the City's site objects.</li></ol>" +
+      "<p>A deck of the default length is then placed at the host frontage, and the checks run on the site's facts.</p>" +
+      "<div class='pk-s0-acts'>" + (sm ? "<button type='button' class='ctx-btn pk-s0-go' id='pkS0Import' onclick='SMP.importContext()'" + (busy ? ' disabled' : '') + ">" + (busy ? 'Importing...' : 'Import street context') + "</button><button type='button' class='txt-btn' onclick='appSetMode(\"site\"); SM.open()'>Locate again</button>"
+        : "<button type='button' class='ctx-btn pk-s0-go' onclick='appSetMode(\"site\"); SM.open()'>Locate on map</button>") + "</div>" +
+      "<p class='pk-s0-msg' id='pkS0Msg' role='status' aria-live='polite'>" + (sm ? SEED.msgCopy() : '') + "</p></div>";
   }
   if (ov) ov.hidden = !s0;
   if (s0) ['roadWidth', 'sidewalkWidth', 'laneCount', 'lanesA', 'lanesB'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
@@ -27442,6 +27460,12 @@ function pkStageSync() {
     return f.apply(this, arguments);
   };
   w._stage = true; window.appSetMode = w;
+  // the panel follows the map pick and the import (Brief 22: the Import button must be where the visitor is)
+  if (typeof SM !== 'undefined' && typeof SM.onUse === 'function') { var u0 = SM.onUse; SM.onUse = function() { var r = u0.apply(this, arguments); try { pkStageSync(); } catch (e) {} return r; }; }
+  if (typeof SMP !== 'undefined') {
+    var m0 = SMP.msg; SMP.msg = function() { var r = m0.apply(this, arguments); try { var p = document.getElementById('pkS0Msg'); if (p && PK_NOSTREET) p.innerHTML = SEED.msgCopy(); var g = document.getElementById('pkS0Import'); if (g) { g.disabled = !!SMP._busy; g.textContent = SMP._busy ? 'Importing...' : 'Import street context'; } } catch (e) {} return r; };
+    var s0b = SMP.syncButton; SMP.syncButton = function() { var r = s0b.apply(this, arguments); try { var g = document.getElementById('pkS0Import'); if (g) { g.disabled = !!SMP._busy; g.textContent = SMP._busy ? 'Importing...' : 'Import street context'; } } catch (e) {} return r; };
+  }
   // (the tooltip table's hook: SEED.tabTips installs it once uiApplyTips exists)
   setTimeout(function() { try { pkStageSync(); } catch (e) {} }, 1800);
 })();

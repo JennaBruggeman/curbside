@@ -922,6 +922,9 @@ Decisions for every item are in the session's decisions log; the essentials:
 - **10 Landing images:** `tools/screenshots.js` (Playwright) with `tools/fixtures/commercial/` (recorded site data, replayed byte for byte; `--record` refreshes). Kept in Brief 22 because its record / replay part is reusable as Brief 24's three-site fixtures.
 - **11 moved:** the demo walkthrough is now **Brief 26** (`briefs/26-demo-walkthrough.md`), after Brief 25. Its draft is on the local branch `demo-draft`.
 
+## Review period (until 2026-10-09)
+Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase and `CONFIG.INVITE_ONLY = false` in the page. **After October 9, set both back to true** (the page's comment says so) and make codes with `supabase/invite-codes.sql`; also put back the README's step 2.
+
 ## Briefs that exist only in chat
 Briefs 22 and 23, and Brief 24 until 2026-10-01, were written in chat and never saved in `briefs/`, although the chat handoff (session 6) lists them there. Brief 24 v2 is now `briefs/24-gis-cells.md`; 22 and 23 are still only in chat.
 
