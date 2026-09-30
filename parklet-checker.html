@@ -27407,6 +27407,7 @@ document.addEventListener('keydown', function(e) {
 .enc-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
 .enc-tabs .seg-btn { display: grid; gap: 1px; padding: 4px 5px; font: 600 11px var(--font-ui); text-align: left; }
 .enc-tabs .seg-btn small { font-weight: 400; color: var(--text-lo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.enc-tabs .seg-btn.active small { color: inherit; opacity: 0.85; }
 .enc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .enc-th { display: grid; justify-items: center; gap: 2px; padding: 3px 2px 4px; border: 1px solid var(--border-c, #444); border-radius: 4px; background: transparent; color: var(--text-hi); cursor: pointer; font: 10px/1.2 var(--font-ui); }
 .enc-th svg { width: 100%; height: auto; max-width: 88px; }
@@ -27414,7 +27415,8 @@ document.addEventListener('keydown', function(e) {
 .enc-th.on { border-color: var(--accent-ui, #3AA8E4); box-shadow: inset 0 0 0 1px var(--accent-ui, #3AA8E4); color: var(--accent-ui, #3AA8E4); }
 .enc-th:focus-visible, .enc-tabs .seg-btn:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
 .enc-row { display: grid; grid-template-columns: 64px 1fr 58px; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--text-lo); }
-.enc-row select, .enc-row input[type=number] { grid-column: 2 / 4; width: 100%; box-sizing: border-box; padding: 3px 5px; font-size: 12px; border: 1px solid var(--rule); border-radius: 3px; background: var(--bg); color: var(--text); }
+.enc-row select, .enc-row input[type=number] { grid-column: 2 / 4; width: 100%; box-sizing: border-box; padding: 3px 5px; font-size: 12px; border: 1px solid var(--border-c, #444); border-radius: 3px; background: rgba(255,255,255,.04); color: var(--text-hi); }
+.enc-row select option { background: var(--c-panel, #202328); color: var(--text-hi); }
 .enc-row input[type=number] { grid-column: 2; }
 .enc-row output { font: 600 12px var(--font-mono, monospace); color: var(--text-hi); text-align: right; }
 .enc-more { margin-top: 6px; font-size: 12px; color: var(--text-lo); }
@@ -28152,12 +28154,16 @@ ENC.renderCard = function() {
 };
 // what the card shows depends on: the enclosure, the deck's size and shape
 ENC.cardKey = function() { var p = DESIGN_MODEL.parklet || {}; return JSON.stringify(ENCLOSURE) + '|' + p.width + '|' + p.length + '|' + (p.outline ? JSON.stringify(p.outline.verts) : ''); };
+// the card is a Design panel of its own ("Edge", open), after the shape editor's; it waits for the panels to be wrapped
 ENC.mountCard = function() {
   if (document.getElementById('encSec')) return;
-  var after = document.getElementById('designShapeSec'); if (!after) return;
+  var host = document.getElementById('ctxDesign'), after = document.getElementById('designShapeSec'); if (!host || !after) return;
+  if (!host._dkInit && typeof _dkWrap === 'function') { setTimeout(ENC.mountCard, 200); return; }
+  var top = after; while (top.parentNode && top.parentNode !== host) top = top.parentNode;
   var sec = document.createElement('div'); sec.className = 'sb-section'; sec.id = 'encSec';
   sec.innerHTML = "<div class='sb-section-lbl'>Edge</div><div id='encBody'></div>";
-  after.parentNode.insertBefore(sec, after.nextSibling);
+  host.insertBefore(sec, top.nextSibling);
+  if (typeof _dkWrap === 'function') { _dkWrap(sec, 'dkcdEdge', 'Edge', false); if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate(); }
   ENC.renderCard();
 };
 // C17 - C19 follow every redraw of the Plan (furniture placed, moved, removed; the deck changed)
