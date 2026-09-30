@@ -639,6 +639,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <select id='px3dFmt' class='px-sel' onchange='PX.updateNote()'>
     <option value='3dm'>Rhino (.3dm)</option>
+    <option value='glb'>glTF (.glb): Twinmotion, Blender</option>
     <option value='ifc'>Revit (IFC4 .ifc)</option>
     <option value='dae'>SketchUp Pro (Collada .dae)</option>
     <option value='stl'>SketchUp Free / STL (.stl)</option>
@@ -647,7 +648,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </select>
   <button class='ctx-btn ctx-btn-full' id='px3dBtn' onclick='PX.export()' style='margin-top:6px'>&#8595; Export 3D Model</button>
   <div id='px3dNote' style='font-size:11px;color:var(--text-mu);margin-top:8px;line-height:1.5'></div>
-  <div style='font-size:11px;color:var(--text-mu);margin-top:6px;opacity:.7'>Exports the current 3D view as meshes, metres, Z-up. .skp and .rvt are closed formats — use the interchange file each app imports natively.</div>
+  <div style='font-size:11px;color:var(--text-mu);margin-top:6px;opacity:.7'>Rhino is built from the design model; the other formats export the current 3D view as meshes. Metres. .skp and .rvt are closed formats — use the interchange file each app imports natively.</div>
 </div>
 <div class='ctx-group' id='axeGroup'>
   <div class='ctx-label'>Animated axonometric</div>
@@ -17932,7 +17933,8 @@ var PX = {};
 PX.RHINO3DM_URL = 'https://cdn.jsdelivr.net/npm/rhino3dm@8/rhino3dm.min.js';
 
 PX.FORMATS = {
-  '3dm': { label:'Rhino (.3dm)',                 ext:'3dm', note:'Native Rhino file. Objects arrive as meshes on Parklet / Furniture / Context layers with their colours, units set to metres.' },
+  '3dm': { label:'Rhino (.3dm)',                 ext:'3dm', note:'Native Rhino file built from the design model: closed polysurfaces on named layers (Parklet, Street, Context, Drawing), each furniture row of the schedule as a block with its instances, the Plan linework as curves. Metres, Z-up. Imported user models stay meshes on Meshes > User furniture. Always exports everything (the layer ticks are for the mesh formats).' },
+  'glb': { label:'glTF (.glb)',                  ext:'glb', note:'The 3D view as a binary glTF: for Twinmotion, Blender, Unreal and other renderers. Materials and colours carried, Y-up, metres.' },
   'ifc': { label:'Revit (IFC4 .ifc)',            ext:'ifc', note:'Revit: File ▸ Open ▸ IFC, or Insert ▸ Link IFC. Each object imports as a Generic Model with its colour and layer name. Also opens in ArchiCAD, Navisworks, BIM Vision.' },
   'dae': { label:'SketchUp Pro (Collada .dae)',  ext:'dae', note:'SketchUp Pro/Studio: File ▸ Import ▸ COLLADA. Keeps materials and groups by layer. Metres, Z-up.' },
   'stl': { label:'SketchUp Free / STL (.stl)',   ext:'stl', note:'Binary STL — geometry only, no colour. Works in SketchUp Free (web), slicers, and every CAD package.' },
@@ -18226,6 +18228,222 @@ PX.write3DM = function(objs, base) {
 };
 
 /* ── UI glue ───────────────────────────────────────────────── */
+
+/* ── Rhino .3dm from the model (Brief 21 §10) ─────────────────────────────────────────────────────────────
+   Built from DESIGN_MODEL's numbers, not from the three.js meshes: closed polysurfaces (Breps) for the deck, the
+   railing, the end pieces, every furniture part (its primitive), the buildings, the street segments, the trees and the
+   site objects; each furniture group (same archetype, dimensions and finish = one schedule row) is one block
+   definition with an instance per piece, so a count in Rhino matches the schedule. User-imported models stay meshes on
+   Meshes > User furniture. Plan linework goes on the Drawing layers. Metres; the app's frame (+X across the street
+   toward the road, +Y up, +Z along) maps to Rhino's Z-up right-handed frame as (x, y, z) -> (X = x, Y = -z, Z = y). */
+var RX = { URL: 'https://cdn.jsdelivr.net/npm/rhino3dm@8.35.0/rhino3dm.min.js' };
+PX.RHINO3DM_URL = RX.URL;   // pinned (the vendored copy in tools/vendor/ waits for Jenna's go-ahead to download it)
+RX.load = function() {
+  if (PX._rhino) return Promise.resolve(PX._rhino);
+  return new Promise(function(res, rej) {
+    var go = function() { try { rhino3dm().then(function(r) { PX._rhino = r; res(r); }, rej); } catch (e) { rej(e); } };
+    if (window.rhino3dm) return go();
+    var s = document.createElement('script'); s.src = RX.URL; s.onload = go; s.onerror = function() { rej(new Error('Could not load rhino3dm.js from the CDN')); };
+    document.head.appendChild(s);
+  });
+};
+RX.P = function(x, y, z) { return [x, -z, y]; };   // app world -> Rhino
+RX.hexRGB = function(h) { h = String(h || '#999999'); if (!/^#[0-9a-f]{6}$/i.test(h)) h = '#999999'; var v = parseInt(h.slice(1), 16); return { r: v >> 16 & 255, g: v >> 8 & 255, b: v & 255, a: 255 }; };
+RX.build = async function(opts) {
+  opts = opts || {};
+  var rh = await RX.load(), doc = new rh.File3dm(), DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, LV = DM.parklet.levels || PARKLET_LEVELS;
+  var FILL = DRAW_STYLE.t('schematic').fill, stats = { breps: 0, meshes: 0, blocks: 0, instances: 0, curves: 0, dots: 0 };
+  doc.settings().modelUnitSystem = rh.UnitSystem.Meters;
+  try { doc.applicationName = 'Curbside ' + (typeof RPT !== 'undefined' ? RPT.VERSION : ''); doc.applicationUrl = (typeof CONFIG !== 'undefined' && CONFIG.REPO_URL) || ''; } catch (e) {}
+  // ── layers (full paths, parents first), colours from the schematic palette
+  var layerIdx = {}, layer = function(path, col) {
+    if (layerIdx[path] != null) return layerIdx[path];
+    var parts = path.split('::'), parent = parts.length > 1 ? layer(parts.slice(0, -1).join('::'), col) : null;
+    var ly = new rh.Layer(); ly.name = parts[parts.length - 1]; ly.color = RX.hexRGB(col);
+    if (parent != null) ly.parentLayerId = doc.layers().findIndex(parent).id;
+    return (layerIdx[path] = doc.layers().add(ly));
+  };
+  var attr = function(path, name, col) { var a = new rh.ObjectAttributes(); a.layerIndex = layer(path, col); if (name) a.name = name; return a; };
+  var addB = function(brep, path, name, col) { if (!brep) return null; doc.objects().add(brep, attr(path, name, col)); stats.breps++; return brep; };
+  // ── geometry helpers (all in app world metres; mapped to Rhino here)
+  var boxB = function(x0, x1, y0, y1, z0, z1) {
+    var a = RX.P(Math.min(x0, x1), Math.min(y0, y1), Math.max(z0, z1)), b = RX.P(Math.max(x0, x1), Math.max(y0, y1), Math.min(z0, z1));
+    if (Math.abs(b[0] - a[0]) < 1e-5 || Math.abs(b[1] - a[1]) < 1e-5 || Math.abs(b[2] - a[2]) < 1e-5) return null;
+    return rh.Brep.createFromBox(new rh.Box(new rh.BoundingBox(a, b)));
+  };
+  // a polygon in plan (world [x, z] pairs), extruded from y0 up by h; inner: optional holes
+  var extB = function(pts, y0, h, holes) {
+    if (!pts || pts.length < 3 || !(h > 1e-5)) return null;
+    var ring = function(P) {
+      var q = P.map(function(p) { return RX.P(p[0], y0, p[1]); }), A = 0; for (var i = 0; i < q.length; i++) { var u = q[i], v = q[(i + 1) % q.length]; A += u[0] * v[1] - v[0] * u[1]; }
+      if (A < 0) q.reverse();   // counter-clockwise in Rhino's XY: the extrusion goes up
+      var pl = new rh.Polyline(q.length + 1); q.forEach(function(p) { pl.add(p[0], p[1], p[2]); }); pl.add(q[0][0], q[0][1], q[0][2]);
+      return pl.toPolylineCurve();
+    };
+    var ex = rh.Extrusion.create(ring(pts), h, true); if (!ex) return null;
+    (holes || []).forEach(function(hp) { try { ex.addInnerProfile(ring(hp)); } catch (e) {} });
+    return ex.toBrep(true);
+  };
+  var cylB = function(cx, cz, r, y0, y1) {
+    var c = new rh.Circle(r), br = new rh.Cylinder(c, y1 - y0).toBrep(true, true), p = RX.P(cx, y0, cz);
+    br.transform(rh.Transform.translationXYZ(p[0], p[1], p[2])); return br;
+  };
+  // a solid of revolution about the vertical at (cx, cz): prof = [[r, y], ...] from the axis round to the axis
+  var revB = function(cx, cz, prof) {
+    var pl = new rh.Polyline(prof.length); prof.forEach(function(q) { pl.add(q[0], 0, q[1]); });
+    var rs = rh.RevSurface.create(pl.toPolylineCurve(), new rh.Line([0, 0, 0], [0, 0, 1]), 0, 2 * Math.PI), br = rs ? rh.Brep.createFromRevSurface(rs, true, true) : null;
+    if (br) { var p = RX.P(cx, 0, cz); br.transform(rh.Transform.translationXYZ(p[0], p[1], 0)); }
+    return br;
+  };
+  // ── Parklet › Deck: the applied outline (arcs as 12-point polylines), extruded from the curb top to the deck top
+  var ol = DM.parklet.outline, deckPts = [];
+  if (ol) ol.verts.forEach(function(v, i) {
+    deckPts.push([v.y, v.x]);
+    if (skeArc(ol, i)) skeEdgePts(ol, i).slice(1, -1).forEach(function(p) { deckPts.push([p.y, p.x]); });
+  });
+  else deckPts = [[LM.deckX0, 0], [LM.deckX1, 0], [LM.deckX1, L], [LM.deckX0, L]];
+  var deckThk = LV.deckTop - LV.curbTop, deck = extB(deckPts, LV.curbTop, deckThk);
+  addB(deck, 'Parklet::Deck', 'Deck (' + (ol ? 'applied outline' : 'rectangle') + ')', FILL.deck);
+  var polyA = 0; for (var i = 0; i < deckPts.length; i++) { var u = deckPts[i], w = deckPts[(i + 1) % deckPts.length]; polyA += u[0] * w[1] - w[0] * u[1]; } polyA = Math.abs(polyA / 2);
+  stats.deck = { solid: deck ? deck.isSolid : false, area: +polyA.toFixed(4), thickness: +deckThk.toFixed(4), volume: +(polyA * deckThk).toFixed(5) };
+  // ── Parklet › Railing: posts and rails on the road-side edge, from the deck top
+  var R = PARKLET_RAIL, rx = LM.deckX1, k = 0;
+  for (var z = R.firstPost; z < L - 0.1; z += R.post) { k++; addB(boxB(rx - R.postW / 2, rx + R.postW / 2, LV.deckTop, LV.deckTop + R.h, z, z + R.postW), 'Parklet::Railing', 'Railing post ' + k, '#6E6E6E'); }
+  addB(boxB(rx - R.postW / 2, rx + R.postW / 2, LV.deckTop + R.h - R.topRail, LV.deckTop + R.h, 0, L), 'Parklet::Railing', 'Top rail', '#6E6E6E');
+  addB(boxB(rx - R.postW / 2, rx + R.postW / 2, LV.deckTop + R.rails[0] - R.midRail / 2, LV.deckTop + R.rails[0] + R.midRail / 2, 0, L), 'Parklet::Railing', 'Mid rail', '#6E6E6E');
+  stats.railing = { posts: k, height: +R.h.toFixed(3), top: +(LV.deckTop + R.h).toFixed(3) };
+  // ── Parklet › Wheel stops, Planters (the end planters: a box with an inner void, on a base)
+  (DM.parklet.ends || []).forEach(function(e, i) {
+    if (e.kind === 'wheel-stop') { addB(boxB(e.x0, e.x1, e.y0, e.y1, e.z0, e.z1), 'Parklet::Wheel stops', 'Wheel stop ' + (e.end + 1), FILL.concrete); return; }
+    var t = 0.05, o = [[e.x0, e.z0], [e.x1, e.z0], [e.x1, e.z1], [e.x0, e.z1]], iH = [[e.x0 + t, e.z0 + t], [e.x1 - t, e.z0 + t], [e.x1 - t, e.z1 - t], [e.x0 + t, e.z1 - t]];
+    addB(extB(o, e.y0 + t, e.y1 - e.y0 - t, [iH]), 'Parklet::Planters', 'End planter ' + (e.end + 1) + ' (walls)', FILL.planting);
+    addB(boxB(e.x0, e.x1, e.y0, e.y0 + t, e.z0, e.z1), 'Parklet::Planters', 'End planter ' + (e.end + 1) + ' (base)', FILL.planting);
+  });
+  // ── Parklet › Furniture › <archetype>: one block per schedule group, an instance per piece
+  var placed = (window.FL3D && FL3D.placed || []).filter(function(p) { return p.archetype && !flIsEntourage(p.archetype); });
+  var GT = RPT.groupsFor(placed), blockDefs = {};
+  // a part in the block's own frame (a = local x, b = -local z, c = local y): its Brep(s)
+  var partB = function(q) {
+    var sx = q.x1 - q.x0, sy = q.y1 - q.y0, sz = q.z1 - q.z0, cx = (q.x0 + q.x1) / 2, cy = (q.y0 + q.y1) / 2, cz = (q.z0 + q.z1) / 2, br = null;
+    var P = function(x, y, z) { return [x, -z, y]; };
+    if (q.k === 'box') br = rh.Brep.createFromBox(new rh.Box(new rh.BoundingBox(P(q.x0, q.y0, q.z1), P(q.x1, q.y1, q.z0))));
+    else if (q.k === 'cyl' || q.k === 'cone') {
+      var r = Math.max(sx, sz) / 2;
+      if (q.k === 'cyl') { br = new rh.Cylinder(new rh.Circle(r), sy).toBrep(true, true); br.transform(rh.Transform.translationXYZ(cx, -cz, q.y0)); }
+      else { var pl = new rh.Polyline(3); pl.add(0, 0, 0); pl.add(r, 0, 0); pl.add(0, 0, sy); var rs = rh.RevSurface.create(pl.toPolylineCurve(), new rh.Line([0, 0, 0], [0, 0, 1]), 0, 2 * Math.PI); br = rh.Brep.createFromRevSurface(rs, true, true); br.transform(rh.Transform.translationXYZ(cx, -cz, q.y0)); }
+    } else if (q.k === 'rod') {
+      var rr = (q.axis === 'x' ? Math.max(sy, sz) : Math.max(sx, sy)) / 2, len = q.axis === 'x' ? sx : sz;
+      br = new rh.Cylinder(new rh.Circle(rr), len).toBrep(true, true);
+      // the cylinder stands on Z from 0 to len: lay it along the part's axis, centred
+      if (q.axis === 'x') { br.transform(rh.Transform.rotation(Math.PI / 2, [0, 1, 0], [0, 0, 0])); br.transform(rh.Transform.translationXYZ(q.x0, -cz, cy)); }
+      else { br.transform(rh.Transform.rotation(Math.PI / 2, [1, 0, 0], [0, 0, 0])); br.transform(rh.Transform.translationXYZ(cx, -q.z0, cy)); }
+    } else if (q.k === 'sph') { br = new rh.Sphere([cx, -cz, cy], Math.max(1e-3, (sx + sy + sz) / 6)).toBrep(); }
+    else if (q.k === 'prism') {
+      var ring = q.pts.map(function(p) { return [p[0], -p[1]]; }), A2 = 0; for (var i = 0; i < ring.length; i++) { var a = ring[i], b = ring[(i + 1) % ring.length]; A2 += a[0] * b[1] - b[0] * a[1]; } if (A2 < 0) ring.reverse();
+      var pl2 = new rh.Polyline(ring.length + 1); ring.forEach(function(p) { pl2.add(p[0], p[1], q.y0); }); pl2.add(ring[0][0], ring[0][1], q.y0);
+      var ex = rh.Extrusion.create(pl2.toPolylineCurve(), sy, true); br = ex ? ex.toBrep(true) : null;
+    } else if (q.k === 'wedge') {
+      var V = _flWedgeVerts(q).map(function(v) { return P(v[0], v[1], v[2]); }), tri = [V[0], V[1], V[4]], dir = [V[3][0] - V[0][0], V[3][1] - V[0][1], V[3][2] - V[0][2]], dl = Math.hypot(dir[0], dir[1], dir[2]);
+      var pl3 = new rh.Polyline(4); tri.forEach(function(p) { pl3.add(p[0], p[1], p[2]); }); pl3.add(tri[0][0], tri[0][1], tri[0][2]);
+      var ex2 = rh.Extrusion.create(pl3.toPolylineCurve(), dl, true); br = ex2 ? ex2.toBrep(true) : null;
+      if (br) { // the extrusion runs along the triangle's normal: if it went the other way, move it across
+        var bb = br.getBoundingBox ? br.getBoundingBox() : null, want = [Math.min(V[0][0], V[3][0], V[1][0]), Math.min(V[0][1], V[3][1], V[1][1])];
+        if (bb && (Math.abs(bb.min[0] - want[0]) > 1e-4 || Math.abs(bb.min[1] - want[1]) > 1e-4)) br.transform(rh.Transform.translationXYZ(dir[0] * 2 > 0 ? dir[0] : dir[0], dir[1], dir[2]));
+      }
+    } else br = rh.Brep.createFromBox(new rh.Box(new rh.BoundingBox(P(q.x0, q.y0, q.z1), P(q.x1, q.y1, q.z0))));
+    if (br && q.yaw) br.transform(rh.Transform.rotation(q.yaw, [0, 0, 1], [cx, -cz, 0]));
+    return br;
+  };
+  GT.groups.forEach(function(g) {
+    var sp = g.sp, a = sp ? FL_ARCHETYPES[sp.type] : null; if (!a) return;
+    var label = a.user ? a.label : a.label, path = 'Parklet::Furniture::' + label.replace(/::/g, ' ');
+    if (a.user && a.rec.kind === 'mesh') return;   // imported models: meshes, below
+    var geo = [], at = [];
+    flParts(sp.type, sp.params).forEach(function(q) { var b = partB(q); if (b) { geo.push(b); at.push(attr(path, q.role, flMatInfo(flPartMat(sp.type, q.role, sp.mats)).color)); } });
+    if (!geo.length) return;
+    var name = g.tag + ' ' + g.row.item, idx = doc.instanceDefinitions().add(name, g.row.dims + ' m; ' + g.row.mats, '', '', [0, 0, 0], geo, at), idef = doc.instanceDefinitions().get(idx);
+    blockDefs[g.tag] = { name: name, n: 0 }; stats.blocks++;
+    g.ids.forEach(function(id) {
+      var inst = placed.find(function(p) { return p.id === id; }); if (!inst) return;
+      var th = FL_BASE_YAW + (inst.userRotation || 0), c = Math.cos(th), s = Math.sin(th), py = typeof flBaseY === 'function' ? flBaseY(inst) : LV.deckTop;
+      var xf = new rh.Transform(1); xf.m00 = c; xf.m01 = -s; xf.m10 = s; xf.m11 = c; xf.m03 = inst.x || 0; xf.m13 = -(inst.z || 0); xf.m23 = py;
+      doc.objects().addInstanceObject(new rh.InstanceReference(idef.id, xf), attr(path, g.tag + ' ' + label, FILL.furniture));
+      blockDefs[g.tag].n++; stats.instances++;
+    });
+  });
+  // imported models (§6A): meshes stay meshes, on Meshes › User furniture, named
+  placed.forEach(function(inst) {
+    var a = FL_ARCHETYPES[inst.archetype]; if (!a || !a.user || a.rec.kind !== 'mesh') return;
+    var G = FLU.geo[a.rec.id], th = FL_BASE_YAW + (inst.userRotation || 0), c = Math.cos(th), s = Math.sin(th), py = flBaseY(inst);
+    var tag = GT.tags[inst.id] || '', m = new rh.Mesh(), n = 0;
+    var tri = function(pos) { for (var i = 0; i < pos.length; i += 3) { var lx = pos[i], ly = pos[i + 1], lz = pos[i + 2], wx = c * lx + s * lz + (inst.x || 0), wz = -s * lx + c * lz + (inst.z || 0), P = RX.P(wx, ly + py, wz); m.vertices().add(P[0], P[1], P[2]); } };
+    if (G) G.groups.forEach(function(gr) { var base = n; tri(gr.pos); for (var f = 0; f < gr.pos.length / 9; f++) m.faces().addTriFace(base + f * 3, base + f * 3 + 1, base + f * 3 + 2); n += gr.pos.length / 3; });
+    else { var bx = boxB(inst.x - a.rec.d / 2, inst.x + a.rec.d / 2, py, py + a.rec.h, inst.z - a.rec.l / 2, inst.z + a.rec.l / 2); if (bx) { addB(bx, 'Meshes::User furniture', (tag ? tag + ' ' : '') + a.label + ' (user model ' + a.rec.source + ', envelope: the triangles are not in this browser)', FILL.furniture); } return; }
+    try { m.normals().computeNormals(); m.compact(); } catch (e) {}
+    doc.objects().add(m, attr('Meshes::User furniture', (tag ? tag + ' ' : '') + a.label + ' (user model ' + a.rec.source + ')', FILL.furniture)); stats.meshes++;
+  });
+  // ── Street: segments as thin extrusions (the sidewalk and curb to the curb top), along the scene
+  var zA = LM.sceneMinZ, zB = LM.sceneMaxZ, segPath = function(t) { return { sidewalk: 'Street::Sidewalk', 'bike-lane': 'Street::Bike lane', 'travel-lane': 'Street::Travel lanes', parklet: 'Street::Parking', parking: 'Street::Parking' }[t] || 'Street::Travel lanes'; };
+  var sw = LM.sidewalkL, cw = 0.15;
+  addB(boxB(sw.x0, sw.x1 - cw, 0, LV.curbTop, zA, zB), 'Street::Sidewalk', 'Sidewalk', FILL.sidewalk);
+  addB(boxB(sw.x1 - cw, sw.x1, 0, LV.curbTop, zA, zB), 'Street::Curb', 'Curb', FILL.concrete);
+  (DM.crossSection || []).forEach(function(s) { if (s.type === 'sidewalk') return; addB(boxB(s.x0, s.x1, -0.02, 0, zA, zB), segPath(s.type), (s.type || 'segment').replace(/-/g, ' ') + ' ' + (+s.width).toFixed(2) + ' m', s.type === 'bike-lane' ? FILL.bike : FILL.road); });
+  if (LM.sidewalkR && LM.sidewalkR.x1 - LM.sidewalkR.x0 > 0.1) addB(boxB(LM.sidewalkR.x0, LM.sidewalkR.x1, 0, LV.curbTop, zA, zB), 'Street::Opposite sidewalk', 'Opposite sidewalk', FILL.sidewalk);
+  // ── Context › Buildings, Trees, Site objects
+  ['L', 'R'].forEach(function(side) { ((DM.buildings || {})[side] || []).forEach(function(b, i) { var f = b.footprint; if (!f || !f.visible) return; addB(boxB(Math.min(f.faceX, f.backX), Math.max(f.faceX, f.backX), 0, b.height || 8, f.z0, f.z1), 'Context::Buildings', (b.name || b.use || 'Building') + (b.host ? ' (host)' : ''), FILL.building); }); });
+  (DM.vegetation || []).forEach(function(v, i) {
+    if (v.type !== 'tree') { addB(boxB(v.x - v.canopyR, v.x + v.canopyR, 0, 0.5, v.z - v.canopyR, v.z + v.canopyR), 'Context::Trees', 'Planter', FILL.planting); return; }
+    var H = v.form ? Math.max(v.heightM || 6, (v.clearH || 2) + 1) : 2 + 1.12 * v.canopyR, ch = v.form ? (v.clearH || 2) : 2, F = TREE_FORMS[(TREE_ARCHETYPES[v.genus] || {}).form || 'round'] || TREE_FORMS.round;
+    var nm = (v.genus || 'Tree') + (v.species ? ' ' + v.species : '') + (v.prov && v.prov.id ? ' (CoV public-trees ' + v.prov.id + ')' : '');
+    addB(cylB(v.x, v.z, v.trunkR || 0.1, 0, ch + 0.2), 'Context::Trees', nm + ' - trunk', '#6B5A46');
+    addB(revB(v.x, v.z, [[0, ch]].concat(F.prof.slice(1, -1).map(function(q) { return [Math.max(0.02, q[0] * v.canopyR), ch + q[1] * (H - ch)]; })).concat([[0, H]])), 'Context::Trees', nm + ' - canopy', FILL.planting);
+  });
+  var st = typeof state !== 'undefined' ? state : {}, yOf = function(o, d) { return typeof o.yM === 'number' ? o.yM : d; };
+  (st.curb_features || []).forEach(function(f, i) {
+    if (typeof f.xM !== 'number') return; var x = yOf(f, -0.22), prov = f.prov && f.prov.id ? ' (' + f.prov.source + ' ' + f.prov.id + ')' : '';
+    if (f.type === 'H') addB(cylB(x, f.xM, 0.18, LV.curbTop, LV.curbTop + 0.775), 'Context::Site objects::Hydrants', 'Hydrant' + prov, '#C03030');
+    else if (f.type === 'S') addB(boxB(x - 0.26, x + 0.26, LV.curbTop, LV.curbTop + 1.2, f.xM - 0.19, f.xM + 0.19), 'Context::Site objects::Signals', 'Signal controller' + prov, '#707070');
+    else addB(cylB(x, f.xM, 0.11, LV.curbTop, LV.curbTop + 8), 'Context::Site objects::Poles', 'Pole' + prov, '#707070');
+  });
+  (st.transit_stops || []).forEach(function(t) { if (typeof t.xM !== 'number') return; addB(cylB(yOf(t, -1), t.xM, 0.05, LV.curbTop, LV.curbTop + 2.5), 'Context::Site objects::Stops', (t.kind === 'rapid' ? 'Station ' : 'Bus stop ') + (t.name || ''), '#2E5E9E'); });
+  (st.manholes || []).forEach(function(m) { if (typeof m.xM !== 'number') return; addB(cylB(yOf(m, 0), m.xM, (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47), -0.02, 0.005), 'Context::Site objects::Manholes', 'Manhole', '#505050'); });
+  // ── Drawing › Plan curves, Section box, Sheet crops, Dimensions (at the road plane, Z = 0)
+  var line = function(path, name, pts, col) { var pl = new rh.Polyline(pts.length); pts.forEach(function(p) { var q = RX.P(p[0], 0, p[1]); pl.add(q[0], q[1], q[2]); }); doc.objects().add(pl.toPolylineCurve(), attr(path, name, col)); stats.curves++; };
+  var dot = function(path, text, p) { var q = RX.P(p[0], 0, p[1]); doc.objects().add(new rh.TextDot(text, q), attr(path, text, '#303030')); stats.dots++; };
+  var rect = function(path, name, x0, x1, z0, z1, col) { line(path, name, [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]], col); };
+  line('Drawing::Plan curves', 'Curb line', [[sw.x1, zA], [sw.x1, zB]], '#303030');
+  line('Drawing::Plan curves', 'Frontage line', [[sw.x0, zA], [sw.x0, zB]], '#303030');
+  (DM.crossSection || []).forEach(function(s) { if (s.type !== 'sidewalk') line('Drawing::Plan curves', 'Edge of ' + (s.type || 'segment').replace(/-/g, ' '), [[s.x1, zA], [s.x1, zB]], '#606060'); });
+  line('Drawing::Plan curves', 'Deck outline', deckPts.concat([deckPts[0]]), '#303030');
+  var sec = DM.section; if (sec) { rect('Drawing::Section box', 'Section A-A box', sec.x0, sec.x1, Math.min(sec.zBack, sec.zFar), Math.max(sec.zBack, sec.zFar), '#0696D7'); line('Drawing::Section box', 'Section A-A cut', [[sec.x0, sec.z], [sec.x1, sec.z]], '#0696D7'); }
+  var sh = (DM.site && DM.site.sheets) || {}; Object.keys(sh).forEach(function(k2) { var c = sh[k2].crop; if (c) rect('Drawing::Sheet crops', k2.replace('A', 'A-') + ' crop', c.x0, c.x1, c.z0, c.z1, '#909090'); });
+  var dx = LM.deckX1 + 0.6;
+  line('Drawing::Dimensions', 'Deck length', [[dx, 0], [dx, L]], '#303030'); dot('Drawing::Dimensions', 'Deck ' + L.toFixed(2) + ' m', [dx + 0.3, L / 2]);
+  line('Drawing::Dimensions', 'Deck width', [[LM.deckX0, -0.6], [LM.deckX1, -0.6]], '#303030'); dot('Drawing::Dimensions', 'Width ' + (LM.deckX1 - LM.deckX0).toFixed(2) + ' m', [(LM.deckX0 + LM.deckX1) / 2, -1.0]);
+  (DM.lanes || []).forEach(function(ln) { dot('Drawing::Dimensions', (+ln.width).toFixed(2) + ' m lane', [(ln.x0 + ln.x1) / 2, -2.5]); });
+  // ── notes: design, address, date, version, the axis sentence
+  var N = DM.site && DM.site.north ? '' : '';
+  var nb = typeof CAD_CARDINAL !== 'undefined' ? CAD_CARDINAL.N : null, north = nb ? RX.P(nb.x, 0, nb.z) : null;
+  var notes = ['Curbside ' + (typeof RPT !== 'undefined' ? RPT.VERSION : '') + ' - Rhino export', 'Design: ' + (DM.project.name || 'Untitled parklet'), 'Address: ' + (DM.project.address || (typeof RPT !== 'undefined' ? RPT.addr(DM) : '')),
+    'Date: ' + new Date().toISOString().slice(0, 10), 'Units: metres. Axes: Curbside world (+X across the street toward the road, +Y up, +Z along the street) mapped to Rhino as X = x, Y = -z, Z = y (right-handed, Z up); the deck starts at Y = 0 and runs toward -Y.',
+    north ? 'True north is the Rhino direction (' + north[0].toFixed(4) + ', ' + north[1].toFixed(4) + ', 0).' : 'North: not located.', 'Furniture: one block per schedule row (tag F1, F2 ...), an instance per piece. Imported user models are meshes on Meshes > User furniture.'].join('\n');
+  try { doc.startSectionComments = notes; } catch (e) {}
+  try { doc.strings().set('Notes', notes); doc.strings().set('Curbside design', DM.project.name || ''); } catch (e) {}
+  stats.blockDefs = blockDefs; stats.notes = notes;
+  return { doc: doc, rh: rh, stats: stats };
+};
+RX.export = async function() {
+  var r = await RX.build(), bytes = r.doc.toByteArray(), base = PX.baseName();
+  PX.download(bytes, base + '.3dm', 'application/octet-stream');
+  return { bytes: bytes.length, stats: r.stats };
+};
+// glTF (.glb) of the 3D view: for Twinmotion, Blender and other renderers (three.js's exporter, loaded on demand)
+RX.exportGLB = async function() {
+  var Ex = await FLU.lib('exporters/GLTFExporter.js', 'GLTFExporter');
+  var buf = await new Promise(function(res) { new Ex().parse(_3d.group, res, { binary: true, onlyVisible: true }); });
+  PX.download(new Blob([buf], { type: 'model/gltf-binary' }), PX.baseName() + '.glb', 'model/gltf-binary');
+  return buf.byteLength;
+};
 PX.updateNote = function() {
   var sel = document.getElementById('px3dFmt'), n = document.getElementById('px3dNote');
   if (sel && n && PX.FORMATS[sel.value]) n.textContent = PX.FORMATS[sel.value].note;
@@ -18238,6 +18456,15 @@ PX.export = function() {
     Context:   !!(document.getElementById('px3dLContext')   || {checked:false}).checked
   };
   if (!_3d || !_3d.group) { pkToast('Open the 3D view once so the model exists, then export.', 'error'); return; }
+  // Brief 21 §10: Rhino is built from the model (polysurfaces, layers, blocks); glTF is the 3D view for renderers
+  if (fmt === '3dm' || fmt === 'glb') {
+    var b3 = document.getElementById('px3dBtn'); if (b3) { b3.disabled = true; b3.textContent = 'Exporting…'; }
+    (fmt === '3dm' ? RX.export() : RX.exportGLB()).then(function(r) {
+      pkToast(fmt === '3dm' ? 'Exported ' + r.stats.breps + ' polysurfaces, ' + r.stats.blocks + ' blocks (' + r.stats.instances + ' pieces), ' + r.stats.meshes + ' meshes as Rhino (.3dm)' : 'Exported the 3D view as glTF (.glb)', 'success');
+    }, function(err) { console.error('[px]', err); pkToast('3D export failed: ' + (err.message || err), 'error'); })
+      .then(function() { if (b3) { b3.disabled = false; b3.textContent = '↓ Export 3D Model'; } });
+    return;
+  }
   var objs = PX.collect(layers);
   if (!objs.length) { pkToast('Nothing to export — pick at least one layer.', 'error'); return; }
   var base = PX.baseName(), btn = document.getElementById('px3dBtn');

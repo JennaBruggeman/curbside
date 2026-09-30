@@ -847,6 +847,13 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - `MSR.lock` applies the Shift lock; `MSR.click`, `MSR.move`, `MSR.pin` and `MSR.clear` handle the interaction.
     - `MSR.draw` draws the overlay group `#pvMsr`. `renderPlanView` is wrapped to redraw it on screen renders only.
     - `planMD` calls `MSR.click`; the old measure drawing is gone.
+- **§10 Rhino .3dm (commit 11):**
+  - **`RX.build()`** returns `{doc, rh, stats}`. It builds from `DESIGN_MODEL`: the deck extrusion, railing boxes, end pieces, furniture blocks (`RPT.groupsFor`: one `InstanceDefinition` per schedule row, one `InstanceReference` per piece), street slabs, buildings, trees (a trunk plus a revolved crown), site objects, and Drawing curves and dots.
+  - **Layers:** full paths are created on demand (`Parklet::Furniture::<label>` and so on), coloured from the schematic palette.
+  - **Axes:** app (x, y, z) maps to Rhino (x, -z, y), done by `RX.P`.
+  - **Export:** `RX.export()` downloads the file; `RX.exportGLB()` downloads the 3D view as glTF.
+  - **rhino3dm:** pinned at `RX.URL` (8.35.0).
+  - **Menu:** `PX.export` routes `3dm` and `glb` to RX.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`
