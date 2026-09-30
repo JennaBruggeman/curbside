@@ -1693,6 +1693,10 @@ let _pvRenderT = null;
 // sidewalk width
 let designParkletWidth = 2.65;
 let designParkletLength = 19.8;
+// Brief 22 item 5: stage 0, no site. The design has no street segments and no deck (DEFAULT_STATE); the globals keep
+// nominal values (SEED.NOMINAL) that the hidden views may draw, but a "Choose a site" panel covers them, the design tabs
+// are off and pkSerialize writes the empty street. The site import ends it (SEED.parklet).
+var PK_NOSTREET = false;
 // ── Street-context layers ──────────────────────
 // The bike lane (Brief 22): the Section's segments are its one source. The parklet-side run is the segments before the
 // first travel lane: an optional buffer to the parklet (buf-pk), the bike-lane segment (variant painted | protected), an
@@ -17052,16 +17056,16 @@ function _dsScheduleLocal() {
 }
 window.addEventListener('load', function() {
   setTimeout(function() {
-    if (window.pkCurrentDesignId) return;   // a cloud design is (being) loaded instead
+    if (window.pkCurrentDesignId || window.pkOpenNone) return;   // a cloud design is (being) loaded instead, or signing in opened none
     var raw = null; try { raw = localStorage.getItem('pkt-design-state'); } catch (e) {}
-    if (!raw) return;
+    if (!raw) { pkApplyBlank(pkDefaultState()); return; }   // a first visit: stage 0, no site (Brief 22 item 5)
     try { pkApplyDesignState(JSON.parse(raw)); } catch (e) { console.warn('[design state] local restore failed:', e); }
   }, 1300);
 });
 function pkSerialize() {
   // Snapshot DOM into state before capturing
   try { if (typeof saveSettings === 'function') saveSettings(); } catch(e_) {}
-  return {
+  var _o = {
     schemaVersion: PK_SCHEMA_VERSION,
     savedAt: new Date().toISOString(),
     project: {
@@ -17133,6 +17137,9 @@ function pkSerialize() {
       userDefs: (typeof FLU !== 'undefined' && typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? JSON.parse(JSON.stringify(FLU.defsFor(FL3D.placed))) : []
     }
   };
+  // stage 0 (Brief 22 item 5): the empty street, not the nominal globals behind the Choose a site panel
+  if (PK_NOSTREET) { Object.assign(_o.site, { totalRoad: 0, sidewalkW: 0, numLanes: 0, lanesA: 0, lanesB: 0, parkletWidth: 0, parkletLength: 0 }); _o.crossSection = []; }
+  return _o;
 }
 
 // ─── Migrate old schema ───────────────────────────────────────────
@@ -17199,6 +17206,10 @@ function pkApplyDesignState(raw) {
   if (typeof _pvExtent !== 'undefined') { _pvExtent = 'sheet'; _pvUserMod = false; }   // a design opens at Fit sheet (Brief 22)
   var data = pkMigrate(raw);
   if (!data) return;
+  // stage 0 (Brief 22 item 5): a design with an empty street (not an older save without one) has no site yet; the
+  // globals take the nominal values, which stay hidden
+  PK_NOSTREET = Array.isArray(data.crossSection) && !data.crossSection.length;
+  if (PK_NOSTREET && typeof SEED !== 'undefined') data = Object.assign({}, data, { site: Object.assign({}, data.site || {}, SEED.NOMINAL) });
 
   // Project metadata
   if (data.project) {
@@ -17350,10 +17361,12 @@ function pkApplyDesignState(raw) {
   // The saved cross-section replaces the one rebuilt from the globals (older saves have none).
   var _segsIn = Array.isArray(data.crossSection) && data.crossSection.length ? data.crossSection : null;
   if (_segsIn && typeof window.seSetSegs === 'function') window.seSetSegs(_segsIn);
+  else if (PK_NOSTREET && typeof window.seSetSegs === 'function') window.seSetSegs([]);   // stage 0: nothing of the previous street survives
   if (typeof _legacyBike !== 'undefined' && _legacyBike && typeof setBikeLane === 'function') setBikeLane(_legacyBike[0], _legacyBike[1]);
 
   // Full re-render (with saved segments the strip is already right: do not rebuild it)
   pkReRenderAll(_segsIn ? 'section-edit' : 'load');
+  if (typeof pkStageSync === 'function') pkStageSync();   // Brief 22 item 5
 }
 
 // ─── Clear all furniture ──────────────────────────────────────────
@@ -17507,19 +17520,19 @@ async function pkLoadDesigns() {
 var DEFAULT_STATE = Object.freeze({
   schemaVersion: 1,
   project: { name: 'Untitled parklet', streetAddress: '' },
-  site: { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, roadDir: 'oneway', lanesA: 1, lanesB: 1,
-    bldgL: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
-    bldgR: { buildings: [{ height: 8, depth: 4, length: 30, zOffset: -5, setback: 0 }] },
-    parkletWidth: 2.65, parkletLength: 19.8, bufferEnabled: false, bufferW: 0.9,
+  // stage 0 (Brief 22 item 5): no street, no deck, no buildings
+  site: { totalRoad: 0, sidewalkW: 0, numLanes: 0, roadDir: 'oneway', lanesA: 0, lanesB: 0,
+    bldgL: { buildings: [] }, bldgR: { buildings: [] },
+    parkletWidth: 0, parkletLength: 0, bufferEnabled: false, bufferW: 0.9,
     lat: 49.2827, lon: -123.1207, streetBearing: 0, parkletSide: 'east', contextZ: 600, sheets: {} },
   section: { z: null, dir: -1, depth: 6, depthBack: 0, x0: null, x1: null, yTop: null },
-  crossSection: [{ type: 'sidewalk', width: 1.8 }, { type: 'parklet', width: 2.65 }, { type: 'travel-lane', width: 2.985 }],
+  crossSection: [],
   enclosure: JSON.parse(JSON.stringify(ENC.DEFAULT)),   // Brief 21 §12
   compliance: { parking_restrictions: '', route_type: '', intersection_dist: '', slope: '', hydrant_dist: '', driveway_dist: '', pole_dist: '',
     pole_trolley: '', signal_box_dist: '', manhole_dist: '', fire_exit_block: '', drainage_clear: '', boulevard_clear: '', parking_setback: '',
     platform_gap: '', load_capacity: '' },
   siteObjects: { manholes: [], curb_features: [], driveways: [], pkShape: null, street_trees: [], transit_stops: [], prov: {}, siteMap: null,
-    place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, surveyMap: null },
+    place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, existing: null, surveyMap: null },
   furniture: { placed: [], userDefs: [] }
 });
 function pkDefaultState(name, address) {
@@ -17768,12 +17781,10 @@ async function pkInitApp() {
       // Check for local migration (first sign-in)
       var migrated = await pkCheckLocalMigration();
       if (!migrated) {
-        // Open most recent design or create new
-        if (pkAllDesigns.length > 0) {
-          await pkLoadDesign(pkAllDesigns[0].id);
-        } else {
-          await pkNewDesign('My First Parklet', '');
-        }
+        // Brief 22 item 5: signing in lists the designs and opens none (stage 0); the first site import makes a design
+        window.pkOpenNone = true; pkCurrentDesignId = null; pkCurrentDesignMeta = null;
+        pkApplyBlank(pkDefaultState());
+        if (pkAllDesigns.length > 0) pkOpenDesignBrowser();
       }
 
       // Listen for auth state changes
@@ -26639,6 +26650,7 @@ SMP.importContext = async function() {
     SMP.applyBuildings(P.blds, P.pois, data.osm.at, rep);
     SMP.applyAddresses(cov['property-addresses'].rows, cov['property-addresses'].at, rep);
     SMP.applyObjects(cov, P.stops, data.osm.at, rep);
+    if (PK_NOSTREET && typeof SEED !== 'undefined') SEED.parklet(rep);   // stage 0 -> 1: the deck at the host frontage (Brief 22 item 5)
     SITEF.fromImport(P.way, cov['right-of-way-widths'], data.osm.at, rep);   // the existing street, before any design change
     SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString();
     // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import
@@ -26978,7 +26990,15 @@ SMP.sourcesList = function() {
 .sf-rw, .sf-lanesrc { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; }
 .sf-refuse { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; font-weight: 600; color: var(--st-fail, #E0795E); }
 .sf-refuse:empty { display: none; }
-
+/* -- Brief 22 item 5: stage 0 --------------------------------------------------------------- */
+.pk-stage0 { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--c-bg, #17191C); }
+.pk-stage0[hidden] { display: none; }
+.pk-s0-card { max-width: 34em; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.pk-s0-card h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--c-text, #F2F2F0); text-wrap: balance; }
+.pk-s0-card p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--c-text-dim, #9AA0A6); }
+.pk-s0-card ol { margin: 0; padding-left: 1.3em; font-size: 13px; line-height: 1.6; color: var(--c-text, #F2F2F0); }
+.ttab.ttab-off { opacity: .42; cursor: not-allowed; }
+body.pk-stage0 .canvas-toolbar, body.pk-stage0 #cadTools { display: none !important; }   /* nothing to fit or draw before a site */
 </style>
 <script>
 // ════════════════════════════════════════════════════════════════════════════════════════════
@@ -27159,6 +27179,92 @@ SITEF.xBlocks = function() {
   var r0 = SMP.refresh; SMP.refresh = function() { var r = r0.apply(this, arguments); try { SITEF.render(); } catch (e) {} return r; };
   setTimeout(function() { try { SITEF.render(); } catch (e) {} }, 1700);
 })();
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// THE THREE STAGES (Brief 22 item 5)
+// 0 no site: DEFAULT_STATE, an empty street and no deck; the views are covered by "Choose a site" and the tabs that need a
+//   design (Generate, Design, Check, Visualize, Export) are off. + New and signing in land here.
+// 1 site chosen: the import writes the existing street, then SEED.parklet places a deck of the default length at the
+//   host frontage with the default enclosure, no furniture and no layout; the checks run on the site's facts.
+// 2 the user's design: furniture on the deck (pkStage reads it; nothing stores the stage).
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// TODO(Jenna): DECK_L is the app's existing default deck (19.8 m); confirm the Parklet Manual's default length and cite it.
+var SEED = { DECK_L: 19.8, DECK_W: 2.65, GATED: ['generate', 'design', 'check', 'visualize', 'export'],
+  TIP: 'Choose a site first: Locate on map in the Site tab, then Import street context.' };
+// the hidden stage-0 globals: what the views could draw before a site exists (never shown, never saved)
+SEED.NOMINAL = { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L };
+function pkStage() { return PK_NOSTREET ? 0 : (typeof FL3D !== 'undefined' && FL3D && FL3D.placed && FL3D.placed.length ? 2 : 1); }
+SEED.parklet = function(rep) {
+  PK_NOSTREET = false;
+  designParkletLength = SEED.DECK_L; designParkletWidth = SEED.DECK_W; state.pkShape = null;
+  ENCLOSURE = ENC.norm(JSON.parse(JSON.stringify(ENC.DEFAULT))); state.__enclosure = JSON.stringify(ENCLOSURE);
+  pkClearAllFurniture();
+  var lr = document.getElementById('lengthReadout'), wr = document.getElementById('widthReadout');
+  if (lr) lr.textContent = designParkletLength.toFixed(1) + ' m'; if (wr) wr.textContent = designParkletWidth.toFixed(3) + ' m';
+  // the host frontage: the one in front of the located point, else the nearest; the deck centres on it
+  var fr = pkFrontages(), h = pkHostIdx(), f = null;
+  if (h < 0 && fr.length) h = fr.slice().sort(function(a, b) { return Math.abs(a.s - pkZNow()) - Math.abs(b.s - pkZNow()); })[0].i;
+  if (h >= 0) { f = fr.find(function(q) { return q.i === h; }); pkPlaceFrontage(h); }
+  else try { syncDesignModel('seed'); } catch (e) {}
+  if (rep) rep.notes.push('stage 1: a ' + SEED.DECK_L + ' m deck ' + (f ? 'centred on the host frontage (' + f.name + ')' : 'at the located point (no frontage imported)') + ', the default enclosure, no furniture');
+  pkStageSync();
+  // signed in with no design open (signing in opens none): the first site makes one
+  if (typeof pkSB !== 'undefined' && pkSB && pkCurrentUser && !pkCurrentDesignId && typeof pkCreateDesign === 'function') {
+    var nm = (state.__siteMap && state.__siteMap.name) || 'Untitled parklet';
+    pkCreateDesign(nm, (document.getElementById('streetAddress') || {}).value || '').then(function(d) {
+      if (!d) return; pkCurrentDesignId = d.id; pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at }; window.pkOpenNone = false;
+      var pn = document.getElementById('projectName'); if (pn && !pn.value) pn.value = d.name;
+      try { pkScheduleSave(); pkUpdateAccountUI(); } catch (e) {}
+    });
+  }
+};
+// the stage's UI: the Choose a site panel over the views, the gated tabs, the Site fields blank before a site
+// the gated tabs: off, with the reason as their tooltip (the tooltip layer reads data-tip; its own table is kept aside)
+SEED.tabTips = function() {
+  var s0 = PK_NOSTREET, ut = window.uiApplyTips;
+  // the tooltip table (defined later in the page) must not undo the stage-0 reason: re-applied after it, once it exists
+  if (typeof ut === 'function' && !ut._stage) { window.uiApplyTips = function() { var r = ut.apply(this, arguments); try { SEED.tabTips(); } catch (e) {} return r; }; window.uiApplyTips._stage = true; }
+  SEED.GATED.forEach(function(m) {
+    var t = document.querySelector('.ttab[onclick*="' + m + '"]'); if (!t) return;
+    t.classList.toggle('ttab-off', s0); t.setAttribute('aria-disabled', s0 ? 'true' : 'false');
+    if (t.hasAttribute('title')) { if (!t.hasAttribute('data-tip')) t.setAttribute('data-tip', t.getAttribute('title')); t.removeAttribute('title'); }
+    var cur = t.getAttribute('data-tip') || '';
+    if (s0) { if (cur !== SEED.TIP) t.dataset.tip0 = cur; t.setAttribute('data-tip', SEED.TIP); }
+    else if (t.dataset.tip0 !== undefined) { t.setAttribute('data-tip', t.dataset.tip0); delete t.dataset.tip0; }
+  });
+};
+function pkStageSync() {
+  var s0 = PK_NOSTREET, grid = document.getElementById('viewportGrid');
+  document.body.classList.toggle('pk-stage0', s0);
+  SEED.tabTips();
+  var ov = document.getElementById('pkStage0');
+  if (!ov && grid) {
+    if (getComputedStyle(grid).position === 'static') grid.style.position = 'relative';
+    ov = document.createElement('div'); ov.id = 'pkStage0'; ov.className = 'pk-stage0'; ov.setAttribute('role', 'region'); ov.setAttribute('aria-label', 'Choose a site');
+    ov.innerHTML = "<div class='pk-s0-card'><h2>Choose a site</h2><p>There is no street yet. A design starts from a real curb:</p>" +
+      "<ol><li>Locate on map: search the address, click the street, then the parklet's side.</li><li>Import street context: the existing street, its buildings and the City's site objects.</li></ol>" +
+      "<p>A deck of the default length is then placed at the host frontage, and the checks run on the site's facts.</p>" +
+      "<button type='button' class='ctx-btn' onclick='appSetMode(\"site\"); SM.open()'>Locate on map</button></div>";
+    grid.appendChild(ov);
+  }
+  if (ov) ov.hidden = !s0;
+  if (s0) ['roadWidth', 'sidewalkWidth', 'laneCount', 'lanesA', 'lanesB'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
+  var act = document.querySelector('.ttab.active'), m = act ? (String(act.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : null;
+  if (s0 && m && SEED.GATED.indexOf(m) >= 0) appSetMode('site');
+}
+(function() {
+  var f = window.appSetMode; if (typeof f !== 'function' || f._stage) return;
+  var w = function(mode) {
+    if (PK_NOSTREET && SEED.GATED.indexOf(mode) >= 0) {   // stage 0: the Site tab, with the reason
+      var r = f.call(this, 'site'); try { if (typeof SMP !== 'undefined' && SMP.msg) SMP.msg(SEED.TIP); } catch (e) {} return r;
+    }
+    return f.apply(this, arguments);
+  };
+  w._stage = true; window.appSetMode = w;
+  // (the tooltip table's hook: SEED.tabTips installs it once uiApplyTips exists)
+  setTimeout(function() { try { pkStageSync(); } catch (e) {} }, 1800);
+})();
+
 </script>
 <style>
 /* -- Site from map (Brief 13) phase 3: the Mapillary context photo -------------------------- */
