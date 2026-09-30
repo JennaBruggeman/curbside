@@ -699,6 +699,22 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     | 3D home: camera (m), distance, canopy hits on the line of sight | (11.2, 10.6, -8.8), 21.0 m, 0 | (14.4, 10.6, -8.8), 21.5 m, 0 | (17.6, 10.6, -8.8), 22.1 m, 0 |
     | Scale-bar values at fit / zoom 3 / zoom 18, overlaps | 0 200 m / 0 20 50 100 m / 0 4 10 20 m, 0 | same, 0 | 0 200 m / 0 50 100 m / 0 4 10 20 m, 0 |
     | Parking 2.40 → 2.30 in the Section; Ctrl+Z on Generate, then on Site | 2.30, then 2.40 | 2.30, then 2.40 | 2.30, then 2.40 |
+- **§2 Names and tooltips (commit 3):**
+  - **Tooltips:**
+    - Every control has one sentence in `data-tip`, shown by one layer (`#uiTip`) 300 ms after the pointer or keyboard focus rests on it.
+    - A `title` (markup or code) is moved into `data-tip` the first time it is met, so the browser's own tooltip never doubles it.
+    - `UI_TIPS` (selector → sentence, near the end of the file) covers controls built by code; `uiApplyTips` re-applies it 150 ms after DOM changes. A later row wins over an earlier one for the same element.
+  - **Renames:**
+    - The brief's list: DIM → Dimensions; Solve width → Fit lanes to minimum; Fit all → Fit design; Plan and Section FIT → Fit view; A–A → Section cut; BOX → Section box; Extents → Sheet extents.
+    - The Move block: X / Z → Across / Along, ° → Rotation, ΔX / ΔZ → Move by Across / Along, Apply ΔXZ → Apply move. The N / W / E / S letters (world axes, not compass points) became arrows whose tooltips say what they do.
+    - Provenance chips: OpenStreetMap / City data / Estimate / You.
+    - Verdicts in mixed case with real plurals.
+  - **One term:** "deck" for the platform in the checks (C14, C15), Generate and the furniture notes. Product names (mmcité Platform Kupé) are kept.
+  - **Type:** one override block (`Names and tooltips (Brief 21 §2)` style) sets headers to 13 px mixed case and controls in the left column and view headers to 12 px.
+    - The Plan's header is two rows (name + Enlarge, then its tools); the Section's totals wrap.
+    - `_vpHeight` keeps a Section viewport down to 60 px (was 120), so the drawing still scrolls to the ground at three views.
+  - **Kept, logged:** the compass pairs N-S / E-W / NE-SW / NW-SE (they fit the five-way switch; the tooltips spell them out), "AI-assisted" and the library's SF / CALC / DI codes (spelled out in their legend).
+  - **Verified (`t_b21_tips.js`, every tab with every left-column panel open):** 430 controls, 0 without a tooltip; 0 headers under 12 px or in capitals; the tooltip is hidden at 250 ms and shown at 350 ms, and the native title is gone.
 ## Scripting approach
 All changes are applied via PowerShell scripts in the scratchpad directory:
 `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad\`

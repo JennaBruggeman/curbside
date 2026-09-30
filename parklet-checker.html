@@ -381,23 +381,23 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div id='cadTools' style='padding:8px 10px 6px 10px;border-bottom:2px solid #2E3338;background:#202328;flex-shrink:0;'>
 <div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;'>Selection</div>
 <div id='cadSelName' class='empty-state' style='font-size:11px;font-weight:600;color:var(--ink);margin-bottom:5px;font-family:var(--mono);min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>no selection</div>
-<div style='display:grid;grid-template-columns:14px 1fr 14px 1fr;gap:2px 3px;align-items:center;margin-bottom:2px;'>
-<span style='font-size:11px;font-weight:700;color:var(--muted);font-family:var(--mono);'>X</span>
-<input type='number' id='cadPosX' step='0.001' placeholder='&#x2014;' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyPos()' title='World X (exact, no snap)'>
-<span style='font-size:11px;font-weight:700;color:var(--muted);font-family:var(--mono);'>Z</span>
-<input type='number' id='cadPosZ' step='0.001' placeholder='&#x2014;' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyPos()' title='World Z (exact, no snap)'>
+<div style='display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 5px;align-items:center;margin-bottom:2px;'>
+<span class='cad-lbl'>Across</span>
+<input type='number' id='cadPosX' step='0.001' placeholder='&#x2014;' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyPos()' title='Position across the street, in metres from the curb (typed exactly, no snap).'>
+<span class='cad-lbl'>Along</span>
+<input type='number' id='cadPosZ' step='0.001' placeholder='&#x2014;' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyPos()' title='Position along the street, in metres from the deck&rsquo;s start (typed exactly, no snap).'>
 </div>
-<div style='display:grid;grid-template-columns:14px 1fr 28px;gap:2px 3px;align-items:center;margin-bottom:7px;'>
-<span style='font-size:11px;font-weight:700;color:var(--muted);font-family:var(--mono);'>&#176;</span>
-<input type='number' id='cadRot' step='15' placeholder='0' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyRot()' title='Rotation in degrees'>
-<span style='font-size:11px;color:var(--muted);'>deg</span>
+<div style='display:grid;grid-template-columns:auto 1fr auto;gap:2px 5px;align-items:center;margin-bottom:7px;'>
+<span class='cad-lbl'>Rotation</span>
+<input type='number' id='cadRot' step='15' placeholder='0' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);' onchange='cadApplyRot()' title='Rotation of the selected piece, in degrees.'>
+<span class='cad-lbl'>&#176;</span>
 </div>
 <div id='cadParams' style='display:none;margin:0 0 8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.07);'></div>
 <div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;'>Grid &amp; Snap</div>
 <div style='display:flex;gap:3px;align-items:center;margin-bottom:7px;'>
-<button id='cadGridBtn' onclick='cadToggleGrid()' style='font-size:11px;padding:2px 7px;border:1px solid var(--rule);border-radius:2px;background:var(--ink);color:var(--bg);cursor:pointer;font-family:var(--mono);' title='Toggle grid (all views)'>Grid</button>
-<button id='cadSnapBtn' onclick='cadToggleSnap()' style='font-size:11px;padding:2px 7px;border:1px solid var(--rule);border-radius:2px;background:var(--ink);color:var(--bg);cursor:pointer;font-family:var(--mono);' title='Toggle snap'>Snap</button>
-<select id='cadGridSel' onchange='cadSetSpacing(this)' style='font-size:11px;padding:1px 3px;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);height:22px;font-family:var(--mono);'>
+<button id='cadGridBtn' onclick='cadToggleGrid()' style='font-size:11px;padding:2px 7px;border:1px solid var(--rule);border-radius:2px;background:var(--ink);color:var(--bg);cursor:pointer;font-family:var(--mono);' title='Shows or hides the grid in the Plan and the Section.'>Grid</button>
+<button id='cadSnapBtn' onclick='cadToggleSnap()' style='font-size:11px;padding:2px 7px;border:1px solid var(--rule);border-radius:2px;background:var(--ink);color:var(--bg);cursor:pointer;font-family:var(--mono);' title='Snaps moved and placed pieces to the grid.'>Snap</button>
+<select id='cadGridSel' onchange='cadSetSpacing(this)' title='The grid step, also the step the arrow keys move by.' style='font-size:11px;padding:1px 3px;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);height:22px;font-family:var(--mono);'>
 <option value='0.1'>0.10 m</option>
 <option value='0.25' selected>0.25 m</option>
 <option value='0.5'>0.50 m</option>
@@ -407,41 +407,41 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;'>Move</div>
 <div style='display:grid;grid-template-columns:minmax(40px,1fr) minmax(52px,64px) minmax(40px,1fr);gap:2px;margin-bottom:3px;'>
 <div></div>
-<button onclick='cadMoveCardinal("N")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='North -Z'>&#8593; N</button>
+<button onclick='cadMoveCardinal("N")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Moves the selected piece one step along the street, toward the deck&rsquo;s start.' aria-label='Move along the street, toward the start'>&#8593;</button>
 <div></div>
-<button onclick='cadMoveCardinal("W")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='West -X'>&#8592; W</button>
-<input type='number' id='cadMoveDist' value='0.25' step='0.05' min='0.001' style='font-size:11px;padding:2px 1px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);text-align:center;width:100%;box-sizing:border-box;' title='Step (m)'>
-<button onclick='cadMoveCardinal("E")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='East +X'>E &#8594;</button>
+<button onclick='cadMoveCardinal("W")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Moves the selected piece one step across the street, toward the sidewalk.' aria-label='Move toward the sidewalk'>&#8592;</button>
+<input type='number' id='cadMoveDist' value='0.25' step='0.05' min='0.001' style='font-size:11px;padding:2px 1px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);text-align:center;width:100%;box-sizing:border-box;' title='How far one arrow press moves the piece, in metres.'>
+<button onclick='cadMoveCardinal("E")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Moves the selected piece one step across the street, toward the road.' aria-label='Move toward the road'>&#8594;</button>
 <div></div>
-<button onclick='cadMoveCardinal("S")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='South +Z'>&#8595; S</button>
+<button onclick='cadMoveCardinal("S")' style='font-size:11px;padding:2px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Moves the selected piece one step along the street, toward the deck&rsquo;s end.' aria-label='Move along the street, toward the end'>&#8595;</button>
 <div></div>
 </div>
-<div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:5px 0 3px;'>Delta</div>
-<div style='display:grid;grid-template-columns:18px 1fr 18px 1fr;gap:2px 3px;align-items:center;margin-bottom:3px;'>
-<span style='font-size:11px;font-weight:700;color:var(--muted);font-family:var(--mono);'>&#916;X</span>
-<input type='number' id='cadDX' step='0.01' value='0' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);'>
-<span style='font-size:11px;font-weight:700;color:var(--muted);font-family:var(--mono);'>&#916;Z</span>
-<input type='number' id='cadDZ' step='0.01' value='0' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);'>
+<div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:5px 0 3px;'>Move by</div>
+<div style='display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 5px;align-items:center;margin-bottom:3px;'>
+<span class='cad-lbl'>Across</span>
+<input type='number' id='cadDX' step='0.01' value='0' title='Distance to move across the street, in metres (+ toward the road).' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);'>
+<span class='cad-lbl'>Along</span>
+<input type='number' id='cadDZ' step='0.01' value='0' title='Distance to move along the street, in metres (+ toward the deck&rsquo;s end).' style='width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;border:1px solid var(--rule);border-radius:2px;font-family:var(--mono);background:var(--bg);color:var(--ink);'>
 </div>
-<button onclick='cadApplyDelta()' style='font-size:11px;padding:2px 10px;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);width:100%;box-sizing:border-box;margin-bottom:2px;'>Apply &#916;XZ</button>
+<button onclick='cadApplyDelta()' style='font-size:11px;padding:2px 10px;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);width:100%;box-sizing:border-box;margin-bottom:2px;' title='Moves the selected piece by the two distances above.'>Apply move</button>
 
 <div id='cadActions' style='margin-top:6px;display:none;'>
 <div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;'>Actions</div>
 <div style='display:grid;grid-template-columns:1fr 1fr;gap:2px;'>
-<button onclick='cadAction("rot-45")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);'>&#8634; -45&deg;</button>
-<button onclick='cadAction("rot+45")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);'>&#8635; +45&deg;</button>
-<button onclick='cadAction("duplicate")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);'>Duplicate</button>
-<button onclick='cadAction("delete")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:#c03030;color:#fff;cursor:pointer;font-family:var(--mono);'>Delete</button>
+<button onclick='cadAction("rot-45")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Turns the selected piece 45&deg; anticlockwise.'>&#8634; &minus;45&deg;</button>
+<button onclick='cadAction("rot+45")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Turns the selected piece 45&deg; clockwise.'>&#8635; +45&deg;</button>
+<button onclick='cadAction("duplicate")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Places a copy of the selected piece beside it.'>Duplicate</button>
+<button onclick='cadAction("delete")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:#c03030;color:#fff;cursor:pointer;font-family:var(--mono);' title='Removes the selected piece from the design.'>Delete</button>
 </div>
 </div>
 <div id='cadAlign' style='margin-top:6px;display:none;'>
 <div style='font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;'>Align</div>
 <div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;margin-bottom:2px;'>
-<button onclick='_fl3DAlignX("near")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Near edge'>&#9665; Near</button>
-<button onclick='_fl3DAlignX("center")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Center'>&#8853; Ctr</button>
-<button onclick='_fl3DAlignX("far")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Far edge'>Far &#9655;</button>
+<button onclick='_fl3DAlignX("near")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Lines the selected pieces up on the edge nearest the sidewalk.'>&#9665; Sidewalk edge</button>
+<button onclick='_fl3DAlignX("center")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Lines the selected pieces up on the deck&rsquo;s centre line.'>&#8853; Centre</button>
+<button onclick='_fl3DAlignX("far")' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);' title='Lines the selected pieces up on the edge nearest the road.'>Road edge &#9655;</button>
 </div>
-<button onclick='_fl3DDistributeZ()' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);width:100%;box-sizing:border-box;'>&#8644; Dist Z</button>
+<button onclick='_fl3DDistributeZ()' style='font-size:11px;padding:3px 0;border:1px solid var(--rule);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer;font-family:var(--mono);width:100%;box-sizing:border-box;' title='Spaces the selected pieces evenly along the street.'>&#8644; Space evenly</button>
 </div>
 </div>
 
@@ -606,17 +606,17 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
         <button id='appMenuTechnical' role='menuitem' onclick='setDrawingTheme("technical");cadCloseAppearance()'>&#160;&#160;&#160;&#160; Technical</button>
       </div>
     </div>
-    <button id='cadDimBtn' class='ctb-btn active' aria-pressed='true' onclick='cadToggleDim()' title='Show dimensions in Plan and Section'>DIM</button>
-    <button class='ctb-btn' onclick='autoSolveWidth()' title='Set parklet to the maximum width that keeps the adjacent lane compliant (C02)'>Solve width</button>
-    <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fit each visible viewport to its drawing (Plan, Section, 3D)'>Fit all</button>
+    <button id='cadDimBtn' class='ctb-btn active' aria-pressed='true' onclick='cadToggleDim()' title='Show or hide the dimension chains in the Plan and the Section.'>Dimensions</button>
+    <button class='ctb-btn' onclick='autoSolveWidth()' title='Widens the parklet as far as the travel lanes allow at their minimum width (C02).'>Fit lanes to minimum</button>
+    <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fits the Plan, Section and 3D views to the whole design.'>Fit design</button>
     <div class='canvas-toolbar-right'>
       <button class='ctb-btn' id='axToggleBtn' onclick='AX.toggle()' title='Change the design by describing it'>&#10022; Assistant</button>
     </div>
   </div>
 <div id='viewportGrid' data-layout='three'>
 <div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div>    </div>    <!-- Drawing 02: Plan -->    
-<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fit the plan to its drawing'>FIT</button><button class='drw-tb-toggle' id='secTogglePV' title='Show the Section A-A cut line' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>A&ndash;A</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measure distance'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Sheet extents: drag a sheet label to move its crop, its corner square to resize it (0.5 m steps)'>Extents</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Toggle snap'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
-<div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"><button class='drw-tb-toggle on' id='secToggle3D' title='Show the section box, cut plane and fill in 3D' aria-pressed='true' onclick='_3dSectionOn=!_3dSectionOn;syncToolbarStates();_3dSectionHelper()'>BOX</button></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
+<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' onclick='_pvFitView()' title='Fits the Plan to the whole drawing.'>Fit view</button><button class='drw-tb-toggle' id='secTogglePV' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id="planTabShape" style="display:none">        <div class="sketch-toolbar">          <button class="sk-tool-btn active" id="skToolDraw" onclick="setSkTool('draw')">Draw</button>          <button class="sk-tool-btn" id="skToolSel" onclick="setSkTool('select')">Select</button>          <div class="sk-divider"></div>          <button class="sk-action-btn" onclick="sketchCloseShape()">Close Shape</button>          <button class="sk-action-btn" onclick="sketchResetRect()">Reset to Rect</button>          <button class="sk-action-btn sk-apply-btn" onclick="applySketch()">Apply to Plan</button>          <span class="sk-hint" id="skHint">Click to place vertices. Click near start to close.</span>        </div>        <div class="svg-wrap" style="padding-bottom:14px">          <svg id="sketchSVG" viewBox="0 0 760 280" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;width:100%;height:auto"></svg>        </div>        <div class="sketch-seg-bar" id="segBar" style="display:none">          <span class="sk-hint">Segment:</span>          <button class="sk-tool-btn" id="segTypeLine" onclick="setSegType('line')">Line</button>          <button class="sk-tool-btn" id="segTypeArc" onclick="setSegType('arc')">Arc</button>          <span class="sk-hint" id="segSagHint" style="display:none">Drag mid-handle to curve</span>          <button class="sk-action-btn" id="btnDelVert" style="display:none;margin-left:auto" onclick="deleteSelectedVert()">Delete Vertex</button>        </div>      </div>    </div>    <!-- Drawing 03: 3D View -->    
+<div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"><button class='drw-tb-toggle on' id='secToggle3D' title='Shows or hides the section box, its cut plane and fill in the 3D view.' aria-pressed='true' onclick='_3dSectionOn=!_3dSectionOn;syncToolbarStates();_3dSectionHelper()'>Section box</button></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
 <div id='workspaceVisualize' style='display:none'><div id='rvzView'><p class='rvz-info' id='rvzViewInfo' aria-live='polite'></p></div><aside id='rvzRail' aria-label='Render controls'></aside></div>
 <div id='workspaceGenerate' style='display:none'><div class='gen-bar' id='genBar'></div><div class='gen-grid' id='genGrid'></div></div>
@@ -638,7 +638,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
       <div class='exp-placeholder'>
         <div class='exp-placeholder-icon'>&#9113;</div>
         <div class='exp-placeholder-main'>Export Preview</div>
-        <div class='exp-placeholder-sub'>Use the <strong>Export PDF Report</strong> button in the sidebar to generate the full compliance report including drawings, criteria, and site information.</div>
+        <div class='exp-placeholder-sub'>Use <strong>Download report (PDF)</strong> in the left panel for the full report: drawings, checks and site information.</div>
       </div>
     </div>
   </div>
@@ -663,7 +663,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
         <label class='sw-label'>Organization</label>
         <input type='text' id='settOrg' class='sett-input sw-field' placeholder='Organization' oninput='cadSaveSettings()'>
       </div>
-      <div style='font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;'>LOCAL ONLY &middot; Stored in this browser. Not synced between devices.</div>
+      <div style='font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;'>Stored in this browser only; not shared between devices.</div>
     </div>
 
     <div id='swUnits' class='sw-section'>
@@ -995,7 +995,7 @@ return n >= 2.4 ? 'pass' : null;
   
 }
 ,  {
-    id: 'c11',    num: '11',    title: 'Curb and roadside drainage maintained — street drains not blocked',    requirement: 'Curb and roadside drainage must be maintained; street drains must not be blocked.',    page: 21,    status: 'unclear',    siteCondition: 'Unknown. Manual also requires a drainage channel built into the parklet platform to maintain curbside drainage flow to catch basins (p. 63, Criterion P8). Site survey required.',    note: 'The Manual specifies (P8, p. 63): a drainage channel must be built into the parklet design, with minimum 40 cm width and 10 cm depth, maintained clear of debris.',    inputId: 'drainage_clear',    inputLabel: 'Are all street drains / catch basins clear of the footprint?',    inputType: 'select',    selectOptions: [      {
+    id: 'c11',    num: '11',    title: 'Curb and roadside drainage maintained — street drains not blocked',    requirement: 'Curb and roadside drainage must be maintained; street drains must not be blocked.',    page: 21,    status: 'unclear',    siteCondition: 'Unknown. Manual also requires a drainage channel built into the deck to maintain curbside drainage flow to catch basins (p. 63, Criterion P8). Site survey required.',    note: 'The Manual specifies (P8, p. 63): a drainage channel must be built into the parklet design, with minimum 40 cm width and 10 cm depth, maintained clear of debris.',    inputId: 'drainage_clear',    inputLabel: 'Are all street drains / catch basins clear of the footprint?',    inputType: 'select',    selectOptions: [      {
  value: '', label: '— select —' 
 }
 ,      {
@@ -1064,7 +1064,7 @@ return n >= 2.4 ? 'pass' : null;
   
 }
 ,  {
-    id: 'c14',    num: '14',    title: 'Platform flush with sidewalk (max 12 mm gap; max 13 mm connector)',    requirement: 'The top of the parklet platform must be flush with the sidewalk with a maximum 12 mm gap. If the location requires a larger gap, it must be filled with a connector piece no higher than 13 mm to create a continuous surface between the sidewalk and the parklet.',    page: 62,    status: 'unclear',    siteCondition: 'Design-stage criterion. Cannot be assessed without detailed construction drawings. Applies at installation.',    note: 'The parklet platform cannot exceed a 2% cross slope (p. 62).',    inputId: 'platform_gap',    inputLabel: 'Gap between sidewalk and platform edge',    inputUnit: 'mm',    inputType: 'number',    evalFn: (val) => {
+    id: 'c14',    num: '14',    title: 'Deck flush with the sidewalk (gap at most 12 mm; connector at most 13 mm)',    requirement: 'The top of the deck must be flush with the sidewalk with a maximum 12 mm gap. If the location requires a larger gap, it must be filled with a connector piece no higher than 13 mm to create a continuous surface between the sidewalk and the parklet.',    page: 62,    status: 'unclear',    siteCondition: 'Design-stage criterion. Cannot be assessed without detailed construction drawings. Applies at installation.',    note: 'The deck cannot exceed a 2% cross slope (p. 62).',    inputId: 'platform_gap',    inputLabel: 'Gap between the sidewalk and the deck edge',    inputUnit: 'mm',    inputType: 'number',    evalFn: (val) => {
       const n = parseFloat(val);
       if (isNaN(n)) return null;
       return n <= 12 ? 'pass' : (n <= 13 ? 'pass' : 'fail');
@@ -1080,7 +1080,7 @@ return n >= 2.4 ? 'pass' : null;
   
 }
 ,  {
-    id: 'c15',    num: '15',    title: 'Platform load capacity ≥ 7.2 kPa',    requirement: 'Parklets must be able to bear at least 7.2 kpa.',    page: 62,    status: 'unclear',    siteCondition: 'Structural design criterion. Requires signed/sealed structural drawings by a professional engineer registered with APEGBC (p. 40). Not assessable from site data alone.',    note: 'Final drawings must be signed and sealed by a structural engineer registered with the Association of Professional Engineers and Geoscientists of British Columbia (APEGBC).',    inputId: 'load_capacity',    inputLabel: 'Designed load capacity',    inputUnit: 'kPa',    inputType: 'number',    evalFn: (val) => {
+    id: 'c15',    num: '15',    title: 'Deck load capacity ≥ 7.2 kPa',    requirement: 'Parklets must be able to bear at least 7.2 kpa.',    page: 62,    status: 'unclear',    siteCondition: 'Structural design criterion. Requires signed/sealed structural drawings by a professional engineer registered with APEGBC (p. 40). Not assessable from site data alone.',    note: 'Final drawings must be signed and sealed by a structural engineer registered with the Association of Professional Engineers and Geoscientists of British Columbia (APEGBC).',    inputId: 'load_capacity',    inputLabel: 'Designed load capacity',    inputUnit: 'kPa',    inputType: 'number',    evalFn: (val) => {
       const n = parseFloat(val);
       if (isNaN(n)) return null;
       return n >= 7.2 ? 'pass' : 'fail';
@@ -1229,22 +1229,22 @@ function renderVerdictCompact() {
   if (counts.fail > 0) {
     cls = 'vc-fail';
  icon = '✗';
- lbl = 'FAILS';
+ lbl = 'Fails';
     detail = `${counts.fail} failing · ${counts.unclear} pending`;
   
 }
  else if (counts.unclear > 0) {
     cls = 'vc-partial';
  icon = '◎';
- lbl = 'INCOMPLETE';
+ lbl = 'Incomplete';
     detail = `${counts.pass} passing · ${counts.unclear} pending`;
   
 }
  else {
     cls = 'vc-pass';
  icon = '✓';
- lbl = 'ALL PASS';
-    detail = `${counts.pass}/${criteria.length} criteria confirmed`;
+ lbl = 'All pass';
+    detail = `${counts.pass} of ${criteria.length} checks pass`;
   
 }
   const el = document.getElementById('verdictCompact');
@@ -1265,22 +1265,22 @@ function renderVerdict() {
   if (counts.fail > 0) {
     cls = 'fail-verdict';
     icon = '✗';
-    title = 'Preliminary verdict: DOES NOT PASS';
-    body = `${counts.fail} criterion/criteria fail based on data provided. ${counts.unclear} still await site measurements. Resolve known failures before proceeding.`;
+    title = 'Preliminary verdict: does not pass';
+    body = `${counts.fail} ${counts.fail === 1 ? 'check fails' : 'checks fail'} on the data provided; ${counts.unclear} still ${counts.unclear === 1 ? 'awaits' : 'await'} site measurements. Resolve the failures before going further.`;
   
 }
  else if (counts.unclear > 0) {
     cls = 'partial-verdict';
     icon = '⚠';
-    title = 'Preliminary verdict: INCOMPLETE — data needed';
-    body = `No failures yet confirmed from data provided, but ${counts.unclear} criteria still require site measurements.     ${counts.pass} criterion/criteria confirmed passing. Enter the remaining values below to reach a full verdict.`;
+    title = 'Preliminary verdict: incomplete, data needed';
+    body = `No failures on the data provided so far, but ${counts.unclear} ${counts.unclear === 1 ? 'check still needs' : 'checks still need'} site measurements. ${counts.pass} ${counts.pass === 1 ? 'check passes' : 'checks pass'} so far. Enter the remaining values below to reach a full verdict.`;
   
 }
  else {
     cls = 'pass-verdict';
     icon = '✓';
-    title = 'Preliminary verdict: PASSES ALL CRITERIA';
-    body = `All ${counts.pass} siting criteria confirmed passing from data provided. Proceed to detailed proposal stage. Note: City design panel review is still required.`;
+    title = 'Preliminary verdict: passes every check';
+    body = `All ${counts.pass} siting checks pass on the data provided. Proceed to detailed proposal stage. Note: City design panel review is still required.`;
   
 }
   document.getElementById('verdictBanner').innerHTML = `    <div class="verdict ${cls}">      <div class="verdict-icon">${icon}</div>      <div class="verdict-body">        <h2>${title}</h2>        <p>${body}</p>      </div>    </div>`;
@@ -4064,7 +4064,7 @@ document.addEventListener('mouseup', function() {
     var vp = document.getElementById('seViewport'), pn = document.getElementById('csPanel'); if (!vp || !pn || !f) return;
     var pr = pn.getBoundingClientRect(), vr = vp.getBoundingClientRect(), st = document.getElementById('seStats'), nt = document.getElementById('seNotes');
     var avail = Math.floor(pr.bottom - vr.top - (st ? st.offsetHeight : 0) - (nt ? nt.offsetHeight : 0) - 8);
-    var mh = avail > 120 ? avail + 'px' : '';
+    var mh = avail > 60 ? avail + 'px' : '';   // (Brief 21 §2: at 12 px the notes and totals leave about 100 px at three views)
     vp.style.maxHeight = mh;
     if (vp._seH !== f.stripH || vp._seMH !== mh) { vp._seH = f.stripH; vp._seMH = mh; vp.scrollTop = vp.scrollHeight; }   // a new extent or a new height: to the ground
     // the parklet out of sight sideways (an import widens the street past the viewport at 1:1): centre it (Brief 21 audit)
@@ -4477,7 +4477,7 @@ document.addEventListener('mouseup', function() {
       '<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--rule);background:var(--card)">'+
         '<button id="seUndoBtn" onclick="seUndo()" disabled>Undo</button>'+
         '<button id="seRedoBtn" onclick="seRedo()" disabled>Redo</button>'+
-        '<button id="seFitBtn" onclick="seFit()">Fit</button>'+
+        '<button id="seFitBtn" onclick="seFit()">Fit view</button>'+
         '<span style="flex:1"></span>'+
         '<span style="font-size:11px;color:var(--muted)">Click to select &middot; Drag to reorder &middot; Drag edge to resize &middot; Del to remove</span>'+
       '</div>'+
@@ -9153,7 +9153,7 @@ const FL_ARCHETYPES = {
                    adjust:['l','h'], parts:{body:'metal powder mineral|galvanized', band:'fixed|safety_yellow'}},
   wheel_stop:     {label:'Wheel stop', cat:'edge', params:{l:[1.8,0.9,2.4], d:[0.15,0.1,0.25], h:[0.1,0.08,0.15]},
                    adjust:['l','d','h'], parts:{body:'mineral other|recycled_black', band:'fixed|safety_yellow'}},
-  planter_barrier:{label:'Planter barrier', cat:'edge', params:{l:[2.0,1.2,3], d:[0.6,0.45,0.9], h:[0.8,0.6,1.0]},
+  planter_barrier:{label:'Planter edge', cat:'edge', params:{l:[2.0,1.2,3], d:[0.6,0.45,0.9], h:[0.8,0.6,1.0]},
                    adjust:['l','d','h'], parts:{body:'mineral|concrete', soil:'fixed|soil', plant:'fixed|foliage'}},
   reflector_post: {label:'Reflector post', cat:'edge', params:{l:[0.08,0.05,0.15], h:[1.0,0.8,1.2]},
                    adjust:['l','h'], parts:{body:'other powder|recycled_grey', band:'fixed|safety_yellow'}},
@@ -9162,7 +9162,7 @@ const FL_ARCHETYPES = {
   // -- Deck / structure ---------------------------------------------------------------------
   deck_step:      {label:'Deck step', cat:'deck', params:{l:[1.2,0.6,3], d:[0.35,0.28,3.0], h:[0.15,0.1,0.2]},   // d up to 3 m: a raised level
                    adjust:['l','d','h'], parts:{tread:'wood other mineral|thermowood'}},
-  platform_step:  {label:'Platform steps', cat:'deck', params:{l:[1.2,0.6,3], steps:[2,1,4,1], tread:[0.3,0.28,0.4], rise:[0.15,0.1,0.18]},
+  platform_step:  {label:'Deck steps', cat:'deck', params:{l:[1.2,0.6,3], steps:[2,1,4,1], tread:[0.3,0.28,0.4], rise:[0.15,0.1,0.18]},
                    adjust:['l','steps','tread','rise'], parts:{tread:'wood other mineral|thermowood'}},
   ramp:           {label:'Ramp', cat:'deck', params:{rise:[0.15,0.05,0.3], slope:[8.33,5,8.33], d:[1.2,0.9,1.8]},
                    adjust:['rise','slope','d'], parts:{tread:'wood other mineral|composite_decking', edge:'metal powder|galvanized'}},
@@ -9314,7 +9314,7 @@ const FL_OBJ = [
 {id:'VS-ATL-BN01',name:'Atlas Bench',archetype:'bench',params:{l:1.806,d:0.55,h:0.45,backH:0.8},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['d','backH'],family:'Atlas',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25, p.179 area',desc:'Modular outdoor bench system. Start, middle, end modules.',specs:[{l:'2-seat width',v:'1806 mm',lv:'SF'},{l:'3-seat width',v:'2409 mm',lv:'SF'},{l:'Width per added seat',v:'~603 mm',lv:'CALC',n:'2409-1806'},{l:'Seat height',v:'~450 mm',lv:'SF'}],finish:[{l:'Frame',v:'Galv steel + powder coat [DI]',lv:'DI'},{l:'Slats',v:'Wood — not specified',lv:'DI'}],install:'Anchored; modular bolt-down [DI]',weight:null,access:'Seat H ~450 mm [SF].',param:'modular',modNote:'Start / middle / end modules; 2-seat and 3-seat confirmed.',relIds:[],notes:[]},
 {id:'VS-AIR-BN01',name:'Air Bench',archetype:'bench',params:{l:1.39,d:0.464,h:0.45,backH:0.797},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['h'],family:'Air',brand:'Vestre',cat:'seating',art:'not extracted',src:'Vestre Catalogue 2024/25',desc:'Contemporary outdoor bench. Height range may reflect backrest.',specs:[{l:'Width',v:'1390 mm',lv:'SF'},{l:'Depth',v:'393–464 mm',lv:'SF'},{l:'Height',v:'754–797 mm',lv:'SF',n:'to top of backrest'}],finish:[{l:'Frame',v:'Steel + galv [DI]',lv:'DI'},{l:'Slats',v:'Wood — not extracted',lv:'DI'}],install:'Anchored or freestanding [DI]',weight:null,access:'Seat height not stated [—].',param:'fixed',modNote:null,relIds:['VS-AIR-TL01'],notes:[]},
 {id:'VS-BLC-ST01',name:'Bloc Seat',archetype:'bench',params:{l:0.67,d:0.46,h:0.46,backH:0.79,ends:'plinth'},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['h'],family:'Bloc',brand:'Vestre',cat:'seating',art:'1516-900 (single); 1517-900 (armrests); modules: 1553–1559',src:'Vestre Catalogue 2024/25, Art. 1516-900',desc:'Robust single seat / modular bench. Start / add-on / end modules compose runs.',specs:[{l:'Width (single)',v:'~670 mm',lv:'SF'},{l:'Height',v:'~790 mm',lv:'SF'},{l:'Depth',v:'~460 mm',lv:'SF'},{l:'With armrests',v:'~+180 mm width',lv:'SF'},{l:'Add-on module W',v:'~1740 mm',lv:'SF',n:'Art. 1554'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'},{l:'Slats',v:'Wood [DI]',lv:'DI'}],install:'Anchored [SF]',weight:'87 kg (Art. 1516-900) [SF]',access:'Armrest option (Art. 1517) aids accessibility [SF].',param:'modular',modNote:'Single (1516), start (1553), add-on (1554, W~1740mm), end (1555). Armrest variants 1556–1559.',relIds:['VS-BLC-BB01','VS-BLC-SB01','VS-BLC-TL01'],notes:[]},
-{id:'VS-BLC-BB01',name:'Bloc Seat Double Back-to-Back',archetype:'bench',params:{l:1.382,d:0.92,h:0.46,backH:0.62,double:true,ends:'plinth'},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['d','h','backH'],family:'Bloc',brand:'Vestre',cat:'seating',art:'1532-900; 1534-900 (armrests)',src:'Vestre Catalogue 2024/25, Art. 1532-900',desc:'Back-to-back double seating. Both sides accessible. Center-parklet placement.',specs:[{l:'Width (double)',v:'~1382 mm',lv:'SF'},{l:'Add-on W',v:'~300 mm',lv:'SF',n:'Art. 1572-900'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'200 kg [SF]',access:'Armrest variant Art. 1534-900 [SF].',param:'modular',modNote:'Add-on (Art. 1572, ~300mm) extends the back-to-back run.',relIds:['VS-BLC-ST01'],notes:['200 kg: significant for elevated platform structural check [DI].']},
+{id:'VS-BLC-BB01',name:'Bloc Seat Double Back-to-Back',archetype:'bench',params:{l:1.382,d:0.92,h:0.46,backH:0.62,double:true,ends:'plinth'},materials:{frame:'galvanized',seat:'pine',back:'pine'},est:['d','h','backH'],family:'Bloc',brand:'Vestre',cat:'seating',art:'1532-900; 1534-900 (armrests)',src:'Vestre Catalogue 2024/25, Art. 1532-900',desc:'Back-to-back double seating. Both sides accessible. Center-parklet placement.',specs:[{l:'Width (double)',v:'~1382 mm',lv:'SF'},{l:'Add-on W',v:'~300 mm',lv:'SF',n:'Art. 1572-900'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'200 kg [SF]',access:'Armrest variant Art. 1534-900 [SF].',param:'modular',modNote:'Add-on (Art. 1572, ~300mm) extends the back-to-back run.',relIds:['VS-BLC-ST01'],notes:['200 kg: significant for the structural check of an elevated deck [DI].']},
 {id:'VS-BLC-SB01',name:'Bloc Sun Bench',archetype:'sun_lounger',params:{l:0.868,d:1.9,h:0.39,backH:1},materials:{frame:'galvanized',seat:'pine'},est:['d'],family:'Bloc',brand:'Vestre',cat:'seating',art:'1566-900; modules: 1567/1568/1569',src:'Vestre Catalogue 2024/25, Art. 1566-900',desc:'Reclining sun bench / lounger with adjustable backrest angle.',specs:[{l:'Width',v:'~868 mm',lv:'SF'},{l:'Height range',v:'~389–1356 mm',lv:'SF',n:'reclined to upright'}],finish:[{l:'Frame',v:'Hot-dip galvanized steel + powder coat',lv:'SF'}],install:'Anchored [SF]',weight:'134 kg [SF]',access:'Reclining may not suit all mobility levels [DI].',param:'modular',modNote:'Start (1567, 139kg), add-on (1568, 97kg), end (1569). Back connection Art. 1560-900 for back-to-back runs.',relIds:['VS-BLC-ST01'],notes:[]},
 {id:'VS-DLG-BN01',name:'Dialog Bench',archetype:'backless_bench',params:{l:1.84,d:0.38,h:0.42},materials:{frame:'galvanized',seat:'oak'},est:['d'],family:'Dialog',brand:'Vestre',cat:'seating',art:'1406-932 (Kebony); 1406-942 (oak)',src:'Vestre Catalogue 2024/25, pp.230–231',desc:'Minimalist bench in Kebony or oiled oak.',specs:[{l:'Width',v:'~1840 mm',lv:'SF'},{l:'Seat height',v:'~400–450 mm',lv:'SF'}],finish:[{l:'Slats',v:'Kebony (Art. -932) or oiled oak (Art. -942)',lv:'SF'},{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored [DI]; 31 kg may allow gravity freestanding [DI]',weight:'31 kg [SF]',access:'Seat H ~400 mm may be below accessible range [DI].',param:'fixed',modNote:null,relIds:['VS-DLG-WB01'],notes:[]},
 {id:'VS-EDO-BN01',name:'Edo Bench with Marble Table',archetype:'backless_bench',params:{l:1.8,d:0.315,h:0.45},materials:{frame:'galvanized',seat:'oak'},est:[],family:'Edo',brand:'Vestre',cat:'seating',art:'4308-930/940/950',src:'Vestre Catalogue 2024/25, p.231',desc:'Bench with integrated marble side table. By Anderssen & Voll.',specs:[{l:'Width',v:'~1800 mm',lv:'SF'},{l:'Depth',v:'~315 mm',lv:'SF'},{l:'Total height',v:'~447–634 mm',lv:'SF'},{l:'Seat height',v:'~450 mm',lv:'SF'}],finish:[{l:'Slats',v:'Kebony, oiled oak, or oiled ash',lv:'SF'},{l:'Table surface',v:'Marble (integrated)',lv:'SF'},{l:'Frame',v:'Steel [DI]',lv:'DI'}],install:'Anchored [DI]',weight:'30 kg (Kebony) [SF]',access:'Seat H ~450 mm [SF].',param:'fixed',modNote:null,relIds:[],notes:['Designer: Anderssen &amp; Voll [SF].']},
@@ -9336,7 +9336,7 @@ const FL_OBJ = [
 {id:'VS-BLC-PL01',name:'Bloc Planter 45L',archetype:'planter',params:{l:0.6,d:0.6,h:0.42},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1581-900',src:'Vestre Catalogue 2024/25, Art. 1581-900',desc:'Small Bloc-family planter, 45L.',specs:[{l:'Width',v:'~600 mm',lv:'SF'},{l:'Volume',v:'45 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'59 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-ST01'],notes:[]},
 {id:'VS-BLC-PL02',name:'Bloc Planter 200L',archetype:'planter',params:{l:0.9,d:0.6,h:0.52},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1582-900',src:'Vestre Catalogue 2024/25, Art. 1582-900',desc:'Medium Bloc planter, 200L.',specs:[{l:'Width',v:'~900 mm',lv:'SF'},{l:'Volume',v:'200 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'130 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL01'],notes:[]},
 {id:'VS-BLC-PL03',name:'Bloc Planter 520L',archetype:'planter',params:{l:1.2,d:0.6,h:0.62},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1583-900',src:'Vestre Catalogue 2024/25, Art. 1583-900',desc:'Large Bloc planter, 520L. Weight provides meaningful traffic barrier mass.',specs:[{l:'Width',v:'~1200 mm',lv:'SF'},{l:'Volume',v:'520 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'227 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL04'],notes:['227 kg approaches mass needed for perimeter protection [DI — vehicle rating not in source].']},
-{id:'VS-BLC-PL04',name:'Bloc Planter 1250L',archetype:'planter',params:{l:1.6,d:0.6,h:0.72},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1584-900',src:'Vestre Catalogue 2024/25, Art. 1584-900',desc:'Largest Bloc planter, 379 kg. Heaviest freestanding item in library.',specs:[{l:'Width',v:'~1600 mm',lv:'SF'},{l:'Volume',v:'1250 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'379 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL03'],notes:['Structural review required for elevated platforms [DI].']},
+{id:'VS-BLC-PL04',name:'Bloc Planter 1250L',archetype:'planter',params:{l:1.6,d:0.6,h:0.72},materials:{body:'galvanized'},est:['d','h'],family:'Bloc',brand:'Vestre',cat:'planter',art:'1584-900',src:'Vestre Catalogue 2024/25, Art. 1584-900',desc:'Largest Bloc planter, 379 kg. Heaviest freestanding item in library.',specs:[{l:'Width',v:'~1600 mm',lv:'SF'},{l:'Volume',v:'1250 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'379 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-BLC-PL03'],notes:['Structural review required for elevated decks [DI].']},
 {id:'VS-BOB-PL01',name:'Boboli Planter (family)',archetype:'planter',params:{l:0.9,d:0.45,h:0.38},materials:{body:'black_steel'},est:['d'],family:'Boboli',brand:'Vestre',cat:'planter',art:'bob 065-070 / 090-038 / 090-070 / 090-090 / 120-070 / 180-038',src:'Vestre Catalogue 2024/25, p.216',desc:'Wide planter range by Philippe Thebaud. 150L to 760L. All include irrigation/drainage options.',specs:[{l:'150L: W×H',v:'~650×380 mm',lv:'SF'},{l:'170L: W×H',v:'~700×380 mm',lv:'SF'},{l:'380L: W×H',v:'~900×380 mm',lv:'SF'},{l:'500L: H',v:'~900 mm',lv:'SF'},{l:'560L: W×H',v:'~1200×700 mm',lv:'SF'},{l:'760L: W',v:'~1800 mm',lv:'SF'}],finish:[{l:'Material',v:'Not specified in source',lv:'—'}],install:'Freestanding [DI]',weight:'35–80 kg [SF]',access:'n/a',param:'parametric',modNote:'6 sizes; choose by volume and height.',relIds:[],notes:['All variants: irrigation, lifting hooks, anti-graffiti, drainage [SF]. Designer: Philippe Thebaud [SF].']},
 {id:'VS-CDQ-PL01',name:'Code Square Planter 250L',archetype:'planter',params:{l:0.8,d:0.826,h:0.6},materials:{body:'galvanized'},est:['h'],family:'Code Square',brand:'Vestre',cat:'planter',art:'2640-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Medium Code Square planter, 250L.',specs:[{l:'Width × Depth',v:'~800×826 mm',lv:'SF'},{l:'Volume',v:'250 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'30 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-CDQ-PL02'],notes:[]},
 {id:'VS-CDQ-PL02',name:'Code Square Planter 500L',archetype:'planter_tall',params:{l:0.8,d:0.8,h:0.9},materials:{body:'galvanized'},est:['d','h'],family:'Code Square',brand:'Vestre',cat:'planter',art:'2646-900',src:'Vestre Catalogue 2024/25, pp.226–228',desc:'Large Code Square planter, 500L.',specs:[{l:'Width',v:'~800 mm',lv:'SF'},{l:'Volume',v:'500 L',lv:'SF'}],finish:[{l:'Frame',v:'Hot-dip galv + powder coat',lv:'SF'}],install:'Freestanding [DI]',weight:'60 kg [SF]',access:'n/a',param:'fixed',modNote:null,relIds:['VS-CDQ-PL01'],notes:[]},
@@ -9440,10 +9440,10 @@ function flBuildPage() {
   <div class='fl-pcard'><h3>A — Bench Row (Single-Side)</h3><p>One or two Forum / Hvilan / Dialog benches along the curb edge. Table between every 2 seats.</p>
   <div class='fl-pdims'>Bench: VS-FRM-BN01 (2000mm) or VS-HVL-BN01 (2000mm)<br>Circulation in front: 900mm min [DI — not in source]<br>Table: VS-FRM-TL01 or VS-HVL-TL01</div></div>
   <div class='fl-pcard'><h3>B — Back-to-Back Centre Seating</h3><p>Bloc back-to-back unit (VS-BLC-BB01, 1382mm, 200kg) in platform centre. Serves two sides.</p>
-  <div class='fl-pdims'>Unit: VS-BLC-BB01 (W~1382mm, 200kg) [SF]<br>Clearance each side: 900mm min [DI]<br>Min platform depth: ~3200mm [CALC: 1382 + 2×909]</div></div>
+  <div class='fl-pdims'>Unit: VS-BLC-BB01 (W~1382mm, 200kg) [SF]<br>Clearance each side: 900mm min [DI]<br>Min deck depth: ~3200mm [CALC: 1382 + 2×909]</div></div>
   <div class='fl-pcard'><h3>C — Platform Kupé System</h3><p>mmcité Kupé as complete parklet deck. Freestanding. Structural engineer must verify 100 kPa subgrade.</p>
   <div class='fl-pdims'>PLF109: 1900×2415mm, 481kg [SF]<br>PLF110/111: 2800×2415mm, 684–704kg [SF]<br>PLF112: 2800×1875mm, 684kg — narrower bay [SF]<br>Bearing: min 100 kPa [SF]</div></div>
-  <div class='fl-pcard'><h3>D — Planter Edge Barrier</h3><p>Bloc planters as parklet perimeter elements combining landscape with physical mass.</p>
+  <div class='fl-pcard'><h3>D — Planter edge</h3><p>Bloc planters as parklet perimeter elements combining landscape with physical mass.</p>
   <div class='fl-pdims'>VS-BLC-PL03 (520L): W~1200mm, 227kg [SF]<br>VS-BLC-PL04 (1250L): W~1600mm, 379kg [SF]<br>Impact rating: NOT stated in source [—]<br>Supplement with VS-HVL-BL01 bollard [DI]</div></div>
   <div class='fl-pcard'><h3>E — Bike Rack Integration</h3><p>Cycle rack adjacent to seating. Allow manoeuver clearance in front.</p>
   <div class='fl-pdims'>VS-CYC-BR01 (1155mm, 2 bikes) or VS-BRG-BR01 (700–1448mm) [SF]<br>Clear space in front: 1500mm min [DI]<br>Keep ≥900mm from seating circulation [DI]</div></div>`;
@@ -9463,7 +9463,7 @@ function flBuildPage() {
     <li><strong>VS-BUZ-TB01 (Buzz) must be bolted to ground</strong> — stated explicitly in catalogue.</li>
     <li><strong>VS-CVR-SH01 (Cover Roof) requires Anchoring A</strong> — all three roof variants.</li>
     <li>Article suffix <strong>A / B / C / D</strong> = anchoring type; <strong>no suffix</strong> (-900) = freestanding option.</li>
-    <li>VS-BLC-PL04 (1250L): <strong>379 kg</strong> — structural check required for elevated platforms.</li>
+    <li>VS-BLC-PL04 (1250L): <strong>379 kg</strong> — structural check required for elevated decks.</li>
     <li>VS-HVL-BL01 bollard: impact-rated; specific class not captured — refer to Vestre datasheet.</li>
   </ul></div>
   <div class='fl-pcard'><h3>Information Integrity</h3><ul>
@@ -18356,7 +18356,7 @@ GEN.renderDock = function() {
     var st = r.blocks ? 'fail' : r.ok ? 'ok' : 'miss';
     return "<div class='gen-fact " + st + "' title='" + GEN.esc(r.how) + "'><span>" + r.label + "</span><span class='gen-fv'>" + GEN.esc(r.value) + '</span></div>';
   }).join('') +
-    "<div class='gen-sub'>Design commitments (every scheme)</div><div class='gen-list'><div>12 Stays in the parking lane (boulevard not used)</div><div>14 Flush with the sidewalk, gap &le; 12 mm</div><div>15 Platform designed for &ge; 7.2 kPa</div></div>" +
+    "<div class='gen-sub'>Design commitments (every scheme)</div><div class='gen-list'><div>12 Stays in the parking lane (boulevard not used)</div><div>14 Flush with the sidewalk, gap &le; 12 mm</div><div>15 Deck designed for &ge; 7.2 kPa</div></div>" +
     "<button class='txt-btn' onclick='appSetMode(\"check\")'>Set site facts in Check &rsaquo;</button>";
   document.getElementById('genFacts').innerHTML = h;
   // programme
@@ -18372,7 +18372,7 @@ GEN.renderDock = function() {
   document.getElementById('genChar').innerHTML =
     "<label class='gen-row'><span>Character</span>" + select('data-pref', 'character', P.character, GEN.CHARACTER) + '</label>' +
     "<label class='gen-row'><span>Material family</span>" + select('data-pref', 'material', P.material, GEN.MATERIAL) + '</label>' +
-    "<label class='gen-row'><span>Platforms</span>" + select('data-pref', 'footprint', P.footprint, GEN.FOOTPRINT) + '</label>';
+    "<label class='gen-row'><span>Deck shape</span>" + select('data-pref', 'footprint', P.footprint, GEN.FOOTPRINT) + '</label>';
   // output
   document.getElementById('genOut').innerHTML =
     "<label class='gen-row'><span>Schemes</span><span class='ufield'><input type='number' data-pref='n' value='" + P.n + "' min='3' max='8' step='1'><i></i></span></label>" +
@@ -18414,7 +18414,7 @@ GEN.renderResults = function() {
   if (!bar || !grid) return;
   if (!GEN.result) {
     bar.innerHTML = "<span class='gen-title'>Generated schemes</span>";
-    grid.innerHTML = "<div class='gen-empty empty-state'>Set the preferences in the dock, then Generate. Every scheme passes all 15 checks or is not shown.</div>";
+    grid.innerHTML = "<div class='gen-empty empty-state'>Set the preferences in the left panel, then Generate. Every scheme shown passes all 15 checks.</div>";
     return;
   }
   if (typeof GEN.renderCards === 'function') GEN.renderCards();
@@ -18973,7 +18973,7 @@ GEN.ZONES = {};
       } },
     // a raised second level (a deck_step) at the deck's end with lounges on it, one step up to
     // it; the rest of the zone and the deck stay level (the access model keeps a level seat)
-    platform_step: { label: 'Platform step', kinds: { lounge: 1, open: 1, green: 1 },
+    platform_step: { label: 'Deck step', kinds: { lounge: 1, open: 1, green: 1 },
       fits: function(ctx, z0, z1, kind, info) { return !!info.atEnd && bandX(ctx, z0, z1) - KO >= 1.7 && z1 - z0 >= 1.8 + 0.3 + 0.9; },
       place: function(ctx, z0, z1, kind, info) {
         var bx = bandX(ctx, z0, z1), w = bx - KO, xc = (KO + bx) / 2, dp = Math.max(1.8, Math.min(3.0, z1 - z0 - 2.4)), hi = info.atEnd === 'hi';
@@ -23764,7 +23764,7 @@ document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && doc
 </script>
 <style>
 /* -- Site from map (Brief 13) phase 2: provenance tags, imported objects -------------------- */
-.prov-tag { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 7px; font: 600 10px/15px var(--font-ui, sans-serif); letter-spacing: .04em; text-transform: uppercase; vertical-align: 1px; cursor: pointer; border: 1px solid currentColor; background: transparent; }
+.prov-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 7px; font: 600 11px/16px var(--font-ui, sans-serif); letter-spacing: .01em; vertical-align: 1px; cursor: pointer; border: 1px solid currentColor; background: transparent; }
 .prov-tag.osm, .prov-tag.cov { color: var(--accent-ui, #3AA8E4); }
 .prov-tag.estimate { color: #D9A441; border-style: dashed; }
 .prov-tag.user { color: var(--c-text-dim, #9AA0A6); cursor: default; }
@@ -23813,7 +23813,7 @@ SMP.prov = function() { if (!state.__prov || typeof state.__prov !== 'object') s
 SMP.set = function(key, source, id, at, note) { if (SMP._touched && SMP._touched.indexOf(key) < 0) SMP._touched.push(key); SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; };
 SMP.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
 SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', estimate: 'estimate', user: 'you' };
-SMP.TAG = { osm: 'OSM', cov: 'CoV', estimate: 'est.', user: 'you' };
+SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', estimate: 'Estimate', user: 'You' };   // no abbreviations in labels (Brief 21 §2)
 // Site-tab fields that carry a tag: key -> the element whose .ff label gets it
 SMP.FIELDS = { sidewalk: 'sidewalkWidth', address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
   roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'bikeLaneToggle' };
@@ -24712,6 +24712,274 @@ MLY.renderBox = function(keepMsg) {
     Object.keys(RVZP.entries || {}).forEach(function(k) { var e = RVZP.entries[k], c = e && e.meta && e.meta.contextPhoto; if (c) out.push('Photoreal ' + k + ' context photo: ' + c.attribution + ' (appearance of the street only)'); });
     return out;
   };
+})();
+</script>
+
+<style>
+/* ── Names and tooltips (Brief 21 §2) ──────────────────────────────────────────────────────────────────────
+   Header text at 12 px or more, in mixed case (capitals only where a label is written so: rule IDs); control text at
+   12 px. One override block, so the older per-panel rules above stay readable. */
+.sb-section-lbl, .ctx-hdr-title, .ctx-label, .ctx-section .sb-section-lbl, .vp-lbl, .rp-title, .fv-sec-label, .rp-obj-sub,
+.rp-sec, .rp-src-label, .sw-sh, .gen-title, .dk-panel-hdr .dkpt, #ctxCheck .crit-hdr h2, .se-unalloc-hdr, .se-stat-l, .rvz-lbl,
+.drw-tb-toggle, .ptb-btn, .ctb-btn, .se-name, #csTools button, .vc-lbl, .verdict h2, .site-badge,
+[style*="text-transform:uppercase"], [style*="text-transform: uppercase"] {
+  text-transform: none !important; letter-spacing: .01em !important;
+}
+.sb-section-lbl, .ctx-hdr-title, .ctx-section .sb-section-lbl, .vp-lbl, .rp-title, .rp-sec, .sw-sh, .gen-title, .dk-panel-hdr .dkpt,
+#ctxCheck .crit-hdr h2, .rvz-lbl, .fv-sec-label {
+  font-size: 13px !important; font-weight: 600 !important;
+}
+.ctx-label, .rp-obj-sub, .rp-src-label, .se-stat-l, .se-unalloc-hdr, .drw-tb-toggle, .ptb-btn, .ctb-btn, .ttab, .vpill,
+#cadTools button, #cadTools input, #cadTools select, #cadTools [style*="font-size:11px"], .cad-lbl,
+.ctx-panel button, .ctx-panel input, .ctx-panel select, .ctx-panel label {
+  font-size: 12px !important;
+}
+.cad-lbl { font-family: var(--font-ui); color: var(--muted); font-weight: 600; white-space: nowrap; }
+#cadTools button { font-family: var(--font-ui) !important; }
+/* the Plan's header: its name and Enlarge on the first row, its tools on the second (they do not fit one row at three views) */
+#pvPanel .vp-hdr .vp-max { order: 1; margin-left: auto; }
+#pvPanel .vp-hdr .vp-tools { order: 2; margin-left: 0; flex-basis: 100%; }
+.drw-tb-toggle, .ptb-btn, #csTools button { padding: 2px 7px !important; font-weight: 500 !important; }
+/* the Section's totals wrap rather than clip */
+.se-stats-row { display: flex !important; flex-wrap: wrap; column-gap: 16px !important; row-gap: 2px; white-space: normal !important; }
+.se-stat { white-space: nowrap; }
+/* the tooltip: one plain sentence, 300 ms after the pointer (or keyboard focus) rests on a control */
+#uiTip {
+  position: fixed; z-index: 100000; max-width: 300px; padding: 6px 9px; border-radius: 4px; pointer-events: none;
+  background: #16181C; color: #F2F3F5; font: 400 12px/1.45 var(--font-ui); box-shadow: 0 3px 10px rgba(0,0,0,.35);
+}
+#uiTip[hidden] { display: none; }
+</style>
+<script>
+// ── Tooltips (Brief 21 §2) ─────────────────────────────────────────────────────────────────────────────────
+// Every control carries one plain sentence in data-tip, shown 300 ms after the pointer or keyboard focus rests on it.
+// A control's title attribute (set in the markup or by code) is moved into data-tip the first time it is met, so the
+// browser's own slower tooltip never doubles it. UI_TIPS gives the sentence for controls built by code or with none.
+var UI_TIPS = [
+  // top bar
+  ['.ttab[onclick*=\'"site"\']', 'Locate the site, import its context and place the parklet.'],
+  ['.ttab[onclick*=\'"design"\']', 'Shape the parklet, set the street and place furniture.'],
+  ['.ttab[onclick*=\'"visualize"\']', 'Preview the design in 3D and make renders.'],
+  ['.ttab[onclick*=\'"generate"\']', 'Generate layouts that pass every check, from your preferences.'],
+  ['.ttab[onclick*=\'"check"\']', 'See every compliance check, what it measured and why it passes or fails.'],
+  ['.ttab[onclick*=\'"furniture"\']', 'Browse the furniture library and place pieces on the deck.'],
+  ['.ttab[onclick*=\'"settings"\']', 'Units, grid, project north and saved data.'],
+  ['.ttab[onclick*=\'"export"\']', 'Download the report, a 3D model or an animation.'],
+  ['#projectName', 'The design&rsquo;s name, used on the report and in your saved designs.'],
+  ['#dkMenuBtn', 'Shows or hides the panels of the left column.'],
+  ['#pkAccBtn', 'Sign in, or open your account and saved designs.'],
+  ['.tb-btn[onclick*="alert"]', 'About the rules this tool checks.'],
+  // toolbar and layout
+  ['.vpill[onclick*=\'"all"\']', 'Shows the Plan, the Section and the 3D view together.'],
+  ['.vpill[onclick*=\'"plan"\']', 'Shows the Plan only.'],
+  ['.vpill[onclick*=\'"section"\']', 'Shows the Section only.'],
+  ['.vpill[onclick*=\'"3d"\']', 'Shows the 3D view only.'],
+  ['#appearanceBtn', 'Drawing style of the Plan, Section and 3D: schematic (colour) or technical (black and white).'],
+  ['#axToggleBtn', 'Opens the Assistant, which changes the design from a description you type.'],
+  ['.vp-max', 'Enlarges this view to the whole work area; Esc returns to three views.'],
+  ['.vp-lbl', 'The view&rsquo;s name.'],
+  // section editor
+  ['#seUndoBtn', 'Undoes the last change to the street section (Ctrl+Z).'],
+  ['#seRedoBtn', 'Redoes the change you undid (Ctrl+Y).'],
+  ['.se-pal-item', 'Adds this segment to the street: drag it into place, or click to add it beside the travel lanes.'],
+  ['#seNotes > summary', 'Shows or hides the keyed notes of the Section.'],
+  ['#sePropDel', 'Removes this segment from the street.'],
+  // left-column panels
+  ['.dk-panel-hdr', 'Opens or closes this panel.'],
+  ['.dk-panel-hdr [title="Float"], .dk-panel-hdr .dk-float', 'Pops this panel out to float over the views; click again to dock it.'],
+  ['.dk-panel-hdr [title="Close"], .dk-panel-hdr .dk-close', 'Hides this panel; bring it back from the Panels menu.'],
+  ['#toggleAllBtn', 'Opens or closes every check&rsquo;s details.'],
+  // site
+  ['#streetAddress', 'The street address printed on the report.'],
+  ['#siteMapBtn', 'Opens a map to find the street and click where the parklet goes.'],
+  ['#siteContextZ', 'How far along the street, each way, the City and OpenStreetMap context is imported, in metres.'],
+  ['#siteBearingDeg', 'The street&rsquo;s bearing, in degrees clockwise from true north.'],
+  ['#siteSideSel', 'The side of the street the parklet is on.'],
+  ['#siteLat', 'Latitude of the parklet, in decimal degrees.'],
+  ['#siteLon', 'Longitude of the parklet, in decimal degrees.'],
+  ['#sitePaste', 'Paste &ldquo;latitude, longitude&rdquo; copied from a map to set both at once.'],
+  ['#roadWidth', 'Curb-to-curb width of the road, in metres.'],
+  ['#sidewalkWidth', 'Width of the sidewalk from the building face to the curb, in metres.'],
+  ['#lanesA', 'Number of travel lanes on the parklet&rsquo;s side.'],
+  ['#lanesB', 'Number of travel lanes on the opposite side.'],
+  ['[id^="bldgL"][id$="_use"], [id^="bldgR"][id$="_use"]', 'What this building is used for; it guides the generated programme.'],
+  ['[id^="bldgL"][id$="_frontage"], [id^="bldgR"][id$="_frontage"]', 'Whether this building&rsquo;s frontage faces the parklet.'],
+  // visualize
+  ['#rvzPre_street', 'Camera at eye level on the street, looking at the parklet.'],
+  ['#rvzPre_sidewalk', 'Camera at eye level on the sidewalk, looking along the parklet.'],
+  ['#rvzPre_corner', 'Camera at the corner, a three-quarter view of the parklet.'],
+  ['#rvzPre_aerial', 'Camera above the street, looking down at the parklet.'],
+  ['#rvzDoy', 'Day of the year for the sun&rsquo;s position.'],
+  ['#rvzMin', 'Time of day for the sun&rsquo;s position.'],
+  ['#rvzRes', 'Size of the rendered image, in pixels.'],
+  ['#rvzPeople', 'Adds people and traffic to the scene.'],
+  ['#rvzStill', 'Renders this view as an image at the chosen size.'],
+  ['#rvzAll', 'Renders the four camera presets one after another.'],
+  ['#rvzpOn', 'Uses an AI image model (your Replicate account) to make the render look photographic.'],
+  // furniture
+  ['#flSrch', 'Search the library by name, maker or type.'],
+  ['#flLibTab7Furn', 'Furniture you can place on the deck.'],
+  ['#flLibTab7Str', 'Street objects: hydrants, poles, signals and the like.'],
+  ['#flPresetsToggle', 'Shows the manufacturers&rsquo; ready-made pieces as well as the generic ones.'],
+  // settings
+  ['#settName', 'Your name, printed on the report.'],
+  ['#settOrg', 'Your organisation, printed on the report.'],
+  ['#settEmail', 'Your contact email, printed on the report.'],
+  ['#unitsMetricBtn', 'Shows lengths in metres and millimetres.'],
+  ['#unitsImperialBtn', 'Shows lengths in feet and inches.'],
+  ['[onclick*="swScrollTo"]', 'Jumps to this part of the settings.'],
+  // export
+  ['#rptModeSch', 'The report in colour, with the renders on the title sheet.'],
+  ['#rptModeTech', 'The report in black and white technical drawings.'],
+  ['#pdfExportBtn', 'Downloads the report as a PDF of 17 &times; 11 in sheets.'],
+  ['#rptSampleBtn', 'Opens a finished report of a bundled example design.'],
+  ['[onclick*="window.print"]', 'Prints this page with the browser&rsquo;s print dialog.'],
+  ['#px3dLParklet', 'Includes the deck, railing and planters in the 3D export.'],
+  ['#px3dLFurniture', 'Includes the furniture in the 3D export.'],
+  ['#px3dLContext', 'Includes the street, buildings and trees in the 3D export.'],
+  ['#px3dFmt', 'The 3D file format: Rhino, IFC for Revit, or glTF.'],
+  ['#px3dBtn', 'Downloads the 3D model in the chosen format.'],
+  ['#axeDur', 'Length of the animation, in seconds.'],
+  ['#axeVeh', 'Number of vehicles passing in the animation.'],
+  ['#axePed', 'Number of people walking in the animation.'],
+  ['#axeRes', 'Size of the animation, in pixels.'],
+  ['#axeCam', 'The camera angle of the animation.'],
+  ['#axeFmt', 'The animation&rsquo;s file type.'],
+  ['#axeLoop', 'Makes the last frame lead back into the first, so the animation loops without a jump.'],
+  ['#axePrevBtn', 'Plays the animation in the panel below.'],
+  ['#axeExpBtn', 'Records the animation and downloads it.'],
+  // site: placing the parklet
+  ['[id$="Frontage"][id^="pk"]', 'The building frontage the parklet sits in front of.'],
+  ['[onclick*="pkPickInPlan"]', 'Click a frontage in the Plan to place the parklet in front of it.'],
+  ['[onclick*="pkFindCorners"]', 'Finds the street corners near the parklet from the map data.'],
+  ['[id$="CornerDist"]', 'Distance from the parklet to the corner, in metres.'],
+  ['[id$="CornerAdd"]', 'Position along the street, in metres, of a corner to add by hand.'],
+  ['[onclick*="pkAddCorner"]', 'Adds a corner at the position typed beside it.'],
+  ['[onclick*="siteChooseBearing(0)"]', 'The street runs north to south.'],
+  ['[onclick*="siteChooseBearing(90)"]', 'The street runs east to west.'],
+  ['[onclick*="siteChooseBearing(45)"]', 'The street runs north-east to south-west.'],
+  ['[onclick*="siteChooseBearing(135)"]', 'The street runs north-west to south-east.'],
+  ['[onclick*="siteChooseBearing(-1)"]', 'Type the street&rsquo;s bearing in degrees.'],
+  ['[onclick*="onRoadDirChange(\'oneway\')"]', 'Traffic runs one way on this street.'],
+  ['[onclick*="onRoadDirChange(\'twoway\')"]', 'Traffic runs both ways on this street.'],
+  ['#laneCount', 'Number of travel lanes beside the parklet.'],
+  ['[onclick*="onRouteTypeToggle(\'standard\')"]', 'A standard street: each travel lane must be at least 3.0 m wide (C02).'],
+  ['[onclick*="onRouteTypeToggle(\'bus_truck\')"]', 'A bus or truck route: each travel lane must be at least 3.2 m wide (C02).'],
+  ['#ctxSite .txt-btn:not([onclick]):not(.danger)', 'Adds another building to this side of the street.'],
+  ['.txt-btn[onclick*="appSetMode(\\"furniture\\")"]', 'Opens the full furniture library.'],
+  ['.txt-btn[onclick*="appSetMode(\\"site\\")"]', 'Goes to the Site tab to edit the site objects.'],
+  ['.txt-btn[onclick*="GEN.siteEdited=false"]', 'Discards the edits made here and reads the site objects from the Site tab again.'],
+  ['.txt-btn[onclick*="appSetMode(\\"check\\")"]', 'Goes to the Check tab to enter the site facts.'],
+  ['.txt-btn[onclick*="GEN.resetProg"]', 'Sets the programme back to the host building&rsquo;s defaults.'],
+  ['.txt-btn[onclick*="appSetMode(\\"generate\\")"]', 'Returns to the generated schemes.'],
+  ['.txt-btn[onclick*="GEN.undoOpen"]', 'Puts back the design you had before opening this scheme.'],
+  ['[onclick*="clearManholes"]', 'Removes every street object you placed by hand.'],
+  // design
+  ['#widthSlider', 'Width of the deck across the street, in metres.'],
+  ['#lengthSlider', 'Length of the deck along the curb, in metres.'],
+  ['.btn-solve', 'Widens the parklet as far as the travel lanes allow at their minimum width (C02).'],
+  ['[onclick*="onBikeLaneType(\'none\')"]', 'No bike lane on this street.'],
+  ['[onclick*="onBikeLaneType(\'painted\')"]', 'A painted bike lane beside the parklet.'],
+  ['[onclick*="onBikeLaneType(\'protected\')"]', 'A bike lane protected by a buffer and flexible posts.'],
+  ['[onclick*="onBufferToggle(false)"]', 'No planted buffer beside the parklet.'],
+  ['[onclick*="onBufferToggle(true)"]', 'Adds a planted buffer beside the parklet.'],
+  ['[onclick*="cadShowFootprintEditor"]', 'Opens the editor for the deck&rsquo;s outline.'],
+  ['#lhsFwSearch', 'Search the library by name, maker or type.'],
+  ['.lib-chip', 'Shows only this category of the library.'],
+  ['#lhsFwPresets', 'Shows the manufacturers&rsquo; ready-made pieces as well as the generic ones.'],
+  ['.ctx-btn[onclick*="appSetMode(\\"design\\")"]', 'Goes to the Design tab to place furniture on the deck.'],
+  ['.fv-place-btn, .str-btn-place', 'Places this piece on the deck; click in the Plan to set where.'],
+  ['.fv-info-btn, .str-btn-info', 'Shows this piece&rsquo;s sizes, materials and source.'],
+  // visualize
+  ['.rvz-chip[data-md]', 'Sets the sun to this date: the longest day, the equinox or the shortest day.'],
+  ['.rvz-btn[data-app="schematic"]', 'Shows the scene in the drawing colours.'],
+  ['.rvz-btn[data-app="rendered"]', 'Shows the scene with materials, light and shadow.'],
+  ['.rvz-btn[data-scale]', 'Renders at this multiple of the screen size, for a sharper image.'],
+  ['.svc-btn[onclick*=\'"plan"\']', 'Shows the Plan only.'],
+  ['.svc-btn[onclick*=\'"section"\']', 'Shows the Section only.'],
+  ['.svc-btn[onclick*=\'"3d"\']', 'Shows the 3D view only.'],
+  ['.svc-btn[onclick*=\'"all"\']', 'Shows the Plan, the Section and the 3D view together.'],
+  // generate
+  ['input[data-pref="seed"]', 'The generator&rsquo;s seed: the same seed gives the same layouts.'],
+  ['input[data-pref="n"]', 'How many schemes to generate, from 3 to 8.'],
+  ['[data-site="road"]', 'Curb-to-curb width of the road the generator lays out, in metres.'],
+  ['[data-site="route"]', 'Route type: a bus or truck route needs 3.2 m travel lanes, others 3.0 m (C02).'],
+  ['[data-site="dir"]', 'Whether traffic runs one way or both ways.'],
+  ['[data-site="lanes"]', 'Number of travel lanes.'],
+  ['[data-site="lanesA"]', 'Number of travel lanes on the parklet&rsquo;s side.'],
+  ['[data-site="lanesB"]', 'Number of travel lanes on the opposite side.'],
+  ['[data-site="sidewalk"]', 'Width of the sidewalk, in metres.'],
+  ['[data-site="bike"]', 'The bike lane beside the parklet: none, painted or protected.'],
+  ['[data-site="bikeW"]', 'Width of the bike lane, in metres.'],
+  ['[data-site="f0"]', 'Where along the curb the usable frontage starts, in metres from the deck&rsquo;s start.'],
+  ['[data-site="f1"]', 'Where along the curb the usable frontage ends, in metres from the deck&rsquo;s start.'],
+  ['.gen-primary', 'Builds layouts from your preferences; a layout that fails any check is not shown.'],
+  ['.ctx-btn[onclick="RPT.print()"]', 'Downloads the report as a PDF of 17 &times; 11 in sheets.'],
+  ['.gen-w button', 'How much this use should weigh in the generated layouts, from 0 (none) to 3 (most).'],
+  // check
+  ['.criterion-header', 'Opens this check: its rule, what was measured and the source.'],
+  ['[onclick*="clearState()"]', 'Clears every value entered on the Check tab.'],
+  // settings
+  ['#swGrid select', 'The grid step, also the step the arrow keys move by.'],
+  ['.ctx-btn[onclick*="appSetMode(\\"site\\")"]', 'Goes to the Site tab to set this.'],
+  ['[onclick*="localStorage.clear()"]', 'Deletes everything this browser has saved for Curbside; it cannot be undone.']
+];
+function uiApplyTips(root) {
+  root = root || document;
+  UI_TIPS.forEach(function(r) {
+    var els; try { els = root.querySelectorAll(r[0]); } catch (e) { return; }
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.hasAttribute('title')) el.removeAttribute('title');   // this table's sentence replaces a code-set title
+      if (el.getAttribute('data-tip') !== r[1]) el.setAttribute('data-tip', r[1].replace(/&rsquo;/g, '’').replace(/&ldquo;/g, '“').replace(/&rdquo;/g, '”').replace(/&times;/g, '×'));
+    }
+  });
+}
+(function() {
+  var tip = null, cur = null, timer = 0;
+  var SEL = '[data-tip], [title]';
+  var own = function(el) {   // an HTML control or labelled element, not a drawing object inside an SVG
+    return el && !(el.ownerSVGElement && !el.hasAttribute('data-tip'));
+  };
+  var textOf = function(el) {
+    if (el.hasAttribute('title')) {   // move it, so the browser's own tooltip never shows as well
+      var t = el.getAttribute('title'); el.removeAttribute('title');
+      if (t && !el.hasAttribute('data-tip')) el.setAttribute('data-tip', t);
+      if (t && !el.getAttribute('aria-label') && !(el.textContent || '').trim()) el.setAttribute('aria-label', t);
+    }
+    return el.getAttribute('data-tip') || '';
+  };
+  var hide = function() { clearTimeout(timer); timer = 0; cur = null; if (tip) tip.hidden = true; };
+  var show = function(el) {
+    var t = textOf(el); if (!t || !document.body.contains(el)) return;
+    if (!tip) { tip = document.createElement('div'); tip.id = 'uiTip'; tip.setAttribute('role', 'tooltip'); tip.hidden = true; document.body.appendChild(tip); }
+    tip.textContent = t; tip.hidden = false;
+    var r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    var x = Math.max(6, Math.min(innerWidth - w - 6, r.left + r.width / 2 - w / 2)), y = r.bottom + 6;
+    if (y + h > innerHeight - 6) y = Math.max(6, r.top - h - 6);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  };
+  var arm = function(el) {
+    if (el === cur) return; hide(); if (!el) return;
+    cur = el; textOf(el); timer = setTimeout(function() { if (cur === el) show(el); }, 300);
+  };
+  document.addEventListener('pointerover', function(e) {
+    var el = e.target && e.target.closest ? e.target.closest(SEL) : null; if (el && !own(el)) el = null;
+    if (el !== cur) arm(el);
+  }, true);
+  document.addEventListener('pointerout', function(e) { if (cur && (!e.relatedTarget || !cur.contains(e.relatedTarget))) hide(); }, true);
+  document.addEventListener('focusin', function(e) {
+    var el = e.target && e.target.closest ? e.target.closest(SEL) : null;
+    if (el && own(el) && e.target.matches && e.target.matches(':focus-visible')) arm(el);
+  });
+  document.addEventListener('focusout', hide);
+  ['pointerdown', 'wheel', 'scroll'].forEach(function(ev) { document.addEventListener(ev, hide, true); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hide(); }, true);
+  // controls built later by code get their sentences as they appear (one pass 150 ms after a burst of changes)
+  var q = 0, pass = function() { q = 0; uiApplyTips(document); };
+  var mo = new MutationObserver(function() { if (!q) q = setTimeout(pass, 150); });
+  var start = function() { uiApplyTips(document); mo.observe(document.body, { childList: true, subtree: true }); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
 </script>
 </body></html>
