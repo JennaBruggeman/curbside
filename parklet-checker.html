@@ -7140,45 +7140,30 @@ var DRAW_SYMBOLS = {
     if (dy) P.line(x + s * 4 * k, y, x + s * 4.8 * k, y - 0.6 * k + dy - 0.6 * k, { cls: 'fine' });
     P.text(x + s * 5 * k, y - 0.6 * k + (dy || 0), value + (name ? '  ' + name : ''), P.fs('tag'), { anchor: s > 0 ? 'start' : 'end', c: 'ink' });
   },
-  // tree in plan (Brief 18): exactly one path and one dot. Technical: the canopy circle at 'context' and, in the same
-  // path, one 3 mm radial tick across the rim at the NE (up-right on the sheet); a conifer is a short dash, a bare tree
-  // in winter 'hidden'; the trunk dot in ink. Schematic: the canopy at 35 % planting fill, no outline, a darker centre
-  // dot (bare in winter: the outline as technical, no fill). The provenance (City / estimate) is in the tooltip and
-  // the report's Sources sheet, never a ring.
-  // Brief 19 D: the canopy is no longer a circle but the procedural irregular outline (DRAW_SYMBOLS.canopyPath: the base
-  // ellipse perturbed by two octaves of lobes, 8-14 % of the radius, seeded by the tree, o.seed / o.n), so the Plan and
-  // the report draw the same shape every time. Technical: that outline at 'context', no fill (conifer a short dash, a
-  // bare tree 'hidden'), the trunk dot; schematic: the outline filled 35 % sage, no stroke, a darker dot.
+  // Brief 28 item 5: one flat silhouette per tree, in the Plan and on the sheets alike: a filled lobed canopy in one tone
+  // (the section trees' token, fill.treeSil: pale grey technical, pale green schematic), no outline, no inner rings or
+  // dots, and a small filled trunk dot. Its outline is one of three lobe patterns (a conifer's a fourth, finer one) at a
+  // seeded rotation, scaled to the canopy; a bare tree in winter is the same shape, fainter. Callers draw trees under
+  // everything built on the street; the genus tag goes on top.
+  TREE_LOBES: [{ k: 6, a: 0.14 }, { k: 8, a: 0.11 }, { k: 5, a: 0.17 }, { k: 12, a: 0.10 }],
+  canopyLobed: function(cx, cy, rx, ry, seed, conifer) {
+    var R = DRAW_SYMBOLS._rng(seed || 1), L = DRAW_SYMBOLS.TREE_LOBES[conifer ? 3 : Math.floor(R() * 3)], rot = R() * 6.283185307, n = 72, f = function(v) { return (+v).toFixed(2); }, pts = [];
+    for (var i = 0; i < n; i++) {
+      var t = i / n * 6.283185307, r = 1 - L.a + L.a * Math.pow(Math.abs(Math.cos(L.k * (t + rot) / 2)), 0.7);   // rounded lobes
+      pts.push(f(cx + Math.cos(t) * rx * r) + ' ' + f(cy - Math.sin(t) * ry * r));
+    }
+    return 'M' + pts.join('L') + 'Z';
+  },
   tree: function(P, x, y, rx, ry, o) {
     o = o || {}; var k = P.ctx.k, q = ry == null ? rx : ry;
-    var d = DRAW_SYMBOLS.canopyPath(x, y, rx, q, o.seed || 1, o.n || 96, true);
-    var dot = Math.max(0.5 * k, o.trunk || 0), bb = [x - rx, y - q, x + rx, y + q];
-    if (P.ctx.mode === 'schematic' && !o.bare) {
-      P.path(d, { fill: 'fill.planting', fop: 0.35, cls: 'none', data: o.data, title: o.title, bb: bb });
-      P.circle(x, y, dot, { fill: 'fill.plantingDark', cls: 'none' });
-      return;
-    }
-    P.path(d, { cls: 'context', dash: o.bare ? 'hidden' : o.conifer ? 'short' : null, data: o.data, title: o.title, bb: bb });
-    P.circle(x, y, dot, { fill: 'ink', cls: 'none' });
+    var d = DRAW_SYMBOLS.canopyLobed(x, y, rx, q, o.seed || 1, o.conifer);
+    var dot = Math.max(0.45 * k, Math.min(o.trunk || 0, 0.18 * Math.min(rx, q))), bb = [x - rx, y - q, x + rx, y + q];
+    P.path(d, { fill: 'fill.treeSil', fop: o.bare ? 0.55 : null, cls: 'none', data: o.data, title: o.title, bb: bb });
+    P.circle(x, y, dot, { fill: P.ctx.mode === 'schematic' ? 'fill.plantingDark' : 'mid', fop: o.bare ? 0.6 : null, cls: 'none' });
   },
   // a seeded random stream in [0, 1) (mulberry32) and a stable seed from a string
   _rng: function(seed) { var a = seed >>> 0; return function() { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; },
   seedOf: function(s) { var h = 2166136261; s = String(s); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; },
-  // the canopy's radius around it, n samples of a unit radius: rounded lobes (7-12 around, scalloped inward) and a finer
-  // octave (26-38 around, the crinkled edge of the references), together taking 8-14 % off the radius at most; seeded, so the same every time
-  canopyProfile: function(seed, n) {
-    var R = DRAW_SYMBOLS._rng(seed), k1 = 7 + Math.floor(R() * 6), k2 = 26 + Math.floor(R() * 13), p1 = R() * 6.2832, p2 = R() * 6.2832, p3 = R() * 6.2832, A = 0.08 + R() * 0.06, out = [];
-    for (var i = 0; i < n; i++) {
-      var t = i / n * 6.283185307, lobe = Math.abs(Math.sin(k1 * t / 2 + p1)), fine = 0.5 + 0.35 * Math.sin(k2 * t + p2) + 0.15 * Math.sin(2.3 * k2 * t + p3);
-      out.push(1 - A * (0.55 * (1 - Math.sqrt(lobe)) + 0.45 * fine));
-    }
-    return out;
-  },
-  // the outline as path data: the ellipse (cx, cy, rx, ry) through the profile (y up on the sheet: -sin), closed
-  canopyPath: function(cx, cy, rx, ry, seed, n, close) {
-    var p = DRAW_SYMBOLS.canopyProfile(seed, n), f = function(v) { return (+v).toFixed(2); };
-    return 'M' + p.map(function(r, i) { var t = i / n * 6.283185307; return f(cx + Math.cos(t) * rx * r) + ' ' + f(cy - Math.sin(t) * ry * r); }).join('L') + (close ? 'Z' : '');
-  },
   // Section trees (Brief 25 item 16): one flat silhouette per tree, crown and trunk in one fill, a soft irregular edge, no
   // outline and no inner lines. A family of four by the species' form (round, oval, columnar, multi-stem; round when
   // unknown), each the same outline scaled to the tree's canopy width and height: an instance, not a drawing of its own.
