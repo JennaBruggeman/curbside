@@ -8808,6 +8808,11 @@ function resize3DViewport() {
   if (w < 1 || h < 1) return;
   _3d.camera.aspect = w / h;
   _3d.camera.updateProjectionMatrix();
+  // still at home (not orbited since): the home is the Cover framing, so it is framed again for the new shape (Brief 25 23b)
+  if (_3d._home && _3d.controls && typeof AXE !== 'undefined' && AXE.coverView && _3d.camera.position.distanceTo(_3d._home.pos) < 1e-3 && _3d.controls.target.distanceTo(_3d._home.target) < 1e-3) {
+    var cv = AXE.coverView(_3d.camera, w / h); _3d.camera.position.copy(cv.pos); _3d.controls.target.copy(cv.target); _3d.controls.update();
+    _3d._home = { pos: _3d.camera.position.clone(), target: _3d.controls.target.clone() };
+  }
   _3d.renderer.setSize(w, h, false);
   _3d.renderer.render(_3d.scene, _3d.camera);   // one frame at the new size (no rebuild)
 }
@@ -9138,8 +9143,8 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   }
 
   // White edge lines at curbs
-  mplane(XCL, ZS, XCL + 0.12, ZE, 0.004, 0xffffff, 1.0);
-  mplane(XCR - 0.12, ZS, XCR, ZE, 0.004, 0xffffff, 1.0);
+  mplane(XCL, ZS, XCL + 0.12, ZE, 0.004, 0xffffff, 1.0).userData.mark = 1;   // markings: faint on the cover (Brief 25 item 23b)
+  mplane(XCR - 0.12, ZS, XCR, ZE, 0.004, 0xffffff, 1.0).userData.mark = 1;
 
   // Lane dividers — white dashes same-dir, yellow double line at center for two-way
   const _tl3d = getTotalLanes();
@@ -9149,10 +9154,10 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       const isCenter = ROAD_DIR === 'twoway' && ln === LANES_A;
       if (isCenter) {
         for (let z = ZS; z < ZE; z += 1.0)
-          mplane(lx - 0.10, z, lx + 0.10, z + 0.65, 0.005, 0xe8c040, 1.0);
+          mplane(lx - 0.10, z, lx + 0.10, z + 0.65, 0.005, 0xe8c040, 1.0).userData.mark = 1;
       } else {
         for (let z = ZS + 0.8; z < ZE; z += 2.5)
-          mplane(lx - 0.06, z, lx + 0.06, z + 1.2, 0.005, 0xffffff, 1.0);
+          mplane(lx - 0.06, z, lx + 0.06, z + 1.2, 0.005, 0xffffff, 1.0).userData.mark = 1;
       }
     }
   }
@@ -9289,11 +9294,11 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   // looking NE into the corridor so the deck's long axis recedes into depth.
   // Framed via _LM.buildingL.outerFaceX (back wall of near building).
   const cz = L / 2, roadCX = (XCL + XCR) / 2;
-  _3d.controls.target.set(roadCX, 0.5, cz);
   const _posTag = [Math.round(PW*10), Math.round(LW*10), Math.round(SW*10), Math.round(L*10), Math.round(bld*10), Math.round(bufW*10)].join();
   if (!_3d.hasPositioned || _3d._posTag !== _posTag) {
     _3d._posTag = _posTag;
     _3d.hasPositioned = true;
+    _3d.controls.target.set(roadCX, 0.5, cz);   // only when framing anew: a rebuild keeps the user's orbit (Brief 25 item 23b)
     // X: behind near building back wall + 2 m clearance so it is fully visible.
     // Z: south of ZS to see the near end of the deck.
     // H: tall enough to clear buildings and see deck surfaces.
@@ -9301,9 +9306,12 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // the camera 600 m back, clamped by the controls to 60 m down the street axis inside a street tree. The camera now
     // stands over the far curb, before the deck's start, looking back across the road at the deck: no building between;
     // it is lifted clear of any canopy in its view.)
-    const camX = XCR;
-    const camZ = -Math.max(L * 0.5, 6);
-    let camH = Math.max(L * 0.6, 10);
+    // Brief 25 item 23b: the home view is the Cover preset's direction and framing (the deck a third of the width)
+    const _cvw = typeof AXE !== 'undefined' && AXE.coverView ? AXE.coverView(_3d.camera, container && container.clientWidth > 40 && container.clientHeight > 40 ? container.clientWidth / container.clientHeight : 16 / 9) : null;
+    if (_cvw) _3d.controls.target.copy(_cvw.target);
+    const camX = _cvw ? _cvw.pos.x : XCR;
+    const camZ = _cvw ? _cvw.pos.z : -Math.max(L * 0.5, 6);
+    let camH = _cvw ? _cvw.pos.y : Math.max(L * 0.6, 10);
     _3d.camera.position.set(camX, camH, camZ);
     const _tgt = _3d.controls.target, _rc = new THREE.Raycaster();
     g.updateMatrixWorld(true);
@@ -20192,6 +20200,12 @@ AXE.clear = function() {
 // Framing: DESIGN_MODEL.landmarks sceneMinX..sceneMaxX across, the deck z range plus a
 // margin along, 0..3.5 m up; fitted to the output aspect with a 4% margin.
 AXE.CAMERAS = { iso: 'Isometric (45° / 35.26°)', '3060': '30/60 plan oblique' };
+// 'cover' (Brief 25 item 23b): the isometric direction, framed on the parklet: the deck about a third of the image width,
+// so a parklet's length of street either side, centred on the deck (the host frontage behind it, up the frame). The
+// cover axonometric, the 3D view's home and Render still's default all use it.
+AXE.COVER_SHARE = 1 / 3;
+AXE.deckBox = function() { var LM = DESIGN_MODEL.landmarks, L = DESIGN_MODEL.parklet.length; return { x0: LM.deckX0, x1: LM.deckX1, y0: 0, y1: 1.2, z0: 0, z1: L }; };
+AXE.isoDir = function() { var az = 45 * Math.PI / 180, el = Math.atan(1 / Math.SQRT2); return new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), -Math.cos(el) * Math.sin(az)); };
 AXE.frameBox = function() {
   var LM = DESIGN_MODEL.landmarks, L = DESIGN_MODEL.parklet.length, m = 3;
   return { x0: LM.sceneMinX, x1: LM.sceneMaxX, y0: 0, y1: 3.5, z0: -m, z1: L + m };
@@ -20219,7 +20233,11 @@ AXE.camera = function(preset, aspect) {
     lo[0] = Math.min(lo[0], v.x); hi[0] = Math.max(hi[0], v.x); lo[1] = Math.min(lo[1], vy); hi[1] = Math.max(hi[1], vy);
   }); }); });
   var w = (hi[0] - lo[0]) * 1.04, h = (hi[1] - lo[1]) * 1.04, cx = (lo[0] + hi[0]) / 2, cy = (lo[1] + hi[1]) / 2;
-  if (w / h < aspect) w = h * aspect; else h = w / aspect;
+  if (preset === 'cover') {   // the deck's extent in view, a third of the width
+    var db = AXE.deckBox(), dl = [Infinity, Infinity], dh = [-Infinity, -Infinity];
+    [db.x0, db.x1].forEach(function(x) { [db.y0, db.y1].forEach(function(y) { [db.z0, db.z1].forEach(function(z) { v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse); dl[0] = Math.min(dl[0], v.x); dh[0] = Math.max(dh[0], v.x); dl[1] = Math.min(dl[1], v.y); dh[1] = Math.max(dh[1], v.y); }); }); });
+    w = (dh[0] - dl[0]) / AXE.COVER_SHARE; h = w / aspect; cx = (dl[0] + dh[0]) / 2; cy = (dl[1] + dh[1]) / 2 + h * 0.06;
+  } else if (w / h < aspect) w = h * aspect; else h = w / aspect;
   cam.left = cx - w / 2; cam.right = cx + w / 2; cam.top = cy + h / 2; cam.bottom = cy - h / 2;
   cam.updateProjectionMatrix();
   if (sh) {
@@ -20250,6 +20268,31 @@ AXE.renderer = function(W, H) {
 // Both axon views look from the road side, so the far-side buildings would stand between the
 // camera and the street. Cut them away (context meshes wholly beyond the far sidewalk) for the
 // axon render only; the interactive view is never affected.
+// The presentation pass for the cover (Brief 25 item 23b): the road a neutral warm grey (no failing-lane tint), the
+// sidewalk light, the lane markings faint, the editor's grid hidden; the bike lane and the parklet keep their colours,
+// so the parklet is the one saturated thing. Returns the undo.
+AXE.present = function() {
+  var undo = [], hid = [], segT = {};
+  (DESIGN_MODEL.crossSection || []).forEach(function(q) { segT[q.id] = q.type; });
+  var keep = function(m) { undo.push([m, m.color.getHex(), m.opacity, m.transparent]); };
+  _3d.scene.traverse(function(o) {
+    if (!o.isMesh || !o.material || !o.material.color) return;
+    var t = o.userData.seg != null ? (segT[o.userData.seg] || o.userData.seg) : null;
+    if (t === 'travel-lane' || t === 'unallocated' || t === 'parking' || t === 'transit' || t === 'turn-lane') { keep(o.material); o.material.color.setHex(0x9C978F); }
+    else if (t === 'sidewalk') { keep(o.material); o.material.color.setHex(0xE9E5DE); }
+    else if (o.userData.mark) { keep(o.material); o.material.transparent = true; o.material.opacity = 0.35; }
+  });
+  [typeof _fl3DGrid !== 'undefined' ? _fl3DGrid : null, _3d.scene.getObjectByName('sectionHelper')].forEach(function(g) { if (g && g.visible) { g.visible = false; hid.push(g); } });
+  return function() { undo.forEach(function(u) { u[0].color.setHex(u[1]); u[0].opacity = u[2]; u[0].transparent = u[3]; }); hid.forEach(function(g) { g.visible = true; }); };
+};
+// the 3D view's home (Brief 25 item 23b): the cover's direction and framing for a perspective camera: the deck a third of
+// the view's width at the target
+AXE.coverView = function(cam, aspect) {
+  var db = AXE.deckBox(), t = new THREE.Vector3((db.x0 + db.x1) / 2, 0.5, (db.z0 + db.z1) / 2), d = AXE.isoDir();
+  var wD = Math.abs(db.z1 - db.z0) * Math.SQRT1_2 + Math.abs(db.x1 - db.x0) * Math.SQRT1_2, hf = 2 * Math.atan(Math.tan(cam.fov * Math.PI / 360) * (aspect || cam.aspect || 16 / 9));
+  var dist = (wD / AXE.COVER_SHARE / 2) / Math.tan(hf / 2);
+  return { pos: t.clone().add(d.multiplyScalar(dist)), target: t };
+};
 AXE.cutaway = function() {
   var LM = DESIGN_MODEL.landmarks, farX = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, out = [], b = new THREE.Box3();
   _3d.group.children.forEach(function(m) {
@@ -22485,8 +22528,8 @@ RPT.axonImg = function(wMm, hMm) {
   if (AXE.group && AXE.group.visible) { AXE.group.visible = false; hidden.push(AXE.group); }
   try {
     if (mode !== 'schematic') { drawingTheme.mode = 'schematic'; apply3DTheme(); }
-    var cam = AXE.camera('iso', W / H), r = AXE.renderer(W, H);
-    AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0, false); AXE._cut = null;   // north goes in the title block
+    var cam = AXE.camera('cover', W / H), r = AXE.renderer(W, H), undoP = AXE.present();   // Brief 25 item 23b
+    try { AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0, false); AXE._cut = null; } finally { undoP(); }   // north goes in the title block
     return { url: r.domElement.toDataURL('image/png'), w: W, h: H, north: AXE.northScreen(cam, W / H) };
   } finally {
     hidden.forEach(function(m) { m.visible = true; });
@@ -24358,8 +24401,8 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
 var RVZ = {
   SW_RAISE: 0.15, DECK_TOP: 0.215, EXT: 30,
   RES: { '720': [1280, 720], '1080': [1920, 1080], '1440': [2560, 1440] },
-  PRESETS: [['street', 'Street'], ['sidewalk', 'Sidewalk'], ['corner', 'Corner'], ['aerial', 'Aerial']],
-  o: { preset: 'street', appearance: 'rendered', doy: 172, min: 720, year: new Date().getFullYear(), res: '1080', scale: 2, people: true },
+  PRESETS: [['cover', 'Cover'], ['street', 'Street'], ['sidewalk', 'Sidewalk'], ['corner', 'Corner'], ['aerial', 'Aerial']],   // Cover: Brief 25 item 23b
+  o: { preset: 'cover', appearance: 'rendered', doy: 172, min: 720, year: new Date().getFullYear(), res: '1080', scale: 2, people: true },
   cache: new Map(), CACHE_MAX: 24, _tex: {}, _mats: {}, _envs: [], _live: null, busy: false
 };
 function buildRenderScene(o) { return RVZ.build(o); }
@@ -25149,12 +25192,14 @@ RVZ.presets = function(aspect) {
   out.sidewalk = { pos: [xs, SR + 1.5, zc - 6], target: tgt, fov: fov, mm: mm, angleDeg: +(Math.atan2(cx - xs, 6) * 180 / Math.PI).toFixed(1) };
   out.corner = { pos: [LM.deckX1, 2.2, -3], target: tgt, fov: fov, mm: mm, angleDeg: +(Math.atan2(Math.abs(cx - LM.deckX1), zc + 3) * 180 / Math.PI).toFixed(1) };
   out.aerial = { ortho: true, note: 'AXE.camera(iso)' };
+  out.cover = { ortho: true, note: 'AXE.camera(cover)' };
   return out;
 };
 RVZ.surfYAt = function(x) { var LM = _dmCurrent().landmarks; return (x < LM.roadLeft - 0.001 || x > LM.roadRight + 0.001) ? RVZ.SW_RAISE : 0; };
 // A camera for a preset at an aspect (the aerial is the Brief 06 isometric axon camera).
 RVZ.cameraFor = function(preset, aspect) {
   if (preset === 'aerial') return AXE.camera('iso', aspect);
+  if (preset === 'cover') return AXE.camera('cover', aspect);
   var p = RVZ.presets(aspect)[preset] || RVZ.presets(aspect).street, c = new THREE.PerspectiveCamera(p.fov, aspect, 0.1, 1200);
   c.position.fromArray(p.pos); c.lookAt(new THREE.Vector3().fromArray(p.target)); c.updateMatrixWorld(true);
   c.userData.target = p.target;
@@ -25218,7 +25263,7 @@ RVZ.renderStill = async function(over, onProgress) {
   try {
     for (var ty = 0; ty < ny; ty++) for (var tx = 0; tx < nx; tx++) {
       cam.setViewOffset(W, H, tx * tw, ty * th, tw, th); cam.updateProjectionMatrix();
-      sunInfo = RVZ.renderWith(r, S, cam, o, o.preset === 'aerial');
+      sunInfo = RVZ.renderWith(r, S, cam, o, o.preset === 'aerial' || o.preset === 'cover');
       ctx.drawImage(r.domElement, tx * tw, ty * th);
       if (onProgress) onProgress((ty * nx + tx + 1) / (nx * ny), 'Tile ' + (ty * nx + tx + 1) + ' of ' + nx * ny);
       await RVZ._yield();
@@ -25278,10 +25323,10 @@ RVZ._resize = function() {
   var w = Math.max(1, v.clientWidth), h = Math.max(1, v.clientHeight);
   L.r.setSize(w, h, false); L.r.domElement.style.width = '100%'; L.r.domElement.style.height = '100%';
   L.persp.aspect = w / h; L.persp.updateProjectionMatrix();
-  if (RVZ.o.preset === 'aerial' && !RVZ._free) RVZ._aerialCam(w / h);
+  if ((RVZ.o.preset === 'aerial' || RVZ.o.preset === 'cover') && !RVZ._free) RVZ._aerialCam(w / h);
 };
 RVZ._aerialCam = function(aspect) {
-  var L = RVZ._live, c = AXE.camera('iso', aspect);
+  var L = RVZ._live, c = AXE.camera(RVZ.o.preset === 'cover' ? 'cover' : 'iso', aspect);
   L.ortho = c; L.cam = c;
   L.ctl.object = c;
   var b = AXE.frameBox(); L.ctl.target.set((b.x0 + b.x1) / 2, 0, (b.z0 + b.z1) / 2); c.lookAt(L.ctl.target);
@@ -25291,7 +25336,7 @@ RVZ.setPreset = function(p) {
   if (!L) { RVZ._syncPresets(); return; }
   var v = document.getElementById('rvzView'), asp = v && v.clientHeight ? v.clientWidth / v.clientHeight : 16 / 9;
   RVZ._setting = true;
-  if (p === 'aerial') RVZ._aerialCam(asp);
+  if (p === 'aerial' || p === 'cover') RVZ._aerialCam(asp);
   else {
     var q = RVZ.presets(asp)[p];
     L.cam = L.persp; L.ctl.object = L.persp;
@@ -25306,7 +25351,7 @@ RVZ.draw = function() {
     RVZ._drawT = 0;
     var L = RVZ._live, v = document.getElementById('rvzView');
     if (!L || !L.S || !v || !v.clientWidth) return;
-    var s = RVZ.renderWith(L.r, L.S, L.cam, RVZ.o, RVZ.o.preset === 'aerial' && !RVZ._free ? true : L.cam.isOrthographicCamera);
+    var s = RVZ.renderWith(L.r, L.S, L.cam, RVZ.o, (RVZ.o.preset === 'aerial' || RVZ.o.preset === 'cover') && !RVZ._free ? true : L.cam.isOrthographicCamera);
     RVZ._info(s);
   }, 0);
 };
@@ -25465,11 +25510,11 @@ RVZ.exportAll = async function() {
   try {
     for (var i = 0; i < RVZ.PRESETS.length; i++) {
       var p = RVZ.PRESETS[i][0];
-      var e = await RVZ.renderStill({ preset: p }, function(f, t) { RVZ._status(RVZ.PRESETS[i][1] + ' (' + (i + 1) + ' of 4): ' + t, (i + f) / 4); });
+      var e = await RVZ.renderStill({ preset: p }, function(f, t) { RVZ._status(RVZ.PRESETS[i][1] + ' (' + (i + 1) + ' of ' + RVZ.PRESETS.length + '): ' + t, (i + f) / RVZ.PRESETS.length); });
       RVZ.download(e); done.push(e);
       await new Promise(function(r) { setTimeout(r, 400); });   // browsers accept a run of downloads spaced out
     }
-    RVZ._status('Saved 4 stills (' + done.filter(function(e) { return e.cached; }).length + ' from the cache).', 1);
+    RVZ._status('Saved ' + done.length + ' stills (' + done.filter(function(e) { return e.cached; }).length + ' from the cache).', 1);
     RVZ._ctx();
   } catch (err) {
     console.error('[visualize] render failed', err);
@@ -25560,7 +25605,7 @@ RVZP.size = function() { var W = RVZP.LONG, H = Math.round(W * 9 / 16 / 8) * 8; 
 RVZP._copy = function(src, W, H) { var c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(src, 0, 0, W, H); return c; };
 RVZP.passes = function(preset, po) {
   po = po || { entInContext: RVZP.o.entInContext };
-  var WH = RVZP.size(), W = WH[0], H = WH[1], r = RVZ._exportRenderer(), aerial = preset === 'aerial';
+  var WH = RVZP.size(), W = WH[0], H = WH[1], r = RVZ._exportRenderer(), aerial = preset === 'aerial' || preset === 'cover';
   var S = RVZ.build({ appearance: 'rendered', people: RVZ.o.people, shadow: 4096 }), cam = RVZ.cameraFor(preset, W / H);
   r.setSize(W, H, false);
   var out = { preset: preset, W: W, H: H };
