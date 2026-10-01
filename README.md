@@ -1,6 +1,6 @@
 # Curbside
 
-**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/parklet-checker.html?sample=schematic) (no account needed)
+**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/sample.html?m=schematic) (no account needed)
 
 Schematic parklet design for Vancouver streets. Draw a parklet on a real street, check it live against the
 Vancouver Parklet Manual and the Engineering Design Manual, furnish it, see it in plan, section and 3D, and
