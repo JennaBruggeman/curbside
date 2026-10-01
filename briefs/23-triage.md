@@ -764,3 +764,64 @@ pass.
     text timed out while a pixel click worked. Both are harness.
 - **README / landing wrong:** step 5 (Generate comes up empty for missing facts, which the README doesn't describe).
 - Evidence: `<scratchpad>\b23\full\p1-run3\` (001–062.png, both PDFs).
+
+### Run: Parent (café owner), run 3, Opus
+
+- **Site:** E 7th Av at Quebec St, Mount Pleasant, south side (host frontage "GHD", 138 E 7th Av), a quiet two-way
+  street.
+- **Route:** every piece placed by hand, every asked-for distance typed.
+- **Time:** about 49 minutes to the schematic PDF (14 pages). 15 of those minutes went on placing the furniture three
+  times, because reloads lost it.
+- **Confirmed again (rows 1, 3 and 5), in a café owner's words**
+  - **Pieces are lost on reload:**
+    - a bench reloaded at once: lost;
+    - a café table: lost;
+    - five pieces after 6 s: all lost;
+    - five pieces after editing a field and waiting 3 s: all lost.
+    - One bench survived: placed after a reload, then edited and the view changed. Something incidental to
+      `saveSettings` saved it (persona 6 run 2's finding).
+  - **Typed Check values cut short:**
+    - 8.5 → 8, 12 → 1 (a false driveway Fail), 4.2 → 4, and 2.5 % → 0.1 %.
+    - The wrong values are printed in C-001 ("C03 8 m", "C04 0.1%", "C07 4 m").
+    - "Yes — trolley wires" with an empty distance gave "✗ NaN m < 2.4 m required for trolley pole. Fails."
+    - Choosing a dropdown option scrolled the page back to the top (the regrouping).
+  - **Placing:**
+    - Clicking a card and then the deck does nothing, and nothing says to drag.
+    - The Furniture tab's "Place" says "Click Place on any card to switch to Design and start placement", but placed
+      nothing in 3D or in the Plan.
+    - After each piece the library gives way to the Selection panel; the agent had to click empty Plan to get it back.
+- **New**
+  - **The verdict says what fails, not what to do:**
+    - "Does not pass: 1 check fails on measured data" with "Open C16", when C16 is about the owner's own furniture,
+      not measured data.
+    - C16's text ("no 1.10 m route to an accessible seat; 0.30 m at z 3.25, beside the the deck edge") doesn't say
+      which piece to move.
+    - The PDF's "How to resolve it" column repeats the failure.
+  - **C01 entered but still "provisional":**
+    - "No restrictions" chosen in the Check tab, and the row still says "Site condition: Unknown".
+    - G-001 still lists "Confirm on site: parking all day (imported data) C01".
+    - Not checked. It may be the imported value's confirmation, which is a separate item in the side list (as C02's
+      far-side parking was for persona 2).
+  - **The counts add up to 21 for 19 checks** ("11 not entered · 6 passing · 2 provisional" plus the fail and the
+    awaiting). The side summary counts provisional passes twice (as Parent run 2).
+  - **Smaller confusions:**
+    - Two "Along" tooltips with different meanings (from the located point, "pkZ", against from the deck's start).
+    - The deck is tiny in the default "Fit sheet" Plan.
+    - 46 Confirm buttons, 38 of them street trees, many over 100 m away.
+    - The landing page is light, the app opens dark, and after the import the workspace turns light while the panels
+      stay dark.
+  - **Freezes:** about 2 minutes after Escape plus a click, every reload over 60 s, and the PDF 40–50 s. Load not
+    separated from the test machine's.
+- **Rejected:**
+  - "S-001 gives the chair the café table's size and Terrazzo top."
+  - "The drawing list pairs codes and titles one row off."
+  - Both are `pdftotext -layout` artefacts: the raw text has every row right (F2 Chair 0.50 × 0.55 × 0.82, Galvanized
+    / Thermowood).
+- **README / landing wrong:**
+  - Landing: "eighteen checks" (C16 missing, the check that failed), footer "v0.11-gis".
+  - Step 5 doesn't say a piece is dragged.
+  - Step 6: C01 stays provisional after the owner entered it.
+  - Step 7: "under 20 s".
+  - "Designs are kept in your account and reopen where you left them": not tested signed out; locally the furniture was
+    not kept.
+- Evidence: `<scratchpad>\b23\full\parent-run3\` (001–075.png, `curbside-untitled-parklet-schematic.pdf`).
