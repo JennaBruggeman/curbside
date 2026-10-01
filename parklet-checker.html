@@ -18124,6 +18124,7 @@ var SAVE = {
   },
   // Save now: signed out, this browser at once; signed in, the account (its row first, when the create had failed)
   now: async function() {
+    if (typeof _dsDesignApplied === 'function' && !_dsDesignApplied()) return;   // the saved design is still being restored (Brief 29b S1)
     if (!SAVE.signedIn()) {
       if (typeof _dsLocalT !== 'undefined') clearTimeout(_dsLocalT);
       try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); SAVE.local(); } catch (e) { SAVE.fail(e); }
@@ -18182,13 +18183,18 @@ function pkHideLoading() {
 function getDesignState() { var s = pkSerialize(); delete s.savedAt; return s; }
 function applyDesignState(ds) { return pkApplyDesignState(ds); }
 var _dsLocalT = null, _dsLocalBusy = false;
+// (Brief 29b S1) nothing is written before the page has applied its design: a reload restores the saved design 1.3 s
+// after load, and a click or a drag in that window used to write the half-built page (its site, no furniture) over it,
+// so the restore then brought back an empty deck
+function _dsDesignApplied() { return typeof PK_EDIT === 'undefined' || PK_EDIT.fp !== null; }
 function _dsScheduleLocal() {
-  if (_dsLocalBusy) return;
+  if (_dsLocalBusy || !_dsDesignApplied()) return;
   // the local design state is the signed-out ("offline") design (Brief 27 item 4): signed in, the account keeps the
   // design (and pkt-cloud-cache its copy), so this would refill the offline slot with an account's design
   if (typeof pkCurrentUser !== 'undefined' && pkCurrentUser) return;
   clearTimeout(_dsLocalT);
   _dsLocalT = setTimeout(function() {
+    if (!_dsDesignApplied()) return;
     _dsLocalBusy = true;   // pkSerialize calls saveSettings: don't reschedule from inside it
     try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); } catch (e) {}
     _dsLocalBusy = false;
@@ -18236,7 +18242,7 @@ window.addEventListener('load', function() {
     if (window.pkCurrentDesignId || window.pkOpenNone) return;   // a cloud design is (being) loaded instead, or signing in opened none
     var raw = null; try { raw = localStorage.getItem('pkt-design-state'); } catch (e) {}
     if (!raw) { pkApplyBlank(pkDefaultState()); return; }   // a first visit: stage 0, no site (Brief 22 item 5)
-    try { pkApplyDesignState(JSON.parse(raw)); } catch (e) { console.warn('[design state] local restore failed:', e); }
+    try { pkApplyDesignState(JSON.parse(raw)); } catch (e) { console.warn('[design state] local restore failed:', e); if (typeof PK_EDIT !== 'undefined' && PK_EDIT.fp === null) PK_EDIT.baseline(); }
   }, 1300);
 });
 function pkSerialize() {
@@ -18896,7 +18902,7 @@ async function pkRenameDesign(id, newName) {
 function pkScheduleSave() {
   // pkSerialize calls saveSettings, which (signed in) calls this again: once is enough (Brief 27 item 0: the loop never
   // ran before, as no design ever had an account row)
-  if (pkScheduleSave._in) return;
+  if (pkScheduleSave._in || !_dsDesignApplied()) return;   // (Brief 29b S1: not before the page has its design)
   // (Brief 29 item 9: scheduling a save shows nothing; the write itself may, when it is slow)
   // the copy in this browser, soon (an import calls this dozens of times: one serialisation, not one each)
   clearTimeout(pkScheduleSave._lt);
