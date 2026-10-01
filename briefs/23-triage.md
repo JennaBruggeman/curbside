@@ -333,3 +333,41 @@ pass.
   4. In a new browser (or a private window), sign in. Check: the design list shows the design; opening it restores
      the site, the three pieces and the name.
 - Evidence: `<scratchpad>\b23\full\p6-run1\` (001–049.png).
+
+### Run: Persona 8 (City staff reviewer, the PDF only), run 1, Opus
+
+- **Input:** the technical set for E 10th Av at Main St (14 pages) and the Parklet Manual; no app. **Time:** about 10
+  minutes. (The agent rendered the pages itself; the Read tool could not, pdftoppm is missing.)
+- **The three dimensions**
+  - **Adjacent travel lane:** "3.16" on A-201, A-202, A-102 (scales true: 28.00 m at 1:100, 17.60 m at 1:250) against
+    3.2 m on a bus / truck route (p. 20, p. 62): **disagree.** And the set contradicts itself: C-001 p. 10 says C02
+    "AWAITING MEASUREMENT", C-001 (cont.) p. 11 marks all seven lanes "3.20 FAIL" (confirmed in the PDF text; the lane
+    envelope now sits on the page after C02's row since C-002 was folded into C-001), and the cover counts one fail.
+  - **Hydrant clearance:** "21.51 (≥5.00 C05)" on A-102 against 5 m (p. 21): **agrees**, but the dimension runs off
+    A-102's frame (its drawn length scales to about 6.5 m, not 21.51) and the hydrant on A-101 has no label. The value's
+    source is "entered" on S-002, "measured from placed site objects" on X-001 and "imported, not yet verified" on G-001.
+  - **Deck flush with the sidewalk:** the levels give the deck "+0.07" over the "±0.00 top of curb", i.e. 70 mm proud,
+    against "flush … maximum 12 mm" (P3, p. 62): **disagree.** Note 8 speaks of the horizontal gap only, and C14 is
+    "not entered". (Consistent with the model: curb top 0.15 m, deck top 0.215 m above the road.)
+  - Extra: enclosure 0.90 m (scales true at 1:50) against 0.75–1.0 m (E2, p. 64): agrees.
+- **Broke**
+  - **The deck is 2.65 m wide; the Manual says the 3.0 / 3.2 m lane rule "will lead to a maximum width of 2.3-2.5 metres
+    for parklet structures" (p. 20, confirmed).** Nothing flags it.
+  - Dimension strings that do not close: A-201 0.80 + 2.65 + 7 × 3.16 + 2.40 = 27.97, overall "28.00"; A-102 9.77 against
+    "9.78" (3.164 rounded per segment).
+  - "top +0.21 m above the road" (notes on A-201 and A-202) against the levels' 0.22 (0.215 rounded two ways).
+  - A-102: "21.51 (≥5.00 C05)" and "6.00 (≥6.00 C03)" are cut by the plan's frame; the 6.00 C03 zone is drawn as if
+    measured although C03 is "not entered".
+  - The bus stop's position: "z -7.1 m: a bus zone" on X-001, "-13.89 m (z)" on S-002.
+  - A-101 note 3 says "genus tags on A-102"; A-102 has none (confirmed in the PDF text): a dead reference.
+  - Text crossed by lines: "0.07" on A-201 and A-202 by the road line; the deck-end symbol over "2.65" on A-103; the A-A
+    line through "17.60" on A-102.
+  - C16 "Guideline (Manual page to confirm)", BCBC 3.8 in X-001 (as persona 2).
+- **Confused:** the deck-end symbol (circle with a dot, a bar) matches the legend's "Utility pole" while note 4 calls it
+  a flexible bollard and wheel stop; "Sidewalk width 0.80 m estimate" on Main St; C03 "not entered" at a corner
+  address; two cherry trees drawn on the curb line at the deck edge, advisory only; C-001 applies the 3.2 m test to all
+  seven lanes, not only the adjacent one, and calls 3.16 m an EDM "absolute minimum (City Engineer approval)".
+- **Verdict as a reviewer:** "I would return this set": C01 fails (bus zone) and the deck is wider than 2.5 m. Trusts the
+  scales and most citations; distrusts the self-contradicting C02, the deck level against the flush note, the strings
+  that do not close and the cut-off dimensions.
+- Evidence: the agent's report (this block); the input PDF in `<scratchpad>\b23\p8-input\`.
