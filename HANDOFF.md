@@ -1117,6 +1117,55 @@ an advisory above it, no cap; deck flush with the curb. They are done with §2.
 ## Later brief: 3D full city (Brief 25 item 24, deferred by Jenna 2026-10-01)
 The 3D view shows the city everywhere, with no cut-off at the import radius. Building cells load around the camera as it moves: far cells as simple extruded blocks, near cells in full detail, and the same for streets and trees. The import radius only decides what gets sections and checks. It needs a streaming loader for the 3D scene (the site map's cell loader, `GIS.load` / `GIS.ensure`, is the starting point) and a level-of-detail rule. Brief 25 keeps the current 3D extent.
 
+## Brief 29: clarity round 2 (branch `clarity-2` from master after v0.14, 2026-10-01; one commit per item; not merged)
+§1–§5 done in order. Merge on Jenna's approval, then v0.15.
+- **§1 Landing and first view.**
+  - **Item 1:** one viewport (Plan · Section · 3D). The chosen view persists per browser (`VP_PREF`, localStorage
+    `pkt_view`); a design opens in 3D. The Plan Key starts folded.
+  - **Item 1b:** `AXE.homePose` keeps the Cover camera over the road: x capped at the far curb, lifted while a tree
+    blocks the view. Checked at six sites, Smithe St included.
+  - **Item 2 (`index.html`):** the animated scene is back as the hero, with the Purpose sentence as the headline.
+    The render moves below it; every render keeps "AI-assisted visualisation · indicative".
+- **§2 Sidebars and tags.**
+  - **Item 3:** every done Site step folds to one line plus Edit (`siteStepEdit`, `siteStepSum`). The Import
+    explanation sits behind ⓘ.
+  - **Item 4:** no leaders in the live Plan; sheets keep them (`annFlush` `LEADERS = !!paper`). F-tags are unique per
+    piece (F1.1, F1.2). The deck label is one, outside the deck.
+  - **Item 5: zoom tiers in the live Plan and Section** (`lodLive`, by on-screen scale with a CSS mm of 96/25.4 px).
+    - Far (< 1:500): no text; rule lozenges; check zones as faint fills.
+    - Mid (to 1:150): adds furniture tags and the clearances of failing or unmeasured checks (`o.need`).
+    - Near: everything the sheets show.
+    - Hover `<title>`s at every tier on zones, pieces, buildings, the deck and bands.
+    - The Section takes `data-lod` from its own px/m, with CSS hiding text by tier.
+    - Sheets still use `lodTier`.
+  - **Item 7:** the Check sidebar holds Show and the counts plus one "Confirm imported items (n)" button. The list moves
+    into a drawer (`SBX.drawer`, `#chkDrawer`); provisional rows carry their own Confirm (`SBX.pendingFor`,
+    `SBX.confirmFor`). One count (`SBX.openCount`). The advisories and the survey panel sit above the checks.
+    - C16: any table 0.70–0.80 m high is an accessible seat (`GEN.kneeSeat`); no seat is Not entered.
+- **§3 item 6: Accessibility shows the route only** (`ACC.planSVG`, `ACC.legs`).
+  - One band per entry at its actual clear width, from GEN.access's grid: accent when clear, red when blocked.
+  - A blocked entry shows the widest path that exists.
+  - The pinch is marked with a bar and its width.
+  - "Entry" marks sit in the enclosure line (`ACC._over`, drawn after the deck outline).
+  - No turning circles or entry squares.
+- **§4 item 8: the Gallery** (`GAL`).
+  - The design's renders appear in the Visualize sidebar: Open, Re-export (PNG at full, half or quarter size) and Delete.
+  - The gallery id lives in the design (`siteObjects.gallery`); `RVZ.designHash` leaves it out.
+  - IndexedDB `curbside-gallery` is the fast path.
+  - Signed in, renders go to the private bucket `design-renders` (`<uid>/<gallery id>/<render id>.png|.jpg`,
+    `.thumb.jpg`, `.json`). `GAL.sync` on opening Visualize pulls thumbnails, drops renders deleted elsewhere and
+    retries failed uploads.
+  - **The bucket SQL in `supabase/schema.sql` must be run on the live project.** Only an in-memory mock has been tested;
+    machine A to B needs a real sign-in.
+  - The photoreal overlay's button is now "Compare with base".
+- **§5 item 9: save status.**
+  - Scheduling a save shows nothing.
+  - The account write runs 2 s after the last change.
+  - "Saving…" appears, in the status itself, only past 500 ms.
+  - The status has a fixed width per breakpoint (324 / 156 / 130 px), so the tabs never move.
+- **Triage:** `briefs/23-triage.md` "## v0.14 smoke" (S1–S19). Nothing there is fixed except where a Brief 29 item
+  covers it (S12–S14).
+
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
 

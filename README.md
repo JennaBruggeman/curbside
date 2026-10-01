@@ -169,7 +169,8 @@ else's data:
 1. Create a free Supabase project.
 2. In its SQL Editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates the `profiles` and `designs`
    tables, turns on Row Level Security for every table (each user reads and writes only their own rows; a
-   signed-out request reads nothing), the invite check, and the private `user-furniture` storage bucket.
+   signed-out request reads nothing), the invite check, and the private `user-furniture` and `design-renders` storage
+   buckets (one folder per user: your imported furniture, and each design's render gallery).
 3. Run [`supabase/invite-codes.sql`](supabase/invite-codes.sql) for one invite code per person (see below), and
    [`supabase/invite-status.sql`](supabase/invite-status.sql) if your database was set up before it was part of `schema.sql`.
 4. Project Settings › API: copy the **Project URL** and the **anon / publishable key** into the `CONFIG` block at
