@@ -3172,6 +3172,10 @@ ACC.planKey = function(svg) {
   if (D.route) rows.push(["<span class='pk-sw pk-route'></span>", 'Accessible route, ' + GEN.ROUTE_W.toFixed(2) + ' m clear (C16)']);
   if (D.entry) rows.push(["<span class='pk-sw pk-entry'></span>", 'Entry, ' + GEN.TURN.toFixed(2) + ' m turning square (C16)']);
   if (D.turn) rows.push(["<span class='pk-sw pk-turn'></span>", 'Turning space, ' + GEN.TURN.toFixed(2) + ' m (C16; red: too tight)']);
+  var M = window._pvMarks || {};
+  if (M.H) rows.push(["<span class='pk-sym pk-h'>H</span>", 'Fire hydrant']);
+  if (M.B) rows.push(["<span class='pk-sym'>B</span>", 'Bus stop']);
+  if ((window._pvTreeKey || []).length) rows.push(["<span class='pk-sw pk-tree'></span>", 'Street trees by genus: ' + window._pvTreeKey.map(function(q) { return '<b>' + q[0] + '</b> ' + q[1]; }).join(', ') + ' (×n: a group)']);
   if (window._pvImportArea) rows.push(["<span class='pk-sw pk-area'></span>", 'Import area: buildings in detail inside, the city outline outside']);
   el.hidden = !rows.length;
   el.innerHTML = '<summary>Key</summary>' + rows.map(function(r) { return '<div class=\'pk-row\'>' + r[0] + '<span>' + r[1] + '</span></div>'; }).join('');
@@ -3395,8 +3399,9 @@ function treeFromCity(t) {
   };
 }
 // Tooltip / label text (no straight apostrophe: the Plan's markup turns those into quotes).
+// Brief 28 item 6: the genus and its common name first ("Acer — red maple"), then the species, height and form.
 function treeTip(v) {
-  var s = (v.latin || 'Street tree') + (v.common ? ' (' + v.common.toLowerCase() + ')' : '') + ', ' + v.heightM + ' m, ' + v.form + (v.formSrc === 'default' ? ' (form: default)' : '');
+  var s = (v.genus || 'Street tree') + (v.common ? ' — ' + v.common.toLowerCase() : '') + ' · ' + (v.latin ? v.latin + ', ' : '') + v.heightM + ' m, ' + v.form + (v.formSrc === 'default' ? ' (form: default)' : '');
   return s.replace(/'/g, '’').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 // "hornbeam" -> "hornbeams": the last word of the City's common name ("OAK SPECIES" -> oak).
@@ -3405,6 +3410,41 @@ function treeNoun(v, n) {
   if (n === 1) return w;
   return /(s|x|ch|sh)$/.test(w) ? w + 'es' : /[^aeiou]y$/.test(w) ? w.slice(0, -1) + 'ies' : w + 's';
 }
+// Genus tags by group (Brief 28 item 6), the Plan and the sheets alike. Trees of one genus on one side of the street whose
+// canopies come within GAP m of each other share one tag ("AC ×6"), with one short leader to the group's centre tree. A genus's
+// code is its first two letters, three where two genera present share them (Magnolia MAG, Malus MAL).
+// trees: [{ x, z, r, genus, side }] in world metres; returns the groups along the street (z) and the key (code -> genus).
+var TREE_TAGS = {
+  GAP: 3,
+  codes: function(genera) {
+    var map = {}, by2 = {};
+    genera.forEach(function(g) { var c = g.slice(0, 2).toUpperCase(); (by2[c] = by2[c] || {})[g] = 1; });
+    genera.forEach(function(g) { var c = g.slice(0, 2).toUpperCase(); map[g] = Object.keys(by2[c]).length > 1 ? g.slice(0, 3).toUpperCase() : c; });
+    return map;
+  },
+  label: function(g) { return g.code + (g.n > 1 ? ' ×' + g.n : ''); },
+  groups: function(trees) {
+    trees = trees.filter(function(t) { return t && t.genus; });
+    var norm = function(g) { g = String(g).trim(); return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase(); };
+    trees.forEach(function(t) { t.genus = norm(t.genus); });
+    var codes = TREE_TAGS.codes(Object.keys(trees.reduce(function(a, t) { a[t.genus] = 1; return a; }, {}))), used = [], out = [];
+    trees.forEach(function(t, i) {
+      if (used[i]) return;
+      var m = [i]; used[i] = true;
+      for (var q = 0; q < m.length; q++) {
+        var a = trees[m[q]];
+        trees.forEach(function(b, j) { if (!used[j] && b.genus === t.genus && b.side === a.side && Math.hypot(a.x - b.x, a.z - b.z) - (a.r || 0) - (b.r || 0) <= TREE_TAGS.GAP) { used[j] = true; m.push(j); } });
+      }
+      // its centre: the member nearest the group's mean, so the leader ends on a trunk
+      var M = m.map(function(j) { return trees[j]; }), n = M.length, mx = M.reduce(function(s, v) { return s + v.x; }, 0) / n, mz = M.reduce(function(s, v) { return s + v.z; }, 0) / n;
+      var c = M.reduce(function(a, v) { return Math.hypot(v.x - mx, v.z - mz) < Math.hypot(a.x - mx, a.z - mz) ? v : a; });
+      out.push({ code: codes[t.genus], genus: t.genus, n: n, side: t.side, members: M, x: c.x, z: c.z });
+    });
+    out.sort(function(a, b) { return a.z - b.z; });
+    out.key = Object.keys(codes).sort().map(function(g) { return [codes[g], g]; });
+    return out;
+  }
+};
 // The schematic 3D tree: a trunk to the crown and the form's profile turned as a lathe (16 steps, so the
 // crown's box is exactly 2 canopyR across), in the season's colour. No textures. Returns the parts.
 function treeMesh3D(v, season) {
@@ -7546,7 +7586,7 @@ function _renderPlanView(o) {
     const x0 = anc === 'middle' ? x - w / 2 : anc === 'end' ? x - w : x;
     // o.rot -90 (Brief 19 C: an address along a deep footprint): turned about its anchor, reading upward, centred on it
     const rot = o.rot === -90, box = rot ? [x - 0.5 * sz, y - w / 2, x + 0.5 * sz, y + w / 2] : [x0, y - 0.82 * sz, x0 + w, y + 0.28 * sz];
-    ANN.push({ kind: kind, x: x, y: y, box: box, axis: o.axis || 'x', lo: o.lo, hi: o.hi, at: o.at || null,
+    ANN.push({ kind: kind, t: str, x: x, y: y, box: box, axis: o.axis || 'x', lo: o.lo, hi: o.hi, at: o.at || null, lead: !!o.lead, seq: o.seq,
       draw: function(X, Y) { return `<text x='${X.toFixed(2)}' y='${(rot ? Y : Y).toFixed(2)}'${rot ? ` transform='rotate(-90 ${X.toFixed(2)} ${Y.toFixed(2)})' dy='${(0.32 * sz).toFixed(2)}'` : ''} font-family='${DRAW_STYLE.FONT}' font-size='${sz.toFixed(2)}'${anc !== 'start' ? ` text-anchor='${anc}'` : ''}${o.bold ? ` font-weight='600'` : ''} fill='${DRAW_STYLE.c(DK, o.c || 'anno')}'${o.data || ''}>${_annEsc(str)}</text>`; } });
   };
   // a rule lozenge (DRAW_SYMBOLS.lozenge) centred at x, y: it moves to the next row up when taken
@@ -7570,11 +7610,16 @@ function _renderPlanView(o) {
     const placed = OBST.map(function(b) { return b.slice(); }), g = 1.5 * U, lead = 2 * DRAW_STYLE.SCREEN.pxPerMm * U;   // 2 mm on screen
     const hit = function(b, list) { return list.some(function(q) { return b[0] < q[2] + g && q[0] - g < b[2] && b[1] < q[3] + g && q[1] - g < b[3]; }); };
     let out = '';
+    const seqEnd = {}, leads = [];   // a sequence's (a.seq: tree tags along one side) last right edge; the leaders drawn
+    const cross = function(p, q) { const o = function(a, b, c) { return Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])); }; return o(p[0], p[1], q[0]) * o(p[0], p[1], q[1]) < 0 && o(q[0], q[1], p[0]) * o(q[0], q[1], p[1]) < 0; };
+    const leadTo = function(a, b) { const o = a.at || [(a.box[0] + a.box[2]) / 2, (a.box[1] + a.box[3]) / 2]; return [o, [Math.max(b[0], Math.min(b[2], o[0])), Math.max(b[1], Math.min(b[3], o[1]))]]; };
     ANN.map(function(a, i) { a.i = i; return a; }).sort(function(a, b) { return ANN_PRI[a.kind] - ANN_PRI[b.kind] || a.i - b.i; }).forEach(function(a) {
       const bw = a.box[2] - a.box[0], bh = a.box[3] - a.box[1], keepOff = a.kind === 'segment' || a.kind === 'tree';
       // segment labels keep off every object; a tree tag may sit on canopies (its own and its neighbours') but not the deck or furniture
       const objs = a.kind === 'tree' ? OBJ.filter(function(q) { return !q.tree; }) : OBJ;
-      const free = function(b) { return !hit(b, placed) && !(keepOff && hit(b, objs)); };
+      // in a sequence, each item keeps right of the one before it (registered left to right), so their leaders never cross
+      const free = function(b) { return !hit(b, placed) && !(keepOff && hit(b, objs)) && !(a.seq != null && seqEnd[a.seq] != null && b[0] < seqEnd[a.seq] + g) &&
+        !(a.lead && leads.some(function(q) { return cross(leadTo(a, b), q); })); };   // an always-led item: its leader crosses none drawn
       // candidates: along the axis (both ways, within its bounds and the visible area), then across it, then both
       const steps = [], sa = (a.axis === 'y' ? bh : bw) + 2 * g, sb = (a.axis === 'y' ? bw : bh) + 2 * g;
       for (let n = 0; n <= 60; n++) steps.push([n === 0 ? 0 : (n % 2 ? 1 : -1) * Math.ceil(n / 2) * sa, 0]);
@@ -7592,14 +7637,20 @@ function _renderPlanView(o) {
       }
       if (!best) { best = [0, 0, a.box]; annCheck.blocked++; }
       placed.push(best[2]); annCheck.placed++;
+      if (a.seq != null) seqEnd[a.seq] = Math.max(seqEnd[a.seq] == null ? -Infinity : seqEnd[a.seq], best[2][2]);
       out += a.draw(a.x + best[0], a.y + best[1]);
       const d = Math.hypot(best[0], best[1]);
       if (d > 0.01) annCheck.moved++;
-      if (d > lead && !a.noLead) {   // a leader from the object (or the item's own place) to the nearest point of its box
+      // a segment label that only slid along its band still labels it: no leader (Brief 28 item 6: it crossed the tree tags')
+      const alongBand = a.kind === 'segment' && Math.abs(a.axis === 'y' ? best[0] : best[1]) < 0.01;
+      if ((d > lead || a.lead) && !a.noLead && !alongBand) {   // a leader from the object (or the item's own place) to the nearest point of its box
         const o = a.at || [(a.box[0] + a.box[2]) / 2, (a.box[1] + a.box[3]) / 2], b = best[2], px = Math.max(b[0], Math.min(b[2], o[0])), py = Math.max(b[1], Math.min(b[3], o[1]));
         out += _sym(function(P) { DRAW_SYMBOLS.leader(P, [o, [px, py]], { dot: true }); }); annCheck.leaders++; annCheck.byKind[a.kind] = (annCheck.byKind[a.kind] || 0) + 1;
+        const L2 = [o, [px, py]]; L2.kind = a.kind; L2.t = a.t; leads.push(L2);
       }
     });
+    // leaders that cross one another (the check: none)
+    annCheck.crossings = 0; for (let i = 0; i < leads.length; i++) for (let j = i + 1; j < leads.length; j++) if (cross(leads[i], leads[j])) { annCheck.crossings++; (annCheck.crossed = annCheck.crossed || []).push(leads[i].kind + ':' + leads[i].t + ' x ' + leads[j].kind + ':' + leads[j].t); }
     window._pvAnnCheck = Object.assign({ items: ANN.length }, annCheck);
     return out;
   };
@@ -7630,6 +7681,7 @@ function _renderPlanView(o) {
   // the import area (Brief 25 item 21): inside it the buildings are the imported ones, drawn in detail; outside, the city's
   // outline. Its edge faint and dashed, and a line in the Plan's key
   window._pvImportArea = !!(_oc.svg && !paper);
+  window._pvMarks = { H: 0, B: 0 };   // the symbols drawn, for the Plan's key (Brief 28 item 6)
   if (_oc.svg && !paper) { const _ia = Math.min(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px), _ib = Math.max(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px);
     s += `<rect x='${_ia.toFixed(1)}' y='${(-CTX_TOP).toFixed(1)}' width='${(_ib - _ia).toFixed(1)}' height='${(OPP_BOTTOM + CTX_TOP).toFixed(1)}' fill='none'${K('fine', { c: 'mid', dash: 'hidden' })} pointer-events='none' data-import-area='1'/>`; }
   { const _swSeg = _pvXS.find(function(sg){ return sg.type === 'sidewalk'; });
@@ -7690,7 +7742,8 @@ function _renderPlanView(o) {
   // until confirmed on site. Tagged data-transit='<index>' for the check.
   (_pvDM.transit || []).forEach(function(t, i) {
     const c = worldToPlan(t.x, t.z);
-    s += "<g data-ctx='stops'>" + _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'`, noText: LODn < 2 }); }) + '</g>';
+    window._pvMarks.B++;
+    s += "<g data-ctx='stops'><title>" + (t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop') + (t.confirmed ? '' : ' (confirm on site)') + '</title>' + _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'`, noText: LODn < 2 }); }) + '</g>';
 
   });
   if (_bikeSeg) {
@@ -8036,8 +8089,9 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       // the C05 5 m radius (Brief 18): only while C05 is open in the Check list, or when it fails
       const hR = Math.max(6, Math.round(0.10 * pvSC)), _c5Open = !!document.querySelector('#crit_c5.open');
       if ((_c5Open || !pOk) && LODn >= 1) s += `<circle cx='${cfX.toFixed(1)}' cy='${cfY.toFixed(1)}' r='${(def.req * pvSC).toFixed(1)}' fill='none'${K('fine', { c: col, op: colOp, dash: 'zone' })} data-c05='1'/>`;
-      s += '<g' + _ctxA + '>' + _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC, noText: LODn < 2 }); }) + '</g>';
-      annText('object', 'Hydrant', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY], data: _ctxA }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
+      window._pvMarks.H++;
+      s += '<g' + _ctxA + '><title>Fire hydrant</title>' + _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC, noText: LODn < 2 }); }) + '</g>';
+      annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);   // the H is the label (Brief 28 item 6)
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + hR + 5 * pvZS, cfY - hR - 3 * pvZS);
     } else if (cf.type === 'S') {
@@ -8069,19 +8123,23 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   //   bottom: tier 1 = wheel stop / deck / wheel stop, tier 2 = context / parklet / context
   // Where a value does not fit its span, labels are spread apart (1-D, no overlaps) and joined
   // to their span by a leader.
-  // Labels at the annotation size (U plan units per screen / paper px): each transit stop's label and,
-  // on paper at 1:100 only, each imported tree's two-letter genus tag above its canopy.
+  // Transit stops: the B is the label (Brief 28 item 6: no text; "Bus stop" on hover and in the key). Its symbol is an obstacle.
   (_pvDM.transit || []).forEach(function(t) {
     const c = worldToPlan(t.x, t.z);
-    annText('object', t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop', c.px + 2.4 * DK.k, c.py + 3 * U, { axis: 'x', at: [c.px, c.py], data: " data-ctx='stops'" });
     annObst(c.px - 1.6 * DK.k, c.py - 1.6 * DK.k, c.px + 1.6 * DK.k, c.py + 1.6 * DK.k);
   });
-  // tree tags: each imported tree's genus, above its canopy (the lowest priority: it yields to everything else)
-  _pvDM.vegetation.forEach(function(v, i) {
-    if (v.segId !== null || !v.genus) return;
-    const c = worldToPlan(v.x, v.z);
-    annText('tree', v.genus.slice(0, 2).toUpperCase(), c.px, c.py - v.canopyR * pvSC - 5 * U, { anchor: 'middle', axis: 'y', at: [c.px, c.py], data: ` data-veg-tag='${i}' data-ctx='trees'` });
-  });
+  // tree tags (Brief 28 item 6): one per group of one genus (TREE_TAGS), above the group, with a short leader to its centre;
+  // the Tags toggle hides them (paper always). The lowest priority: they yield to everything else, and keep their order
+  // along the street (seq), so their leaders never cross.
+  window._pvTreeKey = [];
+  if (paper || typeof _pvTagsOn === 'undefined' || _pvTagsOn) {
+    const _tg = TREE_TAGS.groups(_pvDM.vegetation.map(function(v, i) { return v.segId === null && v.genus ? { x: v.x, z: v.z, r: v.canopyR || 0, genus: v.genus, side: v.x < (_pvDM.landmarks.roadRight || 0) / 2 ? 'n' : 'f', i: i } : null; }));
+    window._pvTreeKey = _tg.key;
+    _tg.map(function(g) { return { g: g, c: worldToPlan(g.x, g.z) }; }).sort(function(a, b) { return a.c.px - b.c.px; }).forEach(function(q) {
+      const top = Math.min.apply(null, q.g.members.map(function(m) { return worldToPlan(m.x, m.z).py - m.r * pvSC; }));
+      annText('tree', TREE_TAGS.label(q.g), q.c.px, top - 5 * U, { anchor: 'middle', axis: 'x', at: [q.c.px, q.c.py], lead: true, seq: q.g.side, data: ` data-veg-tag='${q.g.members.map(function(m) { return m.i; }).join(' ')}' data-tree-n='${q.g.n}' data-ctx='trees'` });
+    });
+  }
   // the objects segment labels and tree tags keep off: tree canopies, furniture
   _pvDM.vegetation.forEach(function(v) { const c = worldToPlan(v.x, v.z), r = (v.canopyR || 0.4) * pvSC; annObj(c.px - r, c.py - r, c.px + r, c.py + r, true); });
   _dmFurnList.forEach(function(inst) { const c = worldToPlan(+inst.x || 0, +inst.z || 0), dm = flInstDims(inst), r = Math.max(dm.l, dm.d) / 2 * pvSC; annObj(c.px - r, c.py - r, c.px + r, c.py + r); });
@@ -23474,7 +23532,7 @@ RPT.sym = {
   pole: function(P, x, y) { DRAW_SYMBOLS.pole(P, x, y); },
   signal: function(P, x, y, w, h) { DRAW_SYMBOLS.signal(P, x, y, w || 0, h || 0); },
   manhole: function(P, x, y, r) { DRAW_SYMBOLS.manhole(P, x, y, r, r * 609.6 / 939.8); },
-  bus: function(P, x, y) { DRAW_SYMBOLS.busStop(P, x, y); P.text(x + 2.4, y + 0.65, 'Bus stop', RPT.TX.tag, { c: 'anno' }); },
+  bus: function(P, x, y) { DRAW_SYMBOLS.busStop(P, x, y); },   // the B is the label (Brief 28 item 6); "Bus stop" in the legend
   level: function(P, x, y, label, right, dy) { DRAW_SYMBOLS.level(P, x, y, label, '', right, dy); },
   grid: function(P, x, y, label) { DRAW_SYMBOLS.bubble(P, x, y, label); }
 };
@@ -23707,16 +23765,43 @@ RPT.planObjects = function(P, G, F, o) {
   G.cf.forEach(function(c) { if (!inZ(c.z)) return; if (c.type === 'H') { if (has('hydrants')) RPT.sym.hydrant(P, F.sx(c.z), F.sy(c.x), 0.15 * F.k, o.labels === false); } else if (c.type === 'S') { if (has('signals')) RPT.sym.signal(P, F.sx(c.z), F.sy(c.x)); } else if (has('poles')) RPT.sym.pole(P, F.sx(c.z), F.sy(c.x)); });
   if (has('manholes')) G.mh.forEach(function(m) { if (inZ(m.z)) RPT.sym.manhole(P, F.sx(m.z), F.sy(m.x), (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47) * F.k); });
   if (has('stops')) G.transit.forEach(function(t) { if (!inZ(t.z)) return; if (o.labels === false) DRAW_SYMBOLS.busStop(P, F.sx(t.z), F.sy(t.x), { noText: true }); else RPT.sym.bus(P, F.sx(t.z), F.sy(t.x)); });   // mid: the symbol without its label
-  if (has('trees')) G.trees.forEach(function(v) {
+  if (!has('trees')) return;
+  var inX = function(x) { return o.x0 == null || (x >= o.x0 - 0.01 && x <= o.x1 + 0.01); }, shown = [];
+  G.trees.forEach(function(v) {
     if (!inZ(v.z)) return;
     // DRAW_SYMBOLS.tree, as the Plan draws it (Brief 18: screen and report symbols are the same)
     var cx = F.sx(v.z), cy = F.sy(v.x), r = Math.max(0.8, v.canopyR * F.k);
     DRAW_SYMBOLS.tree(P, cx, cy, r, r, { conifer: v.leaf === 'conifer', bare: v.segId === null && typeof treeBare === 'function' && treeBare(v, treeSeasonNow()), trunk: Math.max(v.trunkR || 0, 0.1) * F.k, seed: treeSeed(v), n: treeN(v), data: " data-tree='1'" });
-    if (!o.genus || !v.genus) return;
-    var tx = cx + r * 0.72 + 0.4, ty = cy - r * 0.72, g2 = v.genus.slice(0, 2).toUpperCase();
-    if (tagged.some(function(q) { return Math.abs(q[0] - tx) < 5 && Math.abs(q[1] - ty) < 3; })) return;   // one tag for a cluster
-    tagged.push([tx, ty]); P.text(tx, ty, g2, RPT.TX.tag, { data: " data-genus='1'" });
+    if (inX(v.x)) shown.push(v);
   });
+  if (o.genus) RPT.treeTags(P, F, shown, { mid: (G.LM.roadRight || 0) / 2, bounds: o.bounds, avoid: o.avoid });
+};
+// genus tags by group (Brief 28 item 6, TREE_TAGS): the trees within the sheet's extent only; each tag above its group, sliding
+// along the street (then up a row) clear of the sheet's text so far and the boxes in o.avoid, in order along each side of the
+// street so the leaders (to each group's centre) never cross. Returns the key [[code, genus]].
+RPT.treeTags = function(P, F, trees, o) {
+  o = o || {};
+  var gs = TREE_TAGS.groups(trees.map(function(v) { return { x: v.x, z: v.z, r: v.canopyR || 0, genus: v.genus, side: v.x < (o.mid || 0) ? 'n' : 'f' }; }));
+  var fs = RPT.TX.tag, h = fs * 0.96, g = 0.5, seqEnd = {};
+  var taken = P.boxes.filter(function(b) { return b.text; }).map(function(b) { return [b.x0, b.y0, b.x1, b.y1]; }).concat(o.avoid || []);
+  var hit = function(b) { return taken.some(function(q) { return b[0] < q[2] + g && q[0] - g < b[2] && b[1] < q[3] + g && q[1] - g < b[3]; }); };
+  gs.map(function(gr) { return { g: gr, cx: F.sx(gr.z), cy: F.sy(gr.x) }; }).sort(function(a, b) { return a.cx - b.cx; }).forEach(function(q) {
+    var lab = TREE_TAGS.label(q.g), w = RPT.tw(lab, fs, true) + 0.6, best = null;
+    var top = Math.min.apply(null, q.g.members.map(function(m) { return F.sy(m.x) - Math.max(0.8, (m.r || 0) * F.k); })) - 1.2;
+    for (var row = 0; row < 4 && !best; row++) for (var n = 0; n <= 40 && !best; n++) {
+      var dx = n === 0 ? 0 : (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 1.2, x0 = q.cx + dx - w / 2, yb = top - row * (h + g);
+      var b = [x0, yb - 0.74 * fs, x0 + w, yb + 0.22 * fs];
+      if (o.bounds && (b[0] < o.bounds[0] || b[2] > o.bounds[2] || b[1] < o.bounds[1] || b[3] > o.bounds[3])) continue;
+      if (seqEnd[q.g.side] != null && b[0] < seqEnd[q.g.side] + g) continue;
+      if (!hit(b)) best = b;
+    }
+    if (!best) return;   // no room on the sheet: the key still names the genus
+    taken.push(best); seqEnd[q.g.side] = best[2];
+    var px = Math.max(best[0], Math.min(best[2], q.cx)), py = best[3];
+    DRAW_SYMBOLS.leader(P, [[q.cx, q.cy], [px, py]], { dot: true });
+    P.text((best[0] + best[2]) / 2, best[3] - 0.22 * fs, lab, fs, { anchor: 'middle', bold: true, data: " data-genus='" + q.g.code + "' data-tree-n='" + q.g.n + "'" });
+  });
+  return gs.key;
 };
 
 // ── A-101 Site plan, 1:250 ─────────────────────────────────────────────────────────────────────────
@@ -23767,7 +23852,9 @@ RPT.sheetSite = function(d) {
   // the annotation tier from the sheet's scale (Brief 19 A): 1:250 is mid (no tree tags, no object labels), nearer is near
   var lod = lodTier(2000 / sc), near = lod === 'near';
   RPT.planBase(P, G, F, d.mode, {});
-  RPT.planObjects(P, G, F, { genus: near, labels: near, layers: RPT.SHEET_LAYERS.A101 });
+  // genus tags at every scale (Brief 28 item 6: grouped, they read at 1:250), clear of the section marker's tags
+  RPT.planObjects(P, G, F, { genus: true, labels: near, layers: RPT.SHEET_LAYERS.A101, x0: xTop, x1: xBot, bounds: [xa + 1, ya + 1, xb - 1, yb - 1],
+    avoid: tagY.map(function(y) { return [secX - 7.2, y - 4, secX + 7.2, y + 4]; }) });
   RPT.cityPlan(P, F, d);   // the City's wheel stops and bollards (Brief 21 §13): symbols, no note (A-102 has it)
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
@@ -23779,11 +23866,12 @@ RPT.sheetSite = function(d) {
   var ax = RPT.cropStops([LM.sidewalkL.x0, 0, LM.roadRight], xTop, xBot);
   if (ax.length > 1) RPT.chain(P, { side: 'right', edge: xb, row: 0, at: ax.map(function(x) { return F.sy(x); }), from: xb, vals: ax.slice(1).map(function(x, i) { return RPT.fmt(x - ax[i]); }) });
   if (zA <= 0 && zB >= G.L) RPT.chain(P, { side: 'bottom', edge: F.sy(LM.deckX1), row: 0, at: [F.sx(G.L), F.sx(0)], vals: [RPT.fmt(G.L)] });
-  var gl = {}, tree = null; G.trees.forEach(function(v) { if (v.genus && v.z >= zA && v.z <= zB) { gl[v.genus.slice(0, 2).toUpperCase()] = v.genus; if (!tree) tree = [F.sx(v.z), F.sy(v.x)]; } });
+  var inCrop = G.trees.filter(function(v) { return v.genus && v.z >= zA && v.z <= zB && v.x >= xTop && v.x <= xBot; }), tree = inCrop.length ? [F.sx(inCrop[0].z), F.sy(inCrop[0].x)] : null;
+  var tkey = TREE_TAGS.groups(inCrop.map(function(v) { return { x: v.x, z: v.z, r: v.canopyR, genus: v.genus }; })).key;
   var keys = [
     { t: 'Parklet, ' + G.L.toFixed(2) + ' m: layout A-102, deck A-103.', at: [pc[0], pc[1] - 4] },
     { t: 'Section A-A: the street on A-201, the parklet on A-202.', at: [F.sx(G.sec.z) + 5, F.sy(LM.sidewalkL.x0) - 6] },
-    { t: Object.keys(gl).length ? (near ? 'Street trees by genus: ' + Object.keys(gl).sort().map(function(t) { return t + ' ' + gl[t]; }).join(', ') + '.' : 'Street trees (' + Object.keys(gl).sort().map(function(t) { return gl[t]; }).join(', ') + '): genus tags on A-102.') : 'No street trees in this stretch.', at: tree ? [tree[0] + 4, tree[1] - 4] : null },
+    { t: tkey.length ? 'Street trees by genus: ' + tkey.map(function(q) { return q[0] + ' ' + q[1]; }).join(', ') + '; ×n: a group of n within ' + TREE_TAGS.GAP + ' m.' : 'No street trees in this stretch.', at: tree ? [tree[0] + 4, tree[1] - 4] : null },
     { t: 'Buildings from OpenStreetMap, cut at the sheet\'s extent (' + RPT.fmt(zB - zA) + ' x ' + RPT.fmt(xBot - xTop) + ' m); name and use where known.', at: hostAt },
     { t: 'Site objects from City of Vancouver open data: indicative, confirm on site.', at: null }
   ];
@@ -24989,6 +25077,10 @@ RPT.print = async function() {
 .pv-key summary { cursor: pointer; font-weight: 600; color: var(--d-ink, inherit); }
 .pk-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .pk-sw { flex: 0 0 auto; width: 18px; height: 10px; box-sizing: border-box; }
+.pk-sym { flex: 0 0 auto; width: 18px; text-align: center; font-weight: 700; font-size: 11px; line-height: 1; }
+.pk-sym.pk-h { width: 14px; height: 14px; margin: 0 2px; border: 1px solid currentColor; border-radius: 50%; font-size: 9px; line-height: 12px; box-sizing: border-box; }
+.pk-tree { border-radius: 50%; width: 12px; height: 12px; margin: 0 3px; background: #C9D3C2; }   /* fill.treeSil */
+.dm-technical .pk-tree { background: #DEDEDE; }
 .pk-route { background: rgba(58, 168, 228, 0.14); border: 1px dashed var(--accent-ui); }
 .pk-entry { border: 1px dashed var(--accent-ui); }
 .pk-turn { width: 10px; border-radius: 50%; border: 1px dashed var(--accent-ui); margin: 0 4px; }
