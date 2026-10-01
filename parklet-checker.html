@@ -4065,8 +4065,7 @@ function fitAllViewports() {
   var shown = function(id) { var el = document.getElementById(id); return !!el && el.offsetWidth > 0 && el.offsetHeight > 0; };
   if (shown('pvPanel') && typeof _pvFit === 'function') _pvFit('design');   // the toolbar's Fit design: the Plan at its design extent (Brief 22)
   if (shown('csPanel') && typeof window.seSetFit === 'function') {
-    window.seSetFit(true);
-    var sv = document.getElementById('seViewport'); if (sv) sv.scrollLeft = 0;
+    window.seSetFit(true);   // the street fitted, scrolled to it (Brief 25 item 17)
   }
   if (shown('mvPanel') && typeof _3d !== 'undefined' && _3d && _3d._home) {
     _3d.camera.position.copy(_3d._home.pos);
@@ -4274,17 +4273,55 @@ document.addEventListener('mouseup', function() {
     var root = document.getElementById('seRoot');
     return (root && root.offsetWidth > 0) ? root.offsetWidth - 28 : 572;
   }
-  // 60 px/m, scrolling sideways when the street is wider than the viewport -- or, in the fit
-  // state (the header's FIT button), whatever scale shows the whole section at once.
-  var _fitMode = false;
+  // Zoom and pan (Brief 25 item 17): the strip opens fitted to the street, sidewalk to far sidewalk (_fitMode); the
+  // wheel zooms about the pointer (_userSC, px/m, 4..240) and a drag with the middle button or with Space held pans (the
+  // viewport scrolls across, the editor up and down); "Fit street" goes back to the fit.
+  var _fitMode = true, _userSC = null, _panning = null, _space = false, _overVp = false;
+  function _streetSpan() {
+    var DM = (typeof DESIGN_MODEL !== 'undefined') ? DESIGN_MODEL : null, LM = DM && DM.landmarks;
+    return LM && LM.sidewalkL ? [LM.sidewalkL.x0, Math.max(LM.roadRight, LM.allocatedRight) + ((+SIDEWALK_W > 0) ? +SIDEWALK_W : 2)] : null;
+  }
   function _recomputeScale() {
+    if (!_fitMode && _userSC) { SECTION_PX_PER_M = _userSC; return; }
     SECTION_PX_PER_M = 60;
-    if (!_fitMode) return;
-    // the section's box across, x0 .. x1 (Brief 21 §5), fitted to the viewport
-    var DM = (typeof DESIGN_MODEL !== 'undefined') ? DESIGN_MODEL : null, sec = DM && DM.section, LM = DM && DM.landmarks;
-    var m = (sec && typeof sec.x0 === 'number' && LM) ? Math.max(sec.x1, LM.allocatedRight) - Math.min(sec.x0, LM.sidewalkL.x0) : 0;
-    var avail = _vpWidth() - 26;
-    if (m > 0 && avail > 40) SECTION_PX_PER_M = Math.max(4, Math.min(120, avail / m));
+    var sp = _streetSpan(), avail = _vpWidth() - 26;
+    if (sp && sp[1] > sp[0] && avail > 40) SECTION_PX_PER_M = Math.max(4, Math.min(120, avail / (sp[1] - sp[0])));
+  }
+  // in the fit: the street's left end at the viewport's left (13 px in); vertical too (the ground in view) when asked
+  function _fitScroll(vert) {
+    var vp = document.getElementById('seViewport'), sp = _streetSpan(); if (!vp || !sp || !_frame) return;
+    vp.scrollLeft = Math.max(0, sectionSpan(sp[0], sp[1], _frame)[0] - 13 + 12);
+    if (vert) { var root = document.getElementById('seRoot'); if (root) root.scrollTop = root.scrollHeight; }
+  }
+  function _zoomAt(e, factor) {
+    var strip = document.getElementById('seStrip'), vp = document.getElementById('seViewport'), root = document.getElementById('seRoot'); if (!strip || !_frame) return;
+    var r0 = strip.getBoundingClientRect(), w = sectionToWorld(e.clientX - r0.left, e.clientY - r0.top, _frame), y = (_frame.groundY - (e.clientY - r0.top)) / _frame.SC;
+    var sc = Math.max(4, Math.min(240, SECTION_PX_PER_M * factor)); if (Math.abs(sc - SECTION_PX_PER_M) < 1e-3) return;
+    _fitMode = false; _userSC = sc; _syncFitBtn(); _seRender();
+    var r1 = strip.getBoundingClientRect(), q = worldToSection(w.x, y, _frame);
+    vp.scrollLeft += r1.left + q.px - e.clientX; if (root) root.scrollTop += r1.top + q.py - e.clientY;
+  }
+  function _syncFitBtn() {
+    var b = document.getElementById('seFitBtn'); if (!b) return;
+    b.classList.toggle('active', _fitMode); b.setAttribute('aria-pressed', String(_fitMode));
+    b.title = _fitMode ? 'Fitted to the street, sidewalk to sidewalk. Wheel: zoom; middle button or Space + drag: pan' : 'Fit the street, sidewalk to sidewalk, in the view';
+  }
+  function _initZoomPan() {
+    var vp = document.getElementById('seViewport'), root = document.getElementById('seRoot'); if (!vp || vp._zp) return; vp._zp = 1;
+    vp.addEventListener('wheel', function(e) { if (e.shiftKey || e.ctrlKey && !e.deltaY) return; e.preventDefault(); _zoomAt(e, Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.004)); }, { passive: false });
+    vp.addEventListener('mouseenter', function() { _overVp = true; }); vp.addEventListener('mouseleave', function() { _overVp = false; });
+    document.addEventListener('keydown', function(e) { if (e.code === 'Space' && _overVp && !/INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) { _space = true; vp.style.cursor = 'grab'; e.preventDefault(); } });
+    document.addEventListener('keyup', function(e) { if (e.code === 'Space') { _space = false; if (!_panning) vp.style.cursor = ''; } });
+    vp.addEventListener('pointerdown', function(e) {
+      if (!(e.button === 1 || (e.button === 0 && _space))) return;
+      e.preventDefault(); e.stopPropagation();
+      _panning = { x: e.clientX, y: e.clientY, l: vp.scrollLeft, t: root ? root.scrollTop : 0, id: e.pointerId }; vp.style.cursor = 'grabbing';
+      try { vp.setPointerCapture(e.pointerId); } catch (er) {}
+    }, true);
+    vp.addEventListener('pointermove', function(e) { if (!_panning) return; vp.scrollLeft = _panning.l - (e.clientX - _panning.x); if (root) root.scrollTop = _panning.t - (e.clientY - _panning.y); }, true);
+    var end = function() { if (!_panning) return; _panning = null; vp.style.cursor = _space ? 'grab' : ''; };
+    vp.addEventListener('pointerup', end, true); vp.addEventListener('pointercancel', end, true);
+    vp.addEventListener('auxclick', function(e) { if (e.button === 1) e.preventDefault(); });
   }  function _segPx(w) { return Math.max(8, Math.round(w * SECTION_PX_PER_M)); }
   // Near-building column: 24 px of poche plus room for the vegetated buffer and the deepest near
   // setback, so a set-back facade (cut or beyond) sits at its true distance from the sidewalk.
@@ -4580,8 +4617,9 @@ document.addEventListener('mouseup', function() {
 
   // ── Render ──────────────────────────────────────────────────────────
   function _seRender() {
-    if (_fitMode) _recomputeScale();
+    _recomputeScale();
     _renderStrip(); _renderStats(); _renderSel(); _renderProp(); _updateHistBtns();
+    if (_fitMode) _fitScroll(false);
   }
 
   // The strip's DRAWING is renderCrossSection (the one section drawer) into #seDrawSVG, under the
@@ -5100,7 +5138,7 @@ document.addEventListener('mouseup', function() {
       '<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--rule);background:var(--card)">'+
         '<button id="seUndoBtn" onclick="seUndo()" disabled>Undo</button>'+
         '<button id="seRedoBtn" onclick="seRedo()" disabled>Redo</button>'+
-        '<button id="seFitBtn" onclick="seFit()">Fit section</button>'+
+        '<button id="seFitBtn" onclick="seFit()">Fit street</button>'+
         '<label id="seTopLbl" class="se-top" title="The section drawing&rsquo;s top, in metres above the road; empty: it fits the tallest building or tree it sees.">Top <input type="number" id="seTop" min="3" max="80" step="0.5" placeholder="auto" onchange="setSection({ yTop: parseFloat(this.value) > 0 ? parseFloat(this.value) : null })"> m</label>'+
         '<span style="flex:1"></span>'+
         '<span style="font-size:11px;color:var(--muted)">Click to select &middot; Drag to reorder &middot; Drag edge to resize &middot; Del to remove</span>'+
@@ -5136,10 +5174,9 @@ document.addEventListener('mouseup', function() {
       var b = e.target.closest('button[data-edit]');
       if (b) { _seSelect(b.dataset.edit); _editWidth(b.dataset.edit, b); }
     });
-    var _fitB = document.getElementById('seFitBtn');
-    if (_fitB) { _fitB.classList.toggle('active', _fitMode); _fitB.setAttribute('aria-pressed', String(_fitMode)); _fitB.title = 'Fit the whole section in the view'; }
+    _syncFitBtn(); _initZoomPan();
     _seRender();
-    requestAnimationFrame(function() { _recomputeScale(); _seRender(); });
+    requestAnimationFrame(function() { _seRender(); _fitScroll(true); });
     // Furniture placement from section strip click
     var _seStripEl = document.getElementById('seStrip');
     if (_seStripEl) {
@@ -5190,13 +5227,13 @@ document.addEventListener('mouseup', function() {
   // seNormalizeLanes: external callers can trigger lane normalization.
   window.seNormalizeLanes = function() { _seNormalizeLanes(); _seRender(); };
   window.seRefreshLayout = function(){ _recomputeScale(); _seRender(); };
-  window.seSetFit = function(on){ if (!!on !== _fitMode) window.seFit(); };
+  window.seSetFit = function(on){ if (on) window.seFit(); };
+  // "Fit street" (Brief 25 item 17): back to the fit, sidewalk to sidewalk, the ground in view
   window.seFit = function(){
-    _fitMode = !_fitMode;
-    var b = document.getElementById('seFitBtn');
-    if (b) { b.classList.toggle('active', _fitMode); b.setAttribute('aria-pressed', String(_fitMode)); b.title = _fitMode ? 'Showing the whole section - click for 1:1 scale (scrolls)' : 'Fit the whole section in the view'; }
-    _recomputeScale(); _seRender();
+    _fitMode = true; _userSC = null; _syncFitBtn();
+    _seRender(); _fitScroll(true);
   };
+  window.seZoom = function() { return { fit: _fitMode, pxPerM: SECTION_PX_PER_M, span: _streetSpan() }; };
   // the model changed (cut, depth, direction, furniture, widths): boxes, chain and drawing follow
   window.seRenderObjects = function() { _renderWidths(); };
   window.seFrame = function() { return _frame; };
