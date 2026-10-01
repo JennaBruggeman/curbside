@@ -1691,6 +1691,7 @@ function toggleCrit(id) {
 let allOpen = false;
 function toggleAll() {
   allOpen = !allOpen;
+  document.querySelectorAll('#criteriaList details.chk-grp').forEach(function(d) { d.open = allOpen || !!(typeof CHKG !== 'undefined' && CHKG.ORDER.slice(0, 2).some(function(g) { return g[0] === d.dataset.g; })); if (typeof CHKG !== 'undefined') CHKG.open[d.dataset.g] = d.open; });   // Brief 25 item 31
   document.querySelectorAll('.criterion').forEach(el => {
     if (allOpen) el.classList.add('open');
     else el.classList.remove('open');
@@ -29717,6 +29718,16 @@ input[data-secret] { -webkit-text-security: disc; }
 .ui-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 16px; padding: 12px 14px; border: 1px dashed var(--d-lt, #bbb); border-radius: 6px; background: var(--d-paper, #fff); color: var(--d-ink, #222); font: 13px/1.45 var(--font-ui); }
 .ui-empty p { margin: 0; flex: 1; min-width: 200px; }
 .ui-empty-btn { font: 600 12px var(--font-ui); padding: 5px 12px; border-radius: 4px; border: 1px solid var(--accent-ui, #3AA8E4); background: var(--accent-ui, #3AA8E4); color: #fff; cursor: pointer; }
+/* the Check tab's groups (Brief 25 item 31) */
+.chk-grp { border-top: 1px solid var(--d-lt); }
+.chk-grp > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font: 600 12px var(--font-ui); letter-spacing: .04em; color: var(--d-ink, #1A1A1A); background: var(--d-xlt); }
+.chk-grp > summary::-webkit-details-marker { display: none; }
+.chk-grp > summary::before { content: '\25B8'; font-size: 10px; color: var(--d-mid); transition: transform .12s; }
+.chk-grp[open] > summary::before { transform: rotate(90deg); }
+.chk-grp-n { min-width: 20px; padding: 1px 7px; border-radius: 9px; border: 1px solid var(--d-lt); font-weight: 600; color: var(--d-mid); text-align: center; }
+.chk-grp[data-g='fail'] .chk-grp-n { color: #B03A2E; border-color: rgba(176,58,46,.5); }
+.chk-grp[data-g='await'] .chk-grp-n { color: #8A5D0B; border-color: rgba(138,93,11,.5); }
+.chk-grp > summary:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: -2px; }
 /* the Site tab's three steps */
 .site-step { border: 1px solid var(--border-c); border-radius: 6px; margin: 8px 0; overflow: hidden; }
 .site-step-hd { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: rgba(255,255,255,.04); }
@@ -29736,6 +29747,32 @@ input[data-secret] { -webkit-text-security: disc; }
 var CHECK_VIEW = { c2: 'section', c3: 'plan', c5: 'plan', c6: 'plan', c7: 'plan', c8: 'plan', c9: 'plan', c13: 'plan' };
 var CHECK_MARKS = { c3: ['Crosswalk', 'Intersection'], c5: ['Hydrant'], c6: ['Driveway'], c7: ['Pole'], c8: ['Signal', 'Signal box'], c9: ['Manhole', 'Chamber'], c13: ['Parking'] };
 var _chkF = 'all';
+// The rows grouped by state (Brief 25 item 31), in this order: Fails · Awaiting measurement · Not entered · Provisional
+// pass · Pass; Fails and Awaiting measurement open, the others folded with their count. A group the user opens or folds
+// stays so for the session; an empty group is not shown. "Expand all" opens every group and row.
+var CHKG = { ORDER: [['fail', 'Fails'], ['await', 'Awaiting measurement'], ['unclear', 'Not entered'], ['prov', 'Provisional pass'], ['pass', 'Pass']], open: { fail: true, await: true } };
+CHKG.keyOf = function(c) { var st = typeof CHK !== 'undefined' ? CHK.state(c) : { base: getCriterionStatus(c) }; return st.base === 'fail' ? 'fail' : st.base === 'await' ? 'await' : st.base === 'pass' ? (st.provisional ? 'prov' : 'pass') : 'unclear'; };
+CHKG.group = function() {
+  var list = document.getElementById('criteriaList'); if (!list || typeof criteria === 'undefined') return;
+  var gs = {};
+  CHKG.ORDER.forEach(function(g) {
+    var d = list.querySelector('details.chk-grp[data-g="' + g[0] + '"]');
+    if (!d) {
+      d = document.createElement('details'); d.className = 'chk-grp'; d.dataset.g = g[0]; d.open = !!CHKG.open[g[0]];
+      d.innerHTML = "<summary class='chk-grp-h'><span class='chk-grp-t'>" + g[1] + "</span><span class='chk-grp-n'></span></summary>";
+      d.addEventListener('toggle', function() { CHKG.open[g[0]] = d.open; });
+    }
+    list.appendChild(d); gs[g[0]] = d;   // (re)placed in the order
+  });
+  criteria.forEach(function(c) { var el = document.getElementById('crit_' + c.id); if (el) gs[CHKG.keyOf(c)].appendChild(el); });
+  CHKG.counts();
+};
+CHKG.counts = function() {
+  document.querySelectorAll('#criteriaList details.chk-grp').forEach(function(d) {
+    var all = d.querySelectorAll('.chk-row').length, shown = [].filter.call(d.querySelectorAll('.chk-row'), function(r) { return !r.hidden; }).length;
+    d.querySelector('.chk-grp-n').textContent = String(shown); d.hidden = !shown || !all;
+  });
+};
 function chkAfterRender() {
   if (typeof CHK !== 'undefined') CHK.paintAll();   // Brief 25 §1
   var rows = typeof complianceRows === 'function' ? complianceRows() : [], n = { fail: 0, pass: 0, unclear: 0, await: 0, prov: 0 };
@@ -29755,6 +29792,7 @@ function chkAfterRender() {
   else if (mn) mn.remove();
   var se = document.getElementById('chkSideEmpty'), sc = document.getElementById('smpCheck');
   if (se) se.hidden = !!(sc && !sc.hidden);
+  CHKG.group();
   chkFilter(_chkF);
 }
 function chkFilter(f) {
@@ -29764,6 +29802,7 @@ function chkFilter(f) {
     var st = el.classList.contains('fail') ? 'fail' : el.classList.contains('pass') ? 'pass' : 'unclear';
     el.hidden = !(_chkF === 'all' || (_chkF === 'fail' && st === 'fail') || (_chkF === 'pass' && st === 'pass') || (_chkF === 'prov' && el.dataset.prov === '1'));
   });
+  if (typeof CHKG !== 'undefined') CHKG.counts();
 }
 // "Show me": the Design tab, the Plan (or the Section for C02) zoomed onto the deck, the rule's zone ringed for a few seconds
 function chkShowMe(id) {
