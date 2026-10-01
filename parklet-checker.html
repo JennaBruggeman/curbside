@@ -796,7 +796,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <fieldset class='rpt-opts' id='rptOpts'><legend>Include</legend>
     <label class='px-chk'><input type='checkbox' id='rptOpt_schedule' checked> Furniture schedule (S-001)</label>
     <label class='px-chk'><input type='checkbox' id='rptOpt_sources' checked> Sources (X-001)</label>
-    <label class='px-chk'><input type='checkbox' id='rptOpt_compliance' checked> Compliance detail (C-001, C-002)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_compliance' checked> Compliance detail (C-001)</label>
     <label class='px-chk'><input type='checkbox' id='rptOpt_renders' checked> Renders (cover and V-101 ...)</label>
     <span class='hint'>A sheet left out drops from the drawing list and the page numbers.</span>
   </fieldset>
@@ -17794,7 +17794,10 @@ async function pkSignIn(email, pass) {
 async function pkSignUp(name, email, pass, invite) {
   if (!pkSB) return { error: { message: 'Backend not configured.' } };
   // the invite code rides in the user metadata; the database's sign-up check (supabase/schema.sql) refuses a wrong one
-  var res = await pkSB.auth.signUp({ email: email.trim(), password: pass, options: { data: { display_name: name.trim(), invite_code: String(invite || '').trim() } } });
+  // the confirmation email's link comes back to this page (Brief 25 follow-up: without it Supabase used its Site URL, the
+  // github.io root, a 404); Supabase honours it only if the URL is in its Auth > URL Configuration > Redirect URLs
+  var back = location.origin + location.pathname + '?auth=signin';
+  var res = await pkSB.auth.signUp({ email: email.trim(), password: pass, options: { emailRedirectTo: back, data: { display_name: name.trim(), invite_code: String(invite || '').trim() } } });
   if (res.error) {
     if (/invite/i.test(res.error.message || '') || ((typeof PKINV !== 'undefined' ? PKINV.isOnly() : CONFIG.INVITE_ONLY) && /database error/i.test(res.error.message || '')))
       res.error.message = 'That invite code was not accepted. Invite code required — contact ' + CONFIG.INVITE_CONTACT + '.';
@@ -17829,7 +17832,7 @@ function pkLandingURL() { return 'index.html'; }
 
 async function pkForgotPassword(email) {
   if (!pkSB) return;
-  await pkSB.auth.resetPasswordForEmail(email);
+  await pkSB.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + '?auth=signin' });   // back to this page, not the github.io root (Brief 25 follow-up)
 }
 
 // ─── Profile ──────────────────────────────────────────────────────
@@ -22521,7 +22524,7 @@ RPT.compBlocks = function(d) {
 };
 RPT.compliance = function(d) {
   var note = d.n.pass + ' pass  ·  ' + d.n.fail + ' fail  ·  ' + (d.n.await ? d.n.await + ' awaiting measurement  ·  ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? '  ·  provisional' : '');
-  return RPT.textSheet('C-001', 'Compliance', note, RPT.compBlocks(d), true);
+  return RPT.textSheet('C-001', 'Compliance', note, RPT.compBlocks(d).concat(RPT.lanes(d)), true);   // with the lane envelope (was C-002)
 };
 // C-002 (Brief 22): what the Section puts beside the parklet, read from the segments (the bike lane's one source): the
 // segment against its traffic edge and the run out to the first travel lane
@@ -22541,12 +22544,12 @@ RPT.lanes = function(d) {
     env.push([{ t: rk === 'standard' ? 'Standard' : 'Bus / truck', b: on }, { t: role, b: on }, { t: RPT.fx(e.absMin, 2), b: on }, { t: RPT.fx(e.preferred, 2), b: on }, { t: RPT.fx(e.max, 2), b: on }]); }); });
   var BAND = { 'below-abs-min': 'below absolute minimum', 'abs-min': 'absolute minimum (City Engineer approval, note 4)', ok: 'within preferred - maximum', exception: 'above maximum (exception, note 8)', 'over-max': 'beyond ' + LANE_EXCEPTION_MAX + ' m' };
   var lanes = DM.lanes.map(function(a, i) { return [String(i + 1), a.direction === 'far' ? 'far side' : a.direction === 'near' ? 'near side' : 'one-way', a.role, RPT.fx(a.width, 2), RPT.fx(a.env.absMin, 2), RPT.fx(a.env.preferred, 2), RPT.fx(a.env.max, 2), BAND[a.band], RPT.fx(a.req, 2), RPT.res({ status: a.c02 ? 'pass' : 'fail' })]; });
-  return RPT.textSheet('C-002', 'Lane envelope (EDM Table 8-10)', '', [
-    { h2: 'EDM Table 8-10: travel lane widths (m); this design\'s route in bold' }, { table: { cols: [{ t: 'Route', w: 0.25 }, { t: 'Lane role', w: 0.25 }, { t: 'Absolute min.', w: 0.17, num: true }, { t: 'Preferred', w: 0.17, num: true }, { t: 'Max.', w: 0.16, num: true }], rows: env } },
+  return [   // (Brief 25 decision 1: these blocks close C-001; C-002 is no longer a sheet of its own)
+    { h2: 'Lane envelope, EDM Table 8-10: travel lane widths (m); this design\'s route in bold' }, { table: { cols: [{ t: 'Route', w: 0.25 }, { t: 'Lane role', w: 0.25 }, { t: 'Absolute min.', w: 0.17, num: true }, { t: 'Preferred', w: 0.17, num: true }, { t: 'Max.', w: 0.16, num: true }], rows: env } },
     { p: 'Route of this design: ' + (route === 'bus_truck' ? 'bus / truck' : 'standard') + (DM.inputs.route_type && DM.inputs.route_type.entered ? '' : ' (route type not entered; standard assumed)') + '. Rightmost = the lane next to the parklet (or its bike lane / buffer); single = a lone travel lane. Below preferred needs City Engineer approval (note 4); above maximum is an exception only (note 8), never beyond ' + LANE_EXCEPTION_MAX + ' m.' },
     { p: RPT.besideParklet(DM) }].concat(RPT.streetChanges(DM), [
     { h2: 'This design (m)' }, { table: { cols: [{ t: 'Lane', w: 0.05, num: true }, { t: 'Direction', w: 0.1 }, { t: 'Role', w: 0.1 }, { t: 'Width', w: 0.08, num: true }, { t: 'Abs. min.', w: 0.08, num: true }, { t: 'Preferred', w: 0.08, num: true }, { t: 'Max.', w: 0.07, num: true }, { t: 'Band', w: 0.24 }, { t: 'C02 min.', w: 0.08, num: true }, { t: 'C02', w: 0.12 }], rows: lanes.length ? lanes : [['-', 'No travel lane.', '', '', '', '', '', '', '', '']] } },
-    { p: 'C02 (Parklet Manual p. 20): the adjacent travel lane stays at least 3.0 m (3.2 m on bus / truck routes). Widths are the Section\'s travel-lane segments.' }]), true);
+    { p: 'C02 (Parklet Manual p. 20): the adjacent travel lane stays at least 3.0 m (3.2 m on bus / truck routes). Widths are the Section\'s travel-lane segments.' }]);
 };
 // C-002 Street changes (Brief 22 item 3): the Section (proposed) against the street as imported (existing), per segment
 RPT.streetChanges = function(DM) {
@@ -23586,15 +23589,15 @@ RPT.sheetSection = function(d, opt) {
 RPT.SHEETS = {
   // (Brief 25 items 22d, 22e: two sections, A-201 the street and A-202 the parklet; A-301 Details is no longer printed)
   // (Brief 25 item 33: G-001 What to do next, right after the cover)
-  schematic: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources'],
-  technical: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
+  schematic: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'survey', 'sources'],
+  technical: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'survey', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 // Report options (Brief 22 item 7): the Export tab's Include boxes; a sheet left out is not in the list, so the drawing
-// list and the page numbers follow. Compliance detail is C-001 and C-002; Renders are the render sheets and the cover's image.
+// list and the page numbers follow. Compliance detail is C-001 (with the lane envelope, once C-002); Renders are the render sheets and the cover's image.
 RPT.OPT_KEYS = ['schedule', 'sources', 'compliance', 'renders'];
 RPT.opts = function() { var o = {}; RPT.OPT_KEYS.forEach(function(k) { var e = document.getElementById('rptOpt_' + k); o[k] = e ? !!e.checked : true; }); return o; };
-RPT.OPT_SHEETS = { schedule: ['schedule'], sources: ['sources'], compliance: ['compliance', 'lanes'], renders: ['renders'] };
+RPT.OPT_SHEETS = { schedule: ['schedule'], sources: ['sources'], compliance: ['compliance'], renders: ['renders'] };
 RPT.on = function(k, d) { var o = (d && d.opts) || RPT._opts; return !o || o[k] !== false; };
 // the plans' tag note: the schedule, or with the schedule left out, each tag's item
 RPT.tagNote = function(d) {
@@ -23612,7 +23615,7 @@ RPT.sheetList = function(d) {
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop, RPT.SCALE_OF.deck(d), RPT.deckPosts(d.DM)); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
     var M = { cover: ['V-000', 'Cover', 'NTS'], next: ['G-001', 'What to do next', '-'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
       section: ['A-201', 'Street section', '1:' + RPT.SCALE_OF.section(d)], section2: ['A-202', 'Parklet section', '1:' + RPT.SCALE_OF.parklet(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
-      compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'] }[k];
+      compliance: ['C-001', 'Compliance', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
   });
   // the spec cards' attachments, an appendix after X-001 (Brief 22 item 8)
@@ -23631,7 +23634,7 @@ RPT.BUILDERS = {
   details: function(d) { return RPT.sheetDetails(d); },
 
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
-  lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); },
+  sources: function(d) { return RPT.sources(d); },   // (the lane envelope is part of C-001: Brief 25 decision 1)
   survey: function(d) { return RPT.surveySheet(d); },   // S-002 (Brief 21 §11)
   next: function(d) { return RPT.sheetNext(d); },   // G-001 (Brief 25 item 33)
   attach: function(d, drw, s) { return RPT.sheetAttach(d, s); }   // Brief 22 item 8
@@ -28934,7 +28937,7 @@ SITEF.xBlocks = function() {
   facts.push(['Curb to curb', RPT.fx(ex.roadWidth, 2) + ' m', SITEF.srcLine(SMP.prov().roadWidth) || 'as entered']);
   return [{ h2: 'Existing street (' + (ex.imported ? 'as imported ' : 'as entered ') + SMP.day(ex.at) + ')' }, { table: { cols: three, rows: facts } },
     { table: { cols: [{ t: 'Segment, building face to far curb', w: 0.7 }, { t: 'Width (m)', w: 0.3, num: true }], rows: ex.segs.map(function(s) { return [(window.SE_TYPES && SE_TYPES[s.type] ? SE_TYPES[s.type].label : s.type) + (s.variant && s.variant !== 'none' ? ' (' + s.variant + ')' : ''), RPT.fx(s.width, 2)]; }) } },
-    { p: 'The design is checked on the proposed street (the Section)' + (RPT.on('compliance') ? '; C-002 lists where it differs from this one.' : '.') }];
+    { p: 'The design is checked on the proposed street (the Section)' + (RPT.on('compliance') ? '; C-001 lists where it differs from this one.' : '.') }];
 };
 (function() {
   function wrap(name, after, before) { var f = window[name]; if (typeof f !== 'function' || f._sitef) return; var w = function() { if (before) before.apply(this, arguments); var r; try { r = f.apply(this, arguments); } finally { if (after) { try { after.apply(this, arguments); } catch (e) { console.warn('[existing street] ' + name, e); } } } return r; }; w._sitef = true; window[name] = w; }
@@ -30301,7 +30304,7 @@ SURV.applyTemplate = function(text, name) {
 // each with its check and the sheet to read it on (awaiting a measurement first, then the imported data provisional
 // results rest on, then the values not entered), then the failing checks with their resolution line; the pass rule last.
 // Nothing else: a cafe owner reads this page and the cover and knows what to do.
-RPT.NEXT_SHEET = { c2: 'C-002', c3: 'A-102', c5: 'A-102', c6: 'A-102', c7: 'A-102', c8: 'A-102', c9: 'A-102', c13: 'A-102', c16: 'A-103', c17: 'A-202', c18: 'A-103', c19: 'A-202' };
+RPT.NEXT_SHEET = { c2: 'C-001', c3: 'A-102', c5: 'A-102', c6: 'A-102', c7: 'A-102', c8: 'A-102', c9: 'A-102', c13: 'A-102', c16: 'A-103', c17: 'A-202', c18: 'A-103', c19: 'A-202' };
 RPT.nextItems = function(d) {
   var cid = function(r) { return 'C' + String(r.num).padStart(2, '0'); }, sheet = function(r) { var k = RPT.NEXT_SHEET[r.id]; return k ? k + ', S-002' : 'S-002'; };
   var plain = function(h) { return String(h || '').replace(/<[^>]+>/g, ' ').replace(/&ge;/g, '≥').replace(/&le;/g, '≤').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').replace(/^[✓✗]\s*/, '').trim(); };

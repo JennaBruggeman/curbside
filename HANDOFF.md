@@ -977,6 +977,8 @@ Decisions for every item are in the session's decisions log; the essentials:
   10. Item 29: the outer ring's footprints and streets are now OpenStreetMap's (the cells), as the inner ring's, instead of the City's 2015 footprints; its parks are the City's (a new curbside-data layer). Its water is still cache-only.
   11. Item 27: the 1-2.5 min export did not reproduce (2 s here, also with the 1 km context); `[report] ms per stage` in the console will name the slow stage on your machine.
   12. The step strip hides after the first PDF export (not after a Rhino export).
+- **Jenna's answers (2026-10-01):** 1, fold C-002 into C-001 and keep S-002 and the cover: done; C-002's tables close C-001, which now runs to a second page, so the technical set stays at 14 pages. 2, keep the existing look direction. 3-7 accepted.
+- **Confirmation email (bug, 2026-10-01):** the link ended on a GitHub 404 (Supabase used its Site URL, the github.io root). Sign-up now sends `emailRedirectTo` = this page + `?auth=signin`, and the password reset `redirectTo` the same. **Supabase must allow it:** Authentication > URL Configuration: Site URL `https://jennabruggeman.github.io/curbside/`, and add `https://jennabruggeman.github.io/curbside/parklet-checker.html*` to Redirect URLs (a URL not on the list falls back to the Site URL).
 - **VERIFY by Jenna:** 3D at 30 fps or more on real hardware; Pages updating within 2 minutes of the merge push (the workflow's run shows it); the first-sign-in card (signed-in paths were reviewed, not run here).
 - **Out of scope (later):** the hosted photoreal relay; persona 6 (accounts) and the full Brief 23 pass, after this merges.
 
