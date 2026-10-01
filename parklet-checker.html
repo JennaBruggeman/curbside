@@ -519,6 +519,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button class='ttab' onclick='appSetMode("generate")'>Generate</button>
     <button class='ttab' onclick='appSetMode("design")'>Design</button>
     <button class='ttab' onclick='appSetMode("furniture")'>Furniture</button>
+    <button class='ttab' onclick='appSetMode("accessibility")' aria-label='Accessibility'>Access<span class='tt-x'>ibility</span></button>
     <button class='ttab' onclick='appSetMode("check")'>Check</button>
     <button class='ttab' onclick='appSetMode("visualize")'>Visualize</button>
     <button class='ttab' onclick='appSetMode("export")'>Export</button>
@@ -533,8 +534,9 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <span class='ss-lbl'>Steps</span>
   <button type='button' class='ss-step' data-step='site' onclick='appSetMode("site")'><b>1</b> Site</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
   <button type='button' class='ss-step' data-step='design' onclick='appSetMode("design")'><b>2</b> Design</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='check' onclick='appSetMode("check")'><b>3</b> Check</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='export' onclick='appSetMode("export")'><b>4</b> Export</button>
+  <button type='button' class='ss-step' data-step='accessibility' onclick='appSetMode("accessibility")'><b>3</b> Accessibility</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='check' onclick='appSetMode("check")'><b>4</b> Check</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='export' onclick='appSetMode("export")'><b>5</b> Export</button>
   <span class='ss-note'>Generate, Furniture and Visualize are in the tabs above when you want them.</span>
 </nav>
 <div class='app-body'>
@@ -667,6 +669,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div class='sb-section' id='genSecChar'><div class='sb-section-lbl'>Character and materials</div><div id='genChar'></div></div>
 <div class='sb-section' id='genSecOut'><div class='sb-section-lbl'>Output</div><div id='genOut'></div></div>
 </div>
+<div class='ctx-section' id='ctxAccessibility' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Accessibility</span></div><div class='sb-section'><div id='accCard' class='acc-card' role='status' aria-live='polite'></div></div></div>
 <div class='ctx-section' id='ctxCheck' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Check</span></div>
 <div id='verdictCompact' hidden></div>
 <div class='sb-section' id='chkFilterSec'><div class='sb-section-lbl'>Show</div>
@@ -1606,7 +1609,7 @@ function buildCriterion(c) {
       (c.note ? `<div class="detail-row"><span class="detail-label">Note</span><span class="detail-value">${c.note}</span></div>` : '') +
       buildInput(c) +
       (c.resolutionFn ? `<div class="resolution-box" id="resolution_${c.id}">${c.resolutionFn(state[c.inputId] || '')}</div>` : '') +
-      `<button type="button" class="chk-show" onclick="chkShowMe('${c.id}')">Show me in the Plan &rsaquo;</button>` +
+      `<button type="button" class="chk-show" onclick="chkShowMe('${c.id}')">${c.id === 'c16' ? 'Open Accessibility' : 'Show me in the Plan'} &rsaquo;</button>` +
     `</div>` +
   `</div>`;
 }function render() {
@@ -3035,10 +3038,130 @@ ACC.planSVG = function(DK, U) {
     (rt.turns || []).forEach(function(t) { var q = P([t.x, t.z]), r = T / 2 * Math.abs(worldToPlan(1, 0).px - worldToPlan(0, 0).px + worldToPlan(1, 0).py - worldToPlan(0, 0).py); ACC._drawn.turn++;
       out += "<circle cx='" + f(q[0]) + "' cy='" + f(q[1]) + "' r='" + f(r) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, t.w >= T - 1e-9 ? 'accent' : 'snapPk', { dash: [2, 2] }) + " data-turn='1'><title>Turning space " + T.toFixed(2) + ' m: ' + t.w.toFixed(2) + ' m clear here</title></circle>'; });
   });
+  // the pieces that block the route, outlined, with the clear width at the pinch (Brief 28 item 4)
+  if (typeof ACCTAB !== 'undefined') ACCTAB.analyse().blocks.forEach(function(bk, i) {
+    var b = GEN.aabb(bk.it), q0 = worldToPlan(b.x0, b.z0), q1 = worldToPlan(b.x1, b.z1), pp = P([bk.x, bk.z]), fs = DRAW_STYLE.fs(DK, 'body');
+    out += "<rect x='" + f(Math.min(q0.px, q1.px) - fs * 0.25) + "' y='" + f(Math.min(q0.py, q1.py) - fs * 0.25) + "' width='" + f(Math.abs(q1.px - q0.px) + fs * 0.5) + "' height='" + f(Math.abs(q1.py - q0.py) + fs * 0.5) + "' fill='none'" + DRAW_STYLE.ui(DK, 1.6, 'snapPk') + " data-block='1'><title>Blocks the route: " + bk.name + '</title></rect>';
+    if (i) return;   // the pinch once: the first block's
+    var tx = Math.max(q0.px, q1.px) + fs * 0.6, ty = Math.min(q0.py, q1.py) + fs;   // beside the piece, clear of it
+    out += "<circle cx='" + f(pp[0]) + "' cy='" + f(pp[1]) + "' r='" + f(fs * 0.3) + "' fill='" + DRAW_STYLE.UI.snapPk + "' data-pinch='1'/><text x='" + f(tx) + "' y='" + f(ty) + "' font-size='" + f(fs) + "' font-weight='600' fill='" + DRAW_STYLE.UI.snapPk + "' data-pinch-t='1'>" + (bk.w > 0.05 ? bk.w.toFixed(1) + ' m, needs ' + RW.toFixed(1) : 'closed, needs ' + RW.toFixed(1) + ' m') + '</text>';
+  });
   a.entries.forEach(function(ez) { if (ez == null) return; ACC._drawn.entry++;
     var p0 = P([0, ez - T / 2]), p1 = P([T, ez + T / 2]);
     out += "<rect x='" + f(Math.min(p0[0], p1[0])) + "' y='" + f(Math.min(p0[1], p1[1])) + "' width='" + f(Math.abs(p1[0] - p0[0])) + "' height='" + f(Math.abs(p1[1] - p0[1])) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, 'accent', { dash: [5, 3] }) + " data-entry='" + ez + "'><title>Entry: " + T.toFixed(2) + ' m turning square at the sidewalk edge (C16)</title></rect>'; });
   return "<g data-layer='route' pointer-events='none'>" + out + '</g>';
+};
+// Brief 28 item 4: the Accessibility tab. The deck plan with the route (C16, the Manual's G19 p. 60) always drawn, the
+// pieces that block it outlined with their pinch; beside it one card: the verdict, the rule and its reference, and what to
+// move and by how much. Live: the card is redrawn with every Plan render, so a piece dragged on the Plan updates it. The
+// Check tab's C16 row reads the same ENC.c16.
+var ACCTAB = {
+  prev: null,
+  tagOf: function(it) { try { var t = RPT.groupsFor(FL3D.placed).tags[it.inst.id]; return t || ''; } catch (e) { return ''; } },
+  nameOf: function(it) { var t = ACCTAB.tagOf(it), l = ((FL_ARCHETYPES[it.type] || {}).label || it.type).toLowerCase(); return (t ? t + ' (' + l + ')' : 'the ' + l) + ' at z ' + (+it.z).toFixed(2) + ' m'; },
+  nearest: function(items, x, z) {
+    var best = null, bd = Infinity;
+    items.forEach(function(it) { var b = GEN.aabb(it), d = Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.z0 - z, 0, z - b.z1)); if (d < bd) { bd = d; best = it; } });
+    return best && bd <= 1.0 ? best : null;
+  },
+  // the pieces closer than half the route's width to a path (deck frame [x, z] points), nearest first: {it, w, x, z}
+  inWay: function(items, pts, RW) {
+    var out = [];
+    items.forEach(function(it) {
+      var b = GEN.aabb(it), best = null;
+      for (var i = 0; i + 1 < (pts || []).length; i++) {
+        var a = pts[i], c = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(c[0] - a[0], c[1] - a[1]) / 0.1));
+        for (var j = 0; j <= n; j++) {
+          var x = a[0] + (c[0] - a[0]) * j / n, z = a[1] + (c[1] - a[1]) * j / n, d = Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.z0 - z, 0, z - b.z1));
+          if (!best || d < best.d) best = { d: d, x: x, z: z };
+        }
+      }
+      if (best && best.d < RW / 2 - 1e-6) out.push({ it: it, d: best.d, x: best.x, z: best.z });
+    });
+    // the clear width there: the widest free run across the usable deck at that z, the pieces at that z taken out (the
+    // trial path hugs the piece, so its own distance under-reads the gap); x: the run's middle, where the route passes
+    var fp = ENC.fpLive(_dmCurrent()), X1 = fp.W - (fp.inset || 0);
+    out.forEach(function(h) {
+      var iv = items.map(function(q) { return GEN.aabb(q); }).filter(function(b) { return b.z0 <= h.z + 1e-6 && b.z1 >= h.z - 1e-6; }).map(function(b) { return [Math.max(0, b.x0), Math.min(X1, b.x1)]; }).sort(function(a, b) { return a[0] - b[0]; });
+      var x = 0, gw = 0, gx = 0;
+      iv.forEach(function(r) { if (r[0] - x > gw) { gw = r[0] - x; gx = (x + r[0]) / 2; } x = Math.max(x, r[1]); });
+      if (X1 - x > gw) { gw = X1 - x; gx = (x + X1) / 2; }
+      h.w = Math.max(0, gw); h.x = gx;
+    });
+    return out.filter(function(h) { return h.w < RW - 1e-6; }).sort(function(u, v) { return u.w - v.w || u.d - v.d; });
+  },
+  // what blocks the route and what to do: { state, verdict, blocks: [{it, name, w, x, z}], fixes: [text] }
+  analyse: function() {
+    var c = ENC.c16(); if (c.unknown) return { state: 'unknown', verdict: c.msg, blocks: [], fixes: [] };
+    var DM = _dmCurrent(), fp = ENC.fpLive(DM), items = ENC.items(), RW = GEN.ROUTE_W, T = GEN.TURN, a = c.acc, blocks = [], fixes = [], f2 = function(v) { return (+v).toFixed(2); };
+    var dir = function(it, x) { return (+it.x || 0) > x ? 'toward the road' : 'toward the sidewalk'; };
+    if (!a.seats) fixes.push('Place an accessible seat: a bench end, or a table 0.70\u20130.80 m high, for the route to reach.');
+    var op = ENC.openingsOf(items, fp).runs;
+    a.entries.forEach(function(ez, k) {
+      if (ez === null) { fixes.push('Clear a ' + f2(T) + ' m square at the sidewalk edge for entry ' + (k + 1) + '.'); return; }
+      var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }); if (r && r.w < RW - 1e-9) fixes.push('Widen the opening at entry ' + (k + 1) + ' from ' + f2(r.w) + ' m to ' + f2(RW) + ' m.');
+    });
+    var loose = null;
+    a.per.forEach(function(p, k) {
+      if (p.seat) return;
+      loose = loose || GEN.access(items, fp, { w: 0.3, paths: true }); var lp = (loose.paths || []).find(function(q) { return q.entry === p.entry; });
+      if (!lp) {   // no path at all: the pieces that close the deck between this entry and the rest of it, nearest first
+        var L = DM.parklet.length, sg = p.entry > L / 2 ? -1 : 1, shut = items.filter(function(it) { var d = (it.z - p.entry) * sg; return d > 0 && d < 6; }).sort(function(u, v) { return Math.abs(u.z - p.entry) - Math.abs(v.z - p.entry); }).slice(0, 2);
+        shut.forEach(function(it) { blocks.push({ it: it, name: ACCTAB.nameOf(it), w: 0, x: it.x, z: it.z }); });
+        var nm = shut.map(function(it) { return ACCTAB.nameOf(it); }), one = nm.length > 1 && nm[0] === nm[1];   // two of the same piece side by side: once, x2
+        fixes.push(shut.length ? 'Open a ' + f2(RW) + ' m path from entry ' + (k + 1) + ' (z ' + f2(p.entry) + '): ' + (one ? nm[0].replace(/ at z /, ' ×2 at z ') : nm.join(' and ')) + (shut.length > 1 ? ' close' : ' closes') + ' the deck there; move ' + (shut.length > 1 ? 'one of them' : 'it') + ' aside or take it away.' : 'Open a ' + f2(RW) + ' m path from entry ' + (k + 1) + ' (z ' + f2(p.entry) + ') to a seat.');
+        return;
+      }
+      // the piece that intrudes most into the band along the path: its clear width is twice its distance from the path
+      // (as C16 measures); the path's narrowest point alone can be elsewhere (an entry beside the end enclosure)
+      var hit = ACCTAB.inWay(items, lp.pts, RW)[0];
+      if (hit) {
+        blocks.push({ it: hit.it, name: ACCTAB.nameOf(hit.it), w: hit.w, x: hit.x, z: hit.z });
+        // the room on the far side of the piece decides the advice: move it, turn it along the deck, or take it elsewhere
+        var hb = GEN.aabb(hit.it), X1 = fp.W - (fp.inset || 0), toRoad = (+hit.it.x || 0) > hit.x, room = toRoad ? X1 - hb.x1 : hb.x0, need2 = RW - hit.w;
+        var across = hb.x1 - hb.x0, along = hb.z1 - hb.z0, where = ': the path from entry ' + (k + 1) + ' is ' + f2(hit.w) + ' m there, it needs ' + f2(RW) + ' m.';
+        fixes.push(room >= need2 - 1e-6 ? 'Move ' + ACCTAB.nameOf(hit.it) + ' ' + f2(need2) + ' m ' + (toRoad ? 'toward the road' : 'toward the sidewalk') + where
+          : along < across - 1e-6 && X1 - along >= RW - 1e-6 ? 'Turn ' + ACCTAB.nameOf(hit.it) + ' to run along the deck (' + f2(along) + ' m across, not ' + f2(across) + ')' + where
+          : 'Move ' + ACCTAB.nameOf(hit.it) + ' to another part of the deck, or take it away' + where);
+        return;
+      }
+      var it = ACCTAB.nearest(items, lp.pinch.x, lp.pinch.z), need = RW - lp.pinch.w;
+      if (it) { blocks.push({ it: it, name: ACCTAB.nameOf(it), w: lp.pinch.w, x: lp.pinch.x, z: lp.pinch.z }); fixes.push('Move ' + ACCTAB.nameOf(it) + ' ' + f2(need) + ' m ' + dir(it, lp.pinch.x) + ': the path from entry ' + (k + 1) + ' is ' + f2(lp.pinch.w) + ' m there, it needs ' + f2(RW) + ' m.'); }
+      else fixes.push('Open the path from entry ' + (k + 1) + ': ' + f2(lp.pinch.w) + ' m at z ' + f2(lp.pinch.z) + ' beside the deck edge or the enclosure, it needs ' + f2(RW) + ' m.');
+    });
+    (a.paths || []).forEach(function(p) { (p.turns || []).forEach(function(t) {
+      if (t.w >= T - 1e-9) return; var it = ACCTAB.nearest(items, t.x, t.z);
+      if (it) { blocks.push({ it: it, name: ACCTAB.nameOf(it), w: t.w, x: t.x, z: t.z }); fixes.push('Move ' + ACCTAB.nameOf(it) + ' ' + f2(T - t.w) + ' m ' + dir(it, t.x) + ' to clear the turning space at z ' + f2(t.z) + ' (' + f2(t.w) + ' m now, ' + f2(T) + ' m needed).'); }
+      else fixes.push('Clear the turning space at z ' + f2(t.z) + ': ' + f2(t.w) + ' m now, ' + f2(T) + ' m needed.');
+    }); });
+    if (!c.ok && !fixes.length) fixes = c.bad.map(function(t) { return t.charAt(0).toUpperCase() + t.slice(1) + '.'; });   // what the check found, as it said it
+    var verdict = c.ok ? 'Route clear \u2014 ' + RW.toFixed(1) + ' m maintained'
+      : blocks.length ? 'Blocked at ' + (ACCTAB.tagOf(blocks[0].it) || ((FL_ARCHETYPES[blocks[0].it.type] || {}).label || 'a piece').toLowerCase()) + ' \u2014 ' + (blocks[0].w > 0.05 ? blocks[0].w.toFixed(1) + ' m' : 'closed') + ', needs ' + RW.toFixed(1) + ' m'
+      : 'Route not complete \u2014 see the fix below';
+    return { state: c.ok ? 'pass' : 'fail', verdict: verdict, blocks: blocks, fixes: fixes };
+  },
+  render: function() {
+    var el = document.getElementById('accCard'); if (!el) return;
+    var r = ACCTAB.analyse(), esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+    el.className = 'acc-card acc-' + r.state;
+    el.innerHTML = "<p class='acc-verdict'>" + (r.state === 'pass' ? '\u2713 ' : r.state === 'fail' ? '\u2717 ' : '') + esc(r.verdict) + '</p>' +
+      "<p class='acc-rule'>A " + GEN.ROUTE_W.toFixed(1) + ' m clear path from the sidewalk to an accessible seat, and a ' + GEN.TURN.toFixed(1) + " m turning space at the entries, turns and the end. <span class='acc-ref'>Parklet Manual G19, p. 60 (C16)</span></p>" +
+      (r.fixes.length ? "<h3 class='acc-h'>Fix</h3><ul class='acc-fix'>" + r.fixes.map(function(t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '') +
+      "<p class='acc-hint'>Drag a piece on the Plan: the route and this card follow.</p>";
+  },
+  // entering: the Plan alone, fitted to the deck; leaving: the layout as it was
+  onMode: function(mode, was) {
+    if (mode === 'accessibility' && was !== 'accessibility') {
+      ACCTAB.prev = typeof VIEWPORT_LAYOUT !== 'undefined' ? { mode: VIEWPORT_LAYOUT.mode, max: VIEWPORT_LAYOUT.max } : null;
+      if (typeof setViewportLayout === 'function') setViewportLayout('max', 'plan');
+      if (typeof _pvFit === 'function') _pvFit('design'); else if (typeof renderPlanView === 'function') renderPlanView();
+      ACCTAB.render();
+    } else if (was === 'accessibility' && mode !== 'accessibility') {
+      var p = ACCTAB.prev; ACCTAB.prev = null;
+      if (p && typeof setViewportLayout === 'function') setViewportLayout(p.mode, p.max);
+      if (typeof renderPlanView === 'function') renderPlanView();   // the route off the Design Plan
+    }
+  }
 };
 // the Plan's key (Brief 25 items 21, 21b): one line for each kind of mark drawn that a check or a clause stands behind
 ACC.planKey = function(svg) {
@@ -7753,7 +7876,7 @@ const C03_REQ = 6;
   }
   // the accessible route (Brief 25 item 21b, C16), under the furniture: the band from each entry, the entry squares, the
   // turning circles; keyed in the Plan's key (ACC.planKey)
-  if (!paper && LODn >= 1) { try { s += ACC.planSVG(DK, U); } catch (e) { console.warn('[route]', e); } }
+  if (!paper && LODn >= 1 && window.APP_MODE === 'accessibility') { try { s += ACC.planSVG(DK, U); } catch (e) { console.warn('[route]', e); } }   // Brief 28 item 4: the route in its tab only
   // User-placed furniture from DESIGN_MODEL.objects (canonical source).
   // Falls back to FL3D.placed if model objects are not yet populated.
   var _dmFurnList = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.objects && DESIGN_MODEL.objects.length > 0)
@@ -8209,7 +8332,8 @@ const manholes = state['manholes'] || [];
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
   if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
-  if (!paper) { try { ACC.planKey(svg); } catch (e) { console.warn('[plan key]', e); } }   // Brief 25 items 21, 21b
+  if (!paper) { try { ACC.planKey(svg); } catch (e) { console.warn('[plan key]', e); } }
+  if (!paper && window.APP_MODE === 'accessibility' && typeof ACCTAB !== 'undefined') { try { ACCTAB.render(); } catch (e) { console.warn('[accessibility]', e); } }   // Brief 25 items 21, 21b
   syncToolbarStates();
   initPlanInteraction();
   // the Section's objects follow the same model (cut position, deck length, furniture moves)
@@ -13362,6 +13486,7 @@ var STEPS = { KEY: 'pkt_exported_once', done: function() { try { return localSto
 (function() { var go = function() { var tabs = document.querySelector('.topbar-tabs'); if (tabs && typeof MutationObserver !== 'undefined') new MutationObserver(function() { STEPS.sync(); }).observe(tabs, { subtree: true, attributes: true, attributeFilter: ['class'] }); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
 (function() { var go = function() { var a = document.querySelector('.ttab.active'), m = a ? (String(a.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : 'site'; STEPS.sync(m || 'site'); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
 function appSetMode(mode) {
+  var _was = window.APP_MODE; window.APP_MODE = mode;   // (Brief 28 item 4: the Plan draws the route only in Accessibility)
   STEPS.sync(mode);
   // leaving the Export tab stops the axon preview (it lives in the Export panel)
   if (mode !== 'export' && window.AXE && AXE.previewing) AXE.stop();
@@ -13373,7 +13498,7 @@ function appSetMode(mode) {
 
 
   // LHS context sections
-  var sections = ['ctxSite', 'ctxDesign', 'ctxVisualize', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport'];
+  var sections = ['ctxSite', 'ctxDesign', 'ctxAccessibility', 'ctxVisualize', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport'];
   sections.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -13386,7 +13511,7 @@ function appSetMode(mode) {
   if (bc) bc.textContent = 'Vancouver \u00b7 ' + mode.charAt(0).toUpperCase() + mode.slice(1);
 
   // Workspace: show only the relevant main-area panel
-  var isCanvas = (mode === 'site' || mode === 'design');   // (Brief 21 §3: the Check tab's main area is its table)
+  var isCanvas = (mode === 'site' || mode === 'design' || mode === 'accessibility');   // (Brief 21 §3: the Check tab's main area is its table)
   var cw = document.getElementById('workspaceCheck'); if (cw) cw.style.display = (mode === 'check') ? 'flex' : 'none';
   var da = document.getElementById('viewportGrid');
   var lc = document.getElementById('libraryCanvas');
@@ -13418,6 +13543,7 @@ function appSetMode(mode) {
     if (typeof flBuildVisualLibrary === 'function') flBuildVisualLibrary();
   }
 
+  if (typeof ACCTAB !== 'undefined') ACCTAB.onMode(mode, _was);
   // Re-renders
   if (mode === 'check' && typeof render === 'function') render();
   if (mode === 'export' && typeof _expUpdatePreview === 'function') _expUpdatePreview();
@@ -17133,8 +17259,10 @@ function _sdQuickPlace(objId) {
 #pvPanel { position: relative; }
 .place-hint { position: absolute; left: 50%; top: 80px; transform: translateX(-50%); max-width: calc(100% - 24px); width: max-content; z-index: 20; pointer-events: none;
   background: var(--d-ink, #1F2328); color: #FFFFFF; font: 500 12px/1.45 var(--font-ui); padding: 6px 12px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
-@media (max-width: 1500px) { .pk-ss-long { display: none; } .pk-ss-short { display: inline; } .pk-acc-name { display: none; } #pkSaveStatus.pk-ss-failed .pk-ss-now { display: none; } }
-@media (max-width: 1100px) { .pk-ss-nowx { display: none; } #dkMenuBtn .dk-menu-word { display: none; } #dkMenuBtn .dk-menu-ico { display: inline; } }
+@media (max-width: 1900px) { .pk-ss-long { display: none; } .pk-ss-short { display: inline; } .pk-acc-name { display: none; } #pkSaveStatus.pk-ss-failed .pk-ss-now { display: none; } }
+/* (Brief 28 item 4: an eighth tab) the Accessibility tab says Access, Panels its icon, Save now Save */
+@media (max-width: 1700px) { .pk-ss-nowx { display: none; } #dkMenuBtn .dk-menu-word { display: none; } #dkMenuBtn .dk-menu-ico { display: inline; } .ttab .tt-x { display: none; } }
+@media (max-width: 1100px) { .ttab { padding: 0 4px !important; } }
 #dkMenuBtn .dk-menu-ico { display: none; }
 
 /* ── Account button ── */
@@ -17643,7 +17771,7 @@ var SAVE = {
     var full = st === 'account' ? SAVE.T.account + ' · ' + SAVE.hhmm(SAVE.at) : st ? SAVE.T[st] : '', h = '';
     if (st === 'account') h = "<span class='pk-ss-txt'><span class='pk-ss-long'>" + SAVE.T.account + "</span><span class='pk-ss-short'>Saved</span> · " + SAVE.hhmm(SAVE.at) + '</span>';
     else if (st === 'local') h = "<button type='button' class='pk-ss-note' onclick='if(!pkSB&&typeof pkInitSupabase===\"function\")pkInitSupabase();pkShowAuthModal()'>" +
-      "<span class='pk-ss-long'>" + SAVE.T.local + "</span><span class='pk-ss-short'>This browser only</span></button>";
+      "<span class='pk-ss-long'>" + SAVE.T.local + "</span><span class='pk-ss-short'>Browser only</span></button>";
     else if (st === 'failed') h = "<button type='button' class='pk-ss-fail' onclick='SAVE.now()'>" + SAVE.T.failed + '</button>';
     if (SAVE.has()) h += "<button type='button' class='pk-ss-now' id='pkSaveNow' onclick='SAVE.now()' aria-label='Save now'" + (SAVE.busy ? ' disabled' : '') + '>' + (SAVE.busy ? 'Saving…' : "Save<span class='pk-ss-nowx'> now</span>") + '</button>';
     el.className = st ? 'pk-ss-' + st : ''; el.innerHTML = h;
@@ -29507,7 +29635,7 @@ PVCTX.install = function() {
 // 2 the user's design: furniture on the deck (pkStage reads it; nothing stores the stage).
 // ════════════════════════════════════════════════════════════════════════════════════════════
 // TODO(Jenna): DECK_L is the app's existing default deck (19.8 m); confirm the Parklet Manual's default length and cite it.
-var SEED = { DECK_L: 19.8, DECK_W: 2.5, GATED: ['generate', 'design', 'check', 'visualize', 'export'],
+var SEED = { DECK_L: 19.8, DECK_W: 2.5, GATED: ['generate', 'design', 'accessibility', 'check', 'visualize', 'export'],
   TIP: 'Choose a site first: Locate on map in the Site tab, then Import street context.' };
 // the hidden stage-0 globals: what the views could draw before a site exists (never shown, never saved)
 SEED.NOMINAL = { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L };
@@ -30343,6 +30471,17 @@ input[data-secret] { -webkit-text-security: disc; }
 .walk-next { background: #3AA8E4; color: #FFFFFF; border: 1px solid #3AA8E4; }
 .walk-foot button:focus-visible { outline: 2px solid #1A1A1A; outline-offset: 2px; }
 .uh-walk { font: 600 13px var(--font-ui); padding: 6px 12px; margin: 0 0 12px; border-radius: 4px; border: 1px solid var(--accent-ui, #3AA8E4); background: var(--accent-ui, #3AA8E4); color: #FFFFFF; cursor: pointer; }
+/* the Accessibility tab's card (Brief 28 item 4) */
+.acc-card { padding: 12px 12px 10px; border: 1px solid var(--c-rule, #3A3F45); border-left-width: 4px; border-radius: 4px; font: 13px/1.5 var(--font-ui); color: var(--text-hi); }
+.acc-card.acc-pass { border-left-color: var(--st-pass-ink, #2E9E5B); }
+.acc-card.acc-fail { border-left-color: var(--st-fail-ink, #C0392B); }
+.acc-verdict { margin: 0 0 8px; font-weight: 700; font-size: 15px; }
+.acc-rule { margin: 0 0 10px; color: var(--text-lo); }
+.acc-ref { display: block; margin-top: 2px; font-size: 12px; color: var(--text-mu); }
+.acc-h { margin: 0 0 4px; font: 600 11px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--text-lo); }
+.acc-fix { margin: 0 0 10px; padding-left: 18px; }
+.acc-fix li { margin: 0 0 4px; }
+.acc-hint { margin: 0; font-size: 12px; color: var(--text-mu); }
 /* a check's input row (Brief 28 item 3): saved, the value and Edit; editing, the fields and Save; the draft's line */
 .input-row[data-crit] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .input-row[data-crit] > .chk-view, .input-row[data-crit] > .chk-in { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
@@ -30385,7 +30524,7 @@ input[data-secret] { -webkit-text-security: disc; }
 // ── Structure, continued (Brief 21 §3): the Check table, the Design readout, Visualize, empty states, the Site steps ──
 // the Check tab: which view each rule is drawn in (the "Show me" link), the row's measured value and provisional flag,
 // the filters, the counts
-var CHECK_VIEW = { c2: 'section', c3: 'plan', c5: 'plan', c6: 'plan', c7: 'plan', c8: 'plan', c9: 'plan', c13: 'plan' };
+var CHECK_VIEW = { c2: 'section', c3: 'plan', c5: 'plan', c6: 'plan', c7: 'plan', c8: 'plan', c9: 'plan', c13: 'plan', c16: 'access' };
 var CHECK_MARKS = { c3: ['Crosswalk', 'Intersection'], c5: ['Hydrant'], c6: ['Driveway'], c7: ['Pole'], c8: ['Signal', 'Signal box'], c9: ['Manhole', 'Chamber'], c13: ['Parking'] };
 var _chkF = 'all';
 // The rows grouped by state (Brief 25 item 31), in this order: Fails · Awaiting measurement · Not entered · Provisional
@@ -30459,6 +30598,7 @@ function chkFilter(f) {
 // "Show me": the Design tab, the Plan (or the Section for C02) zoomed onto the deck, the rule's zone ringed for a few seconds
 function chkShowMe(id) {
   var v = CHECK_VIEW[id]; if (!v) return;
+  if (v === 'access') { appSetMode('accessibility'); return; }   // C16 reads the Accessibility tab (Brief 28 item 4)
   if (id === 'c5') { var c5 = document.getElementById('crit_c5'); if (c5 && !c5.classList.contains('open')) c5.classList.add('open'); }   // the Plan draws the 5 m radius while C05 is open
   appSetMode('design');
   if (v === 'section') { if (typeof setCanvasView === 'function') setCanvasView('section'); return; }
