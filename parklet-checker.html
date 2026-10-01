@@ -3077,28 +3077,94 @@ ACC.band = function(pts, w) {
   }
   return L.concat(R.reverse());
 };
-ACC.planSVG = function(DK, U) {
-  var c = ENC.c16(), a = c.acc, LM = DESIGN_MODEL.landmarks, RW = GEN.ROUTE_W, T = GEN.TURN, f = function(v) { return (+v).toFixed(1); }, out = '';
-  var P = function(p) { var q = worldToPlan(LM.deckX0 + p[0], p[1]); return [q.px, q.py]; }, acc = DRAW_STYLE.UI.accent;
-  ACC._drawn = { route: 0, entry: 0, turn: 0 };
+// the Accessibility tab's Plan (Brief 29 item 6): the route only. From each entry one continuous band to the seat it reaches,
+// each leg at its actual clear width (the widest clear disc along it, from GEN.access's grid), coloured by C16's state:
+// accent when clear, red when not. An entry with no route at C16's width shows the narrower path that exists, red; the
+// pinch is marked across the band with its width. No turning squares and no entry squares: C16 checks the turns, and the
+// band widens where there is room. Each entry is marked in the enclosure line at the sidewalk edge, labelled "Entry".
+// ann: the Plan's annotation layer ({ text, obst }), so the labels take their places with the rest.
+ACC.legs = function(pts, grid) {
+  var C = grid.C, nx = grid.nx, nz = grid.nz, out = [], i;
+  var at = function(x, z) { var a = Math.floor(x / C), b = Math.floor(z / C); return a < 0 || b < 0 || a >= nx || b >= nz ? 0 : grid.wid[b * nx + a]; };
+  // the first leg comes in from the sidewalk edge, where the cells read the edge itself: it takes the next leg's width
+  for (i = 0; i + 1 < (pts || []).length; i++) {
+    var a = pts[i], b = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (C / 2))), w = Infinity;
+    if (i === 0) { var v0 = at(b[0], b[1]); if (pts.length < 3 && v0 > 0) w = v0; }
+    else for (var k = 0; k <= n; k++) { var v = at(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n); if (v > 0) w = Math.min(w, v); }
+    out.push({ a: a, b: b, w: w });
+  }
+  for (i = out.length - 1; i >= 0; i--) if (!isFinite(out[i].w)) out[i].w = i + 1 < out.length ? out[i + 1].w : 0;
+  return out;
+};
+ACC.planSVG = function(DK, U, ann) {
+  var c = ENC.c16(), a = c.acc, LM = DESIGN_MODEL.landmarks, RW = GEN.ROUTE_W, f = function(v) { return (+v).toFixed(1); }, out = '';
+  var P = function(p) { var q = worldToPlan(LM.deckX0 + p[0], p[1]); return [q.px, q.py]; };
+  var red = DRAW_STYLE.UI.snapPk;
+  ACC._drawn = { route: 0, entry: 0, pinch: 0, blocked: !c.ok && !c.unknown };
+  // one band: its legs, each extended by half its width at both ends (but not back out over the sidewalk) so the corners
+  // close; drawn solid inside a translucent group, so the overlaps read as one shape
+  var band = function(legs, colr, entry, tip) {
+    var g = '';
+    legs.forEach(function(l, i) {
+      if (!(l.w > 0.02)) return;
+      var dx = l.b[0] - l.a[0], dz = l.b[1] - l.a[1], len = Math.hypot(dx, dz) || 1, ux = dx / len, uz = dz / len, e = l.w / 2;
+      var a0 = i === 0 ? l.a : [l.a[0] - ux * e, l.a[1] - uz * e], b0 = [l.b[0] + ux * e, l.b[1] + uz * e];
+      var poly = ACC.band([a0, b0], l.w).map(P); if (poly.length < 3) return;
+      g += "<polygon points='" + poly.map(function(q) { return f(q[0]) + ',' + f(q[1]); }).join(' ') + "' data-leg-w='" + l.w.toFixed(2) + "'/>";
+    });
+    if (!g) return '';
+    ACC._drawn.route++;
+    return "<g fill='" + colr + "' opacity='0.34' data-route='" + entry + "'><title>" + tip + '</title>' + g + '</g>';
+  };
   (a.paths || []).forEach(function(rt) {
-    var b = ACC.band(rt.pts, RW).map(P); if (b.length < 3) return; ACC._drawn.route++;
-    out += "<polygon points='" + b.map(function(q) { return f(q[0]) + ',' + f(q[1]); }).join(' ') + "' fill='" + acc + "' fill-opacity='0.14'" + DRAW_STYLE.ui(DK, 1, 'accent', { dash: [4, 3] }) + " data-route='" + rt.entry + "'><title>Accessible route (C16): " + RW.toFixed(2) + ' m clear from the entry at z ' + rt.entry.toFixed(2) + ' to the ' + rt.seat + '; narrowest ' + rt.pinch.w.toFixed(2) + ' m</title></polygon>';
-    (rt.turns || []).forEach(function(t) { var q = P([t.x, t.z]), r = T / 2 * Math.abs(worldToPlan(1, 0).px - worldToPlan(0, 0).px + worldToPlan(1, 0).py - worldToPlan(0, 0).py); ACC._drawn.turn++;
-      out += "<circle cx='" + f(q[0]) + "' cy='" + f(q[1]) + "' r='" + f(r) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, t.w >= T - 1e-9 ? 'accent' : 'snapPk', { dash: [2, 2] }) + " data-turn='1'><title>Turning space " + T.toFixed(2) + ' m: ' + t.w.toFixed(2) + ' m clear here</title></circle>'; });
+    var legs = ACC.legs(rt.pts, a.grid), tight = (rt.turns || []).some(function(t) { return t.w < GEN.TURN - 1e-9; });
+    out += band(legs, tight ? red : DRAW_STYLE.UI.accent, rt.entry, 'Accessible route (C16) from the entry at z ' + rt.entry.toFixed(2) + ' to the ' + rt.seat + ': ' + rt.w.toFixed(2) + ' m clear at its narrowest, ' + RW.toFixed(2) + ' m needed');
   });
-  // the pieces that block the route, outlined, with the clear width at the pinch (Brief 28 item 4)
-  if (typeof ACCTAB !== 'undefined') ACCTAB.analyse().blocks.forEach(function(bk, i) {
-    var b = GEN.aabb(bk.it), q0 = worldToPlan(b.x0, b.z0), q1 = worldToPlan(b.x1, b.z1), pp = P([bk.x, bk.z]), fs = DRAW_STYLE.fs(DK, 'body');
-    out += "<rect x='" + f(Math.min(q0.px, q1.px) - fs * 0.25) + "' y='" + f(Math.min(q0.py, q1.py) - fs * 0.25) + "' width='" + f(Math.abs(q1.px - q0.px) + fs * 0.5) + "' height='" + f(Math.abs(q1.py - q0.py) + fs * 0.5) + "' fill='none'" + DRAW_STYLE.ui(DK, 1.6, 'snapPk') + " data-block='1'><title>Blocks the route: " + bk.name + '</title></rect>';
-    if (i) return;   // the pinch once: the first block's
-    var tx = Math.max(q0.px, q1.px) + fs * 0.6, ty = Math.min(q0.py, q1.py) + fs;   // beside the piece, clear of it
-    out += "<circle cx='" + f(pp[0]) + "' cy='" + f(pp[1]) + "' r='" + f(fs * 0.3) + "' fill='" + DRAW_STYLE.UI.snapPk + "' data-pinch='1'/><text x='" + f(tx) + "' y='" + f(ty) + "' font-size='" + f(fs) + "' font-weight='600' fill='" + DRAW_STYLE.UI.snapPk + "' data-pinch-t='1'>" + (bk.w > 0.05 ? bk.w.toFixed(1) + ' m, needs ' + RW.toFixed(1) : 'closed, needs ' + RW.toFixed(1) + ' m') + '</text>';
+  // an entry with no route at C16's width: the narrower path that exists, red
+  var loose = null;
+  (a.per || []).forEach(function(p) {
+    if (p.seat) return;
+    var its = ENC.items(), fp = ENC.fpLive(_dmCurrent());
+    loose = loose || GEN.access(its, fp, { w: 0.3 });
+    var lw = ((loose.per || []).find(function(q) { return q.entry === p.entry; }) || {}).route || 0; if (!(lw >= 0.3)) return;
+    var wide = GEN.access(its, fp, { w: lw - 1e-3, paths: true }), lp = (wide.paths || []).find(function(q) { return q.entry === p.entry; }); if (!lp) return;
+    out += band(ACC.legs(lp.pts, wide.grid), red, p.entry, 'No ' + RW.toFixed(2) + ' m route from the entry at z ' + p.entry.toFixed(2) + ': ' + lp.pinch.w.toFixed(2) + ' m at its narrowest');
   });
-  a.entries.forEach(function(ez) { if (ez == null) return; ACC._drawn.entry++;
-    var p0 = P([0, ez - T / 2]), p1 = P([T, ez + T / 2]);
-    out += "<rect x='" + f(Math.min(p0[0], p1[0])) + "' y='" + f(Math.min(p0[1], p1[1])) + "' width='" + f(Math.abs(p1[0] - p0[0])) + "' height='" + f(Math.abs(p1[1] - p0[1])) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, 'accent', { dash: [5, 3] }) + " data-entry='" + ez + "'><title>Entry: " + T.toFixed(2) + ' m turning square at the sidewalk edge (C16)</title></rect>'; });
-  return "<g data-layer='route' pointer-events='none'>" + out + '</g>';
+  // the pinch (the card's first block): a bar across the band at its clear width, the width beside it
+  var over = '';
+  if (!c.ok && !c.unknown && typeof ACCTAB !== 'undefined') {
+    var bk = ACCTAB.analyse().blocks[0];
+    if (bk) {
+      ACC._drawn.pinch++;
+      var h = Math.max(bk.w, 0.2) / 2, q0 = P([bk.x - h, bk.z]), q1 = P([bk.x + h, bk.z]), pc = P([bk.x, bk.z]), fs = DRAW_STYLE.fs(DK, 'body');
+      var lbl = bk.w > 0.05 ? bk.w.toFixed(2) + ' m, needs ' + RW.toFixed(2) + ' m' : 'closed, needs ' + RW.toFixed(2) + ' m';
+      over += "<line x1='" + f(q0[0]) + "' y1='" + f(q0[1]) + "' x2='" + f(q1[0]) + "' y2='" + f(q1[1]) + "'" + DRAW_STYLE.ui(DK, 2.4, 'snapPk', { cap: 'butt' }) + " data-pinch='1'><title>Pinch: " + lbl + '</title></line>';
+      [q0, q1].forEach(function(q) { var dx = q1[0] - q0[0], dy = q1[1] - q0[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * 5 * U, ny = dx / l * 5 * U;
+        over += "<line x1='" + f(q[0] - nx) + "' y1='" + f(q[1] - ny) + "' x2='" + f(q[0] + nx) + "' y2='" + f(q[1] + ny) + "'" + DRAW_STYLE.ui(DK, 1.6, 'snapPk') + '/>'; });
+      if (ann) { ann.obst(Math.min(q0[0], q1[0]) - 6 * U, Math.min(q0[1], q1[1]) - 6 * U, Math.max(q0[0], q1[0]) + 6 * U, Math.max(q0[1], q1[1]) + 6 * U);
+        ann.text('dim', lbl, pc[0] + 8 * U, pc[1] - 8 * U, { role: 'body', c: 'fail', bold: true, axis: 'x', tier: 'mid', at: pc, data: " data-pinch-t='1'" }); }
+      else over += "<text x='" + f(pc[0] + 8 * U) + "' y='" + f(pc[1] - 8 * U) + "' font-size='" + f(fs) + "' font-weight='600' fill='" + red + "' data-pinch-t='1'>" + lbl + '</text>';
+    }
+  }
+  // the entries: the opening in the enclosure line at the sidewalk edge (1.8 m, C18's least, within its clear run), "Entry"
+  var op = ENC.openingsOf(ENC.items(), ENC.fpLive(_dmCurrent())).runs;
+  (a.entries || []).forEach(function(ez) {
+    if (ez == null) return; ACC._drawn.entry++;
+    var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }), z0 = Math.max(r ? r.z0 : -Infinity, ez - 0.9), z1 = Math.min(r ? r.z1 : Infinity, ez + 0.9);
+    var e0 = P([0, z0]), e1 = P([0, z1]), m = P([0, ez]), inn = P([0.3, ez]), dx = inn[0] - m[0], dy = inn[1] - m[1], dl = Math.hypot(dx, dy) || 1;
+    var tx = dx / dl * 4 * U, ty = dy / dl * 4 * U;   // a tick into the deck at each side of the opening
+    over += "<g data-entry='" + ez + "'><title>Entry at z " + ez.toFixed(2) + ': ' + (z1 - z0).toFixed(2) + ' m opening in the enclosure (C16, C18)</title>' +
+      "<line x1='" + f(e0[0]) + "' y1='" + f(e0[1]) + "' x2='" + f(e1[0]) + "' y2='" + f(e1[1]) + "'" + DRAW_STYLE.ui(DK, 3, 'accent', { cap: 'butt' }) + '/>' +
+      [e0, e1].map(function(q) { return "<line x1='" + f(q[0] - tx) + "' y1='" + f(q[1] - ty) + "' x2='" + f(q[0] + tx) + "' y2='" + f(q[1] + ty) + "'" + DRAW_STYLE.ui(DK, 1.6, 'accent') + '/>'; }).join('') + '</g>';
+    // the label outside the deck, on the sidewalk side
+    var fs = DRAW_STYLE.TYPE.screen.body * U, ox = -dx / dl, oy = -dy / dl;   // outward: toward the sidewalk
+    var lx = m[0] + ox * (6 * U + (Math.abs(ox) > 0.5 ? fs : 0)), ly = m[1] + oy * 6 * U + (oy > 0.5 ? 0.8 * fs : Math.abs(oy) <= 0.5 ? 0.35 * fs : 0);
+    if (ann) { ann.obst(Math.min(e0[0], e1[0]) - 2 * U, Math.min(e0[1], e1[1]) - 3 * U, Math.max(e0[0], e1[0]) + 2 * U, Math.max(e0[1], e1[1]) + 3 * U);
+      ann.text('object', 'Entry', lx, ly, { role: 'body', c: 'ink', bold: true, anchor: 'middle', axis: 'x', tier: 'mid', at: m, slide: true, lo: Math.min(e0[0], e1[0]) - 40 * U, hi: Math.max(e0[0], e1[0]) + 40 * U, data: " data-acc-entry='1'" }); }
+    else over += "<text x='" + f(lx) + "' y='" + f(ly) + "' text-anchor='middle' font-size='" + f(fs) + "' font-weight='600' data-acc-entry='1'>Entry</text>";
+  });
+  ACC._over = "<g data-layer='route-marks' pointer-events='none'>" + over + '</g>';   // (renderPlanView adds it over the enclosure)
+  return "<g data-layer='route' data-state='" + (c.unknown ? 'unknown' : c.ok ? 'clear' : 'blocked') + "' pointer-events='none'>" + out + '</g>';
 };
 // Brief 28 item 4: the Accessibility tab. The deck plan with the route (C16, the Manual's G19 p. 60) always drawn, the
 // pieces that block it outlined with their pinch; beside it one card: the verdict, the rule and its reference, and what to
@@ -3185,7 +3251,7 @@ var ACCTAB = {
     }); });
     if (!c.ok && !fixes.length) fixes = c.bad.map(function(t) { return t.charAt(0).toUpperCase() + t.slice(1) + '.'; });   // what the check found, as it said it
     var verdict = c.ok ? 'Route clear \u2014 ' + RW.toFixed(1) + ' m maintained'
-      : blocks.length ? 'Blocked at ' + (ACCTAB.tagOf(blocks[0].it) || ((FL_ARCHETYPES[blocks[0].it.type] || {}).label || 'a piece').toLowerCase()) + ' \u2014 ' + (blocks[0].w > 0.05 ? blocks[0].w.toFixed(1) + ' m' : 'closed') + ', needs ' + RW.toFixed(1) + ' m'
+      : blocks.length ? 'Blocked at ' + (ACCTAB.tagOf(blocks[0].it) || ((FL_ARCHETYPES[blocks[0].it.type] || {}).label || 'a piece').toLowerCase()) + ' \u2014 ' + (blocks[0].w > 0.05 ? f2(blocks[0].w) + ' m' : 'closed') + ', needs ' + f2(RW) + ' m'
       : 'Route not complete \u2014 see the fix below';
     return { state: c.ok ? 'pass' : 'fail', verdict: verdict, blocks: blocks, fixes: fixes };
   },
@@ -3194,7 +3260,7 @@ var ACCTAB = {
     var r = ACCTAB.analyse(), esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
     el.className = 'acc-card acc-' + r.state;
     el.innerHTML = "<p class='acc-verdict'>" + (r.state === 'pass' ? '\u2713 ' : r.state === 'fail' ? '\u2717 ' : '') + esc(r.verdict) + '</p>' +
-      "<p class='acc-rule'>A " + GEN.ROUTE_W.toFixed(1) + ' m clear path from the sidewalk to an accessible seat, and a ' + GEN.TURN.toFixed(1) + " m turning space at the entries, turns and the end. <span class='acc-ref'>Parklet Manual G19, p. 60 (C16)</span></p>" +
+      "<p class='acc-rule'>A " + GEN.ROUTE_W.toFixed(1) + " m clear path from each entry to an accessible seat (a bench end, or a table 0.70\u20130.80 m high), with room to turn where it turns and ends. <span class='acc-ref'>Parklet Manual G19, p. 60 (C16)</span></p>" +
       (r.fixes.length ? "<h3 class='acc-h'>Fix</h3><ul class='acc-fix'>" + r.fixes.map(function(t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '') +
       "<p class='acc-hint'>Drag a piece on the Plan: the route and this card follow.</p>";
   },
@@ -3219,9 +3285,9 @@ ACC.planKey = function(svg) {
   var el = document.getElementById('pvKey');
   if (!el) { el = document.createElement('details'); el.id = 'pvKey'; el.className = 'pv-key'; el.open = false; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(el); }
   var D = ACC._drawn || {}, rows = [];
-  if (D.route) rows.push(["<span class='pk-sw pk-route'></span>", 'Accessible route, ' + GEN.ROUTE_W.toFixed(2) + ' m clear (C16)']);
-  if (D.entry) rows.push(["<span class='pk-sw pk-entry'></span>", 'Entry, ' + GEN.TURN.toFixed(2) + ' m turning square (C16)']);
-  if (D.turn) rows.push(["<span class='pk-sw pk-turn'></span>", 'Turning space, ' + GEN.TURN.toFixed(2) + ' m (C16; red: too tight)']);
+  if (D.route) rows.push(["<span class='pk-sw pk-route" + (D.blocked ? ' pk-blocked' : '') + "'></span>", 'Accessible route at its clear width, ' + GEN.ROUTE_W.toFixed(2) + ' m needed (C16; red: blocked)']);
+  if (D.pinch) rows.push(["<span class='pk-sw pk-pinch'></span>", 'Pinch: the clear width where the route is blocked']);
+  if (D.entry) rows.push(["<span class='pk-sw pk-entry'></span>", 'Entry: the opening in the enclosure at the sidewalk edge']);
   var M = window._pvMarks || {};
   if (M.H) rows.push(["<span class='pk-sym pk-h'>H</span>", 'Fire hydrant']);
   if (M.B) rows.push(["<span class='pk-sym'>B</span>", 'Bus stop']);
@@ -8062,7 +8128,7 @@ const C03_REQ = 6;
   }
   // the accessible route (Brief 25 item 21b, C16), under the furniture: the band from each entry, the entry squares, the
   // turning circles; keyed in the Plan's key (ACC.planKey)
-  if (!paper && LODn >= 1 && window.APP_MODE === 'accessibility') { try { s += ACC.planSVG(DK, U); } catch (e) { console.warn('[route]', e); } }   // Brief 28 item 4: the route in its tab only
+  if (!paper && LODn >= 1 && window.APP_MODE === 'accessibility') { try { s += ACC.planSVG(DK, U, { text: annText, obst: annObst }); } catch (e) { console.warn('[route]', e); } }   // Brief 28 item 4: the route in its tab only (Brief 29 item 6: its labels in the annotation layer)
   // User-placed furniture from DESIGN_MODEL.objects (canonical source).
   // Falls back to FL3D.placed if model objects are not yet populated.
   var _dmFurnList = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.objects && DESIGN_MODEL.objects.length > 0)
@@ -8170,6 +8236,7 @@ const C03_REQ = 6;
     s += `</g>`;
     s += `<path d='` + _clipD + `' fill='none'${K('object', { join: 'round' })}/>`;
   }
+  if (!paper && LODn >= 1 && window.APP_MODE === 'accessibility' && typeof ACC !== 'undefined' && ACC._over) { s += ACC._over; ACC._over = ''; }   // the entries and the pinch, over the enclosure and the outline (Brief 29 item 6)
   annObj(PK_X, PK_Y, PK_X + PK_W, PK_Y + pvPkH);   // the parklet: segment labels keep off it
   // the deck's label (Brief 29 item 4): one, outside the deck outline on the road side, never over the deck or its pieces
   annObj(DECK_X, PK_Y, DECK_X + DECK_W, PK_Y + pvPkH);
@@ -25394,9 +25461,10 @@ RPT.print = async function() {
 .pk-sym.pk-clr { font-weight: 400; font-size: 10px; }
 .pk-tree { border-radius: 50%; width: 12px; height: 12px; margin: 0 3px; background: #C9D3C2; }   /* fill.treeSil */
 .dm-technical .pk-tree { background: #DEDEDE; }
-.pk-route { background: rgba(58, 168, 228, 0.14); border: 1px dashed var(--accent-ui); }
-.pk-entry { border: 1px dashed var(--accent-ui); }
-.pk-turn { width: 10px; border-radius: 50%; border: 1px dashed var(--accent-ui); margin: 0 4px; }
+.pk-route { background: rgba(58, 168, 228, 0.34); border: 0; }
+.pk-route.pk-blocked { background: rgba(192, 48, 48, 0.34); }
+.pk-pinch { height: 0; border-top: 2.5px solid #C03030; align-self: center; }
+.pk-entry { height: 0; border-top: 3px solid var(--accent-ui); align-self: center; }
 .pk-area { border: 1px dashed var(--d-mid); opacity: .7; }
 .se-hex { flex: 0 0 auto; width: 15px; height: 15px; margin-top: 1px; }
 .se-hex polygon { fill: none; stroke: currentColor; stroke-width: 1.1; }
@@ -30848,6 +30916,7 @@ document.addEventListener('keydown', function(e) {
 .chk-conf:focus-visible, .chk-drawer-x:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
 .chk-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 950; background: var(--bg, #fff); color: var(--text, #222);
   box-shadow: -6px 0 24px rgba(20, 22, 26, .18); border-left: 1px solid var(--rule, #ddd); display: flex; flex-direction: column; font: 13px/1.5 var(--font-ui); }
+.chk-drawer[hidden] { display: none; }
 .chk-drawer-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px 6px; }
 .chk-drawer-h h2 { margin: 0; font: 600 15px var(--font-ui); }
 .chk-drawer-x { background: none; border: 0; font-size: 22px; line-height: 1; padding: 2px 6px; cursor: pointer; color: var(--d-mid, #666); }
