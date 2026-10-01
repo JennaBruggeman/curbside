@@ -12924,6 +12924,7 @@ function fl3DCancelPlace() {
   const el = document.getElementById('fl3DPlacingLbl');
   if (el) el.style.display = 'none';
   document.querySelectorAll('.fl3d-item-btn').forEach(b=>b.classList.remove('fl3d-active'));
+  if (typeof PLACE !== 'undefined' && PLACE.key) { if (typeof _cadCancelPlacing === 'function') _cadCancelPlacing(); else PLACE.placed(); }   // Brief 27 item 7
 }
 
 function fl3DHandleClick(e) {
@@ -13409,7 +13410,7 @@ function _fvRender(wrap) {
       if (hasFact) {
         var placeBtn = document.createElement('button');
         placeBtn.className = 'fv-place-btn';
-        placeBtn.textContent = 'Place';
+        placeBtn.textContent = 'Place on deck';
         (function(oid){ placeBtn.addEventListener('click',function(e){e.stopPropagation();fvPlaceObj(oid);}); })(obj.id);
         actions.appendChild(placeBtn);
       }
@@ -13462,12 +13463,71 @@ function _fvRender(wrap) {
   }
 }
 
-function fvPlaceObj(objId) {
-  ensure3DReady();
-  setCanvasView('3d');
-  appSetMode('design');
-  if (typeof fl3DStartPlace === 'function') fl3DStartPlace(objId);
-}
+function fvPlaceObj(objId) { PLACE.start(objId); }
+
+// Brief 27 item 7 (triage row 5): "Place on deck". Place armed a mode that only a click in the 3D view ended (its tooltip
+// said the Plan), with no word on screen and no keyboard way. Now it opens Design at the Plan (3D still works), arms both,
+// and says what to do in one line over the Plan (in full the first time): click a spot on the deck, drag to move; Enter
+// places the piece at a free spot by the deck's centre and selects it, the arrow keys move it, Enter again confirms.
+// Escape cancels. A click (or Enter) on a Design library card does the same, so tap-then-tap works there too.
+var PLACE = {
+  key: null, kb: false, from: null, n0: 0, SEEN: 'pkt_place_hint_seen',
+  start: function(key) {
+    if (typeof ensure3DReady === 'function') try { ensure3DReady(); } catch (e) {}
+    if (typeof appSetMode === 'function') appSetMode('design');
+    var v = (typeof VIEWPORT_LAYOUT !== 'undefined' && VIEWPORT_LAYOUT.mode === 'max') ? VIEWPORT_LAYOUT.max : 'all';
+    if (v !== 'plan' && v !== '3d' && v !== 'all' && typeof setCanvasView === 'function') setCanvasView('plan');
+    if (typeof FL3D !== 'undefined' && !FL3D._built) { try { fl3DInit(); } catch (e) {} }
+    if (typeof cadStartPlacing === 'function') cadStartPlacing(key);   // the Plan, Section and 3D clicks all place
+    PLACE.key = key; PLACE.kb = false; PLACE.from = document.activeElement; PLACE.n0 = FL3D.placed.length;
+    var first = true; try { first = localStorage.getItem(PLACE.SEEN) !== '1'; localStorage.setItem(PLACE.SEEN, '1'); } catch (e) {}
+    var lbl = typeof flKeyLabel === 'function' ? flKeyLabel(key) : key;
+    PLACE.say(first ? 'Click a spot on the deck to place the ' + lbl.toLowerCase() + '; drag it to move. Or press Enter to place it by the deck’s centre, then move it with the arrow keys. Esc cancels.'
+                    : 'Placing ' + lbl + ': click the deck, or press Enter for its centre · Esc cancels');
+  },
+  say: function(t) {
+    var host = document.getElementById('pvPanel'); if (!host) return;
+    var el = document.getElementById('placeHint');
+    if (!el) { el = document.createElement('div'); el.id = 'placeHint'; el.className = 'place-hint'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); host.appendChild(el); }
+    el.textContent = t || ''; el.hidden = !t;
+  },
+  // a placement happened (a click, or Enter): the new piece selected, the mode and the hint ended
+  placed: function() {
+    var inst = FL3D.placed.length > PLACE.n0 ? FL3D.placed[FL3D.placed.length - 1] : null;
+    PLACE.key = null;
+    if (inst && typeof fl3DSelect === 'function') fl3DSelect(inst.id);
+    if (typeof renderPlanView === 'function') renderPlanView();
+    PLACE.say(PLACE.kb && inst ? flKeyLabel(inst.objId) + ' placed. Arrow keys move it (Shift: four steps); Enter confirms.' : '');
+  },
+  // Enter while placing: a free spot along the deck's middle, nearest its centre
+  atCentre: function() {
+    var key = PLACE.key, DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length;
+    var xr = typeof flXRange === 'function' ? flXRange((flSpecFromKey(key) || {}).type) : [LM.deckX0, LM.deckX1];
+    var x = Math.max(xr[0], Math.min((LM.deckX0 + LM.deckX1) / 2, xr[1])), z = L / 2;
+    var busy = function(zz) { return FL3D.placed.some(function(i) { return Math.abs((+i.z || 0) - zz) < 1.0 && Math.abs((+i.x || 0) - x) < 1.0; }); };
+    for (var k = 0; k <= 2 * L && busy(z); k++) { var zz = L / 2 + (k % 2 ? 1 : -1) * Math.ceil(k / 2); if (zz > 0.6 && zz < L - 0.6) z = zz; }
+    PLACE.kb = true;
+    fl3DPlaceAt(key, x, z);
+    if (typeof fl3DCancelPlace === 'function') fl3DCancelPlace();
+    if (typeof _cadCancelPlacing === 'function') _cadCancelPlacing();
+  },
+  confirm: function() {
+    PLACE.kb = false; PLACE.say('');
+    if (typeof fl3DSelect === 'function') fl3DSelect(null);
+    if (typeof renderPlanView === 'function') renderPlanView();
+    // the focus back where placing began; when that is out of sight (the Furniture tab's card), on the Plan
+    var f = PLACE.from; PLACE.from = null;
+    if (f && document.contains(f) && f.getClientRects().length) f.focus();
+    else { var pv = document.getElementById('pvPanel'); if (pv) { if (!pv.hasAttribute('tabindex')) pv.setAttribute('tabindex', '-1'); pv.focus({ preventScroll: true }); } }
+  }
+};
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  var ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+  if (PLACE.key && typeof FL3D !== 'undefined' && FL3D.placing) { e.preventDefault(); e.stopPropagation(); PLACE.atCentre(); }
+  else if (PLACE.kb) { e.preventDefault(); e.stopPropagation(); PLACE.confirm(); }
+}, true);
 
 function fvShowInfo(obj) {
   if (typeof obj === 'string') {
@@ -14783,6 +14843,7 @@ function _cadCancelPlacing() {
   if (window._planMode === 'furniture') window._planMode = 'select';
   var ind = document.getElementById('fpPlacingInd');
   if (ind) ind.style.display = 'none';
+  if (typeof PLACE !== 'undefined' && PLACE.key) PLACE.placed();   // placed or cancelled: the hint follows (Brief 27 item 7)
 }
 
 // Close popover on outside click (but not while placing)
@@ -15112,7 +15173,9 @@ function lhsFwRender() {
   });
   g.innerHTML = tiles.length ? tiles.map(function(t) {
     return '<div class="lib-tile' + (t.key === _libSel ? ' sel' : '') + '" tabindex="0" data-key="' + t.key + '" title="' + _libEsc(t.tip) + '"' +
-      ' onmousedown="_libDown(\'' + t.key + '\',\'' + t.kind + '\',event)">' +
+      ' onmousedown="_libDown(\'' + t.key + '\',\'' + t.kind + '\',event)"' +
+      // a click or Enter on a piece: place it on the deck (Brief 27 item 7: tap the card, then tap the deck)
+      (t.kind === 'fur' ? ' onclick="PLACE.start(\'' + t.key + '\')" onkeydown="if(event.key===\'Enter\'&amp;&amp;!PLACE.key){event.preventDefault();PLACE.start(\'' + t.key + '\')}" role="button" aria-label="Place ' + _libEsc(t.name) + ' on the deck"' : '') + '>' +
       '<div class="lib-thumb">' + t.thumb + '</div>' +
       (t.size ? '<div class="lib-size">' + t.size + '</div>' : '') +
       '<div class="lib-name">' + _libEsc(t.name) + '</div></div>';
@@ -16906,6 +16969,10 @@ function _sdQuickPlace(objId) {
 .pk-ss-now:hover, .pk-ss-now:focus-visible { color: var(--text-hi); border-color: var(--text-lo); }
 .pk-ss-now:disabled { opacity: .6; cursor: default; }
 .pk-ss-short { display: none; }
+/* Brief 27 item 7: the one line over the Plan while a piece is being placed */
+#pvPanel { position: relative; }
+.place-hint { position: absolute; left: 50%; top: 80px; transform: translateX(-50%); max-width: calc(100% - 24px); width: max-content; z-index: 20; pointer-events: none;
+  background: var(--d-ink, #1F2328); color: #FFFFFF; font: 500 12px/1.45 var(--font-ui); padding: 6px 12px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 @media (max-width: 1500px) { .pk-ss-long { display: none; } .pk-ss-short { display: inline; } .pk-acc-name { display: none; } #pkSaveStatus.pk-ss-failed .pk-ss-now { display: none; } }
 @media (max-width: 1100px) { .pk-ss-nowx { display: none; } #dkMenuBtn .dk-menu-word { display: none; } #dkMenuBtn .dk-menu-ico { display: inline; } }
 #dkMenuBtn .dk-menu-ico { display: none; }
@@ -29743,7 +29810,8 @@ var UI_TIPS = [
   ['.lib-chip', 'Shows only this category of the library.'],
   ['#lhsFwPresets', 'Shows the manufacturers&rsquo; ready-made pieces as well as the generic ones.'],
   ['.ctx-btn[onclick*="appSetMode(\\"design\\")"]', 'Goes to the Design tab to place furniture on the deck.'],
-  ['.fv-place-btn, .str-btn-place', 'Places this piece on the deck; click in the Plan to set where.'],
+  ['.fv-place-btn', 'Places this piece on the deck: click a spot on the deck in the Plan or 3D, or press Enter for the deck’s centre.'],
+  ['.str-btn-place', 'Places this object on the site plan: click where it stands.'],
   ['.fv-info-btn, .str-btn-info', 'Shows this piece&rsquo;s sizes, materials and source.'],
   // visualize
   ['.rvz-chip[data-md]', 'Sets the sun to this date: the longest day, the equinox or the shortest day.'],
