@@ -431,3 +431,29 @@ pass.
   furniture is placed by dragging; README says Settings is in the account menu, which is off-screen at this width;
   S-002 says "Site > Survey", which the agent did not find (it did not scroll the whole Site panel).
 - Evidence: `<scratchpad>\b23\full\p7-run1\` (001–040.png, `pdfpageN.png`, the PDF).
+
+### Run: Persona 1 (BIA coordinator), run 2, Sonnet
+
+- **Sites:** Denman St, West End: block A at Davie St (south-east side, host Starbucks, 1789 Davie St), block B at Comox
+  St (north-west side, host Denman Dry Cleaner, 1075 Denman St). **Time:** about 12 minutes to block A's PDF. The agent
+  could not write its `report.md`; condensed here.
+- **New since run 1**
+  - **Both Denman blocks fail C01 as a bus zone**, so the comparison a coordinator wants ("this block passes, that one
+    does not") never appears: the two reports have the same counts (4 pass, 1 fail, 1 awaiting, 13 not entered). After
+    "Confirm all visible (70)" the verdict turned to "Does not pass: 1 check fails on measured data": confirming the
+    stop turns a provisional bus-zone fail into a measured one.
+  - **Two reports, one file name:** both designs were "Untitled parklet", so both PDFs are
+    `curbside-untitled-parklet-schematic.pdf`; the file name carries no address. (The second download overwrote the
+    first in the test folder: the driver saves by the suggested name; a desktop browser would add "(1)". The point
+    stands for anyone comparing blocks.)
+  - "Generate produces nothing": **harness.** The agent clicked by role and name "Generate", which matched the
+    "Generate" tab before the panel's own "Generate" button (046.png shows the button untouched). Generate itself
+    answered "This site cannot pass whatever the design" in Parent run 1.
+  - "+ New" then typing the name: the driver's fill failed ("Cannot read properties of undefined (reading 'unicode')",
+    a Playwright error), "Create Design" timed out and the page stopped answering for about four minutes; afterwards the
+    canvas showed "Choose a site" while the Site panel still showed the previous design's import and host frontage
+    (as persona 1 run 1 saw). The freeze is not confirmed as the app's (three software renderers were running); the
+    stale Site panel after "+ New" is (two runs).
+  - Bearing "44.72999999999999999".
+- **README / landing wrong:** none confirmed (the Generate mismatch is the harness).
+- Evidence: `<scratchpad>\b23\full\p1-run2\` (screenshots, `blockA_pdf.json`, `blockB_pdf.json`, block B's PDF).
