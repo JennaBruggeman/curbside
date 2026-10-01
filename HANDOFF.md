@@ -952,13 +952,16 @@ Decisions for every item are in the session's decisions log; the essentials:
   6. **The 3D toggles are viewport-only:** `PVCTX.install` hides the groups for viewport frames. Exports and the report always include them.
   7. **A request in flight is shared:** a newer generation that wants the same cell joins it (and owns it). A response is discarded only when no current request wants it, and a request a pan aborted is started again. VERIFY found that the first version left cells empty after the first jump.
 - **Next fixes round (Jenna, 2026-10-01):** each batch of arriving cells costs the main thread 35-72 ms (VERIFY 3: `GIS.features` merging every resident cell, then one `setData` per changed layer, with up to ~16k trees). Parse the cells off the main thread (a worker) or spread the `setData` calls across frames, so that no batch costs more than one frame (16 ms). Measure it as VERIFY 3 did (the GIS listeners timed around a four-cell pan, all 12 layers on).
+- **Next fixes round, also (Jenna, 2026-10-01):**
+  - **Pages does not rebuild on push** (curbside after the v0.11-gis merge, and curbside-data in Part A): the build stayed on the previous commit until a `POST repos/{owner}/{repo}/pages/builds` request. Find out why (the Pages source setting, branch-build vs Actions, a missing `.nojekyll` trigger, the token used to push) and fix it so a push to master publishes on its own.
+  - **The last live requests of an import** are the three City exports for the outer ring (`SMP.OUTER_DS`: building-footprints-2015, public-streets, parks-polygon-representation; `SMP.covExport`), seen on Pages as "City exports (outer ring) 3". Move them into the cells (new curbside-data layers, read by `SMP.importOuter` like the inner import) or into a cached file, so an import makes no live request at all.
 - **Test hooks:** `?gis=fixtures` on a dev host reads `test/gis-fixtures/` (the curbside-data fixtures; regenerate with `node build/build.js` there and copy `fixtures/`).
 - **Out of scope (candidates for a later brief):** parking regulations, zoning, existing-parklet layers, an imagery underlay on the Plan, 3D context from cells. Also open: the outer ring's water from the cells; a site with no buildings keeps the previous site's buildings (`applyBuildings` replaces a side only when it finds one; older than Brief 24).
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase and `CONFIG.INVITE_ONLY = false` in the page. **After October 9, set both back to true** (the page's comment says so) and make codes with `supabase/invite-codes.sql`; also put back the README's step 2.
 
 ## Briefs that exist only in chat
-Briefs 22 and 23, and Brief 24 until 2026-10-01, were written in chat and never saved in `briefs/`, although the chat handoff (session 6) lists them there. Brief 24 v2 is now `briefs/24-gis-cells.md`; 22 and 23 are still only in chat.
+Briefs 22 and 23, and Brief 24 until 2026-10-01, were written in chat and never saved in `briefs/`, although the chat handoff (session 6) lists them there. Brief 24 v2 is now `briefs/24-gis-cells.md`, and Brief 23 (v2, file edition, 2026-10-01) is `briefs/23-stranger-test.md`; only 22 is still in chat. Brief 23's smoke pass is in `briefs/23-triage.md` (branch `stranger-test`); its full pass waits for Jenna.
 
 ## Repository and publishing (2026-10-01)
 - GitHub: `JennaBruggeman/curbside` (the app), `JennaBruggeman/curbside-data` (Brief 24's cells).
