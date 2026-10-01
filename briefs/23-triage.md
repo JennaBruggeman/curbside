@@ -1214,3 +1214,98 @@ Harness behaviour or misreadings, kept out of the table:
   5. Row 44 (`readme`) is best written after rows 3 and 5 land.
 - **Caveat:** persona 7 run 3 ran without touch events (my start argument), so its touch findings are single-pointer
   findings. A rerun on touch would take about 50 minutes; say if you want it.
+
+## v0.14 smoke
+
+Live v0.14 (jennabruggeman.github.io/curbside), signed out (`?offline`), 1 October 2026. Four runs: the parent persona and
+persona 1 once each, and the "Demo" persona from `demo-script.md` twice. Nothing was fixed during the pass. Steps that
+need the test account (My designs, `Demo backup`, the fresh-design C02/C03 return) were skipped and are not counted as
+mismatches. Screenshots and PDFs are in the session scratchpad under `b29/smoke/{parent,p1,demo1,demo2}/`.
+
+### Run: Parent (café owner), run 1, Sonnet — v0.14
+West 4th Avenue & Yew Street, south side. About 8–10 minutes to the PDF, with retries on the map click.
+- **Broke:** none; no console or page errors. "Use this location" stays disabled for 3–5 s after the side click,
+  although the footer already reads "Parklet on the south side of West 4th Avenue… Use this location".
+- **Confused:**
+  - The sidebar "Street address" field looks like the map's search box, but "Locate on map" ignores it: the map
+    opens downtown and says nothing.
+  - A click near the corner took Yew Street, not West 4th Avenue; only the footer text says which street was taken.
+  - Once, "Finding the street…" never resolved; the same clicks seconds later worked.
+  - The host frontage ("Ming Wo") was chosen by proximity; the owner is never asked which frontage is theirs.
+- **README / landing:** signed out, nothing says the app can be used without an account; `?offline` is in neither.
+
+### Run: Persona 1 (BIA coordinator), run 1, Sonnet — v0.14
+Fraser St at E 22nd Ave and at E 27th/28th Ave, east side. About 35 minutes to the PDF.
+- **Broke:**
+  - The sign-in dialog opened by itself while Tab-ing between Check fields and blocked the page until closed.
+  - Generate twice: no schemes, no loading state, no console error (the refusal's red text may have been missed).
+  - **C02 never left "Awaiting measurement"**: confirming the curb-to-curb estimate, then typing the same number as
+    the measured roadway width, changed nothing.
+- **Confused:**
+  - Site › "Find corners" did nothing visible, twice.
+  - After a reload, the located point read 49.2816, -123.1207 (downtown); the street, lanes and route stayed right.
+  - The Check "Failing" filter seemed not to change the view: the "Confirm on site" list stayed.
+  - Signed out, "+ New" replaces the one design (it says so); two designs side by side need two browser profiles.
+
+### Run: Demo, run 1, Sonnet — v0.14 (Main St & E 26th Ave)
+About 3 min 15 s of in-app action.
+- **Mismatches:**
+  - **A long fast drag of the placed planter left the deck empty** ("Nothing placed yet…"); no console error.
+  - **The host frontage changed between reloads of the same design** (Blenz Coffee → Rocky Mountain Flatbread →
+    Vape It Off), and C05 went from Fail (0.00 m) to Provisional pass with no edit.
+  - A planter at the deck's centre did not break the route; it broke only an entry square, with no 1.1 m figure.
+  - Library cards are click-to-place, not draggable. The estimate tag is blue, not orange.
+- **Confused:** the side click must land on the street or "Use this location" stays disabled without a message;
+  generated schemes are not kept over a reload; Street widths folds again on every reload.
+
+### Run: Demo, run 2, Sonnet — v0.14 (Victoria Dr & E 33rd Ave)
+About 2 min of in-app waiting. The Generate refusal matched the script word for word.
+- **Mismatches:**
+  - **Generate froze the tab for about 48 s** after the facts were filled, before six cards appeared, while its own
+    log reads "120 sampled · 89 built · 89 passed every check · 1996 ms". Nothing was logged in between and nothing
+    on screen says it is working.
+  - **The technical PDF took about 22 s**; `[report] ms per stage` puts 20.3 s in "drawings".
+  - No control named "Gallery" (only "Cached renders: None for this design yet (design 60c9940e)").
+- **Confused:**
+  - Turning the estimated roadway width into a measured one means retyping the field under Street widths (its pill
+    then reads "You"); nothing says so.
+  - Resolving the clicked street took about 9 s every time.
+  - Synthetic mouse drags of placed pieces did not move them (run 1's drag did); the Move panel worked.
+- **Script wrong:** "[click Gallery]" has no target; the Check table is grouped by status, not "by what they
+  actually mean".
+
+### Triage table
+
+| # | Finding | Runs | Severity | Fix | Brief 29 |
+|---|---|---|---|---|---|
+| S1 | **A long drag of a placed piece emptied the deck.** | D1 | blocks | Find the drag path that clears FL3D.placed (a drop off the deck? a view change mid-drag?) and keep the piece. | — |
+| S2 | **The host frontage is not deterministic** across reloads of one design; C05 flips Fail → Provisional with no edit. | D1 | misleads | Save the chosen frontage with the design; never re-pick on load. | — |
+| S3 | **C02 stays "Awaiting measurement"** after the estimate is confirmed or the same number is typed as measured. | P1 | blocks | Mark the roadway measured on confirm and on any typed value, equal or not. | — |
+| S4 | **Generate freezes ~48 s with no feedback**, though the generator takes 2 s; the cost is downstream (likely the card thumbnails). | D2, P1 | misleads | Profile the step after GEN; show progress; draw the cards before their thumbnails. Demo risk. | — |
+| S5 | **The sign-in dialog opens by itself** while Tab-ing through Check fields. | P1 | blocks | Find the focus or keyboard path that opens it. | — |
+| S6 | The technical PDF takes ~22 s; 20.3 s is "drawings". | D2 | annoys | Profile the drawings stage. | — |
+| S7 | Signed out, nothing on the landing or README says the app works without an account; `?offline` is the only way in. | P | misleads | A "Try it without an account" link. | — |
+| S8 | "Use this location" is disabled 3–5 s after the side click, or for good when the click misses the street, with no message. | P, D1 | annoys | Enable it as soon as the footer says so; say why when disabled. | — |
+| S9 | The sidebar "Street address" field is ignored by "Locate on map". | P | misleads | Prefill the map search with it. | — |
+| S10 | After a reload the located-point readout shows the downtown default. | P1 | misleads | Restore it from `__siteMap`. | — |
+| S11 | Site › "Find corners" does nothing visible. | P1 | annoys | Say what it found, or that it found none. | — |
+| S12 | A planter at the deck's centre may or may not break the route (by deck width); the message has no fixed figure. | D1, D2 | misleads (demo) | Script: drop it on the route band. | item 6 draws the band |
+| S13 | No "Gallery" control; "Cached renders" shows a design id. | D1, D2 | misleads (demo) | — | item 8 |
+| S14 | The Check sidebar's confirm list did not follow the filter; two contradictory sentences. | P1 | misleads | — | item 7 |
+| S15 | Turning an estimate into a measurement is not discoverable (retype under Street widths). | D2 | misleads | A "Measured" action beside each estimate. | — |
+| S16 | A click near a corner takes the cross street, shown only in the footer text; once, "Finding the street…" never resolved. | P | annoys | Highlight the taken street; time out with a message. | — |
+| S17 | The host frontage is chosen by proximity; the owner is never asked. | P | annoys | Ask at Place parklet. | — |
+| S18 | Generated schemes are not kept over a reload; Street widths folds on every reload. | D1 | annoys | Keep both. | — |
+| S19 | Resolving the clicked street takes ~9 s. | D2 | annoys | Cache the ways query. | — |
+
+### Rejected
+- **"Download report (PDF)" not visible to automation:** a mouse click at its position worked (an overlay or a
+  zero-size wrapper for Playwright, not for people).
+- **Synthetic mouse drags not moving pieces (D2):** D1's drag worked; the harness.
+- **Downtown restaurant names on Fraser St:** OSM data, not confirmed either way.
+
+### For Jenna
+- **The demo script:** the corrections from these runs are in the chat report (Gallery, Technical as a radio, "You"
+  for a measured value, Place on deck instead of dragging the card, the Check table's grouping).
+- **Before Friday:** S1, S2 and S4 can show up on stage. Rehearse one real mouse drag and one Generate on the demo
+  laptop.
