@@ -697,8 +697,8 @@ pass.
     file name. **Confirmed live:** after a blank street, then locating and importing Dunbar, the name is still "Blank
     street".
   - **Export said "Locate a site first"** with the site located and imported, after "Open in Design". Same cause as row
-    2: opening a scheme drops `state.__siteMap`, and the Export page tests exactly that.
-  - **C02 passed on an estimate after Open in Design** (lanes "3.20 ×4 ✓ OK" on a street never measured): row 2 again.
+    4: opening a scheme drops `state.__siteMap`, and the Export page tests exactly that.
+  - **C02 passed on an estimate after Open in Design** (lanes "3.20 ×4 ✓ OK" on a street never measured): row 4 again.
     Generate had narrowed the deck to 2.40 m to make the lanes fit, without saying the site fails C02 as imported.
   - **The blank street's confirmation dialog is grey on grey** and unreadable (005–006.png).
   - **Section by touch:**
@@ -746,7 +746,7 @@ pass.
   - Each design was named before export.
 - **Time:** about 25 minutes to the first PDF, 38 to the second (14 sheets each).
 - **What worked:**
-  - The two PDFs are named after their designs (`curbside-fraser-st-22nd-23rd-west-no-bus-stop-schematic.pdf`): row 25
+  - The two PDFs are named after their designs (`curbside-fraser-st-22nd-23rd-west-no-bus-stop-schematic.pdf`): row 31
     applies only to unnamed designs.
   - The Export button fills as it works ("Sheet 11 of 14 · 79 %").
   - Layers let the agent count the bus stops per block before choosing.
@@ -883,7 +883,7 @@ pass.
   - **C16 passed with the furniture in place.** C19 passed: existing trees are not "overhead elements" of the parklet.
   - **Visualize's greyed-out "Technical" has a reason**, in a hover tooltip only: "Technical is a drawing mode (Plan,
     Section, 3D), not a render mode." The working switch is in Design / Export. This answers persona 3 run 2's
-    question; a tablet or keyboard user never sees the tooltip (row 29: show the reason as text).
+    question; a tablet or keyboard user never sees the tooltip (row 37: show the reason as text).
 - **Confused**
   - **The canopies swallow the deck in the Section and 3D,** so the agent expected C19 to fail. That trees are advisory
     only is said on the Check tab and in the PDF, not on the drawings.
@@ -938,7 +938,7 @@ pass.
   - The first Check digit was kept alone ("10" → "1", flipping C05 to a fail): row 1.
   - After each Check entry, focus jumps to the "Not entered" group header, not the next field (row 1's regrouping).
   - "Start a blank street" was not reached in about 80 Tabs: the whole top bar, the step strip and every Site field
-    come first, with no skip link (row 38).
+    come first, with no skip link (row 41).
   - `GEN is not defined` (once, early).
 - **Confused:** the Export tab says "Locate a site first" on the blank street, yet Download works and makes a complete
   report. The banner tests `state.__siteMap`, which a blank street doesn't have.
@@ -1032,7 +1032,7 @@ pass.
     stations.
   - PDF 1's "2.00 Sidewalk" in the section, against about 4.05 m of paving drawn from the building face to the curb.
   - C04 (0.1 %, see persona 6 run 3) cannot be checked: no spot elevations (p. 42 asks for them).
-- **Recurring (rows 12, 13, 18 and 28):**
+- **Recurring (rows 12, 13, 18 and 30):**
   - rule zones drawn like measured values ("6.00 (≥6.00 C03)", "1.50 (≥1.50 C13)" while not entered);
   - red zones on passing checks (set 1), while the one real failure (C16) is not red;
   - C03 and C05 strings cut at the frame but keeping their full values ("64.59" on a 5.5 m line);
@@ -1042,3 +1042,175 @@ pass.
   conflict), but neither set's checks: no one can verify C06–C11 from the drawings.
 - Evidence: the agent's report (this block) and its renders in `<scratchpad>\p8r3\`; the input PDFs in
   `<scratchpad>\b23\full\parent-run3\` and `p3-run3\`.
+
+### Run: Persona 7 (tablet, 1024 × 768), run 3, Opus
+
+- **Not on touch events: my error.** I started this run's driver with "1" for the touch argument, and the driver
+  turns touch on only for the word "touch", so every `tap` was refused. The agent used single clicks and drags
+  instead: one pointer, no hover meant, no keyboard, no wheel. The findings stand as "what a single pointer can and
+  cannot do". Real touch (pinch, long press, finger drag-and-drop) was tested only in run 2. A rerun on touch would
+  take about 50 minutes, which did not fit before 5 am.
+- **Site:** Yew St at W 1st Av, west side (host Lucky Taco, 2213 W 1st Av). **Time:** about 33 minutes to the
+  technical PDF (14 pages).
+- **What reached the PDF:** the edits all did (16 m deck, Edge choices, a 2.4 m bench in RAL 3020 / Ipe, the slope).
+- **What works with a single pointer**
+  - **Shape editor:** corner and edge drags, Notch, typing an edge length (tap an edge, then the "Edge n" field or the
+    on-canvas length label).
+  - **Edge panel:** tiles about 78 × 80 px.
+  - **Selection panel:** rotate, size, Move arrows, Duplicate, Delete.
+  - **Check side list:** Confirm and "Confirm all".
+  - **Visualize:** camera presets, Sun (21 Dec, 16:45: "The sun is below the horizon"), one-finger orbit.
+  - **Export:** every option.
+- **Cannot be done without a keyboard, hover or wheel**
+  - **Delete a shape-editor corner:** Delete / Backspace only. No button; a tablet shows no keyboard without a focused
+    field.
+  - **Add a corner:** double-click on an edge added nothing (twice), though the hint says it should.
+  - **Zoom in 3D:** wheel only. No buttons, no word about pinch.
+  - **Place a piece:** a drag only (row 5).
+  - **The shape editor's hint** gives three of its five instructions as non-finger actions (double-click, Delete,
+    hover). It doesn't mention the tap alternatives that work.
+  - **Help** lists only keyboard and mouse shortcuts.
+- **New**
+  - **Duplicate drops the rotation:** a copy of a piece at 135° comes out at 0°.
+  - **After a drag, the Selection panel keeps the old "Along"** (11.500 until reselected, then 5.239) (as run 1).
+  - **Opening Help scrolled the whole page about 300 px sideways,** and closing it left the left panel off-screen with
+    a black band on the right until a left-panel control was used. It follows from the off-screen header (row 6).
+  - **The left panel would not scroll while a piece was selected,** so "Space evenly", Edge and the library could not
+    be reached.
+  - **Confirm moves the list under the finger:** the next Confirm slides into the spot just tapped, and a confirm has
+    no undo. The slope slider's row left its group mid-drag (row 1). The value printed as 0.1 %.
+  - **Dragging the Edge height slider with "Start end" selected set all sides to 0.97 m.** Not checked.
+  - Visualize's Technical button is disabled with no visible reason (row 37).
+  - The Plan Key covers the Plan in the three-up layout (as run 1).
+  - The category chips run off the panel ("Shac…").
+  - Bearing "1.4699999999999989".
+  - `GEN is not defined`; `[checkLandmarkConsistency] 2 value(s) disagree`.
+- **Rejected:** "C15 not entered … PASS in the PDF". The raw text reads "C15 … not entered: Designed load capacity NOT
+  CONFIRMED": another `pdftotext -layout` row shift. The cover's "12 not confirmed (provisional)" for not-entered
+  checks is real (row 28).
+- **README / landing wrong:** step 6 (the side list's "Nothing imported to confirm" above "50 imported items still to
+  confirm"). Nothing anywhere mentions touch; the README asks for a desktop browser, but the landing page doesn't say
+  so.
+- Evidence: `<scratchpad>\b23\full\p7-run3\` (001–090.png, `curbside-untitled-parklet-technical.pdf`, a .3dm the Export
+  panel downloaded on one click).
+
+## Runs done
+
+| Persona | Model | Runs | Why the run count |
+|---|---|---|---|
+| Parent, café owner | Opus | 3 | Run 2 found new things (the keystroke loss, the context wipe). |
+| 1, BIA coordinator | Sonnet | 3 | Run 2 found new things (identical file names, stale Site panel). |
+| 2, Manual references | Sonnet | 2 | Run 2 only refined run 1 (C02's exit, a transit-corridor note). |
+| 3, landscape designer | Sonnet | 3 | Run 2 found new things (the planter-wall edge failing C16). |
+| 4, sceptical engineer | Sonnet | 3 | Run 2 found new things (values across sites, Add segment). |
+| 5, keyboard only, 150 % | Sonnet | 3 | Run 2 found new things (Place needs a Plan click). |
+| 6, returning user, signed out | Sonnet | 3 | Run 2 found new things (Check entries lost too). |
+| 7, tablet 1024 × 768 | Opus | 3 | Run 2 found new things. **Run 3 ran without touch events (my start argument); see its block.** |
+| 8, City reviewer, PDF only | Opus | 3 | Run 2 found new things (rule zones, red legend, notched deck). |
+
+All runs used the live site (v0.12-fixes, signed out). No agent signed up or signed in, and nothing was fixed.
+
+## Triage table
+
+- **Severity:**
+  - **blocks**: a person cannot finish, or loses work;
+  - **misleads**: a wrong answer or a wrong number someone may act on;
+  - **annoys**: friction, wording, polish.
+- **Brief:** **26** is the next fixes round, **27** larger work for a later round, and `readme` README or landing-page
+  copy only.
+- **Seen by:** P is Parent, 1–8 the personas, r1–r3 the run.
+- **Confirmed:** reproduced by me on the live site or in the code. Rows without it are as the agents saw them.
+
+### Blocks
+
+| # | Issue | Seen by | Severity | Suggested fix | Brief |
+|---|---|---|---|---|---|
+| 1 | **Typing in a Check field loses keystrokes:** "17" → "1", "12" → "1" (a false driveway fail), "8.5" → "8", "2.5 %" → "0.1 %", "-10" → "−" with "NaN m … Fails". The wrong values print on C-001. **Confirmed.** It is a regression from Brief 25 item 31: the first character changes the row's state, and `CHKG.group` moves the row to another group, out from under the cursor. Choosing a dropdown option also scrolls the page to the top, and after each entry focus lands on a group header. Separately, C04 printed "0.1 %" after 2.5 was entered, three times, once by a whole-value fill. Not reproduced (a fill keeps 2.5 live); retest after the fix. | P r2–r3, 4 r2, 5 r3, 6 r3, 7 r2 | blocks | Regroup on change or blur, not on input, and keep the focused row in place until it loses focus. Test: type "17" into C03 and read back "17". | 26 |
+| 2 | **The Section's width field loses keystrokes too:** 3.3 → 3.000. **Confirmed in code.** The input handler calls `_seResize`, which re-renders the inspector (`_renderProp`) on every key. It is the same symptom as row 1 in separate, older code. On a tablet's on-screen keyboard no typed number survives. | 7 r2 | blocks | Resize live without re-rendering the field (update its siblings only), or resize on change. | 26 |
+| 3 | **Furniture and Check entries are never saved signed out:** a reload, even after a tab switch, loses every placed piece and every typed Check value. **Confirmed live.** Only `saveSettings` (site, name, Edge) schedules the design save. Check inputs write only the old `parklet-state` key, which the restore never reads. Nothing in the app tells a signed-out person; only the landing page's "Designs are kept in your account" hints at it. Signed in: untested (Jenna's steps in persona 6 run 2). | 6 r1–r3, P r3 | blocks | Schedule the design save from every edit: place, move, delete, Check input, and Generate's Open. Restore Check values from the design state. Signed out, show "Saved in this browser only: sign in to keep designs". Test: place, type, reload, compare. | 26 |
+| 4 | **Opening a generated scheme wipes the imported context:** site objects 35 → 1, trees 31 → 0, the import record gone. C02 then turns from "Awaiting" to "Pass" on an estimate, Export says "Locate a site first", and the PDF says "No street trees". **Confirmed.** | P r2, 7 r2 | blocks | Opening a scheme replaces only the deck, edges and furniture; carry `__siteMap`, `__existing`, provenance and the site objects across. Test: import, Generate, Open, compare counts and C02. | 26 |
+| 5 | **"Place" does not place a piece where people expect, and only a tooltip explains it:** its tooltip says to click in the Plan, but runs saw it place nothing there and, by touch, land off target in 3D. It cannot be done by keyboard at all, so C16 cannot be evaluated without a mouse. The Design tab's library cards have no Place, and nothing says "drag". (By keyboard, Generate then Open in Design does give a furnished design that passes.) | P r1–r3, 3 r1, 5 r1–r3, 6 r2–r3, 7 r1–r2 | blocks | Place puts the piece at the next free spot on the deck, selected and movable by arrows. Add a line "Drag a card onto the deck, or press Place". Make placed pieces selectable by Tab or a list. | 26 |
+| 6 | **The header runs off-screen below about 1360 px:** at 1280 px "?" and "Sign in" (with Settings) cannot be reached, and at 1024 px "+ New" too. **Confirmed.** Opening Help there scrolls the whole page about 300 px sideways and leaves it shifted. | 7 r1–r3 | blocks | Let the header shrink: truncate the name first, and fold the right-hand buttons into a menu below about 1360 px. | 26 |
+| 7 | **The sign-in dialog cannot be closed:** no close control, Escape does nothing, focus is not moved in or trapped. **The account menu can't be used by keyboard:** its items sit about 80 Tabs away at the end of the document, the arrows do nothing, and Escape doesn't close it. The Help dialog doesn't trap focus. | 5 r1, 5 r3, 6 r1–r3, P r3, 7 r2 | blocks | A close button; Escape closes; focus moves in, is trapped, and returns to the opener. The menu is a real menu (focus in, arrows, Escape). | 26 |
+| 8 | **"+ New" replaces the open design without a warning,** and signed out there is no way back; Back does nothing, since the URL never changes. | 6 r2–r3 | blocks | Ask first when the design has unsaved or local-only work, and say that signing in keeps designs. | 26 |
+| 9 | **The street and side pick has no keyboard way:** the map is never a tab stop, so "Use this location" stays disabled. | 5 r1–r2 | blocks | After a search result, list the nearest streets and sides as buttons in the dialog. | 27 |
+
+### Misleads
+
+| # | Issue | Seen by | Severity | Suggested fix | Brief |
+|---|---|---|---|---|---|
+| 10 | **C02 stays "Awaiting measurement" after the user's curb-to-curb width:** the far-side parking estimate remains, the message still says "estimated", and only confirming that estimate in the side list unblocks it. **Confirmed.** | 2 r1–r2 | misleads | Name the remaining estimate in C02's row, with its Confirm button there. | 26 |
+| 11 | **C-001 contradicts itself on C02:** "AWAITING MEASUREMENT", then "3.20 FAIL" for every lane, and the cover counts one fail. The lane envelope applies the adjacent-lane test to all lanes. **Confirmed.** | 8 r1–r2 | misleads | Make the envelope follow C02's state, and test only the lane beside the parklet. | 26 |
+| 12 | **Rule zones are drawn like measured values:** "1.50 (≥1.50 C13)" and "6.00 (≥6.00 C03)" share the format of a real value ("40.27 (≥5.00 C05)"), so a reviewer reads them as met when the checks are not entered. The zones and strings run off A-102's frame while keeping their full values ("64.59" drawn on a 5.5 m line). | 8 r1–r3, 7 r1 | misleads | Draw an unmeasured rule zone as "≥ 6.00 required (not measured)", and keep the strings inside the frame. | 26 |
+| 13 | **Red zones contradict the legend:** the legend says "red: the check fails", but the schematic style draws passing zones red at 60 %. **Confirmed in code.** The technical set shows nothing in red, its one real failure included. | 8 r2–r3 | misleads | Red for fails only, in both styles; draw the failing check's zone. | 26 |
+| 14 | **C06 cites p. 20;** the driveway / lane setback is on p. 62, P2. **Confirmed in the Manual.** | 2 r1 | misleads | Cite p. 62. | 26 |
+| 15 | **C16 tests 1.1 m (BCBC); the Manual's G19, p. 60 asks for a 1.5 m access path.** The source reads "Manual page to confirm", A-000 still says "C16 reserved", and the message reads "beside the the deck edge" (**confirmed**). Its z positions don't match the drawn entries (8 r2), and the verdict doesn't say which piece to move (P r3). | 2 r1–r2, 8 r1–r2, 5 r2, P r3 | misleads | Decide 1.5 m (Manual) or 1.1 m with the Manual's 1.5 m noted (Jenna's call). Cite G19, p. 60; drop "reserved"; fix "the the". Name the blocking piece and the move ("move F2 0.4 m toward the curb"). | 26 |
+| 16 | **The deck is 2.65 m wide against the Manual's "maximum width of 2.3-2.5 metres" (p. 20),** and nothing flags it. By the sets' own street widths the deck could be at most 2.40 m. **Confirmed in the Manual.** | 8 r1–r2 | misleads | Add the 2.5 m guidance to the deck width cap and to an advisory. | 26 |
+| 17 | **The deck sits +0.07 above the curb against "flush … maximum 12 mm"** (P3, p. 62); C14 is not entered. | 8 r1 | misleads | Model the deck top at curb height ±12 mm, or let C14 evaluate from the model. | 26 |
+| 18 | **The sheets don't agree on the street:** three curb-to-curb widths in one set (17.60, 18.15, 19.00), and A-102's overall stops at the second lane. C02 passes on a "proposed" wider street. The failing bus stop has two positions: "z 31.3 m" in C01's source against "z −1.2 m" on S-002, the same stop 60574 (**confirmed in the PDF**; also −7.1 / −13.89 and 20.4 / 21.9). No sheet says which deck end is z 0. | 8 r1–r3, P r1 | misleads | One street per report, with proposed changes named as such. One z origin, stated on A-101; each stop at one position. A-102's overall to the far curb. | 26 |
+| 19 | **The drawings don't show what the checks rest on:** C06 and C07 pass on typed numbers with no driveway, curb cut or pole drawn. The flexible bollard's symbol is the legend's "Utility pole", so a "pole" sits 1.05 m off the deck. No drainage channel is drawn (the gutter passage scales 0.27 × 0.06 m against P8's figure of 0.40 × 0.10 m), and no catch basins, spot elevations or bus-stop label appear. The street trees plot inside a building (misregistered data, unremarked). | 8 r3 | misleads | Draw each entered feature at its entered distance (driveway, pole, catch basin), give the bollard its own legend symbol, add the drainage channel detail and spot levels, and say when the site data are misregistered. | 26 |
+| 20 | **The sidewalk cannot be widened in the Section:** "Sidewalk: requested 4.00 m, set to 0.00 m (remaining roadway 0.00 m)". **Confirmed in code:** `_seResize` caps every segment, the sidewalk included, by the roadway's remaining width. The width is then kept, but the message says it was set to 0. | 5 r3 | misleads | Exclude the sidewalk from the roadway cap (it takes width from the building side), and word the message from the actual result. | 26 |
+| 21 | **A notched deck under a straight enclosure:** the planter wall runs on over a 1.36 × 0.32 m void, and "2.65" still spans the full width. A corner drag in the shape editor notches the deck when a resize was meant (the handles look alike). | 8 r2, 6 r2 | misleads | Clip the enclosure to the deck outline and dimension the narrowest width; make corner and edge handles distinct. | 26 |
+| 22 | **Check values persist across a site change:** distances typed for one site count as passes 3 km away. | 4 r2 | misleads | On a new import, clear or mark stale the site-specific values, with a notice. | 26 |
+| 23 | **Refused values are recorded as the user's:** Near lanes 0 is tagged "You" and ignored (the field's minimum is 1, **confirmed in code**); a negative deck edge is shown and ignored. | 4 r1–r2 | misleads | Refuse with a message, restore the previous value, and record nothing. | 26 |
+| 24 | **Number formats read wrongly:** "2,5" becomes 25 (the browser's number field drops the comma), "3 m" becomes 3. | 4 r3 | misleads | Read lengths as text: accept a decimal comma and units, and refuse the rest. | 26 |
+| 25 | **C01 does not follow the deck:** a bus stop 9.9 m past a shortened deck still fails C01. A stop 29 m away never shows in either report, so a block comparison comes out identical (three persona 1 runs). C01 stays "provisional" after the owner enters it. | P r1, P r3, 1 r1–r3 | misleads | C01 compares the stop's extent with the deck's. Add "nearest bus stop: 29 m" to S-002 and the cover. Treat an entered value as confirmed. | 26 |
+| 26 | **The sample report fails C19** ("umbrella 2.10 m clear, past the footprint"). **Confirmed.** | 5 r1 | misleads | Fix the sample's umbrella (or the footprint test) and regenerate the sample. | 26 |
+| 27 | **Generate:** needs ten site facts first (the README doesn't say so), names them in code words ("01" not "C01", out of order), and the facts are not links. Its button disappears into "Output" after a failed run, and the stale message stays after a site change. It narrows the deck to 2.40 m silently instead of saying the site fails C02, and its cards say "19/19" while C02 awaits. | P r1–r2, 1 r3, 7 r2 | misleads | Link each fact to its Check row, keep the button, clear on site change, state the C02 narrowing, and count awaiting checks honestly. | 26 + `readme` |
+| 28 | **The counts disagree:** the side summary counts provisional passes twice (21 for 19 checks). The cover's "0 / 12 not confirmed (provisional)" covers checks not entered, and "Nothing imported to confirm" sits above "N imported items to confirm" (**confirmed in code**). The static "SITE CONDITION Unknown …" shows for C01 and C05 even with data. | P r1–r3, 1 r1, 2 r2, 7 r1–r3 | misleads | One set of counts and words, used in the sidebar, the groups and the PDF; write the condition text from the state. | 26 |
+| 29 | **The design keeps the name "Blank street" on a real site:** in the header, every sheet and the file name. **Confirmed live.** Export says "Locate a site first" on the blank street, yet the download works. | 7 r2, 5 r3 | misleads | Rename on import when the name is still the default; let the Export banner treat the blank street as located. | 26 |
+| 30 | **Sheet text:** dimension strings don't close (27.97 vs 28.00); "+0.21" vs 0.22; a dead reference "genus tags on A-102"; texts crossed by lines; "3 routes 1.72 m clear" against "1.10 clear"; a legend bus stop not drawn; `[report] layout check` overlaps or outside on several PDFs; S-002's hydrant "entered" when nothing was; "2.00 Sidewalk" against about 4.05 m of paving drawn. | 8 r1–r3, 7 r1, P r1, 1 r1–r3, 3 r1–r2 | misleads | Round once and close strings to the overall; place dimensions with the frame in mind; fix note 3; log which text overlaps. | 26 |
+
+### Annoys
+
+| # | Issue | Seen by | Severity | Suggested fix | Brief |
+|---|---|---|---|---|---|
+| 31 | **A long design name breaks the PDF:** it runs over A-000's legend (the layout check logged overlaps 4, outside 106), and the 222-character file name breaks Windows paths. Emoji print as "????". **Confirmed in the PDF.** Unnamed designs all export as `curbside-untitled-parklet-…`, so two blocks get the same file name. | 4 r3, 1 r2 | annoys | Truncate the name on sheets (about 60 characters) and in file names; drop characters the sheet font lacks; name an unnamed design's file after its address. | 26 |
+| 32 | **"Add segment" does nothing and says nothing** when the roadway is fully allocated. **Confirmed.** | 4 r2 | annoys | Say "No width left: narrow a segment first", or take the width from the widest lane. | 26 |
+| 33 | **Console `GEN is not defined at ACC.planSVG`** on every early Plan render. | all | annoys | Guard `ACC.planSVG` until GEN exists (as `ENC.c16` is). | 26 |
+| 34 | **Number noise:** bearing "91.40999999999997"; "Over 0.002 m" in red; "imported 2026-10-01" (the UTC date). | P r1, P r3, 1 r2, 2 r1, 4 r1, 7 r1–r2 | annoys | Round the bearing, add a tolerance to the allocation warning, and use the local date. | 26 |
+| 35 | **"+ New" leaves the previous import in the Site panel,** and the map search keeps its old text, so the new text appends. | 1 r1–r3 | annoys | Reset the Site panel and the search on New. | 26 |
+| 36 | **A planter-wall edge narrows the deck until C16 fails,** and the Edge panel says so in a hard sentence. | 3 r2 | annoys | Show the usable-width change on each tile ("−0.80 m usable") and C16's state beside the choice. | 26 |
+| 37 | **Hover-only explanations:** Visualize's greyed "Technical" ("a drawing mode, not a render mode"), Place's instructions, the Generate facts hint and card sizes. Tablet and keyboard users never see them. | 3 r2–r3, 7 r1–r2, P r3 | annoys | Put the reason in text beside the control. | 26 |
+| 38 | **Trees read as a problem on the drawings:** canopies swallow the deck in the Section and 3D, and numbered note tags look like warnings; the "advisory only" status appears only in Check and the PDF. | 3 r3 | annoys | Give the tree advisory a note on the Section and Plan; restyle the note tags. | 26 |
+| 39 | **Tablet and single pointer:** tap targets of about 8–28 px; the Check table's Result column cut off at 1024 px; a Section swipe selects instead of pans; "Fit street" cuts off the far sidewalk; 3D has no reset and no zoom buttons (wheel only); a shape-editor corner can be deleted only by key, and double-click adds no corner (its hint lists three non-finger actions); the left panel won't scroll while a piece is selected; Confirm moves the list under the finger and has no undo; tooltips stick after taps; the blank-street dialog is grey on grey; Help lists only keyboard and mouse. | 7 r1–r3 | annoys | 44 px targets under `pointer: coarse`; the table scrolls in its own box; pan on empty ground; 3D home and ± buttons; corner add / delete buttons; an undo for Confirm; fix the dialog's contrast. | 27 |
+| 40 | **Duplicate drops the rotation** (135° → 0°), and **the Selection panel keeps the old "Along" after a drag** until the piece is reselected. | 7 r1, 7 r3 | annoys | Copy the rotation; refresh the panel on drag end. | 26 |
+| 41 | **Keyboard extras:** the Furniture library adds about 50 tab stops with no skip; Check group summaries expose no expanded state; focus goes to the page start after the map dialog; 10–20 Tabs to the main actions, and "Start a blank street" was not reached in 80. The Section toolbar is skipped by forward Tab but not by Shift+Tab, and Ctrl+A in a Section number field selects the whole page. | 5 r1–r3 | annoys | A skip link past the library, `aria-expanded`, focus back to the opener, landmarks. | 27 |
+| 42 | **Plain language for a shop owner:** "confirm on site", "OSM way", "z 21.9 m", "pkZ", "Provisional", "SF / CALC / DI"; nothing tells a guessed distance from a measured one; C10 and C11 have opposite good answers; 46 Confirm buttons, 38 of them for far-off trees; the theme changes between the landing page and the app. | P r1–r3 | annoys | A plain-language pass over the verdict, the Check rows and the import list; sort the Confirm list by distance. | 27 |
+| 43 | **Long freezes** of 20 s to 4 min after clicks, reloads and exports. Not separated from the test machine's load (three software renderers at once); VERIFY timings alone were 3.6–12 s. | P r1–r3, 1 r2, 3 r1–r3, 7 r2 | annoys | Profile one browser at a time before acting. | 27 |
+| 44 | **Landing page and README:** "eighteen checks" (no C16), "three working tabs", footer "v0.11-gis". README step 3 is mouse-only; step 5 doesn't say pieces are dragged, nor that Generate needs facts; step 4's "Override" is not found; step 7's "under 20 s"; nothing says furniture and Check entries are lost signed out; "+ New" and the shape editor are not mentioned. | P r1–r3, 2 r1, 4 r3, 5 r1–r2, 6 r1–r2, 7 r1–r2, 3 r1 | annoys | Update the copy, after rows 3 and 5. | `readme` |
+
+### Rejected
+
+Harness behaviour or misreadings, kept out of the table:
+
+- **Technical exported as schematic:** the click on the label missed.
+- **A-000's drawing list misaligned, S-001's rows shifted, and "C15 not entered … PASS":** `pdftotext -layout`
+  artefacts; the raw text is right.
+- **"Generate produces nothing":** the click matched the tab of the same name.
+- **C05 at 0 m:** not reproduced; typing appended to the field.
+- **C19 is E4:** no, E5 stands.
+- **The sample report blank, the Preview blank, and three PDFs:** headless Chromium has no PDF viewer.
+- **"17.6184":** the driver's Backspace had no repeat.
+- **Native dropdown clicks not registering:** the harness.
+
+## For Jenna
+
+- **Decisions the fixes round needs**
+  1. **C16's route width** (row 15): the Manual's 1.5 m (G19, p. 60), or BCBC's 1.1 m with the Manual's 1.5 m noted?
+  2. **The deck's width** (row 16): cap at the Manual's 2.5 m (p. 20), or keep 2.65 m with an advisory?
+  3. **The deck's level** (row 17): model it flush (±12 mm), or let C14 evaluate the drawn +0.07?
+- **To test signed in** (agents cannot): persona 6 run 2's table, signed in.
+  - Place pieces and reload at once.
+  - Place, switch tab, reload.
+  - Type a Check value and reload.
+  - "+ New" with unsaved edits, then reopen the earlier design from the list.
+  - If the cloud save also loses furniture or Check values, row 3 covers both paths.
+- **Suggested order for brief 26:**
+  1. Rows 1–4: they lose work or give wrong values silently.
+  2. Rows 5–8 and 10–13: they block a step, or mislead a reviewer on every set.
+  3. The rest of "misleads", then "annoys".
+  4. Rows 9, 39, 41–43 (brief 27) need design work first.
+  5. Row 44 (`readme`) is best written after rows 3 and 5 land.
+- **Caveat:** persona 7 run 3 ran without touch events (my start argument), so its touch findings are single-pointer
+  findings. A rerun on touch would take about 50 minutes; say if you want it.
