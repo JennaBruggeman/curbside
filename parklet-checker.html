@@ -78,6 +78,20 @@ var CONFIG = {
 
 /* â”€â”€ APP BODY â”€â”€ */
 .app-body { display:flex; flex:1; overflow:hidden; min-height:0; }
+/* the step strip (Brief 25 item 30): Site -> Design -> Check -> Export under the tabs, the current step lit; gone after the first export */
+.step-strip { display:flex; align-items:center; gap:6px; height:28px; padding:0 12px; background:var(--nav-bg); border-bottom:1px solid var(--border-c); flex-shrink:0; font:500 11px/1 var(--font-ui); color:var(--text-lo); }
+.step-strip[hidden] { display:none; }
+.ss-lbl { letter-spacing:.08em; text-transform:uppercase; margin-right:4px; }
+.ss-step { background:none; border:1px solid transparent; border-radius:12px; padding:3px 9px; font:inherit; color:var(--text-lo); cursor:pointer; }
+.ss-step b { display:inline-block; width:15px; height:15px; line-height:15px; margin-right:4px; border-radius:50%; text-align:center; font-size:10px; background:var(--border-c); color:var(--text-hi); }
+.ss-step:hover:not(:disabled) { color:var(--text-hi); }
+.ss-step:disabled { opacity:.42; cursor:not-allowed; }
+.ss-step.on { color:var(--text-hi); border-color:var(--acc); }
+.ss-step.on b { background:var(--acc); color:#0B0C0E; }
+.ss-step:focus-visible { outline:2px solid var(--acc); outline-offset:1px; }
+.ss-arr { opacity:.5; }
+.ss-note { margin-left:auto; opacity:.75; }
+@media (max-width: 900px) { .ss-note { display:none; } }
 
 
 /* â”€â”€ CONTEXT PANEL â”€â”€ */
@@ -515,6 +529,14 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button type='button' class='tb-btn' id='helpBtn' onclick='uiShowHelp()' aria-label='Help and keyboard shortcuts' title='Keyboard shortcuts and what this tool checks (press ?).'>?</button>
   </div>
 </div>
+<nav class='step-strip' id='stepStrip' aria-label='The four steps' hidden>
+  <span class='ss-lbl'>Steps</span>
+  <button type='button' class='ss-step' data-step='site' onclick='appSetMode("site")'><b>1</b> Site</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='design' onclick='appSetMode("design")'><b>2</b> Design</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='check' onclick='appSetMode("check")'><b>3</b> Check</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='export' onclick='appSetMode("export")'><b>4</b> Export</button>
+  <span class='ss-note'>Generate, Furniture and Visualize are in the tabs above when you want them.</span>
+</nav>
 <div class='app-body'>
 <div class='ctx-panel' id='ctxPanel'>
 <div id='cadTools' class='cad-empty' style='padding:8px 10px 6px 10px;border-bottom:2px solid #2E3338;background:#202328;flex-shrink:0;'>
@@ -13126,7 +13148,22 @@ function fl3DRenderTray() {
 // FORMA-STYLE UI â€” MODE SWITCHER + CANVAS VIEW SWITCHER
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// the step strip (Brief 25 item 30): shown until this browser has exported once (localStorage, a per-viewer convenience)
+var STEPS = { KEY: 'pkt_exported_once', done: function() { try { return localStorage.getItem(STEPS.KEY) === '1'; } catch (e) { return false; } },
+  mark: function() { try { localStorage.setItem(STEPS.KEY, '1'); } catch (e) {} STEPS.sync(); },
+  sync: function(mode) {
+    var el = document.getElementById('stepStrip'); if (!el) return; el.hidden = STEPS.done();
+    el.querySelectorAll('.ss-step').forEach(function(b) {
+      if (mode) { var on = b.dataset.step === mode; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); }
+      // a step is as open as its tab (the stage gating: no Design or Check before a site)
+      var t = [].find.call(document.querySelectorAll('.ttab'), function(x) { return String(x.getAttribute('onclick') || '').indexOf('"' + b.dataset.step + '"') >= 0; });
+      var off = !!(t && t.classList.contains('ttab-off')); b.disabled = off; b.title = off ? (t.getAttribute('data-tip') || '') : '';
+    });
+  } };
+(function() { var go = function() { var tabs = document.querySelector('.topbar-tabs'); if (tabs && typeof MutationObserver !== 'undefined') new MutationObserver(function() { STEPS.sync(); }).observe(tabs, { subtree: true, attributes: true, attributeFilter: ['class'] }); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
+(function() { var go = function() { var a = document.querySelector('.ttab.active'), m = a ? (String(a.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : 'site'; STEPS.sync(m || 'site'); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
 function appSetMode(mode) {
+  STEPS.sync(mode);
   // leaving the Export tab stops the axon preview (it lives in the Export panel)
   if (mode !== 'export' && window.AXE && AXE.previewing) AXE.stop();
   if (mode === 'export' && window.RPT && RPT.syncCard) setTimeout(RPT.syncCard, 0);   // the Report card lists this design's renders
@@ -24130,6 +24167,7 @@ RPT.print = async function() {
   try {
     var r = await RPT.make(), a = document.createElement('a');
     a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click(); a.remove();
+    if (typeof STEPS !== 'undefined') STEPS.mark();   // the first export: the step strip has done its job (Brief 25 item 30)
     setTimeout(function() { URL.revokeObjectURL(a.href); }, 60000);
   } catch (e) { console.error('[report]', e); alert('The report could not be prepared: ' + (e && e.message ? e.message : e)); }
   finally { RPT._prog = null; if (btn) { btn.disabled = false; btn.classList.remove('rpt-busy'); btn.removeAttribute('role'); btn.removeAttribute('aria-valuenow'); btn.innerHTML = lbl; } }
