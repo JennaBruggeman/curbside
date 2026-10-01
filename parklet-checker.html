@@ -637,7 +637,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <div id='mhHintCtx' style='font-size:11px;color:var(--text-mu);margin-top:4px;min-height:12px'></div>
 </div></div>
-<div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section" id="designShapeSec">        <div class="sb-section-lbl">Parklet shape editor</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit the deck&rsquo;s shape</button>        <div class="design-dims" id="designDims" aria-live="polite"><span>Length</span> <span id="lengthReadout" class="readout">19.8 m</span> <span>&times; width</span> <span id="widthReadout" class="readout">2.650 m</span></div>        <span class="hint">Set by the shape; the width also follows the Parklet segment in the Section.</span>        <div class="lane-badge" id="laneReadout"></div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street context</div>        <span class='hint design-buf-hint'>The bike lane and its buffers are segments of the street: the site import writes them, and you edit them in the Section (Add segment).</span></div>
+<div class='ctx-section' id='ctxDesign' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div><div class="sb-section" id="designShapeSec">        <div class="sb-section-lbl">Parklet shape editor</div>        <button class="ctx-btn ctx-btn-full" onclick="cadShowFootprintEditor()">&#9998; Edit the deck&rsquo;s shape</button>        <div class="design-dims" id="designDims" aria-live="polite"><span>Length</span> <span id="lengthReadout" class="readout">19.8 m</span> <span>&times; width</span> <span id="widthReadout" class="readout">2.500 m</span></div>        <span class="hint">Set by the shape; the width also follows the Parklet segment in the Section.</span>        <div class="lane-badge" id="laneReadout"></div>      </div>      <div class="sb-section">        <div class="sb-section-lbl">Street context</div>        <span class='hint design-buf-hint'>The bike lane and its buffers are segments of the street: the site import writes them, and you edit them in the Section (Add segment).</span></div>
       <div class='sb-section' id='lhsFurnSection'>
         <div class='sb-section-lbl'>Library</div>
         <input type='search' id='lhsFwSearch' name='curbside-library-search' autocomplete='off' spellcheck='false' class='lib-search' placeholder='Search furniture, street components, people' aria-label='Search the library' oninput='lhsFwSearchFn(this.value)'>
@@ -1069,7 +1069,7 @@ return 'pass';
   
 }
 ,  {
-    id: 'c6',    num: '06',    title: 'Minimum 1.5 m setback from adjacent driveways or lanes',    requirement: 'If the location is next to a driveway or lane, a minimum 1.5 m setback is required.',    page: 20,    status: 'unclear',    siteCondition: 'Unknown. No driveway or lane proximity data provided.',    note: 'Also applies to minimum 1.5 m setback from adjacent parking spaces, measured from the parking meter (p. 62, Criterion P2).',    inputId: 'driveway_dist',    inputLabel: 'Distance to nearest driveway or lane',    inputUnit: 'm',    inputType: 'number',    evalFn: (val) => {
+    id: 'c6',    num: '06',    title: 'Minimum 1.5 m setback from adjacent driveways or lanes',    requirement: 'If the location is next to a driveway or lane, a minimum 1.5 m setback is required.',    page: 62,    status: 'unclear',    siteCondition: 'Unknown. No driveway or lane proximity data provided.',    note: 'Also applies to minimum 1.5 m setback from adjacent parking spaces, measured from the parking meter (p. 62, Criterion P2).',    inputId: 'driveway_dist',    inputLabel: 'Distance to nearest driveway or lane',    inputUnit: 'm',    inputType: 'number',    evalFn: (val) => {
       const n = parseFloat(val);
       if (isNaN(n)) return null;
       return n >= 1.5 ? 'pass' : 'fail';
@@ -1247,21 +1247,13 @@ return n >= 2.4 ? 'pass' : null;
   
 }
 ,  {
-    id: 'c14',    num: '14',    title: 'Deck flush with the sidewalk (gap at most 12 mm; connector at most 13 mm)',    requirement: 'The top of the deck must be flush with the sidewalk with a maximum 12 mm gap. If the location requires a larger gap, it must be filled with a connector piece no higher than 13 mm to create a continuous surface between the sidewalk and the parklet.',    page: 62,    status: 'unclear',    siteCondition: 'Design-stage criterion. Cannot be assessed without detailed construction drawings. Applies at installation.',    note: 'The deck cannot exceed a 2% cross slope (p. 62).',    inputId: 'platform_gap',    inputLabel: 'Gap between the sidewalk and the deck edge',    inputUnit: 'mm',    inputType: 'number',    evalFn: (val) => {
-      const n = parseFloat(val);
-      if (isNaN(n)) return null;
-      return n <= 12 ? 'pass' : (n <= 13 ? 'pass' : 'fail');
-    
-}
-,    evalMsg: (val) => {
-      const n = parseFloat(val);
-      if (n <= 12) return '✓ ' + n + ' mm ≤ 12 mm — within direct flush tolerance. Passes.';
-      if (n <= 13) return '✓ ' + n + ' mm: exceeds 12 mm but ≤ 13 mm connector piece permitted. Passes if connector installed.';
-      return '✗ ' + n + ' mm > 13 mm maximum. Fails — gap too large.';
-    
-}
-  
-}
+    id: 'c14',    num: '14',    title: 'Deck flush with the sidewalk (gap at most 12 mm; connector at most 13 mm)',    requirement: 'The top of the deck must be flush with the sidewalk with a maximum 12 mm gap. If the location requires a larger gap, it must be filled with a connector piece no higher than 13 mm to create a continuous surface between the sidewalk and the parklet.',    page: 62, status: 'unclear',
+    // Brief 27 (Jenna): the deck is modelled flush with the top of the curb (PARKLET_LEVELS), and C14 judges the model: the
+    // gap at the sidewalk edge (PARKLET_LEVELS.gap, the one the detail sheet draws) and the deck top against the curb top
+    siteCondition: function() { var v = C14.model(); return 'From the design model: the deck top ' + v.riseTxt + ' the top of the curb; a ' + v.gapMm + ' mm gap at the sidewalk edge.'; },
+    note: 'The deck is drawn flush with the top of the curb; its gap at the sidewalk edge is the detail sheet’s (A-202, X-002). A site that needs a larger gap takes a connector plate, 13 mm at most.',
+    evalFn: function() { return C14.model().ok ? 'pass' : 'fail'; }, evalMsg: function() { return C14.model().msg; }
+  }
 ,  {
     id: 'c15',    num: '15',    title: 'Deck load capacity ≥ 7.2 kPa',    requirement: 'Parklets must be able to bear at least 7.2 kpa.',    page: 62,    status: 'unclear',    siteCondition: 'Structural design criterion. Requires signed/sealed structural drawings by a professional engineer registered with APEGBC (p. 40). Not assessable from site data alone.',    note: 'Final drawings must be signed and sealed by a structural engineer registered with the Association of Professional Engineers and Geoscientists of British Columbia (APEGBC).',    inputId: 'load_capacity',    inputLabel: 'Designed load capacity',    inputUnit: 'kPa',    inputType: 'number',    evalFn: (val) => {
       const n = parseFloat(val);
@@ -1279,9 +1271,9 @@ return n >= 2.4 ? 'pass' : null;
 }
 ,  // Brief 25 item 21b: C16, the accessible route (the slot Brief 20 kept), read from the placed pieces (ENC.c16)
   {
-    id: 'c16', num: '16', title: 'Accessible route 1.1 m clear from an entry, 1.5 m turning space', requirement: 'From each entry at the sidewalk edge, a continuous route at least 1.1 m clear across the deck to an accessible seat (a bench end, or a table with knee clearance), with a 1.5 m turning space at the entry, wherever the route turns and where it ends. Furniture that narrows the route below 1.1 m fails it.', page: null, src: 'Guideline (Manual page to confirm)', status: 'unclear',
+    id: 'c16', num: '16', title: 'Accessible route 1.5 m clear from an entry, 1.5 m turning space', requirement: 'A minimum 1.5 m wide clear access path onto the parklet from the adjoining sidewalk, continuing to an accessible seat (a bench end, or a table with knee clearance), and a clear turning area of at least 1.5 m diameter within the parklet (Parklet Manual G19). Furniture that narrows the path below 1.5 m fails it. (The 1.1 m route of the BC Building Code, 3.8, is not used: the Manual asks for more.)', page: 60, src: 'Parklet Manual G19', status: 'unclear',
     siteCondition: function() { var a = ENC.c16().acc; return (a.paths || []).length ? (a.paths || []).map(function(p, k) { return 'Entry ' + (k + 1) + ' at z ' + p.entry.toFixed(2) + ': ' + p.w.toFixed(2) + ' m clear to the ' + p.seat; }).join('; ') + '.' : 'No route found from the entries.'; },
-    note: 'The route is drawn on the Plan and on A-103: the band 1.1 m wide from each entry, the turning spaces as 1.5 m circles. The width is the clear width at the route\'s narrowest point (twice the distance to the nearest piece or edge).',
+    note: 'The route is drawn on the Plan and on A-103: the band 1.5 m wide from each entry, the turning spaces as 1.5 m circles. The width is the clear width at the route\'s narrowest point (twice the distance to the nearest piece or edge).',
     evalFn: function() { var q = ENC.c16(); return q.unknown ? null : q.ok ? 'pass' : 'fail'; }, evalMsg: function() { return ENC.c16().msg; }
   }
 ,  // Brief 21 §12: the enclosure's checks, read from DESIGN_MODEL.enclosure and the placed pieces (ENC)
@@ -1513,7 +1505,7 @@ const CHECK_SHORT = {
   c13: ['Parking setback', '&ge; 1.5 m from adjacent parking spaces'],
   c14: ['Deck flush with the sidewalk', 'Gap &le; 12 mm (connector &le; 13 mm)'],
   c15: ['Deck load capacity', '&ge; 7.2 kPa'],
-  c16: ['Accessible route', '1.1 m clear; 1.5 m turning'],
+  c16: ['Accessible route', '1.5 m clear; 1.5 m turning'],
   c17: ['Enclosure height', '0.75&ndash;1.0 m, traffic side and both ends'],
   c18: ['Openings to the sidewalk', 'Two or more, each &ge; 1.8 m'],
   c19: ['Overhead clearance', '&ge; 2.1 m clear, within the footprint']
@@ -1824,7 +1816,7 @@ let _3dSectionOn = false;  // 3D only: the section box, cut plane and fill (BOX 
 let _pvRenderT = null;
 
 // sidewalk width
-let designParkletWidth = 2.65;
+let designParkletWidth = 2.5;
 let designParkletLength = 19.8;
 // Brief 22 item 5: stage 0, no site. The design has no street segments and no deck (DEFAULT_STATE); the globals keep
 // nominal values (SEED.NOMINAL) that the hidden views may draw, but a "Choose a site" panel covers them, the design tabs
@@ -1890,7 +1882,7 @@ var DESIGN_MODEL = {
   crossSection: [],
   segments:     [],
   objects:      [],    // canonical placed-object list; FL3D.placed mirrors this
-  parklet:      { width: 2.65, length: 19.8 },
+  parklet:      { width: 2.5, length: 19.8 },
   totalRoad:    5.635,
   allocated:    0,
   available:    5.635
@@ -3036,8 +3028,17 @@ ENC.profile = function(run, uCut, uLo, uHi) {
   return out;
 };
 // The deck's levels as the Section draws them (sectionFrame): road 0, the sidewalk and top of curb +0.15, the deck
-// board 0.065 on top of that. Metres above the road.
-var PARKLET_LEVELS = { road: 0, curbTop: 0.15, deckThk: 0.065, deckTop: 0.215 };
+// board 0.065 thick with its top flush with the top of the curb (Brief 27, Jenna: the deck flush, C14 judges the model;
+// it sat 0.065 above the curb, +0.07 on the sheets), on supports below; gap: the deck edge to the curb face, the detail's.
+// Metres above the road.
+var PARKLET_LEVELS = { road: 0, curbTop: 0.15, deckThk: 0.065, deckTop: 0.15, gap: 0.012 };
+// C14 from the model: the gap at the sidewalk edge and the deck top against the curb top, in mm (Manual P3, p. 62)
+var C14 = { model: function() {
+  var lv = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.parklet && DESIGN_MODEL.parklet.levels) || PARKLET_LEVELS;
+  var gapMm = Math.round((lv.gap != null ? lv.gap : 0.012) * 1000), riseMm = Math.round((lv.deckTop - lv.curbTop) * 1000), ok = gapMm <= 12 && Math.abs(riseMm) <= 12;
+  var riseTxt = riseMm === 0 ? 'flush with' : Math.abs(riseMm) + ' mm ' + (riseMm > 0 ? 'above' : 'below');
+  return { ok: ok, gapMm: gapMm, riseMm: riseMm, riseTxt: riseTxt, msg: (ok ? '✓ ' : '✗ ') + 'Deck ' + riseTxt + ' the curb, ' + gapMm + ' mm gap (12 mm max). ' + (ok ? 'Passes.' : 'Fails.') };
+} };
 // ── Street trees from the City inventory (Brief 16 A2) ──────────────────────────────────────────
 // Source: CoV open data "public-trees". Its fields (catalog API, read 2026-09-28): asset_id, address,
 // common_name, genus_name, species_name, cultivar_name, height_m, diameter_cm, local_area, geom. There is
@@ -4398,7 +4399,7 @@ document.addEventListener('mouseup', function() {
   var SE_TYPES = {
     'building':     { label:'Building',    color:'#1a1e24', light:false, fixed:true,  resize:false, del:false, def:0,    mn:0,    mx:0    },
     'sidewalk':     { label:'Sidewalk',    color:'#b8b2a7', light:true,  fixed:false, resize:true,  del:true,  def:1.8,  mn:0.6,  mx:6    },
-    'parklet':      { label:'Parklet',     color:'#c03030', light:false, fixed:false, resize:true,  del:false, def:2.65, mn:1.5,  mx:3.5  },
+    'parklet':      { label:'Parklet',     color:'#c03030', light:false, fixed:false, resize:true,  del:false, def:2.5, mn:1.5,  mx:3.5  },
     // the bike lane's buffers (Brief 21 §3: set only here, in the Section editor; bufPKType / bufBLType follow the variant)
     'buf-pk':       { label:'Buffer (parklet)', color:'#5a8a5a', light:false, fixed:false, resize:true,  del:true,  def:0.8,  mn:0.2,  mx:1.5,
       variants:['raised','planters','trees'] },
@@ -4527,7 +4528,7 @@ document.addEventListener('mouseup', function() {
     _segs = [];
     _segs.push({ id:'building', type:'building', width:0 });
     _segs.push({ id:_nid(), type:'sidewalk', width:Math.round((_g('SIDEWALK_W',1.8))*1000)/1000 });
-    _segs.push({ id:_nid(), type:'parklet',  width:Math.round((_g('designParkletWidth',2.65))*1000)/1000 });
+    _segs.push({ id:_nid(), type:'parklet',  width:Math.round((_g('designParkletWidth',2.5))*1000)/1000 });
     var _bpkt = _g('bufPKType','none');
     if (_bpkt && _bpkt !== 'none')
       _segs.push({ id:_nid(), type:'buf-pk', width:Math.round((_g('bufPKW',0.8))*1000)/1000, variant:_bpkt });
@@ -4558,7 +4559,7 @@ document.addEventListener('mouseup', function() {
     }
     if (!_segs.length || _segs[0].type !== 'building') _segs.unshift({ id: 'building', type: 'building', width: 0 });
     ensure('sidewalk', true, _g('SIDEWALK_W', 1.8), undefined, ['building']);
-    ensure('parklet', true, _g('designParkletWidth', 2.65), undefined, ['building', 'sidewalk']);
+    ensure('parklet', true, _g('designParkletWidth', 2.5), undefined, ['building', 'sidewalk']);
     // (Brief 22: the bike lane and its buffers are segments only; a sidebar change or an import never rewrites them here)
     var nL = (_g('ROAD_DIR', 'oneway') === 'twoway') ? (_g('LANES_A', 1) + _g('LANES_B', 1)) : _g('NUM_LANES', 1);
     var lanes = _segs.filter(function(s) { return s.type === 'travel-lane'; });
@@ -4600,8 +4601,8 @@ document.addEventListener('mouseup', function() {
     var set = function(id, v) { var el=document.getElementById(id); if(el) el.value=v; };
     try { _buildPalette(); } catch (e) {}
     set('sidewalkWidth', (SIDEWALK_W||1.8).toFixed(3));
-    var ws=document.getElementById('widthSlider'); if(ws) ws.value=designParkletWidth||2.65;
-    var wr=document.getElementById('widthReadout'); if(wr) wr.textContent=(designParkletWidth||2.65).toFixed(3)+' m';
+    var ws=document.getElementById('widthSlider'); if(ws) ws.value=designParkletWidth||2.5;
+    var wr=document.getElementById('widthReadout'); if(wr) wr.textContent=(designParkletWidth||2.5).toFixed(3)+' m';
   }
 
 
@@ -5350,7 +5351,7 @@ document.addEventListener('mouseup', function() {
         var _sePxScaled = e.clientX - _seR.left;
         var _seWx = (typeof window._seWorldX === 'function') ? window._seWorldX(_sePxScaled) : 0;   // strip px -> world x (mirror-aware)
         var _seWz = (typeof getSectionCutWorldZ === 'function') ? getSectionCutWorldZ() : 3.0;
-        var _sePW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.65;
+        var _sePW = typeof designParkletWidth !== 'undefined' ? designParkletWidth : 2.5;
         if (_seWx >= 0.05 && _seWx <= _sePW - 0.05) {
           var _snapX = (typeof snapToGrid === 'function') ? snapToGrid(_seWx, _gridSpacing) : _seWx;
           var _snapZ = (typeof snapToGrid === 'function') ? snapToGrid(_seWz, _gridSpacing) : _seWz;
@@ -5582,14 +5583,14 @@ function getSectionScene(sec) {
   // the deck beyond: its end edge within the depth, and, for a sketched deck, its outline there
   var shp = DM.parklet.outline, useShape = !!shp;
   [0, L].forEach(function(ze, i) {
-    add({ kind: 'deck', key: 'deck:end' + i, x0: LM.deckX0, x1: LM.deckX1, y0: 0, y1: 0.215, z0: ze, z1: ze, data: { end: i } }, false);
+    add({ kind: 'deck', key: 'deck:end' + i, x0: LM.deckX0, x1: LM.deckX1, y0: 0, y1: PARKLET_LEVELS.deckTop, z0: ze, z1: ze, data: { end: i } }, false);
   });
   if (useShape && typeof shapeWidthAtLength === 'function') {
     var ax = Infinity, bx2 = -Infinity;
     for (var zz = Math.max(0, lo); zz <= Math.min(L, hi) + 1e-6; zz += 0.25) {
       var w = shapeWidthAtLength(shp, zz); if (w) { ax = Math.min(ax, w[0]); bx2 = Math.max(bx2, w[1]); }
     }
-    if (ax < bx2) add({ kind: 'deck', key: 'deck:shape', x0: ax, x1: bx2, y0: 0, y1: 0.215,
+    if (ax < bx2) add({ kind: 'deck', key: 'deck:shape', x0: ax, x1: bx2, y0: 0, y1: PARKLET_LEVELS.deckTop,
       z0: Math.max(0, lo) + (dir > 0 ? TOL * 2 : 0), z1: Math.min(L, hi) - (dir < 0 ? TOL * 2 : 0), data: { shape: true } }, false);
   }
   out.beyond.sort(function(a, b) { return b.d - a.d; });   // far to near: draw in this order
@@ -5717,7 +5718,8 @@ function _drawSection(svgEl, o) {
   // ── the cut drawing (segments), in the un-mirrored frame; mirrored as a whole below ─────────
   // the palette's names: concrete (sidewalk, curb), ground, deck, cut (walls, steel, thin material: solid)
   var P = { paper: T.paper, ink: T.ink, mid: T.mid, lt: T.light, soil: T.fill.ground, slab: T.fill.concrete, deck: T.fill.deck, wall: T.fill.cut, wood: T.fill.deck, plant: T.fill.planting };
-  var CURB_H = Math.max(4, Math.round(0.15 * SC)), DECK_TOP = GROUND_Y - CURB_H - DECK_TK, DECK_BOT = GROUND_Y - CURB_H, SW_TOP = GROUND_Y - SW_RAISE;
+  // the deck flush with the curb (Brief 27): its board's top at the curb top, the supports below it
+  var CURB_H = Math.max(4, Math.round(0.15 * SC)), DECK_TOP = GROUND_Y - CURB_H, DECK_BOT = DECK_TOP + DECK_TK, SW_TOP = GROUND_Y - SW_RAISE;
   var boardW = Math.max(5, Math.round(0.09 * SC)), tileW = Math.max(14, Math.round(0.6 * SC));
   var U = function(wx) { return f.poche + (wx - f.xL) * SC; };   // un-mirrored px of world x
   var bg = '<rect x="0" y="0" width="' + f2(W) + '" height="' + H + '" fill="' + P.paper + '"/>' +
@@ -6125,9 +6127,9 @@ function bikePostZs(L, ws) {
 // DRAW_STYLE context.
 // With ann (the Plan's annotation layer, Brief 18) the lozenge and the value are registered there and placed by its one
 // pass (the value at the dimension text size); nothing is dropped however short the zone is on screen.
-function dimArrow(x1, x2, midY, code, req, st, ctx, ann) {
+function dimArrow(x1, x2, midY, code, req, st, ctx, ann, rule) {
   const P = DRAW_STYLE.pen(ctx), z = DRAW_STYLE.zone(ctx, st), cx = (x1 + x2) / 2, k = ctx.k;
-  P.line(x1, midY, x2, midY, { cls: 'context', c: z.c, op: z.op });
+  P.line(x1, midY, x2, midY, { cls: 'context', c: z.c, op: z.op, dash: rule ? 'zone' : undefined });   // rule: dashed (Brief 27 item 8)
   DRAW_SYMBOLS.tick(P, x1, midY, { c: z.c }); DRAW_SYMBOLS.tick(P, x2, midY, { c: z.c });
   if (ann) {
     ann.lozenge(code, st, cx, midY - 2.6 * k, [cx, midY]);
@@ -6657,7 +6659,7 @@ var DRAW_STYLE = {
   },
   schematic: {
     ink: '#2B2B2B', anno: '#5A5A5A', mid: '#8A857D', light: '#CFC9BE', paper: '#FFFFFF',
-    fail: '#C0392B', pass: '#C0392B', passOp: 0.6,
+    fail: '#C0392B', pass: '#2B2B2B', passOp: 0.5,   // red only when the check fails (Brief 27 item 9: the legend says so)
     fill: { treeSil: '#C9D3C2', sidewalk: '#E9E2D3', deck: '#C8A97A', planting: '#9DB58E', plantingDark: '#56704B', bike: '#B7CDA0', road: '#D9D5CF', parking: '#E4DFD6', water: '#CFE0E6', park: '#D3E0C8', sea: '#CFE0E6',
             building: '#F1EDE5', ground: '#E9E2D3', furniture: '#F7F4EE', concrete: '#E9E2D3', gravel: '#D8CFBD', steel: '#2B2B2B', cut: '#2B2B2B', failTint: '#EBCFC9' },
     // the same names as flat fills: no hatch but the solid cut
@@ -6746,7 +6748,10 @@ function treeN(v) { return Math.max(64, Math.min(200, Math.round(24 * (v.canopyR
 function lodTier(pxPerM) { return pxPerM < 2 ? 'far' : pxPerM <= 8 ? 'mid' : 'near'; }
 var LOD_RANK = { far: 0, mid: 1, near: 2 };
 DRAW_STYLE.fmtClear = function(v, req, id, max) { return DRAW_STYLE.fmt(v) + ' (' + (max ? '≤' : '≥') + DRAW_STYLE.fmt(req) + ' ' + id + ')'; };
-// a check zone's stroke: fine, dashed as 'zone'; fail = zone red; pass = ink at 50% (technical) or zone red at 60% (schematic)
+// Brief 27 item 8 (triage row 12): a distance drawn from the rule, nothing measured or entered, reads as the requirement
+// ("6.00 req. (C03)") on a dashed dimension line, never like a measured value just meeting it ("6.00 (≥6.00 C03)")
+DRAW_STYLE.fmtReq = function(req, id) { return DRAW_STYLE.fmt(req) + ' req. (' + id + ')'; };
+// a check zone's stroke: fine, dashed as 'zone'; fail = zone red; pass = ink at 50% (both styles; Brief 27 item 9)
 DRAW_STYLE.zone = function(ctx, st) { var T = ctx.T; return st === 'fail' ? { c: T.fail, op: 1 } : st === 'pass' ? { c: T.pass, op: T.passOp } : { c: T.anno, op: 0.6 }; };
 DRAW_STYLE.zoneSt = function(ctx, st, cls) { var z = DRAW_STYLE.zone(ctx, st); return DRAW_STYLE.st(ctx, cls || 'fine', { c: z.c, op: z.op, dash: 'zone' }); };
 // deterministic pseudo-random points in the unit square (the concrete / gravel dots)
@@ -7518,8 +7523,9 @@ const C13_REQ = 1.5;
   if (ZN) s += `<rect x="${PK_X-c13Px}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
   if (ZN) s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
   const ANNAPI = { lozenge: annLozenge, text: annText };
-  if (ZN) s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK, ANNAPI);
-  if (ZN) s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13'), c13St, DK, ANNAPI);
+  const c13Lbl = isNaN(c13Raw) ? DRAW_STYLE.fmtReq(C13_REQ, 'C13') : DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13');
+  if (ZN) s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', c13Lbl, c13St, DK, ANNAPI, isNaN(c13Raw));
+  if (ZN) s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', c13Lbl, c13St, DK, ANNAPI, isNaN(c13Raw));
   // Draggable handles at outer edges of C13 zones
   const c13HY = PK_Y + pvPkH / 2;
   (ZN ? [[PK_X-c13Px, c13HY],[PK_X+PK_W+c13Px, c13HY]] : []).forEach(function(pt) {
@@ -7540,8 +7546,9 @@ const C03_REQ = 6;
   if (c03Px > 4 && ZN) {
     s += `<rect x="${C03_LX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
     s += `<rect x="${C03_RX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
-    s += dimArrow(C03_LX, C03_LX+c03Px, PK_Y+pvPkH/2, 'C03', DRAW_STYLE.fmtClear(isNaN(c03Raw) ? C03_REQ : c03Raw, C03_REQ, 'C03'), c03St, DK, ANNAPI);
-    s += dimArrow(C03_RX, C03_RX+c03Px, PK_Y+pvPkH/2, 'C03', DRAW_STYLE.fmtClear(isNaN(c03Raw) ? C03_REQ : c03Raw, C03_REQ, 'C03'), c03St, DK, ANNAPI);
+    const c03Lbl = isNaN(c03Raw) ? DRAW_STYLE.fmtReq(C03_REQ, 'C03') : DRAW_STYLE.fmtClear(c03Raw, C03_REQ, 'C03');
+    s += dimArrow(C03_LX, C03_LX+c03Px, PK_Y+pvPkH/2, 'C03', c03Lbl, c03St, DK, ANNAPI, isNaN(c03Raw));
+    s += dimArrow(C03_RX, C03_RX+c03Px, PK_Y+pvPkH/2, 'C03', c03Lbl, c03St, DK, ANNAPI, isNaN(c03Raw));
     // Draggable handles at outer edges of C03 zones
     const c03HY = PK_Y + pvPkH / 2;
     [[C03_LX, c03HY],[C03_RX+c03Px, c03HY]].forEach(function(pt) {
@@ -13907,6 +13914,7 @@ function pkMove(dz, why) {
 // the checks after a move: C03 from the nearest corner (when the corners are known), the clearances to the site objects;
 // the model and every view
 function pkAfterMove(why) {
+  if (typeof SMP !== 'undefined' && SMP.stopNote) SMP.stopNote();   // C01's bus stop at its new position (Brief 27 item 10)
   var cd = pkCornerDist();
   if (cd) { var v = Math.abs(cd.d).toFixed(2); state['intersection_dist'] = v; var ie = document.getElementById('intersection_dist'); if (ie) ie.value = v; try { handleInput('c3', 'intersection_dist', v); } catch (e) {} }
   try { renderBldgControls(); } catch (e) {}
@@ -17626,7 +17634,7 @@ function pkSerialize() {
       lanesB:         typeof LANES_B         !== 'undefined' ? LANES_B         : 1,
       bldgL:          typeof BLDG_L          !== 'undefined' ? BLDG_L          : null,
       bldgR:          typeof BLDG_R          !== 'undefined' ? BLDG_R          : null,
-      parkletWidth:   typeof designParkletWidth  !== 'undefined' ? designParkletWidth  : 2.65,
+      parkletWidth:   typeof designParkletWidth  !== 'undefined' ? designParkletWidth  : 2.5,
       parkletLength:  typeof designParkletLength !== 'undefined' ? designParkletLength : 19.8,
       bufferEnabled:  typeof designBufferEnabled !== 'undefined' ? !!designBufferEnabled : false,
       bufferW:        typeof designBufferW   !== 'undefined' ? designBufferW   : 0.9,
@@ -17708,7 +17716,7 @@ function pkMigrate(data) {
           lanesB:        parseInt(data['__lanesB'],10)||1,
           bldgL:         data['__bldgL']  ? (typeof data['__bldgL']==='string' ? JSON.parse(data['__bldgL'])  : data['__bldgL']) : null,
           bldgR:         data['__bldgR']  ? (typeof data['__bldgR']==='string' ? JSON.parse(data['__bldgR'])  : data['__bldgR']) : null,
-          parkletWidth:  2.65, parkletLength: 19.8,
+          parkletWidth:  2.5, parkletLength: 19.8,
           bikeLane:      data['__bikeLane']||'none',
           bikeLaneW:     parseFloat(data['__bikeLaneW'])||1.5,
           bufferEnabled: data['__bufferEnabled']==='1',
@@ -17916,6 +17924,7 @@ function pkApplyDesignState(raw) {
   // Full re-render (with saved segments the strip is already right: do not rebuild it)
   pkReRenderAll(_segsIn ? 'section-edit' : 'load');
   if (typeof pkStageSync === 'function') pkStageSync();   // Brief 22 item 5
+  if (typeof SMP !== 'undefined' && SMP.stopNote) SMP.stopNote();   // an older save's C01 note, at the stop's position now (item 10)
   if (typeof PK_EDIT !== 'undefined') PK_EDIT.baseline();   // a design just opened is not an edit (Brief 27 item 4)
 }
 
@@ -19457,7 +19466,7 @@ RX.build = async function(opts) {
     if (skeArc(ol, i)) skeEdgePts(ol, i).slice(1, -1).forEach(function(p) { deckPts.push([p.y, p.x]); });
   });
   else deckPts = [[LM.deckX0, 0], [LM.deckX1, 0], [LM.deckX1, L], [LM.deckX0, L]];
-  var deckThk = LV.deckTop - LV.curbTop, deck = extB(deckPts, LV.curbTop, deckThk);
+  var deckThk = LV.deckThk, deck = extB(deckPts, LV.deckTop - LV.deckThk, deckThk);   // the board, its top at the deck top (Brief 27: flush)
   addB(deck, 'Parklet::Deck', 'Deck (' + (ol ? 'applied outline' : 'rectangle') + ')', FILL.deck);
   var polyA = 0; for (var i = 0; i < deckPts.length; i++) { var u = deckPts[i], w = deckPts[(i + 1) % deckPts.length]; polyA += u[0] * w[1] - w[0] * u[1]; } polyA = Math.abs(polyA / 2);
   stats.deck = { solid: deck ? deck.isSolid : false, area: +polyA.toFixed(4), thickness: +deckThk.toFixed(4), volume: +(polyA * deckThk).toFixed(5) };
@@ -21641,7 +21650,7 @@ GEN.materialsFor = function(type, pal) {
 // u = PI/2 faces -z, u = -PI/2 faces +z. Pieces are modelled with their length along z at u = 0.
 GEN.END = 1.1;
 // access model constants (GEN.access below)
-GEN.ROUTE_W = 1.1;    // clear route width, m (Brief 25 item 21b: 1.1 m clear; was 0.92, BCBC 3.8)
+GEN.ROUTE_W = 1.5;    // clear route width, m: the Parklet Manual G19, p. 60 (Brief 27, Jenna: 1.5 m; was 1.1, BCBC 3.8, before that 0.92)
 GEN.TURN = 1.5;       // entry turning space, m (square)
 GEN.ENTRY_PER = 8;    // one more entry per this many metres of deck
 GEN.CELL = 0.1;       // flood-fill grid, m
@@ -22407,16 +22416,16 @@ GEN.axonThumb = function(c, W0, H0) {
       var a = sh.verts[i], b = sh.verts[(i + 1) % sh.verts.length], sg = (sh.segs && sh.segs[i]) || {};
       if (sg.arc && Math.abs(sg.sag || 0) > 0.001) { var cp = shapeArcCtrl(a, b, sg.sag); shp.quadraticCurveTo(cp.y, -cp.x, b.y, -b.x); } else shp.lineTo(b.y, -b.x);
     }
-    var eg = new THREE.ExtrudeGeometry(shp, { depth: 0.215, bevelEnabled: false }); eg.rotateX(-Math.PI / 2);
+    var eg = new THREE.ExtrudeGeometry(shp, { depth: PARKLET_LEVELS.deckTop, bevelEnabled: false }); eg.rotateX(-Math.PI / 2);
     var dm = new THREE.MeshLambertMaterial({ color: 0xD6AE74 }); geoms.push(eg); mats.push(dm); sc.add(new THREE.Mesh(eg, dm));
-  } else box(0, 0, 0, W, 0.215, L, 0xD6AE74);
+  } else box(0, 0, 0, W, PARKLET_LEVELS.deckTop, L, 0xD6AE74);
   // the enclosure (Brief 21 §12) on this scheme's deck
-  ENC.worldParts({ enclosure: ENC.resolve({ landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L } }) }, 0.215).forEach(function(q) { if (q.role === 'bar' || q.role === 'cable' || q.role === 'slat') return; box(q.x0, q.y0, q.z0, q.x1, q.y1, q.z1, q.role === 'planting' || q.role === 'body' ? 0xA9C29A : 0x8E8E8A); });
+  ENC.worldParts({ enclosure: ENC.resolve({ landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L } }) }, PARKLET_LEVELS.deckTop).forEach(function(q) { if (q.role === 'bar' || q.role === 'cable' || q.role === 'slat') return; box(q.x0, q.y0, q.z0, q.x1, q.y1, q.z1, q.role === 'planting' || q.role === 'body' ? 0xA9C29A : 0x8E8E8A); });
   var groups = [];
   ds.furniture.placed.forEach(function(p) {
     var sp = flInstSpec(p); if (!sp) return;
     var g = fl3DArchetype(sp.type, sp.params, sp.mats);
-    g.position.set(p.x, 0.215 + flSupportTop(p, ds.furniture.placed), p.z); g.rotation.y = FL_BASE_YAW + (p.userRotation || 0);
+    g.position.set(p.x, PARKLET_LEVELS.deckTop + flSupportTop(p, ds.furniture.placed), p.z); g.rotation.y = FL_BASE_YAW + (p.userRotation || 0);
     sc.add(g); groups.push(g);
   });
   // isometric camera fitted to the deck
@@ -22821,14 +22830,26 @@ RPT.compRows = function(d) { var o = { fail: 0, await: 1, unclear: 2, pass: 3 };
 RPT.measured = function(r) {
   var ne = r.missing.map(function(m) { return m.label; }).join('; ');
   if (r.missing.length && r.status === 'unclear') return { t: 'not entered: ' + ne, c: RPT.MID };
-  return { t: (r.msg || '-') + (r.missing.length ? ' (not entered: ' + ne + (r.id === 'c2' ? '; standard lane envelope applied' : '') + ')' : '') };
+  return { t: (r.msg || '-') + (r.missing.length ? ' (not entered: ' + ne + (r.id === 'c2' ? '; standard lane envelope applied' : '') + ')' : '') + (RPT.notDrawn(r) ? '; value entered, not drawn' : '') };
+};
+// Brief 27 item 11 (triage row 19): a check that rests on a typed value whose subject no sheet draws (a distance with no
+// object of that kind placed; the drains and fire exits, which are never drawn) says so, so a reviewer knows it cannot be
+// checked on the drawings
+RPT.DRAWN_BY = { c5: ['hydrant_dist', 'H'], c6: ['driveway_dist', 'driveways'], c7: ['pole_dist', 'P'], c8: ['signal_box_dist', 'S'], c9: ['manhole_dist', 'manholes'], c10: ['fire_exit_block', null], c11: ['drainage_clear', null] };
+RPT.notDrawn = function(r) {
+  var d = RPT.DRAWN_BY[r.id]; if (!d || typeof state === 'undefined') return false;
+  var v = state[d[0]]; if (v === undefined || v === null || v === '' || v === 'unverified') return false;
+  if (!d[1]) return true;   // never drawn
+  if (d[1].length === 1) return !(state.curb_features || []).some(function(f) { return f.type === d[1]; });
+  return !(state[d[1]] || []).length;
 };
 RPT.compBlocks = function(d) {
   var tbl = { cols: [{ t: 'Rule', w: 0.06 }, { t: 'Manual reference', w: 0.13 }, { t: 'Requirement', w: 0.31 }, { t: 'Measured value', w: 0.36 }, { t: 'Result', w: 0.14 }],
     rows: RPT.compRows(d).map(function(r) { return [{ t: 'C' + r.num, b: true }, (r.page ? 'Parklet Manual p. ' + r.page : r.src || '') + (r.id === 'c2' ? '; EDM Table 8-10' : ''), r.title, RPT.measured(r), RPT.res(r)]; }) };
   var ne = Object.keys(d.DM.inputs).map(function(k) { return d.DM.inputs[k]; }).filter(function(i) { return !i.entered; });
   var out = [{ h2: 'Checks, failures first' }, { table: tbl }];
-  if (typeof SMP !== 'undefined' && SMP.treeAdvisory()) out.push({ h2: 'Advisory (no numbered check)' }, { table: { cols: [{ t: 'Advisory', w: 0.4 }, { t: 'Detail', w: 0.6 }], rows: [[SMP.treeAdvisory().text, SMP.treeAdvisory().detail]] } });
+  var adv = typeof SMP !== 'undefined' ? SMP.advisories() : [];
+  if (adv.length) out.push({ h2: adv.length > 1 ? 'Advisories (no numbered check)' : 'Advisory (no numbered check)' }, { table: { cols: [{ t: 'Advisory', w: 0.4 }, { t: 'Detail', w: 0.6 }], rows: adv.map(function(a) { return [a.text, a.detail]; }) } });
   // (Brief 25 item 22f: an input not entered is named in its check's Measured value; no second list of them)
   return out;
 };
@@ -22887,7 +22908,7 @@ RPT.sources = function(d) {
     ['City of Vancouver, Engineering Design Manual (2026)', 'Table 8-10 travel lane widths (8.7.3.1, pp. 275-277); bike lane and buffer widths (8.5.4.5)'],
     ['City of Vancouver Standard Detail Drawings', 'W4.1 fire hydrant clearance; WW1 manhole; E5.19C utility pole; E1.3 signal controller base'],
     ['City of Vancouver street standards placement guidance', 'street furniture offsets'],
-    ['British Columbia Building Code 3.8', 'clear route width ' + GEN.ROUTE_W + ' m in the generator\'s access model (the Parklet Manual value is to be confirmed)']];
+    ['Parklet Manual G19, p. 60', 'accessible route ' + GEN.ROUTE_W.toFixed(1) + ' m clear and a 1.5 m turning area (C16; the 1.1 m route of the BC Building Code, 3.8, noted and not used)']];
   if (dates.OSM) std.push(['OpenStreetMap contributors (ODbL)', 'street geometry, lanes, buildings and their names / uses' + (via.OSM ? '; data ' : ', bus stops; fetched ') + day(dates.OSM)]);
   if (dates.GTFS) std.push(['TransLink GTFS static feed', 'bus stops and the routes that call there; data ' + day(dates.GTFS)]);
   Object.keys(dates).filter(function(k) { return /^CoV /.test(k); }).sort().forEach(function(k) { std.push(['City of Vancouver open data: ' + k.slice(4), (via[k] ? 'data ' : 'fetched ') + day(dates[k])]); });
@@ -23142,7 +23163,7 @@ RPT.dimText = function(P, h, out, p, a, b, s, o, end) {
 // (o.frame [lo, hi], Brief 19b: the texts stay inside it: one that would leave it flips to the other side of its extension lines)
 RPT.chain = function(P, o) {
   var D = RPT.DIM, h = o.side === 'top' || o.side === 'bottom', out = o.side === 'top' || o.side === 'left' ? -1 : 1;
-  var p = o.edge + out * (D.first + D.step * o.row), st = { cls: 'context', c: o.c, op: o.op }, at = o.at, n = at.length;
+  var p = o.edge + out * (D.first + D.step * o.row), st = { cls: 'context', c: o.c, op: o.op, dash: o.dash }, at = o.at, n = at.length;   // o.dash: a dimension from a rule (Brief 27 item 8)
   var rec = { side: o.side, row: o.row, vals: o.vals.slice(), placed: [] };
   (P.dims = P.dims || []).push(rec);
   at.forEach(function(s, i) {
@@ -23319,7 +23340,7 @@ RPT.geo = function(d) {
     mh: ((typeof state !== 'undefined' && state.manholes) || []).map(function(o) { return { z: +o.xM, x: +o.yM, id: o.id }; }),
     trees: (DM.vegetation || []).filter(function(v) { return v.type === 'tree'; }), planters: (DM.vegetation || []).filter(function(v) { return v.type === 'planter'; }),
     transit: DM.transit || [], enc: DM.enclosure, lv: DM.parklet.levels, city: DM.cityItems || [], sec: DM.section,
-    c13: num('parking_setback', 1.5), c03: num('intersection_dist', 6), trolley: typeof state !== 'undefined' && state.pole_trolley === 'yes',
+    c13: num('parking_setback', 1.5), c03: num('intersection_dist', 6), c13Rule: num('parking_setback', null) === null, c03Rule: num('intersection_dist', null) === null, trolley: typeof state !== 'undefined' && state.pole_trolley === 'yes',
     fail: function(id) { return rows[id] && rows[id].status === 'fail'; }
   };
 };
@@ -23580,20 +23601,20 @@ RPT.sheetLayout = function(d) {
   var dBot = F.sy(LM.deckX1), zc = function(id) { var z = DRAW_STYLE.zone(P.ctx, zst(id)); return { c: z.c, op: z.op }; };
   // (Brief 19b: the texts stay inside the drawing frame, xa..xb; a clearance of 0 m, a hydrant within the deck run,
   // shows as its extension line and its value)
-  var clearDim = function(row, zNear, zFar, v, req, id) {
+  var clearDim = function(row, zNear, zFar, v, req, id, rule) {   // rule: from the rule, not measured (Brief 27 item 8)
     var a = Math.max(F.zA, Math.min(F.zB, zNear)), b = Math.max(F.zA, Math.min(F.zB, zFar));
     var q = zc(id.toLowerCase().replace(/^c0/, 'c')), s = [F.sx(a), F.sx(b)].sort(function(u, w) { return u - w; });
     if (Math.abs(b - a) < 0.05) {
       if (Math.abs(zFar - zNear) >= 0.05 || zFar < F.zA || zFar > F.zB) return;
       var D = RPT.DIM, p = dBot + D.first + D.step * row, x = F.sx(zFar);
       P.line(x, dBot + D.gap, x, p + D.over, { cls: 'fine', c: q.c, op: q.op }); DRAW_SYMBOLS.tick(P, x, p, { c: q.c });
-      RPT.dimText(P, true, 1, p, x - 0.01, x + 0.01, RPT.fmtClear(v, req, id), { c: q.c, op: q.op, data: " data-clear='" + id + "'", frame: [xa, xb] }, 0);
+      RPT.dimText(P, true, 1, p, x - 0.01, x + 0.01, rule ? DRAW_STYLE.fmtReq(req, id) : RPT.fmtClear(v, req, id), { c: q.c, op: q.op, data: " data-clear='" + id + "'" + (rule ? " data-rule='1'" : ''), frame: [xa, xb] }, 0);
       return;
     }
-    RPT.chain(P, { side: 'bottom', edge: dBot, row: row, at: s, vals: [RPT.fmtClear(v, req, id)], c: q.c, op: q.op, data: " data-clear='" + id + "'", frame: [xa, xb] });
+    RPT.chain(P, { side: 'bottom', edge: dBot, row: row, at: s, vals: [rule ? DRAW_STYLE.fmtReq(req, id) : RPT.fmtClear(v, req, id)], c: q.c, op: q.op, dash: rule ? 'zone' : undefined, data: " data-clear='" + id + "'" + (rule ? " data-rule='1'" : ''), frame: [xa, xb] });
   };
-  clearDim(0, 0, -G.c13, G.c13, 1.5, 'C13'); clearDim(0, -G.c13, -G.c13 - G.c03, G.c03, 6, 'C03');
-  clearDim(0, G.L, G.L + G.c13, G.c13, 1.5, 'C13'); clearDim(0, G.L + G.c13, G.L + G.c13 + G.c03, G.c03, 6, 'C03');
+  clearDim(0, 0, -G.c13, G.c13, 1.5, 'C13', G.c13Rule); clearDim(0, -G.c13, -G.c13 - G.c03, G.c03, 6, 'C03', G.c03Rule);
+  clearDim(0, G.L, G.L + G.c13, G.c13, 1.5, 'C13', G.c13Rule); clearDim(0, G.L + G.c13, G.L + G.c13 + G.c03, G.c03, 6, 'C03', G.c03Rule);
   var sideRow = { lo: 1, hi: 1 };
   // C05 (Brief 19b): the governing hydrant only, the one nearest the deck run (inside it: 0 m), so the check that fails is
   // the dimension that shows
@@ -23864,7 +23885,8 @@ RPT.sheetSection = function(d, opt) {
   var lvR = [[Y(lv.deckTop), sgn(lv.deckTop - lv.curbTop) + ' deck'], [Y(lv.deckTop + EN.height), sgn(lv.deckTop + EN.height - lv.curbTop) + ' enclosure'], [Y(0), sgn(0 - lv.curbTop) + ' road']].sort(function(a, b) { return a[0] - b[0]; });
   var tyP = -Infinity; lvR.forEach(function(q) { var ty = Math.max(q[0] - 0.6, tyP + 3.0); tyP = ty; RPT.sym.level(P, lxR, q[0], q[1], !mir, ty - (q[0] - 0.6)); });
   // one vertical chain at the enclosure: the sidewalk (top of curb) to the deck to the enclosure's top
-  RPT.chain(P, { side: mir ? 'left' : 'right', edge: X(LM.deckX1), row: 0, at: [Y(lv.deckTop + EN.height), Y(lv.deckTop), Y(lv.curbTop)], vals: [RPT.fmt(EN.height), RPT.fmt(lv.deckTop - lv.curbTop)], data: " data-dim='rail-chain'" });
+  var flush = Math.abs(lv.deckTop - lv.curbTop) <= 0.0005;   // the deck flush with the curb (Brief 27): no rise to chain
+  RPT.chain(P, { side: mir ? 'left' : 'right', edge: X(LM.deckX1), row: 0, at: flush ? [Y(lv.deckTop + EN.height), Y(lv.deckTop)] : [Y(lv.deckTop + EN.height), Y(lv.deckTop), Y(lv.curbTop)], vals: flush ? [RPT.fmt(EN.height)] : [RPT.fmt(EN.height), RPT.fmt(lv.deckTop - lv.curbTop)], data: " data-dim='rail-chain'" });
   // across, under the ground: the running chain to the end of the first lane, the overall on the next row; the segments' names
   var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0];
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk' || (lane && sg.x0 >= lane.x1 - 1e-6)) return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
@@ -24016,7 +24038,7 @@ RPT.sheetTitle = function(d, drw) {
   var lx = 196, ly = 10;
   P.text(lx, ly, 'Legend', TX.head, { bold: true }); ly += 7;
   var lines = [[RPT.LW.cutH, null, 'Cut: deck, curb in section (0.70)'], [RPT.LW.cut, null, 'Objects: deck edge, furniture (0.50)'], [RPT.LW.obj, null, 'Edges: curbs, railing (0.35)'], [RPT.LW.gen, null, 'General (0.25)'],
-    [RPT.LW.ctx, null, 'Context, dimensions (0.18)'], [RPT.LW.hatch, null, 'Fine: hatching, grid (0.13)'], [RPT.LW.hatch, 'zone', 'Clearance zone (red: the check fails)'], [RPT.LW.obj, 'centre', 'Section line A-A, centre line'],
+    [RPT.LW.ctx, null, 'Context, dimensions (0.18)'], [RPT.LW.hatch, null, 'Fine: hatching, grid (0.13)'], [RPT.LW.hatch, 'zone', 'Clearance zone (red: the check fails)'], [RPT.LW.ctx, 'zone', 'Required distance, nothing measured: "req."'], [RPT.LW.obj, 'centre', 'Section line A-A, centre line'],
     [RPT.LW.cutH, 'property', 'Match line, property line'], [RPT.LW.gen, 'hidden', 'Hidden, overhead, lane line']];
   lines.forEach(function(q) { P.line(lx, ly - 0.8, lx + 16, ly - 0.8, { w: q[0], dash: q[1] }); P.text(lx + 20, ly, q[2], TX.tag); ly += 4.6; });
   ly += 3;
@@ -24033,7 +24055,7 @@ RPT.sheetTitle = function(d, drw) {
   [['concrete', 'Concrete'], ['timber', 'Timber deck, along the boards'], ['planting', 'Planting'], ['earth', 'Earth, subgrade'], ['poche', 'Cut building'], ['cut', 'Cut steel, thin material'], ['route', 'Accessible route']].forEach(function(q) {
     var r = "<rect x='" + lx + "' y='" + (ly - 3) + "' width='16' height='4'/>"; P.rect(lx, ly - 3, 16, 4, { cls: 'general' }); P.hatch(r, [lx, ly - 3, lx + 16, ly + 1], q[0], { band: false }); P.text(lx + 20, ly, q[1], TX.tag); ly += 5.4;
   });
-  var ab = [['C01 - C19', 'Parklet Manual checks (C16 reserved)'],
+  var ab = [['C01 - C19', 'Parklet Manual checks'],
  ['CoV', 'City of Vancouver (open data)'], ['DBH', 'diameter at breast height'], ['EDM', 'Engineering Design Manual'], ['max / min', 'maximum / minimum'], ['NTS', 'not to scale'],
     ['OSM', 'OpenStreetMap'], ['typ.', 'typical'], ['z', 'distance along the street from the deck start (m)']];
   ly += 4; P.text(lx, ly, 'Abbreviations', TX.head, { bold: true }); ly += 7;
@@ -24842,7 +24864,7 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
      material is keyed by its FL_MATERIALS id (RVZ.mat). The few context surfaces no furniture
      uses (asphalt, road paint, facades) are RVZ.SURF.
    - Heights follow the Section drawing (sectionFrame swRaise / deckTk) and GEN.axonThumb:
-     sidewalks 0.15 m above the road, the deck surface 0.215 m. (The live 3D view keeps its
+     sidewalks 0.15 m above the road, the deck surface flush with them (Brief 27). (The live 3D view keeps its
      0.065 m deck on the road.)
    - Sun: solarPositionUTC (NOAA) from the date, the civil time at the site and
      DESIGN_MODEL.site (Brief 11a: lat / lon, and northDeg = the clockwise angle from world -Z
@@ -24851,7 +24873,7 @@ button.se-dimv:focus-visible { outline: 2px solid var(--accent-ui); outline-offs
      file does not load), so AO is baked: vertex AO toward the surface each piece stands on,
      plus a soft contact shadow under every piece, planter and building. */
 var RVZ = {
-  SW_RAISE: 0.15, DECK_TOP: 0.215, EXT: 30,
+  SW_RAISE: 0.15, DECK_TOP: PARKLET_LEVELS.deckTop, EXT: 30,
   RES: { '720': [1280, 720], '1080': [1920, 1080], '1440': [2560, 1440] },
   PRESETS: [['cover', 'Cover'], ['street', 'Street'], ['sidewalk', 'Sidewalk'], ['corner', 'Corner'], ['aerial', 'Aerial']],   // Cover: Brief 25 item 23b
   o: { preset: 'cover', appearance: 'rendered', doy: 172, min: 720, year: new Date().getFullYear(), res: '1080', scale: 2, people: true },
@@ -25374,7 +25396,7 @@ RVZ.build = function(o) {
     });
   });
 
-  // The parklet: the deck (sketched shape or rectangle) from the road to 0.215 m, the road-side
+  // The parklet: the deck (sketched shape or rectangle) from the road to the deck top (flush with the curb), the road-side
   // enclosure (DESIGN_MODEL.enclosure) and the City's wheel stops and bollards (DESIGN_MODEL.cityItems) as context
   var sk = DESIGN_MODEL.parklet.outline, deckMat = R ? RVZ.mat('pine', 'deck') : RVZ.mat(TOK.deck);
   if (sk) {
@@ -25925,7 +25947,7 @@ RVZ._ctx = function() {
   var m = hash && RVZ.cache.get(hash);
   el.innerHTML = "<div class='sb-section'><div class='sb-section-lbl'>Scene</div>" +
     "<p class='rvz-ctx'>Renders the current design: a " + DM.parklet.length.toFixed(1) + ' × ' + DM.landmarks.deckW.toFixed(2) + ' m deck, ' + n + ' placed piece' + (n === 1 ? '' : 's') + ', the street from the Section editor. Edit the design in Design; this tab only looks.</p>' +
-    "<p class='rvz-ctx rvz-dim'>Sidewalks and the deck stand at the Section drawing's heights (0.15 m and 0.215 m above the road).</p></div>" +
+    "<p class='rvz-ctx rvz-dim'>Sidewalks and the deck stand at the Section drawing's heights (the sidewalk and the deck flush, 0.15 m above the road).</p></div>" +
     "<div class='sb-section'><div class='sb-section-lbl'>Cached renders</div><p class='rvz-ctx'>" + (m && m.size ? m.size + ' for this design' : 'None for this design yet') + (hash ? " <span class='rvz-dim'>(design " + hash + ')</span>' : '') + '</p></div>';
 };
 RVZ._info = function(s) {
@@ -28224,6 +28246,18 @@ SMP.confirm = function(list, id) {
   o.confirmed = true; o.confirmedAt = new Date().toISOString();
   SMP.refresh();
 };
+// Brief 27 item 10 (triage row 18): C01's source named the bus stop at its position on import; the deck is then centred on
+// the host frontage (pkMove), which moves every site object, so one stop showed at two positions ("z 31.3 m" in C01's source,
+// "z -1.2 m" on S-002). The note now names its stop and is rewritten from the stop's current position, in S-002's words,
+// whenever the objects move (pkAfterMove, a design opened).
+SMP.stopNote = function() {
+  var p = typeof state !== 'undefined' && state.__prov && state.__prov.parkingRestrictions; if (!p) return;
+  var ts = state.transit_stops || [], s = p.stopId ? ts.find(function(t) { return t.id === p.stopId; })
+    : /a bus zone$/.test(p.note || '') ? ts.find(function(t) { return t.kind === 'bus' && t.name && p.note.indexOf(t.name) >= 0; }) : null;   // a save from before: by its name
+  if (!s) return;
+  p.stopId = s.id;
+  p.note = 'bus stop' + (s.name ? ' ' + s.name : '') + ' at ' + SMP.where(s) + ': a bus zone';
+};
 SMP.where = function(o) {
   var L = typeof designParkletLength !== 'undefined' ? designParkletLength : 20, z = +o.xM;
   return 'z ' + z.toFixed(1) + ' m (' + (z < 0 ? (-z).toFixed(1) + ' m before the deck' : z > L ? (z - L).toFixed(1) + ' m past the deck' : 'beside the deck') + ')';
@@ -28238,12 +28272,21 @@ SMP.treeAdvisory = function() {
   if (!near.length) return null;
   return { text: 'Street tree within ' + N + ' m of the deck - confirm clearance with Park Board', detail: near.length + ' tree' + (near.length > 1 ? 's' : '') + ': ' + near.map(function(q) { return (q.o.species ? q.o.species.toLowerCase() + ' ' : '') + 'at z ' + (+q.o.xM).toFixed(1) + ' m (' + (q.gap ? q.gap.toFixed(1) + ' m from the deck' : 'beside the deck') + ')'; }).join('; ') };
 };
+// Brief 27 (Jenna): the deck's width. The Manual's lane rule "will lead to a maximum width of 2.3-2.5 metres" (p. 20; P2,
+// p. 62, the City confirms the width): no cap, the default is 2.5 m, and a wider deck carries this advisory
+SMP.WIDTH_ADVISORY_M = 2.5;
+SMP.widthAdvisory = function() {
+  var w = typeof designParkletWidth !== 'undefined' ? +designParkletWidth : 0;
+  if (!(w > SMP.WIDTH_ADVISORY_M + 1e-6) || (typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET)) return null;
+  return { text: 'Deck ' + w.toFixed(2) + ' m wide - Parklet Manual: typically 2.3-2.5 m; wider to be confirmed by the City', detail: 'Parklet Manual p. 20 and P2, p. 62: the adjacent lane rule leads to a deck of 2.3-2.5 m; the City confirms the maximum width.' };
+};
+SMP.advisories = function() { return [SMP.treeAdvisory(), SMP.widthAdvisory()].filter(Boolean); };
 SMP.renderAdvice = function() {
   var cl = document.getElementById('criteriaList'); if (!cl) return;
-  var el = document.getElementById('smpAdvice'), a = SMP.treeAdvisory();
-  if (!a) { if (el) el.remove(); return; }
+  var el = document.getElementById('smpAdvice'), all = SMP.advisories();
+  if (!all.length) { if (el) el.remove(); return; }
   if (!el) { el = document.createElement('div'); el.id = 'smpAdvice'; el.setAttribute('role', 'note'); var sd = document.getElementById('chkSide'); if (sd) sd.appendChild(el); else cl.parentNode.insertBefore(el, cl); }   // the Check tab's left panel (Brief 21 §3)
-  el.innerHTML = '<b>Advisory (no numbered check):</b> ' + SM.esc(a.text) + ". <span class='smp-src'>" + SM.esc(a.detail) + '</span>';
+  el.innerHTML = all.map(function(a) { return '<p><b>Advisory (no numbered check):</b> ' + SM.esc(a.text) + ". <span class='smp-src'>" + SM.esc(a.detail) + '</span></p>'; }).join('');
 };
 SMP.renderCheck = function() {
   SMP.renderAdvice();
@@ -28934,7 +28977,8 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   if (inZone.length) {
     var sel = document.getElementById('parking_restrictions'); if (sel) sel.value = 'bus_zone';
     handleInput('c1', 'parking_restrictions', 'bus_zone');
-    SMP.set('parkingRestrictions', inZone[0].prov.source, inZone[0].prov.id, inZone[0].prov.fetchedAt, 'bus stop' + (inZone[0].name ? ' ' + inZone[0].name : '') + ' at z ' + inZone[0].xM.toFixed(1) + ' m: a bus zone');
+    SMP.set('parkingRestrictions', inZone[0].prov.source, inZone[0].prov.id, inZone[0].prov.fetchedAt, '');
+    SMP.prov().parkingRestrictions.stopId = inZone[0].id; SMP.stopNote();   // the note follows the stop (Brief 27 item 10)
     rep.notes.push('C01 set to a bus zone from a bus stop beside the deck');
   }
 };
@@ -29301,7 +29345,7 @@ PVCTX.install = function() {
 // 2 the user's design: furniture on the deck (pkStage reads it; nothing stores the stage).
 // ════════════════════════════════════════════════════════════════════════════════════════════
 // TODO(Jenna): DECK_L is the app's existing default deck (19.8 m); confirm the Parklet Manual's default length and cite it.
-var SEED = { DECK_L: 19.8, DECK_W: 2.65, GATED: ['generate', 'design', 'check', 'visualize', 'export'],
+var SEED = { DECK_L: 19.8, DECK_W: 2.5, GATED: ['generate', 'design', 'check', 'visualize', 'export'],
   TIP: 'Choose a site first: Locate on map in the Site tab, then Import street context.' };
 // the hidden stage-0 globals: what the views could draw before a site exists (never shown, never saved)
 SEED.NOMINAL = { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L };
@@ -30207,6 +30251,7 @@ CHKG.counts = function() {
 };
 function chkAfterRender() {
   if (typeof CHK !== 'undefined') CHK.paintAll();   // Brief 25 §1
+  if (typeof SMP !== 'undefined' && SMP.renderAdvice) try { SMP.renderAdvice(); } catch (e) {}   // the advisories follow the design (Brief 27: the deck width)
   var rows = typeof complianceRows === 'function' ? complianceRows() : [], n = { fail: 0, pass: 0, unclear: 0, await: 0, prov: 0 };
   rows.forEach(function(r) {
     var m = document.getElementById('meas_' + r.id), p = document.getElementById('prov_' + r.id), el = document.getElementById('crit_' + r.id);
@@ -31109,13 +31154,13 @@ RPT.sheetDetails = function(d) {
   var cq = [cx0 - 15, cgy - lv.curbTop * k, 15, (lv.curbTop + 0.15) * k];
   P.rect(cq[0], cq[1], cq[2], cq[3], { cls: 'cut', fill: '#FFFFFF' }); P.hatch("<rect x='" + cq[0] + "' y='" + cq[1] + "' width='" + cq[2] + "' height='" + cq[3] + "'/>", [cq[0], cq[1], cq[0] + cq[2], cq[1] + cq[3]], 'concrete');
   P.rect(cx0 - 50, cgy - lv.curbTop * k, 35, 10, { cls: 'object', fill: '#FFFFFF' }); P.hatch("<rect x='" + (cx0 - 50) + "' y='" + (cgy - lv.curbTop * k) + "' width='35' height='10'/>", [cx0 - 50, cgy - lv.curbTop * k, cx0 - 15, cgy - lv.curbTop * k + 10], 'concrete');
-  var gap = 0.012, dx0 = cx0 + gap * k;
+  var gap = lv.gap != null ? lv.gap : 0.012, dx0 = cx0 + gap * k;
   P.rect(dx0, cgy - lv.deckTop * k, 60, lv.deckThk * k, { cls: 'cut', fill: '#FFFFFF' }); P.hatch("<rect x='" + dx0 + "' y='" + (cgy - lv.deckTop * k) + "' width='60' height='" + (lv.deckThk * k) + "'/>", [dx0, cgy - lv.deckTop * k, dx0 + 60, cgy - lv.deckTop * k + lv.deckThk * k], 'timberCut');
   P.rect(dx0 + 2, cgy - (lv.deckTop - lv.deckThk) * k, 5, (lv.deckTop - lv.deckThk) * k, { cls: 'general' });
   P.line(cx0 - 60, cgy, cx0 + 70, cgy, { cls: 'object' });
   P.rect(cx0 - 3, cgy - lv.deckTop * k - 0.4, 8, 0.4, { cls: 'edge', fill: RPT.INK });
   RPT.dimH(P, cx0, dx0, cgy - lv.deckTop * k - 7, (gap * 1000).toFixed(0) + ' max gap (C14)', { ext: cgy - lv.deckTop * k, side: 'right' });
-  RPT.dimV(P, cgy - lv.deckTop * k, cgy - lv.curbTop * k, cx0 + 72, ((lv.deckTop - lv.curbTop) * 1000).toFixed(0), { side: 'right', size: RPT.TX.tag });
+  if (Math.abs(lv.deckTop - lv.curbTop) > 0.0005) RPT.dimV(P, cgy - lv.deckTop * k, cgy - lv.curbTop * k, cx0 + 72, ((lv.deckTop - lv.curbTop) * 1000).toFixed(0), { side: 'right', size: RPT.TX.tag });   // flush: no rise to dimension
   RPT.dimV(P, cgy - lv.curbTop * k, cgy, cx0 - 62, (lv.curbTop * 1000).toFixed(0) + ' curb', { side: 'left', size: RPT.TX.tag });
   // (the wheel stop's detail is gone: the City supplies and places it, Brief 21 §13)
   P.line(SPL, 4, SPL, HSP - 4, { cls: 'context' }); P.line(4, HSP, 2 * SPL - 12, HSP, { cls: 'context' });
@@ -31123,7 +31168,7 @@ RPT.sheetDetails = function(d) {
   var keys = [
     { t: 'Enclosure, traffic side: ' + A.name.toLowerCase() + ', ' + mats + '; ' + A.note + '. ' + Math.round(r.transparency * 100) + ' % see-through.', at: [ox + win * k * 0.5, EY(H) - 3] },
     { t: 'Set ' + EN.bufferDepth.toFixed(2) + ' m in from the deck\'s traffic-side edge (the buffer); the ends: ' + EN.runs[1].name.toLowerCase() + (EN.runs[2].id !== EN.runs[1].id ? ' and ' + EN.runs[2].name.toLowerCase() : '') + '.', at: null },
-    { t: 'Deck surface +' + (lv.deckTop - lv.curbTop).toFixed(3) + ' above the top of the curb.', at: [ox + win * k * 0.6, gy + 3] },
+    { t: Math.abs(lv.deckTop - lv.curbTop) <= 0.0005 ? 'Deck surface flush with the top of the curb (C14).' : 'Deck surface +' + (lv.deckTop - lv.curbTop).toFixed(3) + ' above the top of the curb.', at: [ox + win * k * 0.6, gy + 3] },
     { t: 'Connector plate over the gap, 13 mm max (C14).', at: [cx0 + 5, cgy - lv.deckTop * k - 3] },
     { t: 'Drawn from the enclosure model (DESIGN_MODEL.enclosure) and PARKLET_LEVELS; dimensions in millimetres, measured on the model; not a structural design.', at: null }
   ];
