@@ -29296,7 +29296,8 @@ SMP.syncButton = function() {
   var ok = !!state.__siteMap;
   if (!SMP._busy) { b.disabled = !ok; b.textContent = 'Import street context'; }
   b.title = ok ? 'Import the street context within ' + SMP.R + ' m of the picked point' : 'Locate on map first';
-  if (h) h.textContent = ok ? 'Lanes, bike lane, route type and buildings from OpenStreetMap; hydrants, trees and bikeways from the City of Vancouver; bus stops and routes from TransLink (the site data, rebuilt weekly). Within ' + SMP.R + ' m; nothing imported is authoritative.' : 'Locate on map first: the import needs the street the parklet is on.';
+  // (Brief 29 item 3: once located, the paragraph on what is imported sits behind an (i))
+  if (h) { if (ok) { var tx = 'Lanes, bike lane, route type and buildings from OpenStreetMap; hydrants, trees and bikeways from the City of Vancouver; bus stops and routes from TransLink (the site data, rebuilt weekly). Within ' + SMP.R + ' m; nothing imported is authoritative.'; if (h.dataset.tx !== tx) { h.dataset.tx = tx; h.innerHTML = "<button type='button' class='site-info' aria-expanded='false' aria-label='What the import brings in' onclick='var t=this.nextElementSibling;t.hidden=!t.hidden;this.setAttribute(\"aria-expanded\",String(!t.hidden))'>ⓘ</button><span class='site-info-t' hidden></span>"; h.querySelector('.site-info-t').textContent = tx; } } else { h.dataset.tx = ''; h.textContent = 'Locate on map first: the import needs the street the parklet is on.'; } }
 };
 SMP.importContext = async function() {
   var sm = state.__siteMap;
@@ -29335,7 +29336,7 @@ SMP.importContext = async function() {
     SMP.refresh();
     try { syncDesignModel('site-import'); } catch (e) {}
     var n = SMP._touched.length + rep.buildings.L + rep.buildings.R + rep.hydrants + rep.trees + rep.transit, s = rep.street, same = before === SMP.snapshot();
-    show('done (' + n + ' items)');
+    show('done (' + n + ' items)'); state.__siteMap.importItems = n; if (typeof siteStepEdit === 'function') siteStepEdit.open = {};   // the steps fold again (Brief 29 item 3)
     SMP.msg(SMP.progress(st, 'done (' + n + ' items)') + "<br><span class='smp-sum'><b>Imported:</b> " + SM.esc((s.name || 'the street') + ', ' + (s.lanes || '? lanes') + ', ' + (s.route === 'bus_truck' ? 'bus / truck route' : 'standard route') +
       ', ' + (rep.buildings.L + rep.buildings.R) + ' buildings' + (rep.host ? ' (host ' + rep.host + ')' : '') + ', ' + rep.hydrants + ' hydrant' + (rep.hydrants === 1 ? '' : 's') + ', ' + rep.trees + ' tree' + (rep.trees === 1 ? '' : 's') + ', ' + rep.transit + ' transit stop' + (rep.transit === 1 ? '' : 's') +
       '; curb to curb ' + (s.roadWidth ? s.roadWidth.toFixed(2) + ' m (estimate)' : 'unchanged') + '; sidewalk ' + (rep.sidewalk ? rep.sidewalk.value.toFixed(1) + ' m (estimate, nearest building face)' : 'unchanged') +
@@ -29752,6 +29753,16 @@ SMP.sourcesList = function() {
 #ctxSite .dk-panel-hdr .dkpc { order: 0; margin: 0 4px 0 0; }   /* the chevron before the title, so wrapping badges never strand it */
 #ctxSite .dk-panel-hdr .dkpt { order: 1; }
 /* the import's summary under step 2: three lines, the rest on a click */
+.site-step[data-fold='1'] .site-step-body > :not(.site-sum) { display: none !important; }
+.site-step:not([data-fold='1']) .site-sum { display: none; }
+.site-step[data-fold='w'] .site-step-body { display: none; }
+.site-sum { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--c-text, #F2F2F0); }
+.site-sum-t { flex: 1 1 auto; min-width: 0; }
+.site-step-done { display: block; margin-top: 6px; }
+.site-step-done[hidden] { display: none; }
+.site-info { border: 0; background: none; color: var(--accent-ui, #3AA8E4); font-size: 14px; line-height: 1; padding: 0 2px; cursor: pointer; }
+.site-info-t { display: block; margin-top: 4px; }
+.site-info-t[hidden] { display: none; }
 #siteStep2 #smpMsg .smp-sum { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
 #siteStep2 #smpMsg.sbx-more .smp-sum { display: block; }
 
@@ -31090,8 +31101,31 @@ function uiSiteSteps() {
     put(2, ff('roadDirToggle')); put(2, document.getElementById('laneOneWayField')); put(2, document.getElementById('laneTwoWayField')); put(2, ff('routeToggle'));
   }
   put(3, document.getElementById('pkPlaceSite'));
+  // Brief 29 item 3: steps 2 and 3 fold like Locate once done: their one line and Edit first, a Done link last
+  [2, 3].forEach(function(n) {
+    var b = body(n); if (!b) return;
+    var sum = document.getElementById('siteStep' + n + 'Sum');
+    if (!sum) { sum = document.createElement('div'); sum.className = 'site-sum'; sum.id = 'siteStep' + n + 'Sum'; sum.innerHTML = "<span class='site-sum-t'></span><button type='button' class='txt-btn' onclick='siteStepEdit(" + n + ", true)'>Edit</button>"; }
+    var done = document.getElementById('siteStep' + n + 'Done');
+    if (!done) { done = document.createElement('button'); done.type = 'button'; done.className = 'txt-btn site-step-done'; done.id = 'siteStep' + n + 'Done'; done.textContent = 'Done'; done.onclick = function() { siteStepEdit(n, false); }; }
+    if (b.firstChild !== sum) b.insertBefore(sum, b.firstChild);
+    if (b.lastChild !== done) b.appendChild(done);
+  });
   uiSiteStepStatus();
 }
+// a done step opened for editing (Edit) until Done or a new site (Brief 29 item 3)
+function siteStepEdit(n, on) { siteStepEdit.open = siteStepEdit.open || {}; siteStepEdit.open[n] = !!on; uiSiteStepStatus(); var f = document.querySelector(on ? '#siteStep' + n + ' .site-step-body > :not(.site-sum)' : '#siteStep' + n + 'Sum button'); if (f && f.focus) { var c = f.matches('button, input, select, a') ? f : f.querySelector('button, input, select, a'); if (c) c.focus(); } }
+// the one line of a done step: Import "Smithe Street · 3 lanes one-way · bus/truck route · 103 items"; Place "Host: … · 19.8 m deck"
+function siteStepSum(n) {
+  var sm = state.__siteMap || {}, DM = typeof _dmCurrent === 'function' ? _dmCurrent() : null;
+  if (n === 2) {
+    var ln = typeof getTotalLanes === 'function' ? getTotalLanes() : null, dir = typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'oneway' ? 'one-way' : 'two-way';
+    return [sm.name || 'The located street', ln ? ln + ' lane' + (ln === 1 ? '' : 's') + ' ' + dir : null, state.route_type === 'bus_truck' ? 'bus/truck route' : 'standard route', sm.importItems ? sm.importItems + ' items' : null].filter(Boolean).join(' · ');
+  }
+  var h = DM && DM.site && DM.site.host, L = DM ? DM.parklet.length : null;
+  return [h ? 'Host: ' + (h.name || (h.use ? h.use + ' building' : 'the host building')) : 'No host frontage', L ? (+L.toFixed(2)) + ' m deck' : null].filter(Boolean).join(' · ');
+}
+
 function uiSiteStepStatus() {
   if (typeof state === 'undefined') return;
   var s1 = !!state.__siteMap, s2 = !!(state.__outer || (typeof SMP !== 'undefined' && SMP.lastReport)), s3 = s2 && !!state.__place;   // a placement counts once there is a street to place it on
@@ -31099,6 +31133,9 @@ function uiSiteStepStatus() {
     var el = document.getElementById('siteStep' + n + 'St'), box = document.getElementById('siteStep' + n); if (!el || !box) return;
     el.textContent = st === 'done' ? 'Done' : st === 'next' ? 'Next' : 'Waiting on step ' + (n - 1);
     box.dataset.st = st;
+    // Brief 29 item 3: only the current step is open; a done one folds to its line (step 1: the Locate card's own), a waiting
+    // one to its header
+    if (n > 1) { var op = siteStepEdit.open && siteStepEdit.open[n]; box.dataset.fold = st === 'done' && !op ? '1' : st === 'wait' ? 'w' : ''; var t = box.querySelector('.site-sum-t'); if (t && st === 'done') t.textContent = siteStepSum(n); var dn = document.getElementById('siteStep' + n + 'Done'); if (dn) dn.hidden = !(st === 'done' && op); }
   };
   set(1, s1 ? 'done' : 'next'); set(2, s2 ? 'done' : s1 ? 'next' : 'wait'); set(3, s3 ? 'done' : s2 ? 'next' : 'wait');
 }
