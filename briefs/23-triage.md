@@ -175,3 +175,86 @@ pass.
   `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad`.
 - **Checked against the evidence.** Each run block below is the agent's report, condensed; an item I could not
   confirm from the log or the screenshots says so.
+
+### Run: Parent (café owner), run 1, Opus
+
+- **Site:** 2611 W 4th Av, Kitsilano, north side (host Dark Table). **Time:** about 30 minutes to the schematic PDF (14
+  pages); the export took about 100 s with three browsers rendering in software at once (3.6–12 s alone, VERIFY).
+- The agent could not write its `report.md` (the tool refused); its report is condensed here.
+- **Broke**
+  - C01 does not follow the deck: after shortening the deck to 12 m the stop is listed "at z 21.9 m (9.9 m past the
+    deck)", yet C01 still fails ("bus zone disqualifies this location") and Generate says "cannot pass whatever the
+    design". The same list gives the one stop two positions ("at z 20.4 m: a bus zone" and "at z 21.9 m").
+  - C01's row reads "SITE CONDITION Unknown. Enter parking restrictions for this site below." above a dropdown already
+    set to "Bus zone present". (Confirmed in code: the site-condition text is static; C05 does the same, see persona 1.)
+  - The Check side panel reads "Nothing imported to confirm" directly above "42 imported items still to confirm".
+  - The bearing field shows "91.40999999999997".
+  - "Roadway 17.600 m Allocated 17.602 m Over 0.002 m" in red: a rounding leftover flagged as an error.
+  - "Near lanes … lanes=4" and "Far lanes … lanes=4" on a street called "4 lanes (two-way, 2+2)".
+  - Dates: "imported 2026-10-01" beside a report dated 2026-09-30 (the import stamps the UTC date).
+  - Shape editor: dragging an edge did nothing in two tries (typing a length worked); Escape left the Plan-only view
+    and squeezed the editor (not checked: the drag may be the harness's mouse drag).
+  - Enter in the left "Street address" box does nothing, and the address is not passed to the map search.
+  - Console: about 20 `[route] ReferenceError: GEN is not defined at ACC.planSVG` on load; after the export
+    `[report] layout check: {overlaps: Array(1) …}` (one overlapping text on a sheet at this site; not identified).
+- **Confused**
+  - "Does not pass yet … confirm or correct it on site" reads as maybe; Generate's "cannot pass whatever the design" as
+    a flat no. What does "confirm on site" mean for a shop owner: measure it myself, or call the City?
+  - The jump from the friendly "Choose a site" card to a full CAD workspace (lane numbers in red) after the import;
+    jargon: "OSM way", "axis 91° from north", "z 21.9 m", "Provisional", "End zone", "SF / CALC / DI",
+    "GEN-cafe_table", "seed 1 · 0 sampled", "bus_zone".
+  - No pin on the shop after the map search; no hint to click the deck after "Place".
+  - The lane check feels circular: the estimate is lanes × 3.2 m + parking, and C02 then says the lanes are 3.138 m.
+  - The shape editor shows no hydrant or bus stop, so the deck was shortened blind; its ruler runs 20 → 0 m.
+  - "Renders (cover and V-101 …)" is ticked although there are no renders; nothing says the PDF has downloaded.
+- **README / landing wrong:** the landing page says "Site, design, check — the tool's three working tabs" and "The
+  eighteen checks" (no C16); its footer says "Curbside v0.11-gis" (the PDF says v0.12); step 7's "under 20 s" was
+  100 s here (load); Generate's message is in code words ("01 Parking restrictions = bus_zone").
+- Evidence: `<scratchpad>\b23\full\parent-run1\` (001–054.png, the PDF).
+
+### Run: Persona 1 (BIA coordinator), run 1, Sonnet
+
+- **Sites:** Main St east side, block A at E 20th Av and block B at E 16th Av. **Time:** about 35 minutes for both PDFs.
+- **Broke**
+  - C05 on block A: three imported hydrants listed 12.8 m and more from the deck, yet the row said "Unknown. No fire
+    hydrant location data provided" and "0 m < 5 m … Fails"; block B computed 29.12 m. **Not reproduced:** at Main & E
+    20th, east side, C05 passes at 34.68 m (provisional); the 0 m most likely came from the agent's typing into the
+    hydrant field (next item). The static "Unknown. No fire hydrant location data provided." beside imported hydrants
+    is real (as C01's).
+  - The hydrant distance field: clicking and typing "12.8" gave "0.001", "0.0011": a click does not select a number
+    field's value, so typing appends (browser behaviour, but the field accepts the result silently).
+  - "+ New": the Street Address text was appended to the Design Name ("Main St at E 16th (Block B)Main St & E 16th Ave"),
+    which then printed on the cover and in the file name. (Not checked; may be the same append-on-type behaviour.)
+  - After "+ New" the Site panel's "2 Import context" still shows the previous design's import summary, and "Locate on
+    map" keeps the old search text, so the new query was appended ("No match" twice).
+  - Console: `GEN is not defined` repeated on every PDF build; `[report] layout check: overlaps: Array(1)` on both.
+- **Confused:** the landing list skips C16; a provisional fail sits in "Fails" with a pill (as designed); the two
+  blocks' banners had different buttons ("Open C05" against "Survey sheet (PDF)") for what looked like the same state;
+  no indicator of which design is open except the title.
+- **README / landing wrong:** only the C16 gap; the steps matched.
+- Evidence: `<scratchpad>\b23\full\p1-run1\report.md` and screenshots.
+
+### Run: Persona 2 (M.Arch student, Manual references), run 1, Sonnet
+
+- **Site:** W 4th Av at Yew St, north side (host Buddha Barn). **Time:** about 25 minutes to the PDF, 15 more for the
+  Manual. The agent could not write its `report.md`; condensed here.
+- **Manual references:** every citation matched the Manual's page and number except:
+  - **C06 cites p. 20; the driveway / lane 1.5 m setback is on p. 62, P2 Setbacks.** Confirmed in the Manual (p. 20 has
+    no driveway sentence; p. 62 does). The number agrees.
+  - C16: the app's 1.1 m route is BCBC's (X-001 says so); **the Manual's G19, p. 60 asks for a 1.5 m wide clear access
+    path** and a 1.5 m turning circle. The agent read the turning space as matched and the width as not.
+  - C19 cites "E5, p. 65"; the agent read the 2.1 m sentence as E4. **Not so:** the bullet "Any overhead elements must
+    be a minimum 2.1 m above the platform" is in E5's list (the page's third column continues E5). E5 stands.
+- **Broke**
+  - "Technical selected, the PDF came out Schematic." **Harness, not the app:** the screenshot after the agent's click on
+    the text "Technical" (040.png) still shows Schematic selected; its later click by pixel selected Technical and that
+    export is the technical PDF (both files are in the folder). The agent read the first file.
+  - **C02 stays "Awaiting measurement" after the curb-to-curb width is entered.** Reproduced (W 4th at Yew, north side):
+    the width becomes "confirmed by you", but "Far-side parking lane: estimate" remains, so C02 still awaits, and its
+    message still says "Measure curb to curb: … on the estimated 18.40 m". The remaining estimate is not named and the
+    agent found no way to confirm it.
+  - "17.6184" in the width field: the agent's "Backspace ×10" sent one Backspace (the driver has no repeat): harness.
+    Its point stands that the field accepts a garbled value silently.
+  - `GEN is not defined` (20+ times); "imported 2026-10-01" against data and a report dated 2026-09-30.
+- **README / landing wrong:** none in the steps; the landing page's "eighteen checks" without C16.
+- Evidence: `<scratchpad>\b23\full\p2-run1\` (screenshots, both PDFs, `checktext.json`).
