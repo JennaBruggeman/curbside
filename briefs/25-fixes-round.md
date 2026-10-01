@@ -155,6 +155,24 @@ measurement exists anywhere in that chain.
     sheets, the drawing list, the page count and S-001 update; nothing else
     may still point at A-301. The enclosure parameters stay in the model and
     the schedule.
+22f. Report sheets list only what the drawings use. The package is 17 pages,
+    three of them trees. Rules:
+    - S-002 and X-001 list a tree, hydrant, bus stop or building only if it
+      is drawn on A-101/A-102 or feeds a check or advisory (e.g. the three
+      trees beside the deck, the nearest hydrant each side, the nearest
+      stop each side). Everything else in the import radius becomes one
+      summary line per kind: "38 more street trees within 300 m, City
+      public-trees data 2026-09-30, not listed" with the cell/data date.
+    - Identical rows collapse: "Travel lanes: 6 × 3.16 m" not six rows;
+      buildings: one row per side, "7 near-side buildings: name, use,
+      height, storeys from OpenStreetMap; frontage estimated; addresses from
+      City open data; ways listed in the design file" — not a paragraph per
+      building.
+    - The X-001 tree inventory table goes; its genus/height/DBH for the
+      drawn trees joins the single S-002 row for each.
+    - Target: the technical package ≤ 10 pages for a typical site; the
+      drawing list on A-000 updates automatically. The full inventory stays
+      in the design file for anyone who needs it.
 22c. Replace the boxed title block (thumbnail, ruled cells) on every sheet with
     a plain drawing label in the bottom-left corner: sheet number and title on
     one line ("A-103  Deck plan"), then scale · date · status on the line

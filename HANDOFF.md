@@ -957,6 +957,9 @@ Decisions for every item are in the session's decisions log; the essentials:
   - **The last live requests of an import** are the three City exports for the outer ring (`SMP.OUTER_DS`: building-footprints-2015, public-streets, parks-polygon-representation; `SMP.covExport`), seen on Pages as "City exports (outer ring) 3". Move them into the cells (new curbside-data layers, read by `SMP.importOuter` like the inner import) or into a cached file, so an import makes no live request at all.
 - **Test hooks:** `?gis=fixtures` on a dev host reads `test/gis-fixtures/` (the curbside-data fixtures; regenerate with `node build/build.js` there and copy `fixtures/`).
 - **Out of scope (candidates for a later brief):** parking regulations, zoning, existing-parklet layers, an imagery underlay on the Plan, 3D context from cells. Also open: the outer ring's water from the cells; a site with no buildings keeps the previous site's buildings (`applyBuildings` replaces a side only when it finds one; older than Brief 24).
+## Later brief: 3D full city (Brief 25 item 24, deferred by Jenna 2026-10-01)
+The 3D view shows the city everywhere, with no cut-off at the import radius. Building cells load around the camera as it moves: far cells as simple extruded blocks, near cells in full detail, and the same for streets and trees. The import radius only decides what gets sections and checks. It needs a streaming loader for the 3D scene (the site map's cell loader, `GIS.load` / `GIS.ensure`, is the starting point) and a level-of-detail rule. Brief 25 keeps the current 3D extent.
+
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase and `CONFIG.INVITE_ONLY = false` in the page. **After October 9, set both back to true** (the page's comment says so) and make codes with `supabase/invite-codes.sql`; also put back the README's step 2.
 
