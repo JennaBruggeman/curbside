@@ -897,3 +897,51 @@ pass.
 - **README / landing wrong:** none. Two gaps the agent would add: the Advisory on trees, and that the two "Technical"
   controls differ.
 - Evidence: `<scratchpad>\b23\full\p3-run3\` (001–088.png, `curbside-untitled-parklet-technical.pdf`).
+
+### Run: Persona 5 (accessibility, keyboard only, 150 %), run 3, Sonnet
+
+- **Site:** the blank street.
+- **Time:** about 25 minutes to the PDF (14 pages).
+- **One mouse click,** on "Start a blank street" (see below), as the briefing allows.
+- **What worked by keyboard**
+  - **Generate places seating, so C16 can be evaluated by keyboard after all.**
+    - Ten site facts were entered in Check by keyboard.
+    - Generate gave "120 sampled · 96 built · 95 passed every check".
+    - "Open in Design" opened "Social cluster · Two bands".
+    - C16 then read "3 routes 1.20 m clear or more … 1.50 m turning space at each entry, turn and end. Passes", and Check
+      showed 19 passing.
+    - Placing pieces by hand is still impossible (row 5), but a keyboard user can reach a passing, furnished design
+      through Generate.
+  - The Visualize tab (camera presets, Sun, appearance, scene) and the Export tab (every option, Download) are fully
+    keyboard-operable, with visible focus and tooltips: the best-behaved parts.
+  - The blank street dialog puts focus on Continue, so Enter works.
+  - The Help dialog moves focus to its Close button.
+  - The PDF's C16 reads "Nothing placed yet: the route is checked once there is seating on the deck" on G-001 and C-001
+    alike.
+- **Broke**
+  - **The account menu ("Sign in ▼") cannot be used by keyboard:**
+    - Enter opens it, but focus doesn't move in and the arrows do nothing.
+    - Its items sit at the end of the document, about 80 Tabs away.
+    - Escape doesn't close it, and it stayed open over the page until a reload.
+    - So "Sign in…" and Settings cannot be reached by keyboard.
+  - **The Section's toolbar** (Undo, Redo, Fit street, Flip section, Top) is skipped by forward Tab: Tab from the Plan's
+    "Context" goes to "Maximize". Shift+Tab does pass through it, so the two orders disagree. Seen twice by the agent;
+    not checked by me.
+  - **The Help dialog doesn't trap focus:** three Tabs leave it for the page behind while it stays open.
+  - **Widening the sidewalk** from 3.00 to 4 said "⚠ Sidewalk: requested 4.00 m, set to 0.00 m (remaining roadway 0.00
+    m)".
+    - **Confirmed in code:** `_seResize` caps every segment, the sidewalk included, by the roadway's remaining width. The
+      sidewalk is not a roadway segment, and on a fully allocated street the cap is 0.
+    - The width is then kept, but the message says it was set to 0.
+    - So a sidewalk cannot be widened from the Section at all.
+  - **Ctrl+A in a Section number field selects the whole page,** not the field's text.
+  - The first Check digit was kept alone ("10" → "1", flipping C05 to a fail): row 1.
+  - After each Check entry, focus jumps to the "Not entered" group header, not the next field (row 1's regrouping).
+  - "Start a blank street" was not reached in about 80 Tabs: the whole top bar, the step strip and every Site field
+    come first, with no skip link (row 38).
+  - `GEN is not defined` (once, early).
+- **Confused:** the Export tab says "Locate a site first" on the blank street, yet Download works and makes a complete
+  report. The banner tests `state.__siteMap`, which a blank street doesn't have.
+- **README / landing wrong:** step 3 doesn't mention the blank street's confirmation dialog. Everything else matched,
+  and the PDF took about 15 s here.
+- Evidence: `<scratchpad>\b23\full\p5-run3\` (001–151.png, `curbside-blank-street-schematic.pdf`).
