@@ -3,6 +3,7 @@
 #     criteria titles in parklet-checker.html (id c1..c15, num, title), so it cannot drift from the app
 #   - the version between <!-- VERSION --> and <!-- /VERSION --> is the latest git tag
 #   - the Supabase project ref between /*SBREF*/ and /*/SBREF*/ comes from the app's SUPABASE_URL
+#   - the public anon key between /*SBKEY*/ and /*/SBKEY*/ comes from the app's SUPABASE_ANON_KEY (the invite line asks the database)
 # Run after changing a check title, after tagging, or with -Check to report drift without writing.
 param([switch]$Check)
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -23,9 +24,13 @@ if (-not $tag) { $tag = 'untagged' }
 $ref = ''
 $u = [regex]::Match($app, "SUPABASE_URL\s*[:=]\s*'https://([a-z0-9]+)\.supabase\.co'")   # CONFIG.SUPABASE_URL (Brief 21 sec. 7)
 if ($u.Success) { $ref = $u.Groups[1].Value }
+$key = ''
+$k = [regex]::Match($app, "SUPABASE_ANON_KEY\s*[:=]\s*'([A-Za-z0-9_.\-]+)'")
+if ($k.Success) { $key = $k.Groups[1].Value }
 
 $new = [regex]::Replace($idx, '<!-- CHECKS:BEGIN[\s\S]*?<!-- CHECKS:END -->', { param($x) $block })
 $new = [regex]::Replace($new, '<!-- VERSION -->[\s\S]*?<!-- /VERSION -->', { param($x) '<!-- VERSION -->' + $tag + '<!-- /VERSION -->' })
+if ($key) { $new = [regex]::Replace($new, "/\*SBKEY\*/'[A-Za-z0-9_.\-]*'/\*/SBKEY\*/", { param($x) "/*SBKEY*/'" + $key + "'/*/SBKEY*/" }) }
 if ($ref) { $new = [regex]::Replace($new, "/\*SBREF\*/'[a-z0-9]*'/\*/SBREF\*/", { param($x) "/*SBREF*/'" + $ref + "'/*/SBREF*/" }) }
 
 if ($new -eq $idx) { Write-Output ('index.html is in step: ' + $m.Count + ' checks, version ' + $tag + ', project ref ' + $ref); exit 0 }

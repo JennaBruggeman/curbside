@@ -14,11 +14,16 @@ _To be written by Jenna._
 
 1. **Open the site** at the link above. The landing page shows the four stages and the checks; *See a sample
    report* opens a finished report of a reference design without an account.
-2. **Sign in, or create an account.** Sign-up is normally by invite code; during the class review (until 9 October
-   2026) it is open and asks for none. Signing in lists your designs and opens none.
-3. **Choose a site.** With no site, the drawings show *Choose a site*. Click **Locate on map**, search an address
-   or pan to it, click the street, then click again on the parklet's side, and **Use this location**. **Layers** on the
-   map shows the site data around it: streets, buildings, bikeways, bus stops, hydrants, trees and more.
+2. **Sign in, or create an account.** During the class review (until 9 October 2026) sign-up is open and asks for no
+   code; after it, sign-up asks for an invite code. The landing page and the form follow the same setting, so they
+   always agree. Signing in lists your designs and opens none. A strip under the tabs shows the four steps,
+   Site → Design → Check → Export, until your first export.
+3. **Choose a site.** With no site, the drawings show *Choose a site*. Click **Locate on map** and search an address
+   *with its house number* (`2000 Main St`) or an intersection (`Main St & E 20th Ave`), or pan to it; click the street,
+   then click again on the parklet's side, and **Use this location**. **Layers** on the map shows the site data around
+   it: streets, buildings, bikeways, bus stops, hydrants, trees and more. Without a real site, **Start a blank street**
+   gives a generic two-way street (one lane each way, parking both sides) to sketch on; its report says it is not a
+   real location.
 4. **Import street context** (the button in the same panel). It reads the existing street (lanes, direction, route type, bike lane,
    right-of-way width), the buildings and the site objects (hydrants, trees, bus stops) from the site data. Each value
    shows its source and the date of the data; **Override** corrects one. A deck of the default length is then placed at the host frontage.
@@ -26,11 +31,14 @@ _To be written by Jenna._
    (*Add segment*), and place furniture from the Library. Or let **Generate** propose layouts that pass every
    check and **Open in Design** the one you like; where the site itself fails a check no design can fix (a bus zone,
    say), Generate says so and places nothing.
-6. **Check.** The **Check** tab shows the verdict and every check, failures first. Imported site objects wait
-   for *Confirm* (checks that depend on them are *provisional*); values the import cannot know (slope, driveways,
-   poles …) are entered here.
+6. **Check.** The **Check** tab gives the verdict in one sentence with one next step (open the failing check, get the
+   survey sheet, confirm the imported objects), then every check grouped as Fails · Awaiting measurement · Not entered ·
+   Provisional pass · Pass. A check passes only on measured or confirmed values; imported data gives a provisional
+   result, and estimates don't count. Imported site objects wait for *Confirm*; values the import cannot know (slope,
+   driveways, poles …) are entered here.
 7. **Export.** In **Export**, choose Schematic or Technical, tick what to include, and **Download report (PDF)**:
-   17 × 11 in sheets, drawings at true scale. The 3D model exports as Rhino (.3dm) and other formats.
+   17 × 11 in sheets, drawings at true scale, the second page *What to do next*. It takes a few seconds (under 20);
+   the button fills as it works, sheet by sheet. The 3D model exports as Rhino (.3dm) and other formats.
 
 ## Source
 
@@ -55,12 +63,13 @@ C-001 and X-001 sheets.
 | C13 | ≥ 1.5 m from adjacent parking spaces | p. 62 | |
 | C14 | Deck flush with the sidewalk (gap ≤ 12 mm, connector ≤ 13 mm) | p. 62 | |
 | C15 | Deck load capacity ≥ 7.2 kPa | p. 62 | |
+| C16 | Accessible route 1.1 m clear from each entry to an accessible seat; 1.5 m turning space at the entry, turns and end | to be confirmed | Guideline |
 | C17 | Enclosure 0.75–1.0 m high on the traffic side and both ends | E2, p. 64 | |
 | C18 | At least two unobstructed openings of 1.8 m or more to the sidewalk | E3, p. 65 | |
 | C19 | Overhead elements ≥ 2.1 m clear above the deck and within the footprint | E5, p. 65 | |
 
-Section numbers for C01–C15 are still to be added from the Manual (the app records their pages). C16 is reserved
-for accessibility. Bike lane and buffer widths follow EDM §8.5.4.5. Site data comes from City of Vancouver Open
+Section numbers for C01–C15 are still to be added from the Manual (the app records their pages). C16's Manual page
+is still to be confirmed (its values are the 1.1 m route and 1.5 m turning space this tool uses). Bike lane and buffer widths follow EDM §8.5.4.5. Site data comes from City of Vancouver Open
 Data, OpenStreetMap (© OpenStreetMap contributors, ODbL) and TransLink's GTFS feed, prepared weekly in 1 km cells by
 [curbside-data](https://github.com/JennaBruggeman/curbside-data); the report's X-001 lists each dataset and the date
 of its data.
@@ -156,7 +165,8 @@ else's data:
 2. In its SQL Editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates the `profiles` and `designs`
    tables, turns on Row Level Security for every table (each user reads and writes only their own rows; a
    signed-out request reads nothing), the invite check, and the private `user-furniture` storage bucket.
-3. Run [`supabase/invite-codes.sql`](supabase/invite-codes.sql) for one invite code per person (see below).
+3. Run [`supabase/invite-codes.sql`](supabase/invite-codes.sql) for one invite code per person (see below), and
+   [`supabase/invite-status.sql`](supabase/invite-status.sql) if your database was set up before it was part of `schema.sql`.
 4. Project Settings › API: copy the **Project URL** and the **anon / publishable key** into the `CONFIG` block at
    the top of `parklet-checker.html`. Only the anon key belongs there — never the service-role key or a
    database password.
@@ -177,7 +187,9 @@ select code, label, uses, last_used_at from public.invite_codes;    -- which wer
 update public.app_settings set invite_only = false;                 -- open sign-up to anyone
 ```
 
-When you open sign-up, also set `CONFIG.INVITE_ONLY = false` so the form stops asking for a code, and set
+The landing page's "invite code required" line and the sign-up form's code field follow `app_settings.invite_only`, read
+through `public.signup_invite_only()` (`invite-status.sql`: the yes / no flag only, never the code), so the one-line
+toggle above is all it takes. `CONFIG.INVITE_ONLY` is only the form's fallback when that function cannot be reached. Set
 `CONFIG.INVITE_CONTACT` to whoever hands out codes. Existing accounts are never affected.
 
 ## Repository

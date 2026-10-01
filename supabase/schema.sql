@@ -106,3 +106,12 @@ create policy "user-furniture: delete own" on storage.objects for delete to auth
 
 -- ── check: RLS is on for every table in public (all rows should read true) ─────────────────────────
 -- select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r';
+
+-- Whether sign-up asks for a code, readable by anyone (the flag only, never the code): the landing page and the
+-- sign-up form follow it (Brief 25 item 7; also in invite-status.sql for databases set up before it).
+create or replace function public.signup_invite_only() returns boolean
+  language sql stable security definer set search_path = public as $$
+  select coalesce((select invite_only from public.app_settings where id), true);
+$$;
+revoke all on function public.signup_invite_only() from public;
+grant execute on function public.signup_invite_only() to anon, authenticated;
