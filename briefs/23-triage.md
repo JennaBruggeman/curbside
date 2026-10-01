@@ -457,3 +457,61 @@ pass.
   - Bearing "44.72999999999999999".
 - **README / landing wrong:** none confirmed (the Generate mismatch is the harness).
 - Evidence: `<scratchpad>\b23\full\p1-run2\` (screenshots, `blockA_pdf.json`, `blockB_pdf.json`, block B's PDF).
+
+### Run: Parent (café owner), run 2, Opus
+
+- **Site:** Union Market, 810 Union St, Strathcona, south side (a quiet residential street, no bus route). **Time:**
+  about 43 minutes to the schematic PDF (13 pages), about 15 of them with the page frozen (Generate, Open in Design, tab
+  switches, the PDF; three software renderers at once). Route: Generate, then Open in Design; no furniture placed by
+  hand. The agent could not write its `report.md`; condensed here.
+- **New since run 1**
+  - **Typing in a Check field loses keystrokes** ("17" became "1"): the row jumps to another group after the first
+    digit and the field loses focus; the banner flashed "Does not pass". **Reproduced, and it is a regression from Brief
+    25 item 31** (the grouping): typing "17" into C03's field at Dunbar leaves "1" and focus on nothing; the first digit
+    changes the row's state (not entered → fail) and the regrouping moves the row out from under the cursor. Every
+    persona who types a measured value meets it.
+  - **Opening a generated scheme wipes the imported context:** 156 imported items down to 1, Site "not imported", the
+    estimate badges gone, the PDF "No street trees in this stretch" and "No imported street is recorded"; Export says
+    "Locate a site first" with the site set. **Reproduced** (Dunbar): site objects 35 → 1, trees 31 → 0, the import record
+    and the existing street gone, and **C02 goes from "Awaiting measurement" to "Pass" on the estimate it no longer
+    knows is one**, against the rule the page states.
+  - **Generate needs ten site facts typed in Check first** ("Set these site facts first … 01 Parking restrictions; 03
+    …; 13 …"); README step 5 does not say so. After the facts are set the main "Generate" button is gone and the old
+    message stays; the second button is inside the folded "Output" section. Generate's cards say "19/19 checks" and
+    "passed every check" while C02 still awaited a measurement. Clicking an item under Generate › Site facts does
+    nothing.
+  - A slope typed as "1" was stored as "0.1 %" (probably the keystroke loss: not separated).
+  - Mouse clicks on a native dropdown's options did not register (the keyboard did; may be the harness); the dropdowns
+    have no accessible name ("combobox").
+  - After the scheme, the Section reads 2.80 | 2.40 | 3.00 | 3.00 and the PDF "Beside the parklet: Parking, 2.40 m",
+    parking between the deck and traffic, where the import had the parking on the far side.
+  - Console after the PDF: `[checkLandmarkConsistency] 4 value(s) disagree … Plan vegetation count; Plan transit count;
+    section: cut objects drawn vs getSectionScene; section: beyond objects …` (after the scheme opened).
+  - Counts read differently: the side summary counts provisional passes inside "passing" and again as "provisional"
+    ("19 passing · 1 provisional" against groups "Pass 18 · Provisional 1"); the PDF cover's "0 not confirmed
+    (provisional)" while one hydrant waits to be confirmed. Consistent sums, confusing words.
+- **Confused:** guessed distances count as measured (nothing tells "guessed" from "measured"); C06 has no "no driveway
+  nearby"; C10 and C11 have opposite good answers ("No – confirmed clear" against "Yes – all drains clear"); C03 not
+  filled by the import with Hawks Av at the corner; the 19.8 m deck runs past the 7.00 m frontage onto the neighbours'
+  curb with no word about it; the step strip lit "1 Site" while in Design, and nothing on Generate; the README's
+  "Override" button was never seen (only "Confirm").
+- **README / landing wrong:** step 5 (Generate's facts); step 2 (the strip was still there right after the first
+  export: not checked after a reload; it hides on the next tab change); step 3's "with its house number" while the Site
+  panel's example is "1000-block Robson St"; "Override" (step 4) not found.
+- Evidence: `<scratchpad>\b23\full\parent-run2\` (screenshots, the PDF).
+
+### Run: Persona 2 (Manual references), run 2, Sonnet
+
+- **Site:** W 10th Av at Tolmie St, south side (host Pizza Pizza, 4574 W 10th Av; it turned out a bus / truck route,
+  the 99 B-Line). **Time:** about 25–30 minutes to the technical PDF.
+- **Manual references:** C01–C15 matched page and number (the agent placed C06's driveway sentence on p. 20 this time;
+  run 1 and the Manual's text put it on p. 62 only: run 1 stands). C16: the Manual's G19, p. 60 asks for a 1.5 m wide
+  access path; the app's 1.1 m route is not in the Manual (as run 1).
+- **New since run 1:** the way to make C02 pass, found by elimination: entering the curb-to-curb width is not enough;
+  **confirming the separate "Far-side parking lane estimate" in the side list** is what moved C02 to "Pass
+  (provisional)"; the row never names it (run 1's dead end, now with its exit). Clicking the word "Technical" did not
+  select it, a click on the radio did: **not reproduced** (a click on the word selects Technical here): harness.
+- **Confused:** nothing before the import says a street is a transit corridor; the PDF cover's "12 not confirmed
+  (provisional)" covers the "Not entered" checks.
+- **README / landing wrong:** none; export time 60–90 s here (load).
+- Evidence: `<scratchpad>\b23\full\p2-run2\` (001–063.png, the technical PDF).
