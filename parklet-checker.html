@@ -8606,6 +8606,7 @@ const manholes = state['manholes'] || [];
   svg.style.cursor = (_pvUserMod || _pvInFS) ? 'grab' : 'default';
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
+  if (!paper && window._pvEdgeFlash && window._pvEdgeFlash.until > Date.now()) { const _fe = svg.querySelector(".pv-furn[data-inst='" + window._pvEdgeFlash.id + "']"); if (_fe) _fe.classList.add('pv-edge'); }   // (Brief 29b: held at the deck's edge)
   if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
   if (!paper) { try { ACC.planKey(svg); } catch (e) { console.warn('[plan key]', e); } }
   if (!paper && window.APP_MODE === 'accessibility' && typeof ACCTAB !== 'undefined') { try { ACCTAB.render(); } catch (e) { console.warn('[accessibility]', e); } }   // Brief 25 items 21, 21b
@@ -8976,6 +8977,13 @@ function planMM(e) {
     if (Math.abs(_fnx - _pW2/2) < ALN_TOL) { _alignGuides.push({type:'X', value:_pW2/2}); _fnx = _pW2/2; }
     var _xr = flXRange((window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }) || {}).archetype);
     _fnx = Math.max(_xr[0], Math.min(_fnx, _xr[1]));
+    // along the deck too (Brief 29b): a deck piece stops at the end of the deck's usable run, its whole footprint on the
+    // deck, and shows it has met the edge; it never leaves the deck
+    var _dr = flDeckRange(window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }));
+    if (_dr && (_fnz < _dr.z[0] - 1e-6 || _fnz > _dr.z[1] + 1e-6 || _fnx < _dr.x[0] - 1e-6 || _fnx > _dr.x[1] + 1e-6)) {
+      _fnz = Math.max(_dr.z[0], Math.min(_fnz, _dr.z[1])); _fnx = Math.max(_dr.x[0], Math.min(_fnx, _dr.x[1]));
+      _pvFurnDragging.hitEdge = true; window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700 };
+    }
     // Live distances
     _pvDragDistances = {left:_fnx, right:_pW2-_fnx, front:_fnz, back:_pL2-_fnz};
     const _fdi = window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; });
@@ -9076,6 +9084,10 @@ function planMM(e) {
 
 function planMU() {
   if (typeof _pvDeckDragging !== 'undefined' && _pvDeckDragging) { _pvDeckDragging = null; setTimeout(function() { _pvDeckMoved = false; }, 0); }
+  if (_pvFurnDragging && _pvFurnDragging.hitEdge) {   // dropped against the edge: the halo a moment longer, then gone
+    window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700 };
+    setTimeout(function() { if (typeof renderPlanView === 'function') renderPlanView(); }, 750);
+  }
   if (_pvFurnDragging || _pvFurnCornerDragging) {
     var _muInst = (_pvFurnDragging && window.FL3D) ? window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }) : null;
     if (_muInst && _muInst.archetype && flSnapSeat(_muInst)) { flRebuildInstMesh(_muInst); _dmSyncObject(_muInst); }
@@ -11722,6 +11734,17 @@ function flSnapSeat(inst) {
 }
 // Where a piece may be dragged across the street: furniture stays on the deck, entourage may go
 // anywhere from the sidewalk to the far side of the roadway.
+// the centre's ranges for a deck piece at its rotation (Brief 29b): its whole footprint on the deck, across (0 to the
+// usable width) and along (between the ends' enclosures); null for a piece that may stand off the deck (vehicles,
+// people) or an unknown one
+function flDeckRange(inst) {
+  if (!inst || typeof ENC === 'undefined' || typeof GEN === 'undefined') return null;
+  if (typeof FLZ !== 'undefined' && FLZ.zone(inst.objId) !== 'deck') return null;
+  var it = ENC.items([Object.assign({}, inst, { x: 0, z: 0 })])[0]; if (!it) return null;
+  var b = GEN.aabb(it), fp = ENC.fpLive(), zA = fp.zA != null ? fp.zA : 0, zB = fp.L - (fp.zBd != null ? fp.zBd : 0), X1 = fp.W - (fp.inset || 0);
+  var r = function(lo, hi) { return lo <= hi ? [lo, hi] : [(lo + hi) / 2, (lo + hi) / 2]; };   // longer than the room: centred
+  return { x: r(-b.x0, X1 - b.x1), z: r(zA - b.z0, zB - b.z1) };
+}
 function flXRange(archetype) {
   var LM = DESIGN_MODEL.landmarks;
   if (flIsEntourage(archetype)) return [LM.sidewalkL.x0 + 0.05, LM.roadRight - 0.05];
@@ -31145,6 +31168,8 @@ document.addEventListener('keydown', function(e) {
 .chk-res .badge-pass { color: var(--st-pass, #2d6a4f); } .chk-res .badge-fail { color: var(--st-fail, #C0392B); } .chk-res .badge-unclear { color: var(--d-mid); }
 .chk-res .badge-await, #ctxCheck .badge-await { color: var(--accent-ui, #3AA8E4); border-color: currentColor; white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }   /* Brief 25 §1: an estimate awaits a measurement (wraps in the Result column) */
 
+/* Brief 29b: a piece dragged against the deck's edge */
+#planView .pv-furn.pv-edge { filter: drop-shadow(0 0 2px #E8A317) drop-shadow(0 0 4px #E8A317); }
 .chk-prov { font: 600 11px var(--font-ui); color: #8A5A00; background: #FEF7E4; border-radius: 3px; padding: 1px 5px; }
 /* Brief 29 item 7: a provisional row's own Confirm; the Confirm drawer */
 .chk-conf { font: 600 11px var(--font-ui); color: var(--accent-ui, #3AA8E4); background: none; border: 1px solid currentColor; border-radius: 3px; padding: 0 6px; cursor: pointer; line-height: 17px; }
