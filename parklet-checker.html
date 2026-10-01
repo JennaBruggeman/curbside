@@ -942,8 +942,11 @@ const criteria = [  {
       const la = assessLanes(_dmCurrent().crossSection);
       const routeLbl = state['route_type'] === 'bus_truck' ? 'bus/truck route (≥3.2 m)' : 'standard lane (≥3.0 m)';
       if (!la.length) return 'No travel lane in the cross-section.';
+      // the lanes, then each EDM Table 8-10 note once, with the lanes it applies to
       const list = la.map(function(a){ return a.width.toFixed(3) + ' m ' + a.role; }).join(', ');
-      return `Travel lane${la.length > 1 ? 's' : ''}: ${list} — ${la.every(function(a){ return a.c02; }) ? 'passes' : 'below'} minimum for ${routeLbl}.`;
+      const bandNote = { 'abs-min': 'EDM Table 8-10 note 4 (absolute minimum, City Engineer approval)', exception: 'EDM Table 8-10 note 8 (exception only)' };
+      const bands = Object.keys(bandNote).map(function(b) { const ix = la.filter(function(a){ return a.band === b; }).map(function(a){ return a.index + 1; }); return ix.length ? bandNote[b] + ' applies to lane' + (ix.length > 1 ? 's ' : ' ') + ix.join(', ') + '.' : ''; }).filter(Boolean).join(' ');
+      return `Travel lane${la.length > 1 ? 's' : ''}: ${list} — ${la.every(function(a){ return a.c02; }) ? 'passes' : 'below'} minimum for ${routeLbl}.` + (bands ? ' ' + bands : '') + (typeof CHK !== 'undefined' && CHK.c2Estimate() ? ' The curb-to-curb width is an estimate (lanes x 3.2 m + parking lanes x 2.4 m): measure it before reading these lanes as a result.' : '');
 
 }
 ,    note: 'Lane widths are the travel-lane segments of the cross-section; each lane is held within EDM 2026 Table 8-10 for its role. C02 applies the Parklet Manual minimum (3.0 m, 3.2 m bus/truck) to every lane.',    inputId: 'route_type',    inputLabel: 'Is the adjacent lane a bus or truck route?',    inputType: 'select',    selectOptions: [      {
@@ -961,27 +964,23 @@ const criteria = [  {
 
 }
 ,    evalMsg: (val) => {
+      // Brief 25 §1.3: one line (the lanes one by one are in the site condition)
       const la = assessLanes(_dmCurrent().crossSection);
       if (!la.length) return '✗ No travel lane in the cross-section.';
-      const twoWayNote = ROAD_DIR === 'twoway' ? ` (${LANES_A}+${LANES_B} two-way)` : '';
-      const parts = la.map(function(a) {
-        const diff = Math.round(Math.abs(a.width - a.req) * 1000);
-        const edm = a.band === 'abs-min' ? '; EDM Table 8-10 note 4: absolute minimum, City Engineer approval'
-                  : a.band === 'exception' ? '; EDM Table 8-10 note 8: exception only' : '';
-        return `Lane ${a.index + 1} (${a.role}) ${a.width.toFixed(3)} m ${a.c02 ? '≥' : '<'} ${a.req.toFixed(1)} m, ${a.c02 ? 'passes' : 'fails'} by ${diff} mm${edm}`;
-      });
-      return (la.every(function(a){ return a.c02; }) ? '✓ ' : '✗ ') + parts.join(' · ') + '.' + twoWayNote;
+      if (typeof CHK !== 'undefined' && CHK.c2Estimate()) return '⚠ Awaiting measurement. Measure curb to curb: ' + CHK.c2Line(true) + '.';
+      return (la.every(function(a){ return a.c02; }) ? '✓ ' : '✗ ') + CHK.c2Line(false) + (ROAD_DIR === 'twoway' ? ` (${LANES_A}+${LANES_B} two-way)` : '') + '.';
 
 }
 ,    resolutionFn: (val) => {
-      const bld = getBikeLaneD();
-      const maxStd = (TOTAL_ROAD - bld - 3.0 * getTotalLanes()).toFixed(3);
-      const maxBus = (TOTAL_ROAD - bld - 3.2 * getTotalLanes()).toFixed(3);
-      const nLn2 = getTotalLanes();
-      const dirCtx = ROAD_DIR === 'twoway' ? ` for ${LANES_A}+${LANES_B} two-way` : '';
-      if (val === 'standard') return `<strong>Resolution (standard lane):</strong> Reduce parklet width to ≤ <strong>${maxStd} m</strong> to give each lane ≥ 3.0 m${dirCtx}. Min road for this config: ${(bld + 3.0 * nLn2).toFixed(2)} m (lanes only) + parklet.`;
-      if (val === 'bus_truck') return `<strong>Resolution (bus/truck lane):</strong> Reduce parklet width to ≤ <strong>${maxBus} m</strong> to give each lane ≥ 3.2 m${dirCtx}. Min road for this config: ${(bld + 3.2 * nLn2).toFixed(2)} m (lanes only) + parklet.`;
-      return `<strong>Resolution:</strong> Max parklet width = <strong>${maxStd} m</strong> (standard) or <strong>${maxBus} m</strong> (bus/truck).`;
+      // Brief 25 §1.3: what the lanes would be, not an instruction to redesign. The widest parklet that keeps every lane
+      // at the minimum: this one plus the lanes' total surplus (the lanes share the width evenly)
+      const la = assessLanes(_dmCurrent().crossSection), req = getReqLane(), rl = req.toFixed(1);
+      if (!la.length) return '';
+      const slack = la.reduce(function(s, a){ return s + (a.width - req); }, 0), maxW = Math.max(0, designParkletWidth + slack).toFixed(2), road = (+TOTAL_ROAD).toFixed(2);
+      const est = typeof CHK !== 'undefined' && CHK.c2Estimate();
+      if (slack >= -1e-4) return `<strong>Lanes:</strong> every lane keeps ≥ ${rl} m with this parklet` + (est ? `, on the estimated ${road} m curb to curb: measure it to confirm.` : '.');
+      if (est) return `<strong>If the measured width confirms the estimate</strong> (${road} m curb to curb), a parklet of at most <strong>${maxW} m</strong> keeps every lane ≥ ${rl} m. The estimate assumes 3.2 m lanes and 2.4 m parking lanes, so measure first.`;
+      return `<strong>With the measured ${road} m curb to curb</strong>, a parklet of at most <strong>${maxW} m</strong> keeps every lane ≥ ${rl} m; a narrower lane needs the City Engineer's approval (EDM Table 8-10).`;
 
 }
   
@@ -1291,6 +1290,105 @@ if (c.status === 'fail' && !c.evalFn) return 'fail';
   return c.status;
 
 }
+// ── Brief 25 §1: provenance drives the result ───────────────────────────────────────────────────────────────────────
+// getCriterionStatus is the rule applied to the numbers in hand. CHK.state caps it by the weakest fact the check reads:
+//   any estimate                      -> 'await' (Awaiting measurement), never Pass / Fail; the row names what to measure
+//   imported, not yet confirmed       -> Pass / Fail, provisional
+//   measured, surveyed, confirmed, overridden, entered or designed -> Pass / Fail
+// The Check tab, the verdict, the summary and the report read CHK; the generator keeps the raw rule (it compares
+// candidates on one site, whatever the facts' sources).
+var CHK = {
+  // the facts each check reads: SMP.prov keys (imported street facts), check inputs (state), imported object kinds, design
+  FACTS: {
+    c1: { prov: ['parkingRestrictions'], inputs: ['parking_restrictions'], objects: ['transit'] },
+    c2: { prov: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'routeType', 'bikeLane', 'farParking', 'farBike'], design: ['Parklet width'] },
+    c5: { inputs: ['hydrant_dist'], objects: ['hydrant'] },
+    c17: { design: ['Enclosure'] }, c18: { design: ['Enclosure', 'Placed furniture'] }, c19: { design: ['Placed furniture'] }
+  },
+  PROV_LBL: { roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type',
+    bikeLane: 'Bike lane', farParking: 'Far-side parking lane', farBike: 'Far-side bike lane', parkingRestrictions: 'Parking restrictions' },
+  // the check inputs that mirror an imported fact: one fact, one store (an edit of the input is an edit of the fact)
+  INPUT_FACT: { parking_restrictions: 'parkingRestrictions', route_type: 'routeType' },
+  WEAK: { estimate: 3, imported: 2, missing: 1 },
+  facts: function(c) { var f = CHK.FACTS[c.id] || {}; return { prov: f.prov || [], inputs: f.inputs || [c.inputId, c.inputId2].filter(Boolean), objects: f.objects || [], design: f.design || [] }; }
+};
+// one fact's source class: 'estimate' | 'imported' | 'confirmed' | 'survey' | 'override' | 'entered' | 'placed' | 'design' | 'missing'
+CHK.provClass = function(k) {
+  var P = typeof SMP !== 'undefined' ? SMP.prov() : {}, p = P[k], ex = typeof SITEF !== 'undefined' ? SITEF.ex() : null;
+  if (ex && ex.over && ex.over[k]) return { cls: 'override', src: 'overridden by you' };
+  if (!p) return null;
+  if (p.source === 'estimate') return { cls: 'estimate', src: 'estimate' };
+  if (p.source === 'user') return p.from ? { cls: 'confirmed', src: 'confirmed by you (was ' + (SMP.SRC[p.from] || p.from) + ')' } : { cls: 'entered', src: 'entered by you' };
+  if (p.source === 'survey') return { cls: 'survey', src: 'site survey' };
+  return { cls: 'imported', src: (SMP.SRC[p.source] || p.source) + (p.via === 'cells' ? ', data ' : ', fetched ') + SMP.day(p.fetchedAt) };
+};
+CHK.inputs = function(c) {
+  var F = CHK.facts(c), out = [], DM = _dmCurrent(), P = typeof SMP !== 'undefined' ? SMP.prov() : {}, two = typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'twoway';
+  var surveyed = (typeof state !== 'undefined' && state.__survey && state.__survey.inputs) || [];
+  F.prov.forEach(function(k) {
+    if (c.id === 'c2' && ((k === 'lanes' && two) || ((k === 'lanesA' || k === 'lanesB') && !two))) return;   // the lane fields of the road's direction only
+    var q = CHK.provClass(k);
+    if (!q && ['farParking', 'farBike', 'parkingRestrictions', 'bikeLane'].indexOf(k) >= 0) return;   // not imported: nothing to say
+    out.push({ key: k, label: CHK.PROV_LBL[k] || k, cls: q ? q.cls : 'entered', src: q ? q.src : 'entered by you' });
+  });
+  F.inputs.forEach(function(id) {
+    if (CHK.INPUT_FACT[id] && out.some(function(i) { return i.key === CHK.INPUT_FACT[id]; })) return;   // the imported fact stands for it
+    var I = DM.inputs && DM.inputs[id]; if (!I) return;
+    var sv = (P[id] && P[id].source === 'survey') || surveyed.indexOf(id) >= 0;   // the survey records the inputs it set (SURV.applyTemplate)
+    var cls = !I.entered ? 'missing' : sv ? 'survey' : I.source === 'placed site objects' ? 'placed' : 'entered';
+    out.push({ key: id, label: I.label, cls: cls, src: cls === 'missing' ? 'not entered' : cls === 'placed' ? 'measured from placed site objects' : cls === 'survey' ? 'site survey' : 'entered by you' });
+  });
+  if (typeof SMP !== 'undefined') F.objects.forEach(function(kind) {
+    var all = SMP.objects().filter(function(o) { return o.kind === kind; }); if (!all.length) return;
+    var un = all.filter(function(o) { return !o.obj.confirmed; }).length;
+    out.push({ key: kind, label: kind === 'transit' ? 'Imported transit stops' : 'Imported fire hydrants', cls: un ? 'imported' : 'confirmed', src: un ? un + ' of ' + all.length + ' not yet confirmed on site' : 'all ' + all.length + ' confirmed' });
+  });
+  F.design.forEach(function(l) { out.push({ key: l, label: l, cls: 'design', src: 'the design' }); });
+  return out;
+};
+// the result: base 'pass' | 'fail' | 'await' | 'unclear', provisional, the inputs, and (await) what to measure
+CHK.state = function(c) {
+  var raw = getCriterionStatus(c), ins = CHK.inputs(c), est = ins.filter(function(i) { return i.cls === 'estimate'; });
+  var prov = raw !== 'unclear' && !est.length && (ins.some(function(i) { return i.cls === 'imported'; }) || (typeof SMP !== 'undefined' && SMP.isProvisional(c.id)));
+  var base = raw === 'unclear' ? 'unclear' : est.length ? 'await' : raw;
+  return { id: c.id, raw: raw, base: base, provisional: base !== 'await' && base !== 'unclear' && prov, inputs: ins, estimates: est, hint: base === 'await' ? CHK.hint(c, est) : '' };
+};
+CHK.hint = function(c, est) {
+  if (c.id === 'c2') return 'Measure curb to curb: ' + CHK.c2Line(true);
+  return 'Measure ' + est.map(function(i) { return i.label.toLowerCase(); }).join(', ') + ' (the value is an estimate)';
+};
+// C02 in one line: "4 lanes × 3.138 m: an even split of the estimated 17.60 m curb to curb less the parklet; needs ≥ 3.2 m"
+CHK.c2Line = function(estimated) {
+  var la = assessLanes(_dmCurrent().crossSection); if (!la.length) return 'no travel lane in the cross-section';
+  var req = la[0].req, ws = la.map(function(a) { return a.width; }), mn = Math.min.apply(null, ws), even = Math.max.apply(null, ws) - mn < 0.0015;
+  var s = la.length + ' lane' + (la.length > 1 ? 's' : '') + (even ? ' × ' + mn.toFixed(3) + ' m' : ', narrowest ' + mn.toFixed(3) + ' m');
+  if (estimated) return s + (even ? ', even split of estimated ' + (+TOTAL_ROAD).toFixed(2) + ' m less parklet' : ' on the estimated ' + (+TOTAL_ROAD).toFixed(2) + ' m') + '; needs ≥ ' + req.toFixed(1) + ' m';
+  return s + (mn >= req - 1e-4 ? ' ≥ ' : ' < ') + req.toFixed(1) + ' m';
+};
+CHK.c2Estimate = function() { return CHK.state(criteria.find(function(c) { return c.id === 'c2'; })).base === 'await'; };
+CHK.counts = function() {
+  var n = { pass: 0, fail: 0, provFail: 0, provPass: 0, await: 0, unclear: 0 };
+  criteria.forEach(function(c) { var s = CHK.state(c); if (s.base === 'fail') n[s.provisional ? 'provFail' : 'fail']++; else if (s.base === 'pass') n[s.provisional ? 'provPass' : 'pass']++; else n[s.base]++; });
+  return n;
+};
+CHK.BADGE = { pass: ['badge-pass', 'Pass'], fail: ['badge-fail', 'Fail'], await: ['badge-await', 'Awaiting measurement'], unclear: ['badge-unclear', 'Not entered'] };
+CHK.paint = function(c) {
+  var s = CHK.state(c), B = CHK.BADGE[s.base], b = document.getElementById('badge_' + c.id), el = document.getElementById('crit_' + c.id), bd = document.getElementById('body_' + c.id);
+  if (b) { b.className = 'badge ' + B[0] + (s.provisional ? ' badge-prov' : ''); b.textContent = B[1]; b.title = s.provisional ? 'Provisional: depends on imported site data not yet verified on site' : s.base === 'await' ? s.hint : ''; }
+  if (el) { var op = el.classList.contains('open'); el.className = 'criterion chk-row ' + (s.base === 'await' ? 'unclear await' : s.base) + (op ? ' open' : ''); }
+  if (bd) bd.className = 'criterion-body ' + (s.base === 'pass' ? 'pass-body' : s.base === 'fail' ? 'fail-body' : '');
+  return s;
+};
+CHK.paintAll = function() { if (typeof criteria !== 'undefined') criteria.forEach(CHK.paint); };
+// an edit of a check input that mirrors an imported fact is an edit of that fact (it stops being imported)
+CHK.userEdit = function(inputId) {
+  var k = CHK.INPUT_FACT[inputId]; if (!k || typeof SMP === 'undefined') return;
+  var P = SMP.prov(), q = P[k]; if (q && q.source !== 'user') P[k] = { source: 'user', from: q.source, fetchedAt: q.fetchedAt, editedAt: new Date().toISOString() };
+};
+// the audit (VERIFY §1.5): one row per check, its inputs with their sources, the resulting state
+CHK.audit = function() {
+  return criteria.map(function(c) { var s = CHK.state(c); return { check: 'C' + c.num, inputs: s.inputs.map(function(i) { return i.label + ': ' + i.src; }), state: (s.base === 'await' ? 'Awaiting measurement' : CHK.BADGE[s.base][1]) + (s.provisional ? ' (provisional)' : ''), raw: s.raw, hint: s.hint }; });
+};
 
 // ─────────────────────────────────────────────
 
@@ -1326,16 +1424,17 @@ function buildInput(c) {
   if (c.inputType === 'range') return buildRangeInput(c);
   let html = '<div class="input-row">';
   if (c.inputType === 'select') {
-    html += `<span class="input-label">${c.inputLabel}:</span>      <select class="input-field" id="${c.inputId}" onchange="handleInput('${c.id}','${c.inputId}',this.value)" style="width:auto;min-width:220px;">`;
+    // the select shows the stored value (one fact, one store: Brief 25 §1.3); C02's route type is the Route type fact
+    html += `<span class="input-label">${c.inputLabel}:</span>      <select class="input-field" id="${c.inputId}" onchange="${c.id === 'c2' ? 'onRouteTypeToggle(this.value)' : `handleInput('${c.id}','${c.inputId}',this.value)`}" style="width:auto;min-width:220px;">`;
     for (const opt of c.selectOptions) {
-      html += `<option value="${opt.value}">${opt.label}</option>`;
+      html += `<option value="${opt.value}"${String(state[c.inputId] == null ? '' : state[c.inputId]) === String(opt.value) ? ' selected' : ''}>${opt.label}</option>`;
     
 }
     html += `</select>`;
   
 }
  else {
-    html += `<span class="input-label">${c.inputLabel}:</span>      <input class="input-field" type="number" step="0.01" id="${c.inputId}" placeholder="enter value"        oninput="handleInput('${c.id}','${c.inputId}',this.value)" />      <span class="input-unit">${c.inputUnit || ''}</span>`;
+    html += `<span class="input-label">${c.inputLabel}:</span>      <input class="input-field" type="number" step="0.01" id="${c.inputId}" placeholder="enter value" value="${state[c.inputId] == null ? '' : String(state[c.inputId]).replace(/"/g, '')}"        oninput="handleInput('${c.id}','${c.inputId}',this.value)" />      <span class="input-unit">${c.inputUnit || ''}</span>`;
   
 }
   if (c.inputId2) {
@@ -1343,7 +1442,7 @@ function buildInput(c) {
     if (c.inputType2 === 'select') {
       html += `<select class="input-field" id="${c.inputId2}" onchange="handleInput('${c.id}','${c.inputId2}',this.value)" style="width:auto;min-width:160px;">`;
       for (const opt of c.selectOptions2) {
-        html += `<option value="${opt.value}">${opt.label}</option>`;
+        html += `<option value="${opt.value}"${String(state[c.inputId2] == null ? '' : state[c.inputId2]) === String(opt.value) ? ' selected' : ''}>${opt.label}</option>`;
       
 }
       html += `</select>`;
@@ -1380,10 +1479,10 @@ const CHECK_SHORT = {
   c19: ['Overhead clearance', '&ge; 2.1 m clear, within the footprint']
 };
 function buildCriterion(c) {
-  const st = getCriterionStatus(c);
-  const badgeClass = st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : 'badge-unclear';
-  const badgeText = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered';
-  const bodyClass = st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '';
+  const cs = CHK.state(c), st = cs.base === 'await' ? 'unclear await' : cs.base, B = CHK.BADGE[cs.base];   // Brief 25 §1
+  const badgeClass = B[0] + (cs.provisional ? ' badge-prov' : '');
+  const badgeText = B[1];
+  const bodyClass = cs.base === 'pass' ? 'pass-body' : cs.base === 'fail' ? 'fail-body' : '';
   const siteCondText = typeof c.siteCondition === 'function' ? c.siteCondition() : c.siteCondition;
   const sh = CHECK_SHORT[c.id] || [String(c.title), ''], rid = 'C' + String(c.num).padStart(2, '0');
   return `<div class="criterion chk-row ${st}" id="crit_${c.id}" role="row">` +
@@ -1404,8 +1503,9 @@ function buildCriterion(c) {
 }function render() {
   const listEl = document.getElementById('criteriaList');
   // failures first, then the ones awaiting a value, then the passes (Brief 21 §3); the rule order within each
-  const rank = { fail: 0, unclear: 1, pass: 2 };
-  listEl.innerHTML = criteria.slice().sort(function(a, b) { return (rank[getCriterionStatus(a)] - rank[getCriterionStatus(b)]) || (+a.num - +b.num); }).map(buildCriterion).join('');
+  const rank = { fail: 0, await: 1, unclear: 2, pass: 3 }, sb = {};
+  criteria.forEach(function(c) { sb[c.id] = CHK.state(c).base; });
+  listEl.innerHTML = criteria.slice().sort(function(a, b) { return (rank[sb[a.id]] - rank[sb[b.id]]) || (+a.num - +b.num); }).map(buildCriterion).join('');
   if (typeof chkAfterRender === 'function') chkAfterRender();
   renderVerdict();
   renderSummary();
@@ -1413,121 +1513,55 @@ function buildCriterion(c) {
 
 }
 function renderVerdictCompact() {
-  const counts = {
- pass: 0, fail: 0, unclear: 0 
-}
-;
-  criteria.forEach(c => {
- counts[getCriterionStatus(c)]++;
- 
-}
-);
+  // Brief 25 §1: by CHK's states; "Fails" only when a measured or confirmed value fails
+  const n = CHK.counts(), pend = n.await + n.unclear, passing = n.pass + n.provPass;
   let cls, icon, lbl, detail;
-  if (counts.fail > 0) {
-    cls = 'vc-fail';
- icon = '✗';
- lbl = 'Fails';
-    detail = `${counts.fail} failing · ${counts.unclear} pending`;
-  
-}
- else if (counts.unclear > 0) {
-    cls = 'vc-partial';
- icon = '◎';
- lbl = 'Incomplete';
-    detail = `${counts.pass} passing · ${counts.unclear} pending`;
-  
-}
- else {
-    cls = 'vc-pass';
- icon = '✓';
- lbl = 'All pass';
-    detail = `${counts.pass} of ${criteria.length} checks pass`;
-  
-}
+  if (n.fail > 0) { cls = 'vc-fail'; icon = '✗'; lbl = 'Fails'; detail = `${n.fail} failing` + (n.provFail ? ` · ${n.provFail} provisional` : '') + ` · ${pend} pending`; }
+  else if (n.provFail > 0) { cls = 'vc-partial'; icon = '◎'; lbl = 'Provisional'; detail = `${n.provFail} failing on imported data · ${pend} pending`; }
+  else if (pend > 0) { cls = 'vc-partial'; icon = '◎'; lbl = 'Incomplete'; detail = `${passing} passing · ${pend} pending`; }
+  else { cls = 'vc-pass'; icon = '✓'; lbl = 'All pass'; detail = `${passing} of ${criteria.length} checks pass`; }
   const el = document.getElementById('verdictCompact');
   if (el) el.innerHTML = `<div class="vc ${cls}">    <span class="vc-icon">${icon}</span>    <div><div class="vc-lbl">${lbl}</div><div class="vc-detail">${detail}</div></div>  </div>`;
-
 }
 function renderVerdict() {
-  const counts = {
- pass: 0, fail: 0, unclear: 0 
-}
-;
-  criteria.forEach(c => {
- counts[getCriterionStatus(c)]++;
- 
-}
-);
+  // Brief 25 §1: "does not pass" only when a measured or confirmed value fails; an estimate awaits a measurement
+  const n = CHK.counts(), pend = n.await + n.unclear, passing = n.pass + n.provPass;
+  const pl = (k, one, many) => k === 1 ? one : many;
+  const pending = [];
+  if (n.await) pending.push(`${n.await} ${pl(n.await, 'check awaits a measurement', 'checks await measurements')} (the value in hand is an estimate)`);
+  if (n.unclear) pending.push(`${n.unclear} ${pl(n.unclear, 'check needs', 'checks need')} a site value not yet entered`);
+  const pendTxt = pending.join('; ');
   let cls, icon, title, body;
-  if (counts.fail > 0) {
-    cls = 'fail-verdict';
-    icon = '✗';
-    title = 'Preliminary verdict: does not pass';
-    body = `${counts.fail} ${counts.fail === 1 ? 'check fails' : 'checks fail'} on the data provided; ${counts.unclear} still ${counts.unclear === 1 ? 'awaits' : 'await'} site measurements. Resolve the failures before going further.`;
-  
-}
- else if (counts.unclear > 0) {
-    cls = 'partial-verdict';
-    icon = '⚠';
-    title = 'Preliminary verdict: incomplete, data needed';
-    body = `No failures on the data provided so far, but ${counts.unclear} ${counts.unclear === 1 ? 'check still needs' : 'checks still need'} site measurements. ${counts.pass} ${counts.pass === 1 ? 'check passes' : 'checks pass'} so far. Enter the remaining values below to reach a full verdict.`;
-  
-}
- else {
-    cls = 'pass-verdict';
-    icon = '✓';
-    title = 'Preliminary verdict: passes every check';
-    body = `All ${counts.pass} siting checks pass on the data provided. Proceed to detailed proposal stage. Note: City design panel review is still required.`;
-  
-}
-    // the banner on the Check and Export tabs only (Brief 21 §3)
+  if (n.fail > 0) {
+    cls = 'fail-verdict'; icon = '✗'; title = 'Preliminary verdict: does not pass';
+    body = `${n.fail} ${pl(n.fail, 'check fails', 'checks fail')} on measured or confirmed values` + (n.provFail ? `, and ${n.provFail} more on imported data not yet verified on site` : '') + (pendTxt ? `; ${pendTxt}` : '') + '. Resolve the failures before going further.';
+  } else if (n.provFail > 0) {
+    cls = 'partial-verdict'; icon = '⚠'; title = 'Preliminary verdict: provisional, fails on imported data';
+    body = `${n.provFail} ${pl(n.provFail, 'check fails', 'checks fail')} on imported site data not yet verified on site: confirm or correct it in Confirm on site.` + (pendTxt ? ` Also: ${pendTxt}.` : '') + ` ${passing} ${pl(passing, 'check passes', 'checks pass')} so far.`;
+  } else if (pend > 0) {
+    cls = 'partial-verdict'; icon = '⚠'; title = 'Preliminary verdict: incomplete, data needed';
+    body = `No failures on measured or confirmed values. ${pendTxt.charAt(0).toUpperCase() + pendTxt.slice(1)}. ${passing} ${pl(passing, 'check passes', 'checks pass')} so far.`;
+  } else {
+    cls = 'pass-verdict'; icon = '✓'; title = 'Preliminary verdict: passes every check';
+    body = `All ${passing} siting checks pass on the data provided. Proceed to detailed proposal stage. Note: City design panel review is still required.`;
+  }
+  // the banner on the Check and Export tabs only (Brief 21 §3)
   var _vh = `<div class="verdict ${cls}"><div class="verdict-icon">${icon}</div><div class="verdict-body"><h2>${title}</h2><p>${body}</p></div></div>`;
   ['verdictBanner', 'verdictBannerExp'].forEach(function(id) { var el = document.getElementById(id); if (el) el.innerHTML = _vh; });
-
 }
 function renderSummary() {
-  const problems = [], unconfirmed = [], passing = [];
+  const g = { fail: [], provFail: [], await: [], unclear: [], pass: [] };
   criteria.forEach(c => {
-    const st = getCriterionStatus(c);
-    if (st === 'fail') problems.push(`[${c.num}] ${c.title}`);
-    else if (st === 'unclear') unconfirmed.push(`[${c.num}] ${c.title}`);
-    else passing.push(`[${c.num}] ${c.title}`);
-  
-}
-);
-  let html = '<h2>Plain-language summary</h2>';
-  if (problems.length) {
-    html += `<div class="summary-col problems"><h3>Already failing (${problems.length})</h3><ul>`;
-    problems.forEach(p => {
- html += `<li>${p}</li>`;
- 
-}
-);
-    html += '</ul></div>';
-  
-}
-  if (unconfirmed.length) {
-    html += `<div class="summary-col unconfirmed"><h3>Awaiting site data (${unconfirmed.length})</h3><ul>`;
-    unconfirmed.forEach(p => {
- html += `<li>${p}</li>`;
- 
-}
-);
-    html += '</ul></div>';
-  
-}
-  if (passing.length) {
-    html += `<div class="summary-col passing"><h3>Confirmed passing (${passing.length})</h3><ul>`;
-    passing.forEach(p => {
- html += `<li>${p}</li>`;
- 
-}
-);
-    html += '</ul></div>';
-  
-}
-  document.getElementById('summaryBox').innerHTML = html;
-
+    const s = CHK.state(c), t = `[${c.num}] ${c.title}`;
+    if (s.base === 'fail') g[s.provisional ? 'provFail' : 'fail'].push(t);
+    else if (s.base === 'await') g.await.push(t + ': ' + s.hint);
+    else if (s.base === 'unclear') g.unclear.push(t);
+    else g.pass.push(t + (s.provisional ? ' (provisional)' : ''));
+  });
+  const col = (cls, h, list) => list.length ? `<div class="summary-col ${cls}"><h3>${h} (${list.length})</h3><ul>` + list.map(p => `<li>${p}</li>`).join('') + '</ul></div>' : '';
+  const html = '<h2>Plain-language summary</h2>' + col('problems', 'Already failing', g.fail) + col('problems', 'Failing on imported data, not yet verified', g.provFail) +
+    col('unconfirmed', 'Awaiting measurement (estimates)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('passing', 'Passing', g.pass);
+  const el = document.getElementById('summaryBox'); if (el) el.innerHTML = html;
 }
 
 // ─────────────────────────────────────────────
@@ -1537,11 +1571,12 @@ function renderSummary() {
 // ─────────────────────────────────────────────
 function handleInput(critId, inputId, value) {
   state[inputId] = value;
+  if (window.event && window.event.isTrusted && typeof CHK !== 'undefined') CHK.userEdit(inputId);   // the user's own edit (not a restore or an import)
   
 // Update just this criterion  
 const c = criteria.find(x => x.id === critId);
   if (!c) return;
-  const st = getCriterionStatus(c);
+  const st = typeof CHK !== 'undefined' ? CHK.state(c).base : getCriterionStatus(c);
   
 // Update badge  
 const badge = document.getElementById('badge_' + critId);
@@ -3277,7 +3312,7 @@ function buildDesignModel() {
 function complianceRows() {
   var DM = _dmCurrent();
   return criteria.map(function(c) {
-    var status = getCriterionStatus(c), ins = [DM.inputs[c.inputId], c.inputId2 ? DM.inputs[c.inputId2] : null].filter(Boolean);
+    var cs = CHK.state(c), status = cs.base, ins = [DM.inputs[c.inputId], c.inputId2 ? DM.inputs[c.inputId2] : null].filter(Boolean);   // Brief 25 §1: the capped result
     var missing = ins.filter(function(i) { return !i.entered; });
     var cond = typeof c.siteCondition === 'function' ? c.siteCondition() : (c.siteCondition || '');
     var msg = '';
@@ -3286,7 +3321,8 @@ function complianceRows() {
       msg = String(msg || '').replace(/^[\s✓✗✔✘⚠?]+/, '').trim();
       if (!msg) msg = ins.filter(function(i) { return i.entered; }).map(function(i) { return i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : ''); }).join('; ');
     }
-    return { id: c.id, num: c.num, title: c.title, page: c.page, status: status, msg: msg, condition: cond, inputs: ins, missing: missing };
+    if (status === 'await') msg = cs.hint;
+    return { id: c.id, num: c.num, title: c.title, page: c.page, status: status, raw: cs.raw, provisional: cs.provisional, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
   });
 }
 
@@ -3619,7 +3655,7 @@ function saveSettings() {
 function updateC02Status() {
 const c = criteria.find(c => c.id === 'c2');
   if (!c) return;
-  const st = getCriterionStatus(c);
+  const st = typeof CHK !== 'undefined' ? CHK.state(c).base : getCriterionStatus(c);
   const badge = document.getElementById('badge_c2');
   if (badge) {
     badge.className = 'badge ' + (st==='pass'?'badge-pass':st==='fail'?'badge-fail':'badge-unclear');
@@ -9202,8 +9238,9 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     const dispLW = assessLanes(_dm3d.crossSection).map(function(a){ return a.width.toFixed(2); }).join(' + ');
     const _tlTw = LANES_A + LANES_B;   // "N lanes" is always the total: "6 lanes (two-way, 3+3)"
     const dirLbl = ROAD_DIR === 'twoway' ? _tlTw + ' lane' + (_tlTw > 1 ? 's' : '') + ' (two-way, ' + LANES_A + '+' + LANES_B + '): ' : _tlov + ' lane' + (_tlov > 1 ? 's' : '') + ': ';
-    _ov.textContent = dirLbl + dispLW + ' m  ' + (passing ? '✓ OK' : '✗ < ' + reqLane.toFixed(1) + ' m');
-    _ov.style.background = passing ? 'rgba(22,80,44,.85)' : 'rgba(140,20,20,.85)';
+    const _est = typeof CHK !== 'undefined' && CHK.c2Estimate();   // an estimated width is not a result (Brief 25 §1)
+    _ov.textContent = dirLbl + dispLW + ' m  ' + (passing ? '✓ OK' : _est ? '? estimated width: measure curb to curb' : '✗ < ' + reqLane.toFixed(1) + ' m');
+    _ov.style.background = passing ? 'rgba(22,80,44,.85)' : _est ? 'rgba(70,74,80,.88)' : 'rgba(140,20,20,.85)';
     _ov.style.color = '#fff';
   } else {
     _ov.textContent = '⚠ Road too narrow  •  ' + _tlov + ' lane' + (_tlov > 1 ? 's' : '') + ' requested';
@@ -19352,7 +19389,7 @@ AX.derived = function() {
   try { var h = document.querySelector('#verdictBanner h2'); if (h) out.overallVerdict = h.textContent.trim(); } catch(e) {}
   try {
     var f = [], u = [];
-    (window.criteria || []).forEach(function(c) { var st = getCriterionStatus(c); if (st === 'fail') f.push(c.num + ' ' + c.title); else if (st === 'unclear') u.push(c.num + ' ' + c.title); });
+    (window.criteria || []).forEach(function(c) { var s = CHK.state(c), st = s.base; if (st === 'fail') f.push(c.num + ' ' + c.title + (s.provisional ? ' (provisional)' : '')); else if (st === 'unclear' || st === 'await') u.push(c.num + ' ' + c.title + (st === 'await' ? ' (awaiting measurement: ' + s.hint + ')' : '')); });
     out.failingCriteria = f; out.awaitingInput = u;
   } catch(e) {}
   return out;
@@ -21929,13 +21966,13 @@ RPT.mode = function() { var el = document.querySelector('input[name=rptMode]:che
 RPT.syncCard = function() { var n = document.getElementById('rptModeNote'); if (n) n.textContent = RPT.MODE_NOTE[RPT.mode()]; if (RPT.renderList) RPT.renderList(); };
 RPT.data = function(mode) {
   var DM = buildDesignModel(), rows = complianceRows(), now = new Date();
-  var n = { pass: 0, fail: 0, unclear: 0 }; rows.forEach(function(r) { n[r.status] = (n[r.status] || 0) + 1; });
+  var n = { pass: 0, fail: 0, unclear: 0, await: 0 }; rows.forEach(function(r) { n[r.status] = (n[r.status] || 0) + 1; });
   // Site from map (Brief 13): a check that depends on unconfirmed imported site data is provisional,
   // and so is the overall status until every imported item is confirmed
-  var sp = typeof SMP !== 'undefined'; rows.forEach(function(r) { r.provisional = sp && SMP.isProvisional(r.id); });
+  var sp = typeof SMP !== 'undefined'; rows.forEach(function(r) { if (r.provisional === undefined) r.provisional = sp && SMP.isProvisional(r.id); });   // complianceRows sets it (Brief 25 §1)
   var prov = (sp && SMP.anyPending()) || !!(typeof state !== 'undefined' && state.__survey);   // a survey never lifts provisional status (Brief 21 §11)
   var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.slice() : [], gt = RPT.groupsFor(placed);
-  return { mode: mode === 'technical' ? 'technical' : 'schematic', sample: !!window.PK_SAMPLE, DM: DM, rows: rows, n: n, overall: prov ? 'provisional' : n.fail ? 'fail' : n.unclear ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
+  return { mode: mode === 'technical' ? 'technical' : 'schematic', sample: !!window.PK_SAMPLE, DM: DM, rows: rows, n: n, overall: rows.some(function(r) { return r.status === 'fail' && !r.provisional; }) ? 'fail' : prov ? 'provisional' : (n.fail || n.unclear || n.await) ? 'unclear' : 'pass', provisional: prov, placed: placed, gm: RPT.genMetrics(DM, placed),
     opened: (typeof GEN !== 'undefined' && GEN.opened) ? GEN.opened : null, groups: gt.groups, tags: gt.tags, opts: (RPT._opts = RPT.opts()),
     date: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
 };
@@ -21978,7 +22015,7 @@ RPT.treeFetched = function(list) {
 // ── Text sheets (Brief 12b, laid out by the engine's grid, Brief 17) ─────────────────────────────────────
 // Each builder returns blocks (RPT.flow): {h2}, {kv: [[label, value]]} (the value right-aligned in a 40 mm column),
 // {table: {cols, rows}}, {p}. Every list is a table; nothing is a wrapped sentence of items.
-RPT.RES = { pass: ['PASS', '#1A1A1A'], fail: ['FAIL', '#C62828'], unclear: ['NOT CONFIRMED', '#6E6E6E'] };
+RPT.RES = { pass: ['PASS', '#1A1A1A'], fail: ['FAIL', '#C62828'], unclear: ['NOT CONFIRMED', '#6E6E6E'], await: ['AWAITING MEASUREMENT', '#6E6E6E'] };
 RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear; return { t: a[0] + (r.provisional ? ' (provisional)' : ''), c: a[1], b: true, s: RPT.TX.tag }; };
 RPT.treeBlocks = function(DM) {
   var list = RPT.cityTrees(DM); if (!list.length) return [];
@@ -22075,7 +22112,7 @@ RPT.encBlocks = function(d) {
     { p: 'Buffer ' + RPT.fx(E.bufferDepth, 2) + ' m inside the deck\'s traffic-side edge (unusable: planting or void); usable width ' + RPT.fx(E.usableW, 2) + ' m of ' + RPT.fx(d.DM.parklet.width, 2) + ' m. Heights above the deck; a planter\'s is the top of its planting (E2, Parklet Manual p. 64). Details A-301.' + (E.flags.length ? ' ' + E.flags.map(function(f) { return f.t; }).join(' ') : '') }];
 };
 // ── C-001 Compliance: one row per check, failures first; "not entered" where the value is a default ─────────
-RPT.compRows = function(d) { var o = { fail: 0, unclear: 1, pass: 2 }; return d.rows.slice().sort(function(a, b) { return (o[a.status] - o[b.status]) || (a.num - b.num); }); };
+RPT.compRows = function(d) { var o = { fail: 0, await: 1, unclear: 2, pass: 3 }; return d.rows.slice().sort(function(a, b) { return (o[a.status] - o[b.status]) || (a.num - b.num); }); };
 RPT.measured = function(r) {
   var ne = r.missing.map(function(m) { return m.label; }).join('; ');
   if (r.missing.length && r.status === 'unclear') return { t: 'not entered: ' + ne, c: RPT.MID };
@@ -22091,7 +22128,7 @@ RPT.compBlocks = function(d) {
   return out;
 };
 RPT.compliance = function(d) {
-  var note = d.n.pass + ' pass  ·  ' + d.n.fail + ' fail  ·  ' + d.n.unclear + ' not confirmed' + (d.provisional ? '  ·  provisional' : '');
+  var note = d.n.pass + ' pass  ·  ' + d.n.fail + ' fail  ·  ' + (d.n.await ? d.n.await + ' awaiting measurement  ·  ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? '  ·  provisional' : '');
   return RPT.textSheet('C-001', 'Compliance', note, RPT.compBlocks(d), true);
 };
 // C-002 (Brief 22): what the Section puts beside the parklet, read from the segments (the bike lane's one source): the
@@ -23191,7 +23228,7 @@ RPT.sheetTitle = function(d, drw) {
   P.text(x, y + 11, DM.project.name, 8, { bold: true });
   P.text(x, y + 19, RPT.addr(DM), TX.head);
   P.text(x, y + 25, 'Lat ' + (+DM.site.lat).toFixed(5) + ', lon ' + (+DM.site.lon).toFixed(5) + '  -  street bearing ' + (+DM.site.streetBearing).toFixed(1) + ' deg  -  parklet on the ' + DM.site.parkletSide + ' side', TX.body, { c: RPT.MID });
-  P.text(x, y + 30.5, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + d.n.unclear + ' not confirmed' + (d.provisional ? '  (provisional: imported site data not yet verified on site)' : ''), TX.body, { c: RPT.MID });
+  P.text(x, y + 30.5, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + (d.n.await ? d.n.await + ' awaiting measurement, ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? '  (provisional: imported site data not yet verified on site)' : ''), TX.body, { c: RPT.MID });
   // status stamp
   P.rect(x, y + 36, 112, 12, { cls: 'cut' }); P.rect(x + 1.2, y + 37.2, 109.6, 9.6, { cls: 'fine' });
   P.text(x + 56, y + 44, 'Preliminary: not for construction', TX.head, { anchor: 'middle', bold: true });
@@ -23389,7 +23426,7 @@ RPT.runSample = async function() {
     f.style.cssText = 'position:fixed;left:0;top:44px;width:100%;height:calc(100% - 44px);border:0;z-index:10000;background:#DADADA;';
     document.body.appendChild(f);
     var d = RPT.lastData;
-    msg(d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + d.n.unclear + ' not confirmed - ' + r.pages + ' pages');
+    msg(d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + (d.n.await ? d.n.await + ' awaiting measurement, ' : '') + d.n.unclear + ' not confirmed - ' + r.pages + ' pages');
     var pb = document.getElementById('rptSamplePrint'); pb.disabled = false;
     pb.onclick = function() { var a = document.createElement('a'); a.href = url; a.download = r.name; document.body.appendChild(a); a.click(); a.remove(); };
     window.__sampleReady = true;
@@ -23612,7 +23649,7 @@ RPT.sheetCover = function(d, drw, op) {
     P.rect(x, sy, 96, 12, { cls: 'cut' }); P.rect(x + 1.2, sy + 1.2, 93.6, 9.6, { cls: 'fine' });
     P.text(x + 48, sy + 7.6, 'Preliminary: not for construction', TX.body, { anchor: 'middle', bold: true, data: " data-cover='1'" });
     P.text(x + 102, sy + 4.8, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail,', TX.body, { data: " data-cover='1'" });
-    P.text(x + 102, sy + 9.8, d.n.unclear + ' not confirmed' + (d.provisional ? ' (provisional)' : ''), TX.body, { data: " data-cover='1'" });
+    P.text(x + 102, sy + 9.8, (d.n.await ? d.n.await + ' to measure, ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? ' (provisional)' : ''), TX.body, { data: " data-cover='1'" });
     var sv = typeof SURV !== 'undefined' && SURV.summary ? SURV.summary() : null;   // Brief 21 §11
     if (sv) P.text(x + 102, sy + 14.8, sv, TX.body, { data: " data-cover='1'" });
   } };
@@ -26726,7 +26763,8 @@ GIS.importData = async function(la, lo, sm) {
   // the street: the picked way (its part at the site), else the nearest within 30 m; the other ways within 60 m are the
   // dual-carriageway candidates (SMP.pairOf keeps a one-way way of the same name within 20 m)
   var axis = +sm.streetBearing || 0, dist = function(w) { var s = SM.snap([w], la, lo); return s ? s.dist : Infinity; };
-  var ways = GIS.ways().filter(function(w) { return dist(w) <= 60; });
+  // the ways within 60 m, and the same street's ways within 150 m (SMP.blockLanes reads the block's lane count from them)
+  var ways = GIS.ways().filter(function(w) { var d = dist(w); return d <= 60 || (sm.name && w.tags.name === sm.name && d <= 150); });
   var mine = ways.filter(function(w) { return sm.wayId && w.id === sm.wayId; }).sort(function(a, b) { return dist(a) - dist(b); });
   var sn = mine.length ? null : SM.snap(ways.filter(function(w) { return dist(w) <= 30; }), la, lo);
   A.way = mine[0] || (sn && sn.way) || null;
@@ -27028,7 +27066,7 @@ SMP.renderCheck = function() {
   host.hidden = false;
   var n = objs.filter(function(o) { return !o.obj.confirmed; }).length + fields.length;
   host.innerHTML = '<h3>Imported site data - verify on site</h3><p>' + (n ? n + ' imported item' + (n > 1 ? 's' : '') + ' still to confirm. Checks that depend on them are provisional until each is confirmed.' : 'Every imported item is confirmed.') + '</p><ul>' +
-    fields.map(function(k) { var p = P[k]; return "<li><span class='smp-badge'>imported - verify on site</span><span>" + SM.esc({ roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', farParking: 'Far-side parking lane', farBike: 'Far-side bike lane', parkingRestrictions: 'Parking restrictions' }[k] || k) + " <span class='smp-src'>" + SM.esc(SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' - ' + p.note : '')) + "</span></span><button type='button' class='smp-confirm' onclick=\"SMP.confirmField('" + k + "')\">Confirm</button></li>"; }).join('') +
+    fields.map(function(k) { var p = P[k]; return "<li><span class='smp-badge'>" + (p.source === 'estimate' ? 'estimate - measure on site' : 'imported - verify on site') + "</span><span>" + SM.esc({ roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', farParking: 'Far-side parking lane', farBike: 'Far-side bike lane', parkingRestrictions: 'Parking restrictions' }[k] || k) + " <span class='smp-src'>" + SM.esc(SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' - ' + p.note : '')) + "</span></span><button type='button' class='smp-confirm' onclick=\"SMP.confirmField('" + k + "')\">Confirm</button></li>"; }).join('') +
     objs.map(function(o) { var f = o.obj, p = f.prov || {}; return "<li><span class='smp-badge" + (f.confirmed ? ' ok' : '') + "'>" + (f.confirmed ? 'confirmed' : 'imported - verify on site') + '</span><span>' + SM.esc(o.label) + ' at ' + SMP.where(f) + " <span class='smp-src'>" + SM.esc((SMP.SRC[p.source] || '') + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt)) + '</span></span>' +
       (f.confirmed ? '<span></span>' : "<button type='button' class='smp-confirm' onclick=\"SMP.confirm('" + o.list + "','" + f.id + "')\">Confirm</button>") + '</li>'; }).join('') + '</ul>';
 };
@@ -27036,12 +27074,7 @@ SMP.renderCheck = function() {
 SMP.decorateChecks = function() {
   try { SMP.syncButton(); } catch (e) {}
   if (typeof criteria === 'undefined') return;
-  criteria.forEach(function(c) {
-    var b = document.getElementById('badge_' + c.id); if (!b) return;
-    var st = getCriterionStatus(c), base = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered', pv = SMP.isProvisional(c.id);
-    b.textContent = base; b.classList.toggle('badge-prov', pv);   // the row's own 'provisional' chip says the rest (Brief 21 §3)
-    b.title = pv ? 'Provisional: depends on imported site data not yet verified on site (see Confirm on site, left)' : '';
-  });
+  CHK.paintAll();   // badges and rows by the capped result (Brief 25 §1); the row's own 'provisional' chip says the rest
   SMP.renderCheck();
   if (typeof chkAfterRender === 'function') chkAfterRender();
 };
@@ -27484,6 +27517,18 @@ SMP.pairOf = function(way, cands, sm) {
   });
   return best;
 };
+// A short way near an intersection carries the turn lanes in its lanes tag (Main St at Broadway: 12 m tagged lanes=7). When
+// the picked way is under 60 m, the block's lane count is the lanes value covering the most length of the same street's
+// two-way ways within 150 m; null when the picked way is long, unnamed, or no other way says more.
+SMP.blockLanes = function(way, cands, sm) {
+  var T = SM.enu(sm.lat, sm.lon), len = function(w) { var g = w.geometry || [], s = 0; for (var i = 1; i < g.length; i++) { var a = T.to(g[i - 1].lat, g[i - 1].lon), b = T.to(g[i].lat, g[i].lon); s += Math.hypot(b.e - a.e, b.n - a.n); } return s; };
+  var t = way.tags || {}, L = len(way); if (L >= 60 || !t.name) return null;
+  var by = {};
+  cands.forEach(function(w) { var q = w.tags || {}; if (w.id === way.id || q.name !== t.name || SMP.isOneway(q)) return; var n = SMP.num(q.lanes); if (n == null) return; var k = Math.round(n); by[k] = (by[k] || 0) + len(w); });
+  var ks = Object.keys(by).sort(function(a, b) { return by[b] - by[a]; }); if (!ks.length) return null;
+  var k = +ks[0];
+  return { n: k, note: 'way ' + way.id + ' is a ' + L.toFixed(0) + ' m segment tagged lanes=' + (t.lanes || '?') + ' (an intersection approach, turn lanes included); the block\'s ' + t.name + ' ways (' + Math.round(by[k]) + ' m) have ' + k + ' lanes: ' + k + ' used' };
+};
 SMP.lanesOf = function(t, hw, oneway) {
   var n = SMP.num(t.lanes), g = { primary: [2, 3], trunk: [2, 3], secondary: [1, 2], tertiary: [1, 2] }[hw] || [1, 1];
   return n == null ? { n: oneway ? g[1] : g[0] * 2, est: true } : { n: Math.round(n), est: false };
@@ -27494,21 +27539,21 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
   s.name = t.name || ''; s.highway = t.highway || ''; s.maxspeed = t.maxspeed || null; s.sidewalk = t.sidewalk || null;
   var pair = SMP.pairOf(way, cands || [], sm), plan;
   if (pair) {
-    // merge the two carriageways into one two-way street; the near one is on the parklet's side
-    var pb = siteNorm(Math.atan2(SM.enu(sm.lat, sm.lon).to(pair.snap.lat, pair.snap.lon).e, SM.enu(sm.lat, sm.lon).to(pair.snap.lat, pair.snap.lon).n) * 180 / Math.PI);
-    var pairNear = pair.snap.dist > 0.5 && siteAngle(pb, sm.sideBearing) < 90, nw = pairNear ? pair.way : way, fw = pairNear ? way : pair.way;
-    var nt = nw.tags || {}, ft = fw.tags || {}, ns = SM.snap([nw], sm.lat, sm.lon), fs = SM.snap([fw], sm.lat, sm.lon);
-    var nRight = siteAngle(siteNorm(ns.dir + 90), sm.sideBearing) < 90, fRight = siteAngle(siteNorm(fs.dir + 90), sm.sideBearing) >= 90;   // the far way's far curb
-    var nl = SMP.lanesOf(nt, hw, true), fl = SMP.lanesOf(ft, hw, true);
-    plan = { oneway: false, near: nl.n, far: fl.n, est: nl.est || fl.est, lanesNote: 'dual carriageway: way ' + nw.id + ' (' + (nt.lanes || '?') + ' lanes) + way ' + fw.id + ' (' + (ft.lanes || '?') + ' lanes)',
-      bike: SMP.bikeOf(nt, nRight), farBike: SMP.bikeOf(ft, fRight), farPark: SMP.parkOf(ft, fRight), ids: 'ways ' + nw.id + ' + ' + fw.id };
-    s.pair = fw.id === way.id ? nw.id : fw.id;
-    rep.notes.push('dual carriageway merged: ways ' + way.id + ' and ' + pair.way.id + ' (' + pair.snap.dist.toFixed(1) + ' m apart; the median is not modelled)');
+    // a dual carriageway (Brief 25 §1.4): two one-way ways stay two. The picked way (nearest the pick) is modelled as a
+    // one-way road; its far side is the median (no far parking); the other carriageway is not modelled, and the report says so
+    var nL = SMP.lanesOf(t, hw, true);
+    plan = { oneway: true, near: nL.n, far: 0, est: nL.est, lanesNote: 'lanes=' + (t.lanes || '?') + '; one carriageway of a dual carriageway (way ' + pair.way.id + ' is the other)',
+      bike: SMP.bikeOf(t, right), farBike: { v: null }, farPark: 'median', ids: id };
+    s.pair = pair.way.id;
+    rep.notes.push('dual carriageway: way ' + way.id + ' (nearest the pick, ' + (t.lanes || '?') + ' lanes) is modelled as a one-way road; way ' + pair.way.id + ' (the other carriageway, ' + pair.snap.dist.toFixed(1) + ' m away) and the median are not modelled');
   } else {
     var ow = SMP.isOneway(t), fwd = SMP.num(t['lanes:forward']), bwd = SMP.num(t['lanes:backward']), L0 = SMP.lanesOf(t, hw, ow), near, far;
+    var bl = !ow ? SMP.blockLanes(way, cands || [], sm) : null;   // a short intersection approach: the block's lanes (Brief 25 §1.4)
+    if (bl && bl.n < L0.n) { L0 = { n: bl.n, est: false }; fwd = null; bwd = null; rep.notes.push(bl.note); } else bl = null;
     if (!ow) { if (fwd == null || bwd == null) { fwd = Math.max(1, Math.ceil(L0.n / 2)); bwd = Math.max(1, Math.floor(L0.n / 2)); } near = right ? fwd : bwd; far = right ? bwd : fwd; }   // traffic keeps right
     plan = { oneway: ow, near: ow ? L0.n : near, far: ow ? 0 : far, est: L0.est, lanesNote: 'lanes=' + (t.lanes || '?') + (t['lanes:forward'] ? ', forward ' + t['lanes:forward'] : '') + (t['lanes:backward'] ? ', backward ' + t['lanes:backward'] : ''),
       bike: SMP.bikeOf(t, right), farBike: ow ? { v: null } : SMP.bikeOf(t, !right), farPark: SMP.parkOf(t, !right), ids: id };
+    if (bl) plan.lanesNote += '; ' + bl.note;
   }
   // a CoV bikeway on this street name when OSM says nothing (or 'separate')
   // (from the cells, r.near: a bikeway along the street at the site, matched by place: Brief 24)
@@ -27516,7 +27561,7 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
   if ((!plan.bike.v || plan.bike.raw === 'separate') && cb) { plan.bike = { v: /Protected/i.test(cb.bikeway_type) ? 'protected' : 'painted', note: 'bikeways: ' + cb.bikeway_type + ' (' + (cb.bike_route_name || '') + ')' }; bsrc = 'cov'; }
   var bikeW = function(v) { return v === 'protected' ? 2.0 : v === 'painted' ? 1.5 : 0; };
   var nearBike = plan.bike.v && plan.bike.v !== 'none' ? plan.bike.v : null, farBike = nearBike && plan.farBike.v && plan.farBike.v !== 'none' ? plan.farBike.v : null;   // a far bike lane is drawn beside a near one only
-  var farPark = /^(no|none|no_parking|no_stopping|fire_lane|separate)$/.test(plan.farPark) ? 0 : 1;
+  var farPark = /^(no|none|no_parking|no_stopping|fire_lane|separate|median)$/.test(plan.farPark) ? 0 : 1;
   var near = Math.max(1, Math.min(plan.oneway ? 6 : 4, plan.near)), far = plan.oneway ? 0 : Math.max(1, Math.min(4, plan.far)), total = near + far;
   // curb to curb: NOT imported (OSM has no reliable width): lanes x 3.2 + parking lanes x 2.4 + the bike lanes
   // segments the user added by hand stay in the Section, so they stay in the width too (the far-side
@@ -27533,8 +27578,8 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
   var w = Math.round((total * 3.2 + (1 + farPark) * 2.4 + bikeW(nearBike) + bikeW(farBike) + extra) * 100) / 100;
   // 1. the width first (so nothing is clamped against the old one), then direction, lanes, bike lane, route
   var rw = document.getElementById('roadWidth'); if (rw) { rw.value = w; onRoadWidthChange(); }
-  SMP.set('roadWidth', 'estimate', plan.ids, at, total + ' lanes x 3.2 m + ' + (1 + farPark) + ' parking lane' + (farPark ? 's' : '') + ' x 2.4 m' + (bikeW(nearBike) + bikeW(farBike) ? ' + bike lane' + (farBike ? 's ' : ' ') + (bikeW(nearBike) + bikeW(farBike)) + ' m' : '') + (plan.farPark ? ' (far parking tag: ' + plan.farPark + ')' : ' (far-side parking assumed)') + (extra ? ' + ' + extra.toFixed(2) + ' m of Section segments you added' : '') + (pair ? '; median not modelled' : '') + ': measure it');
-  onRoadDirChange(plan.oneway ? 'oneway' : 'twoway'); SMP.set('roadDir', 'osm', plan.ids, at, pair ? 'two one-way carriageways merged' : 'oneway=' + (t.oneway || 'no'));
+  SMP.set('roadWidth', 'estimate', plan.ids, at, total + ' lanes x 3.2 m + ' + (1 + farPark) + ' parking lane' + (farPark ? 's' : '') + ' x 2.4 m' + (bikeW(nearBike) + bikeW(farBike) ? ' + bike lane' + (farBike ? 's ' : ' ') + (bikeW(nearBike) + bikeW(farBike)) + ' m' : '') + (plan.farPark ? ' (far parking tag: ' + plan.farPark + ')' : ' (far-side parking assumed)') + (extra ? ' + ' + extra.toFixed(2) + ' m of Section segments you added' : '') + (pair ? '; one carriageway of a dual carriageway, to the median' : '') + ': measure it');
+  onRoadDirChange(plan.oneway ? 'oneway' : 'twoway'); SMP.set('roadDir', 'osm', plan.ids, at, pair ? 'oneway=' + (t.oneway || 'no') + '; one carriageway of a dual carriageway' : 'oneway=' + (t.oneway || 'no'));
   var src = plan.est ? 'estimate' : 'osm', lnote = plan.est ? 'no lanes tag; typical for highway=' + (t.highway || '?') : plan.lanesNote;
   if (plan.oneway) { var lc = document.getElementById('laneCount'); if (lc) lc.value = near; onLaneCountChange(); SMP.set('lanes', src, plan.ids, at, lnote); s.lanes = near + ' lane' + (near > 1 ? 's' : '') + ' (one-way)'; }
   else {
@@ -27550,7 +27595,8 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
   // 2. the far side as segments (after the last travel lane): a bike lane, then the parking lane at the curb
   SMP.applyFar(farBike, farPark ? 2.4 : 0, plan, at, rep);
   s.roadWidth = w;
-  s.summary = (t.name || 'the street') + ' (' + (t.highway || '?') + (pair ? ', dual carriageway' : '') + '): ' + s.lanes + ', route ' + (rt === 'bus_truck' ? 'bus / truck' : 'standard') + ', bike lane ' + (nearBike || 'none') + (farBike ? ' (far side ' + farBike + ')' : '') + (t.maxspeed ? ', ' + t.maxspeed + ' km/h' : '') + ', curb to curb ' + w.toFixed(2) + ' m (estimate' + (farPark ? ', incl. a far-side parking lane' : '') + ')';
+  s.summary = (t.name || 'the street') + ' (' + (t.highway || '?') + (pair ? ', one carriageway of a dual carriageway' : '') + '): '
+ + s.lanes + ', route ' + (rt === 'bus_truck' ? 'bus / truck' : 'standard') + ', bike lane ' + (nearBike || 'none') + (farBike ? ' (far side ' + farBike + ')' : '') + (t.maxspeed ? ', ' + t.maxspeed + ' km/h' : '') + ', curb to curb ' + w.toFixed(2) + ' m (estimate' + (farPark ? ', incl. a far-side parking lane' : '') + ')';
 };
 // Far-side segments after the last travel lane, added only when that side has none of the type
 // (so a re-import or a hand-added one is never doubled); tagged in the provenance as imported.
@@ -27605,12 +27651,18 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
   else if (near.length && swEl) {
     var nb = near.reduce(function(a, c) { return c.curbDist < a.curbDist ? c : a; }), bufW = (typeof designBufferEnabled !== 'undefined' && designBufferEnabled) ? (LM.bufferW || 0) : 0;
     var mn = parseFloat(swEl.min) || 0.5, mx = parseFloat(swEl.max) || 6, raw = nb.curbDist - bufW, sw = Math.round(Math.max(mn, Math.min(mx, raw)) * 10) / 10, prev = +(+SIDEWALK_W).toFixed(2), pp = SMP.prov().sidewalk;
+    if (raw < mn) {   // the face is inside the estimated curb: the curb-to-curb estimate is too wide here; no sidewalk is made up (Brief 25 §1.4)
+      SMP.set('sidewalk', 'estimate', 'way ' + nb.b.id, at, 'not estimated: the nearest building face (way ' + nb.b.id + ') is ' + raw.toFixed(2) + ' m from the estimated curb, so the curb-to-curb estimate is too wide here; measure the sidewalk');
+      rep.notes.push('sidewalk left at ' + prev.toFixed(2) + ' m: the nearest building face is inside the estimated curb (' + raw.toFixed(2) + ' m); measure it');
+    } else {
     swEl.value = sw; onSidewalkWidthChange();
     SMP.set('sidewalk', 'estimate', 'way ' + nb.b.id, at, 'nearest building face, way ' + nb.b.id + '; curb position is itself an estimate' + (bufW ? '; minus the ' + bufW + ' m buffer' : '') + (raw < mn || raw > mx ? '; face ' + raw.toFixed(2) + ' m from the curb, clamped to the field\'s ' + mn + '-' + mx + ' m' : ''));
     rep.sidewalk = { value: sw, way: nb.b.id, curbDist: +nb.curbDist.toFixed(2) };
     if (pp && pp.source === 'user' && Math.abs(prev - sw) > 0.005) rep.notes.push('your sidewalk width ' + prev.toFixed(2) + ' m was replaced by the estimate ' + sw.toFixed(1) + ' m');
     else if (Math.abs(prev - sw) > 0.005) rep.notes.push('sidewalk ' + prev.toFixed(2) + ' m -> ' + sw.toFixed(1) + ' m (estimate)');
-  } else rep.notes.push('no near-side building kept: the sidewalk width was left at ' + (+SIDEWALK_W).toFixed(2) + ' m');
+    }
+  } else rep.notes.push('no near-side building kept: the sidewalk width was left at '
+ + (+SIDEWALK_W).toFixed(2) + ' m');
   if (!(opts && opts.keepSidewalk)) rep.notes.push('the far sidewalk has no field of its own (it mirrors the near one); far-side setbacks are measured from it');
   LM = buildDesignModel().landmarks;   // the frontage moved with the sidewalk
   // 3. the programme entries, setbacks from that frontage (the nearest near-side building: 0 by construction)
@@ -28685,6 +28737,8 @@ document.addEventListener('keydown', function(e) {
 .chk-res { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .chk-res .badge { font: 600 12px var(--font-ui); padding: 2px 8px; border-radius: 10px; border: 1px solid; background: transparent; text-transform: none; }
 .chk-res .badge-pass { color: var(--st-pass, #2d6a4f); } .chk-res .badge-fail { color: var(--st-fail, #C0392B); } .chk-res .badge-unclear { color: var(--d-mid); }
+.chk-res .badge-await, #ctxCheck .badge-await { color: var(--accent-ui, #3AA8E4); border-color: currentColor; white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }   /* Brief 25 §1: an estimate awaits a measurement (wraps in the Result column) */
+
 .chk-prov { font: 600 11px var(--font-ui); color: #8A5A00; background: #FEF7E4; border-radius: 3px; padding: 1px 5px; }
 #criteriaList .criterion-body { display: none; padding: 4px 14px 14px 80px; background: transparent; border-top: none; font-size: 13px; }
 #criteriaList .chk-row.open .criterion-body { display: block; }
@@ -28774,17 +28828,18 @@ var CHECK_VIEW = { c2: 'section', c3: 'plan', c5: 'plan', c6: 'plan', c7: 'plan'
 var CHECK_MARKS = { c3: ['Crosswalk', 'Intersection'], c5: ['Hydrant'], c6: ['Driveway'], c7: ['Pole'], c8: ['Signal', 'Signal box'], c9: ['Manhole', 'Chamber'], c13: ['Parking'] };
 var _chkF = 'all';
 function chkAfterRender() {
-  var rows = typeof complianceRows === 'function' ? complianceRows() : [], n = { fail: 0, pass: 0, unclear: 0, prov: 0 };
+  if (typeof CHK !== 'undefined') CHK.paintAll();   // Brief 25 §1
+  var rows = typeof complianceRows === 'function' ? complianceRows() : [], n = { fail: 0, pass: 0, unclear: 0, await: 0, prov: 0 };
   rows.forEach(function(r) {
     var m = document.getElementById('meas_' + r.id), p = document.getElementById('prov_' + r.id), el = document.getElementById('crit_' + r.id);
-    var prov = typeof SMP !== 'undefined' && SMP.isProvisional && SMP.isProvisional(r.id);
+    var prov = !!r.provisional;
     if (m) { m.textContent = r.missing && r.missing.length && r.status === 'unclear' ? 'not entered' : (r.msg || 'not entered'); m.classList.toggle('chk-none', m.textContent === 'not entered'); }
     if (p) p.hidden = !prov;
     if (el) { el.dataset.prov = prov ? '1' : ''; var show = CHECK_VIEW[r.id], b = el.querySelector('.chk-show'); if (b) b.hidden = !show; }
     n[r.status] = (n[r.status] || 0) + 1; if (prov) n.prov++;
   });
   var cc = document.getElementById('chkCounts');
-  if (cc) cc.textContent = n.fail + ' failing · ' + n.unclear + ' not entered · ' + n.pass + ' passing' + (n.prov ? ' · ' + n.prov + ' provisional' : '');
+  if (cc) cc.textContent = n.fail + ' failing · ' + (n.await ? n.await + ' awaiting measurement · ' : '') + n.unclear + ' not entered · ' + n.pass + ' passing' + (n.prov ? ' · ' + n.prov + ' provisional' : '');
   // (Brief 21c) a design saved before the enclosure (Brief 21 §12): the one line saying what changed on opening it
   var list = document.getElementById('criteriaList'), mn = document.getElementById('chkMigrated');
   if (typeof ENC !== 'undefined' && ENC.migrated() && list) { if (!mn) { mn = document.createElement('p'); mn.id = 'chkMigrated'; mn.className = 'chk-migrated'; mn.setAttribute('role', 'note'); list.parentNode.insertBefore(mn, list); } mn.textContent = ENC.MIGRATION_NOTE + '.'; }
