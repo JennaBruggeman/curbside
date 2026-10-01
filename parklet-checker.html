@@ -10936,7 +10936,7 @@ function flSnapToLane(inst) {
     });
   }
   if (a.snap === 'bike') near('bike-lane');
-  if (!pick) near('travel-lane');
+  if (!pick) { near('travel-lane'); if (a.snap === 'lane') near('parking'); }   // a car may also be parked (Brief 25 item 15b)
   if (!pick) return;
   inst.x = pick.c;
   inst.userRotation = inst.rotationY = pick.s.dirZ < 0 ? Math.PI : 0;
@@ -15557,12 +15557,11 @@ function _fdGetPlanWorld(e) {
   var sp = pt.matrixTransform(ctm.inverse());
   var m = (typeof planMetrics === 'function') ? planMetrics() : null;
   if (!m) return { valid: false };
-  // Clamp to parklet rect
-  if (sp.x < m.PK_X || sp.x > m.PK_X + m.PK_W ||
-      sp.y < m.PK_Y || sp.y > m.PK_Y + m.PK_H) {
-    return { valid: false };
-  }
+  // the piece's drop zone (Brief 25 item 15b): furniture on the deck's rect; a vehicle on the road, a person anywhere
+  var zone = typeof FLZ !== 'undefined' ? FLZ.cur() : 'deck';
+  if (zone === 'deck' && (sp.x < m.PK_X || sp.x > m.PK_X + m.PK_W || sp.y < m.PK_Y || sp.y > m.PK_Y + m.PK_H)) return { valid: false };
   var w = planToWorld(sp.x, sp.y);
+  if (zone !== 'deck' && !FLZ.ok(zone, w.x, w.z)) return { valid: false };
   return { valid: true, wx: w.x, wz: w.z };
 }
 
@@ -15571,7 +15570,8 @@ function _fdGetSectionWorld(e) {
   if (!svg || !f) return { valid: false };
   var r = svg.getBoundingClientRect(); if (!r.width) return { valid: false };
   var wx = sectionToWorld(e.clientX - r.left, 0, f).x, LM = _dmCurrent().landmarks;
-  if (wx < LM.deckX0 || wx > LM.deckX1) return { valid: false };
+  var zone = typeof FLZ !== 'undefined' ? FLZ.cur() : 'deck';   // the drop zone (Brief 25 item 15b)
+  if (zone === 'deck' ? (wx < LM.deckX0 || wx > LM.deckX1) : !FLZ.ok(zone, wx, getSectionCutWorldZ())) return { valid: false };
   return { valid: true, wx: wx, wz: getSectionCutWorldZ() };
 }
 function _fdGet3DWorld(e) {
@@ -15585,6 +15585,11 @@ function _fdGet3DWorld(e) {
   FL3D.mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
   FL3D.mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
   FL3D.raycaster.setFromCamera(FL3D.mouse, _3d.camera);
+  var zone = typeof FLZ !== 'undefined' ? FLZ.cur() : 'deck';
+  if (zone !== 'deck') {   // off the deck (Brief 25 item 15b): the street's ground, then the piece's zone
+    var gp = new THREE.Vector3(); if (!FL3D.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), gp)) return { valid: false };
+    return FLZ.ok(zone, gp.x, gp.z) ? { valid: true, wx: gp.x, wz: gp.z } : { valid: false };
+  }
   var hits = FL3D.raycaster.intersectObject(FL3D.floor);
   if (!hits.length) return { valid: false };
   return { valid: true, wx: hits[0].point.x, wz: hits[0].point.z };
@@ -15702,6 +15707,7 @@ function _fdClear3DPreview() {
   }
 }
 function _fdClearAllPreviews() {
+  if (typeof FLZ !== 'undefined') FLZ.hide();
   _fdClearPlanPreview();
   _fdClearSectionPreview();
   _fdClear3DPreview();
@@ -15740,6 +15746,7 @@ function _fdUpdateViews(e) {
     if (prevView === '3d') _fdClear3DPreview();
   }
   FURN_DRAG.lastView = view;
+  if (typeof FLZ !== 'undefined') { if (view === 'plan' && !isStreet) FLZ.show(); else FLZ.hide(); }   // the valid zone, shaded (Brief 25 item 15b)
 
   if (!view) {
     document.body.style.cursor = 'no-drop';
@@ -18605,7 +18612,10 @@ PX.layerOf = function(o) {
   var n = o;
   while (n && n !== _3d.group) {
     var ud = n.userData || {};
-    if (ud.flInstId || ud.fl3dInstId || ud.fl3d) return 'Furniture';
+    if (ud.flInstId || ud.fl3dInstId || ud.fl3d) {   // a vehicle or a person is context, not the parklet's furniture (Brief 25 item 15b)
+      var _pi = (window.FL3D && FL3D.placed || []).find(function(p) { return p.id === (ud.fl3dInstId || ud.flInstId); });
+      return _pi && _pi.archetype && flIsEntourage(_pi.archetype) ? 'Context' : 'Furniture';
+    }
     if (ud.expLayer) return ud.expLayer;
     n = n.parent;
   }
@@ -18997,6 +19007,14 @@ RX.build = async function(opts) {
     if (c.type === 'wheelStop') br = boxB(c.x0, c.x1, c.y0, c.y1, c.z0, c.z1);
     else { br = new rh.Cylinder(new rh.Circle(0.1), c.y1).toBrep(true, true); var pc = RX.P(c.x, 0, c.z); br.transform(rh.Transform.translationXYZ(pc[0], pc[1], 0)); }
     addB(br, 'CONTEXT_CITY', 'City ' + c.label.toLowerCase() + ', end ' + c.end + ' (nominal; supplied and installed by the City)', '#9C9C98');
+  });
+  // ── CONTEXT: the vehicles placed on the street (Brief 25 item 15b): context only, one box each (their plan footprint,
+  // turned by their heading, to their height); not the parklet's furniture
+  (window.FL3D && FL3D.placed || []).forEach(function(p) {
+    if (!p.archetype || !flIsEntourage(p.archetype) || FL_ARCHETYPES[p.archetype].ent !== 'vehicle') return;
+    var sp = flInstSpec(p), e = flEnvelope(flParts(sp.type, sp.params)), r = p.userRotation || 0, c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+    var hx = (e.d * c + e.l * s) / 2, hz = (e.l * c + e.d * s) / 2;
+    addB(boxB(p.x - hx, p.x + hx, 0, e.h, p.z - hz, p.z + hz), 'CONTEXT', FL_ARCHETYPES[p.archetype].label + ' (context)', '#8A8F96');
   });
   // ── Parklet › Furniture › <archetype>: one block per schedule group, an instance per piece
   var placed = (window.FL3D && FL3D.placed || []).filter(function(p) { return p.archetype && !flIsEntourage(p.archetype); });
@@ -27024,6 +27042,204 @@ INTX.search = async function(q) {
 // ── Item 10: the map's data dots are information while the Layers tab is open, and never while a side is being picked ─
 GIS.inspecting = function() { var p = document.getElementById('smLayers'); return !!(p && !p.hidden) && !(SM.pick && SM.pick.snap); };
 </script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// SIDEBARS (Brief 25 §3): the Site sections, the Design street-context note, the Visualize folds, the Furniture tab's
+// import, bulk confirm, the vehicles' drop zone
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var SBX = {};
+// ── Item 11: the Site sidebar. Locate, Import and Place parklet stay open at the top (the import is the forced first
+// step; the placement is reachable without opening anything). Under them, closed sections, each with its state on the
+// header: Import · Street widths · Road direction & lanes · Route type · Context buildings · Street objects. ───────
+SBX.SITE = [['dkcsImp', 'Import'], ['dkcsW', 'Street widths'], ['dkcsL', 'Road direction & lanes'], ['dkcsR', 'Route type']];
+SBX.site = function() {
+  var host = document.getElementById('ctxSite'), p0 = document.getElementById('dkcs0'), s1 = document.getElementById('siteStep1'), s2 = document.getElementById('siteStep2'), s3 = document.getElementById('siteStep3');
+  if (!host || !p0 || !s1 || !s2 || !s3 || host._sbx || typeof _dkWrap !== 'function') return false;
+  host._sbx = true;
+  var before = document.getElementById('dkcs1') || null, q = function(id) { return document.getElementById(id); }, ff = function(id) { var e = q(id); return e ? (e.closest('.ff-row') || e.closest('.ff') || e) : null; };
+  var top = document.createElement('div'); top.className = 'sb-section sbx-steps'; top.id = 'sbxSteps';
+  host.insertBefore(top, p0); [s1, s2, s3].forEach(function(s) { top.appendChild(s); });
+  var secs = {};
+  SBX.SITE.forEach(function(d) { var s = document.createElement('div'); s.className = 'sb-section'; s.id = d[0] + 'Sec'; host.insertBefore(s, before); secs[d[0]] = s; });
+  var put = function(pid, els) { els.forEach(function(e) { if (e && e.parentNode) secs[pid].appendChild(e); }); };
+  put('dkcsImp', [q('impLayers'), ff('siteContextZ'), q('siteStep4')]);
+  put('dkcsW', [p0.querySelector('.sf-intro'), ff('roadWidth'), ff('sf_row')]);
+  put('dkcsL', [ff('sf_roadDir'), q('laneOneWayField'), q('laneTwoWayField'), q('laneSrc'), ff('sf_bikeLane')]);
+  put('dkcsR', [ff('sf_routeType')]);
+  SBX.SITE.forEach(function(d) { _dkWrap(secs[d[0]], d[0], d[1], true); });
+  // the old Site setup panel is empty now
+  p0.remove(); if (typeof _dkPanels !== 'undefined') delete _dkPanels.dkcs0;
+  try { _dkMenuUpdate(); } catch (e) {}
+  host.addEventListener('input', function() { clearTimeout(SBX._bt); SBX._bt = setTimeout(SBX.badges, 120); });
+  var msg = q('smpMsg'); if (msg) { msg.title = 'Click to show the whole import summary'; msg.addEventListener('click', function(e) { if (e.target.closest('.smp-sum')) msg.classList.toggle('sbx-more'); }); }
+  SBX.sync();
+  return true;
+};
+// the state on each closed header: a value or a count, and "estimate" where an estimate stands
+SBX.badge = function(pid, parts) {
+  var p = document.getElementById(pid), h = p && p.querySelector('.dk-panel-hdr'); if (!h) return;
+  var b = h.querySelector('.dk-badges'); if (!b) { b = document.createElement('span'); b.className = 'dk-badges'; h.insertBefore(b, h.querySelector('.dkpb')); }
+  b.innerHTML = parts.filter(Boolean).map(function(x) { return "<span class='dk-badge" + (x.est ? ' est' : '') + "'" + (x.title ? " title='" + SM.esc(x.title) + "'" : '') + '>' + SM.esc(x.t) + '</span>'; }).join('');
+};
+SBX.badges = function() {
+  if (typeof SMP === 'undefined' || !document.getElementById('dkcsW')) return;
+  var P = SMP.prov(), est = function(k) { return P[k] && P[k].source === 'estimate'; }, src = function(k) { var p = P[k]; return !p ? null : p.source === 'estimate' ? { t: 'estimate', est: true, title: 'An estimate: measure it on site' } : p.source === 'user' ? null : p.source === 'survey' ? { t: 'surveyed' } : { t: 'imported', title: 'Imported: confirm it on site' }; };
+  var sm = state.__siteMap, two = ROAD_DIR === 'twoway';
+  SBX.badge('dkcsImp', [state.__generic ? { t: 'blank street' } : sm && sm.importedAt ? { t: 'imported ' + SMP.day(sm.importedAt) } : { t: 'not imported' }]);
+  SBX.badge('dkcsW', [{ t: (+TOTAL_ROAD).toFixed(2) + ' m' }, (est('roadWidth') || est('sidewalk')) ? { t: 'estimate', est: true, title: 'Curb to curb' + (est('sidewalk') ? ' and the sidewalk are estimates' : ' is an estimate') + ': measure on site' } : null]);
+  SBX.badge('dkcsL', [{ t: two ? 'two-way ' + LANES_A + '+' + LANES_B : 'one-way ' + NUM_LANES }, src(two ? 'lanesA' : 'lanes') || src('roadDir')]);
+  SBX.badge('dkcsR', [{ t: state.route_type === 'bus_truck' ? 'bus / truck' : state.route_type === 'standard' ? 'standard' : 'not set' }, src('routeType')]);
+  SBX.badge('dkcs1', [{ t: ((BLDG_L.buildings || []).length + (BLDG_R.buildings || []).length) + ' buildings' }]);
+  var nObj = (state.curb_features || []).length + (state.manholes || []).length + (state.driveways || []).length;
+  SBX.badge('dkcs2', [{ t: nObj + ' object' + (nObj === 1 ? '' : 's') }]);
+};
+// before a site, only the steps and the Import section: the street's sections follow the import (or a blank street)
+SBX.sync = function() {
+  var s0 = typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET;
+  ['dkcsW', 'dkcsL', 'dkcsR', 'dkcs1', 'dkcs2'].forEach(function(pid) { var p = document.getElementById(pid); if (p) p.hidden = s0; });
+  SBX.badges();
+};
+
+// ── Item 12: Design's "Street context" panel held only its explanatory note: the panel goes ─────────────────────
+SBX.design = function() {
+  var p = document.getElementById('dkcd1'); if (!p || p._sbx) return;
+  if (p.querySelector('.dk-panel-body input, .dk-panel-body select, .dk-panel-body button, .dk-panel-body textarea')) { var n = p.querySelector('.design-buf-hint'); if (n) n.remove(); p._sbx = true; return; }
+  p.remove(); if (typeof _dkPanels !== 'undefined') delete _dkPanels.dkcd1;
+  // ── Item 14: the Design sidebar's library is the furniture library
+  var lib = _dkPanels && _dkPanels.dkcd2; if (lib) { lib.title = 'Furniture library'; var t = lib.el.querySelector('.dkpt'); if (t) t.textContent = 'Furniture library'; }
+  try { _dkMenuUpdate(); } catch (e) {}
+};
+// ── Item 14: the Furniture tab: Import 3D model beside the library's own pieces ──────────────────────────────────
+SBX.furniture = function() {
+  var bar = document.getElementById('flTopbar'); if (!bar || document.getElementById('flImportBtn') || typeof FLU === 'undefined') return;
+  var b = document.createElement('button'); b.type = 'button'; b.id = 'flImportBtn'; b.className = 'fl-import-btn'; b.textContent = 'Import 3D model…';
+  b.title = 'Adds your own 3D model (GLB, glTF or OBJ) to My furniture, beside the library pieces.'; b.onclick = function() { FLU.openImport(); };
+  var srch = document.getElementById('flSrch'); bar.insertBefore(b, srch || null);
+};
+
+// ── Item 13: Visualize: closed sections (Camera · Photoreal render · Output · Sun · Appearance · Scene · Cached
+// renders), the open set remembered in this browser; the relay explained in one line with a "how?" ──────────────
+SBX.VIS_LS = 'pkt_vis_open';
+SBX.visOpen = function() { try { return JSON.parse(localStorage.getItem(SBX.VIS_LS) || '{}') || {}; } catch (e) { return {}; } };
+SBX.fold = function(id, title, nodes, at) {
+  if (document.getElementById(id)) return document.getElementById(id);
+  nodes = nodes.filter(Boolean); if (!nodes.length) return null;
+  var d = document.createElement('details'); d.id = id; d.className = 'sbx-fold';
+  d.innerHTML = '<summary>' + SM.esc(title) + '</summary>'; d.open = !!SBX.visOpen()[id];
+  (at || nodes[0]).parentNode.insertBefore(d, at || nodes[0]);
+  nodes.forEach(function(n) { d.appendChild(n); });
+  d.addEventListener('toggle', function() { var o = SBX.visOpen(); o[id] = d.open; try { localStorage.setItem(SBX.VIS_LS, JSON.stringify(o)); } catch (e) {} });
+  return d;
+};
+SBX.vis = function() {
+  var ps = document.getElementById('rvzpSec'), grid = ps && ps.querySelector('.rvz-grid2'), top = document.getElementById('rvzpTop');
+  if (!ps || !grid || !top || ps._sbx) return false;
+  ps._sbx = true;
+  var h = document.getElementById('rvzpH'); if (h) h.hidden = true;
+  SBX.fold('vzCamera', 'Camera', [grid, document.getElementById('rvzCamNote')]);
+  SBX.fold('vzPhoto', 'Photoreal render', [top]);
+  [['rvzHOut', 'vzOutput', 'Output'], ['rvzHSun', 'vzSun', 'Sun'], ['rvzHApp', 'vzApp', 'Appearance']].forEach(function(r) {
+    var hd = document.getElementById(r[0]), sec = hd && hd.closest('section'); if (!sec) return;
+    hd.hidden = true; SBX.fold(r[1], r[2], [].slice.call(sec.children).filter(function(c) { return c !== hd; }));
+  });
+  var ctx = document.getElementById('rvzCtx');
+  if (ctx) [].slice.call(ctx.querySelectorAll(':scope > .sb-section')).forEach(function(sec, i) {
+    var lb = sec.querySelector('.sb-section-lbl'), t = lb ? lb.textContent.trim() : 'Scene'; if (lb) lb.hidden = true;
+    SBX.fold('vzCtx' + i, t, [].slice.call(sec.children).filter(function(c) { return c !== lb; }));
+  });
+  SBX.relay();
+  return true;
+};
+// the relay in one line: what is missing, and a "how?" that opens the rest (RVZP.WHY); the Render button greyed
+SBX.WHY1 = { file: 'Photoreal renders need the local server.', down: 'Photoreal renders need the local server running.', hosted: 'Photoreal renders need the local server, not this hosted copy.' };
+SBX.relay = function() {
+  var note = document.getElementById('rvzpProxy'), P = typeof RVZP !== 'undefined' ? RVZP.proxy : null, go = document.getElementById('rvzpGo'); if (!note || !go) return;
+  var why = P && !P.proxy ? (P.why || 'down') : null;
+  if (why && SBX.WHY1[why]) {
+    note.innerHTML = SM.esc(SBX.WHY1[why]) + " <a href='#' class='sbx-how' onclick='var d=this.nextElementSibling; d.hidden=!d.hidden; this.setAttribute(\"aria-expanded\", String(!d.hidden)); return false;' aria-expanded='false'>how?</a><span class='sbx-how-d' hidden> " + SM.esc(RVZP.WHY[why]) + '</span>';
+    go.disabled = true; go.classList.add('sbx-off'); go.title = SBX.WHY1[why];
+  } else { go.classList.remove('sbx-off'); go.title = ''; }
+};
+
+// ── Item 15: Confirm on site: "Confirm all visible" and a confirm per section; the per-item path stays. Estimates are
+// never confirmed in bulk: they are measured (their own Confirm is a statement that the measurement matches). ───
+SBX.KINDS = [['fields', 'Street facts'], ['hydrant', 'Fire hydrants'], ['transit', 'Bus stops and stations'], ['tree', 'Street trees']];
+SBX.items = function(kind) {
+  if (kind === 'fields') { var P = SMP.prov(); return Object.keys(P).filter(function(k) { return P[k].source !== 'user' && P[k].source !== 'survey' && P[k].source !== 'estimate' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); }); }
+  return SMP.objects().filter(function(o) { return o.kind === kind && !o.obj.confirmed; });
+};
+SBX.confirmKind = function(kind, quiet) {
+  var at = new Date().toISOString(), n = 0;
+  if (kind === 'fields') SBX.items('fields').forEach(function(k) { SMP.prov()[k] = SMP.userOf(SMP.prov()[k]); n++; });
+  else SBX.items(kind).forEach(function(o) { o.obj.confirmed = true; o.obj.confirmedAt = at; n++; });
+  if (!quiet) SMP.refresh(); return n;
+};
+SBX.confirmAll = function() { var n = 0; SBX.KINDS.forEach(function(k) { n += SBX.confirmKind(k[0], true); }); SMP.refresh(); return n; };
+// the list, grouped by kind, each group with its own confirm
+SBX.renderCheck = function() {
+  var host = document.getElementById('smpCheck'); if (!host || host.hidden) return;
+  var P = SMP.prov(), objs = SMP.objects(), LBL = { roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', farParking: 'Far-side parking lane', farBike: 'Far-side bike lane', parkingRestrictions: 'Parking restrictions' };
+  var fields = Object.keys(P).filter(function(k) { return P[k].source !== 'user' && P[k].source !== 'survey' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); });
+  var open = fields.filter(function(k) { return P[k].source !== 'estimate'; }).length + objs.filter(function(o) { return !o.obj.confirmed; }).length, ests = fields.filter(function(k) { return P[k].source === 'estimate'; }).length;
+  var li = {
+    fields: fields.map(function(k) { var p = P[k], e = p.source === 'estimate'; return "<li><span class='smp-badge" + (e ? ' est' : '') + "'>" + (e ? 'estimate - measure on site' : 'imported - verify on site') + '</span><span>' + SM.esc(LBL[k] || k) + " <span class='smp-src'>" + SM.esc(SMP.srcOf(p) + ', ' + SMP.when(p) + (p.note ? ' - ' + p.note : '')) + "</span></span><button type='button' class='smp-confirm' onclick=\"SMP.confirmField('" + k + "')\"" + (e ? " title='Confirm only once you have measured it and it matches'" : '') + '>Confirm</button></li>'; })
+  };
+  SBX.KINDS.slice(1).forEach(function(K) { li[K[0]] = objs.filter(function(o) { return o.kind === K[0]; }).map(function(o) { var f = o.obj, p = f.prov || {}; return "<li><span class='smp-badge" + (f.confirmed ? ' ok' : '') + "'>" + (f.confirmed ? 'confirmed' : 'imported - verify on site') + '</span><span>' + SM.esc(o.label) + ' at ' + SMP.where(f) + " <span class='smp-src'>" + SM.esc(SMP.srcOf(p) + ', ' + SMP.when(p)) + '</span></span>' + (f.confirmed ? '<span></span>' : "<button type='button' class='smp-confirm' onclick=\"SMP.confirm('" + o.list + "','" + f.id + "')\">Confirm</button>") + '</li>'; }); });
+  host.innerHTML = '<h3>Imported site data - verify on site</h3><p>' + (open ? open + ' imported item' + (open > 1 ? 's' : '') + ' still to confirm. Checks that depend on them are provisional until each is confirmed.' : 'Every imported item is confirmed.') + (ests ? ' ' + ests + ' estimate' + (ests > 1 ? 's' : '') + ' to measure (not confirmed in bulk).' : '') + '</p>' +
+    (open ? "<button type='button' class='smp-confirm smp-all' id='smpConfirmAll' onclick='SBX.confirmAll()'>Confirm all visible (" + open + ')</button>' : '') +
+    SBX.KINDS.map(function(K) { var list = li[K[0]] || []; if (!list.length) return ''; var n = K[0] === 'fields' ? SBX.items('fields').length : SBX.items(K[0]).length;
+      return "<div class='smp-grp'><div class='smp-grp-h'><span>" + SM.esc(K[1]) + ' (' + list.length + ')</span>' + (n ? "<button type='button' class='txt-btn smp-grp-ok' onclick=\"SBX.confirmKind('" + K[0] + "')\">Confirm " + (n === list.length ? 'all ' : '') + n + '</button>' : '') + '</div><ul>' + list.join('') + '</ul></div>'; }).join('');
+};
+
+// ── Item 15b: drop zones. Each library item has one: deck | road | sidewalk | any (FL_ARCHETYPES[a].zone, else vehicles
+// 'road', people 'any', the rest 'deck'). The Plan shows the valid zone while a piece is dragged; vehicles land on a
+// travel or parking lane; on the road they are context only (not in the schedule or the checks; layer Context /
+// CONTEXT in the exports). ────────────────────────────────────────────────────────────────────────────────────────
+var FLZ = {};
+FLZ.zone = function(objId) {
+  var o = { objId: objId }; try { if (!flInitInstSpec(o, null)) return 'deck'; } catch (e) { return 'deck'; }
+  var a = FL_ARCHETYPES[o.archetype] || {}; return a.zone || (a.ent === 'vehicle' ? 'road' : a.ent === 'person' ? 'any' : 'deck');
+};
+// the zone's bands across the street (world x) and whether a point is in it
+FLZ.bands = function(zone) {
+  var LM = _dmCurrent().landmarks;
+  if (zone === 'road') return [[LM.roadLeft, LM.roadRight]];
+  if (zone === 'sidewalk') return [[LM.sidewalkL.x0, LM.roadLeft]];
+  if (zone === 'any') return [[LM.sidewalkL.x0, LM.roadRight]];
+  return [[LM.deckX0, LM.deckX1]];
+};
+FLZ.ok = function(zone, x, z) {
+  var LM = _dmCurrent().landmarks, L = _dmCurrent().parklet.length, onDeck = x >= LM.deckX0 && x <= LM.deckX1 && z >= 0 && z <= L;
+  if (zone === 'road' && onDeck) return false;
+  return FLZ.bands(zone).some(function(b) { return x >= Math.min(b[0], b[1]) && x <= Math.max(b[0], b[1]); });
+};
+FLZ.cur = function() { return typeof FURN_DRAG !== 'undefined' && FURN_DRAG.category !== 'street' && FURN_DRAG.objId ? FLZ.zone(FURN_DRAG.objId) : 'deck'; };
+// the zone, shaded on the Plan while dragging (the deck cut out of the road)
+FLZ.show = function() {
+  var svg = document.getElementById('planView'); if (!svg || typeof worldToPlan !== 'function') return;
+  var zone = FLZ.cur(), g = document.getElementById('_fdZonePrev'); if (!g) { g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.id = '_fdZonePrev'; g.setAttribute('pointer-events', 'none'); svg.insertBefore(g, svg.firstChild ? svg.firstChild.nextSibling : null); }
+  if (g.dataset.zone === zone) return; g.dataset.zone = zone;
+  var LM = _dmCurrent().landmarks, L = _dmCurrent().parklet.length, zA = -200, zB = L + 200, poly = function(x0, x1, a, b) { return [[x0, a], [x1, a], [x1, b], [x0, b]].map(function(p) { var q = worldToPlan(p[0], p[1]); return q.px.toFixed(1) + ',' + q.py.toFixed(1); }); };
+  var d = FLZ.bands(zone).map(function(b) { return 'M' + poly(b[0], b[1], zA, zB).join('L') + 'Z'; }).join('');
+  if (zone === 'road') d += 'M' + poly(LM.deckX0, LM.deckX1, 0, L).join('L') + 'Z';
+  g.innerHTML = "<path d='" + d + "' fill='rgba(58,168,228,0.13)' stroke='#3AA8E4' stroke-width='1' stroke-dasharray='6 4' fill-rule='evenodd'/>";
+};
+FLZ.hide = function() { var g = document.getElementById('_fdZonePrev'); if (g) g.remove(); };
+// ── the hooks, once every script is parsed (SMP and uiVisLayout come later in the page): the sections after the
+// panels exist, the badges after every refresh, the gating after the stage changes, the folds after Visualize builds ─
+(function() {
+  var tries = 0, hooked = false;
+  var wrapFn = function(obj, name, after) { var f = obj && obj[name]; if (typeof f !== 'function' || f._sbx) return; var w = function() { var r = f.apply(this, arguments); try { after(); } catch (e) { console.warn('[sbx] ' + name, e); } return r; }; w._sbx = true; obj[name] = w; };
+  var init = function() {
+    if (!hooked && typeof SMP !== 'undefined') { hooked = true;
+      wrapFn(SMP, 'refresh', SBX.badges); wrapFn(SMP, 'renderCheck', SBX.renderCheck); wrapFn(window, 'pkStageSync', SBX.sync);
+      wrapFn(window, 'uiVisLayout', function() { SBX.vis(); SBX.relay(); }); if (typeof RVZP !== 'undefined') wrapFn(RVZP, '_syncUI', SBX.relay); }
+    var ok = SBX.site(); SBX.design(); SBX.furniture(); SBX.badges(); try { SBX.vis(); } catch (e) {}
+    if (!ok && !(document.getElementById('ctxSite') || {})._sbx && ++tries < 30) setTimeout(init, 500);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { setTimeout(init, 0); }); else setTimeout(init, 0);
+})();
+</script>
 <style>
 /* -- Brief 24 B4: the site map's Layers tab ------------------------------------------------- */
 .sm-body { position: relative; min-height: 0; display: grid; grid-template-columns: 1fr auto; }
@@ -27637,9 +27853,11 @@ SMP.highlight = function() {
   var P = SMP.prov(), els = [];
   (SMP._touched || []).forEach(function(k) { var id = SMP.FIELDS[k], el = id && document.getElementById(id), ff = el && el.closest('.ff'); if (ff && els.indexOf(ff) < 0) els.push(ff); });
   document.querySelectorAll('#bldgLList .bl-card, #bldgRList .bl-card').forEach(function(c) { if (c.querySelector('.prov-tag.osm, .prov-tag.estimate')) els.push(c); });
-  els.forEach(function(el) { var p = el.closest('.dk-panel'); if (p) p.classList.remove('dk-collapsed'); el.classList.remove('smp-flash'); void el.offsetWidth; el.classList.add('smp-flash'); });
-  if (els[0] && els[0].scrollIntoView) els[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
-  setTimeout(function() { els.forEach(function(el) { el.classList.remove('smp-flash'); }); }, 4000);
+  // (Brief 25 item 11: the sections stay closed; a closed section's header flashes in place of its fields)
+  var tg = []; els.forEach(function(el) { var p = el.closest('.dk-panel'), t = p && p.classList.contains('dk-collapsed') ? p.querySelector('.dk-panel-hdr') : el; if (t && tg.indexOf(t) < 0) tg.push(t); });
+  tg.forEach(function(t) { t.classList.remove('smp-flash'); void t.offsetWidth; t.classList.add('smp-flash'); });
+  if (tg[0] && tg[0].scrollIntoView) tg[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  setTimeout(function() { tg.forEach(function(t) { t.classList.remove('smp-flash'); }); }, 4000);
   return els.length;
 };
 // A way's travel direction (0-360; oneway=-1 runs against the geometry) and whether it is one-way
@@ -27978,6 +28196,41 @@ SMP.sourcesList = function() {
 .pk-s0-done b { color: var(--c-text, #F2F2F0); font-weight: 600; }
 .pk-s0-msg { min-height: 1.4em; font-size: 12px; }
 .pk-s0-msg:empty { display: none; }
+/* -- Brief 25 §3: the sidebars' sections ------------------------------------------------------------------------- */
+.sbx-steps { padding-bottom: 4px; }
+.dk-panel[hidden] { display: none !important; }
+.dk-badges { order: 2; display: inline-flex; gap: 4px; margin-left: auto; margin-right: 6px; min-width: 0; }
+.dk-panel-hdr .dk-badges + .dkpb { margin-left: 0; }
+.dk-badge { font: 500 10px var(--font-ui); letter-spacing: 0; text-transform: none; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--c-rule, #2E3338); color: var(--c-text-dim, #9AA0A6); white-space: nowrap; }
+.dk-badge.est { color: var(--accent-ui, #3AA8E4); border-color: currentColor; }
+.dk-panel-hdr.smp-flash { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: -2px; }
+.sbx-fold { border-bottom: 1px solid var(--c-rule, #2E3338); }
+.sbx-fold > summary { list-style: none; cursor: pointer; padding: 9px 12px; font: 600 12px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--c-text, #F2F2F0); display: flex; justify-content: space-between; }
+.sbx-fold > summary::-webkit-details-marker { display: none; }
+.sbx-fold > summary::after { content: '\25B8'; color: var(--c-text-dim, #9AA0A6); }
+.sbx-fold[open] > summary::after { content: '\25BE'; }
+.sbx-fold > summary:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: -2px; }
+.sbx-fold > :not(summary) { margin-left: 12px; margin-right: 12px; }
+.sbx-fold[open] { padding-bottom: 10px; }
+#rvzpGo.sbx-off, #rvzpGo:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(1); }
+.sbx-how { margin-left: 4px; }
+.sbx-how-d { display: block; margin-top: 4px; }
+.fl-import-btn { margin-left: 12px; font: 600 11px var(--font-ui); padding: 3px 10px; border: 1px solid var(--accent-ui, #3AA8E4); border-radius: 3px; background: transparent; color: var(--accent-ui, #3AA8E4); cursor: pointer; white-space: nowrap; }
+.fl-import-btn:hover { background: rgba(58,168,228,.1); }
+.smp-all { margin: 4px 0 8px; }
+.smp-grp { margin-top: 6px; }
+.smp-grp-h { display: flex; justify-content: space-between; align-items: baseline; font: 600 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--c-text-dim, #6E6E6E); margin: 6px 0 2px; }
+.smp-grp-h .txt-btn { text-transform: none; letter-spacing: 0; }
+.smp-badge.est { color: var(--accent-ui, #3AA8E4); border-color: currentColor; }
+#ctxSite .dk-panel-hdr { height: auto; min-height: 32px; padding-top: 6px; padding-bottom: 6px; flex-wrap: wrap; row-gap: 3px; }
+#ctxSite .dk-panel-hdr .dkpt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+#ctxSite .dk-badges { flex-wrap: wrap; justify-content: flex-end; }
+#ctxSite .dk-panel-hdr .dkpc { order: 0; margin: 0 4px 0 0; }   /* the chevron before the title, so wrapping badges never strand it */
+#ctxSite .dk-panel-hdr .dkpt { order: 1; }
+/* the import's summary under step 2: three lines, the rest on a click */
+#siteStep2 #smpMsg .smp-sum { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+#siteStep2 #smpMsg.sbx-more .smp-sum { display: block; }
+
 /* -- Brief 25 item 8: the two starting paths, the import's layer picker, the blank street's disclaimer --------------- */
 .pk-s0-card.pk-s0-wide { max-width: 62em; }
 .pk-s0-paths { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; width: 100%; }
@@ -29150,9 +29403,12 @@ function uiSiteSteps() {
   var ff = function(id) { var e = document.getElementById(id); return e ? (e.closest('.ff') || e) : null; };
   put(1, ff('streetAddress')); put(1, (document.getElementById('siteMapBtn') || {}).parentNode || null); put(1, document.getElementById('siteOrient'));
   var ib = document.getElementById('smpImportBtn'); if (ib) put(2, ib.parentNode);
-  put(2, document.getElementById('smpMsg')); put(2, ff('siteContextZ'));
-  var rw = document.getElementById('roadWidth'); if (rw) put(2, rw.closest('.ff-row'));
-  put(2, ff('roadDirToggle')); put(2, document.getElementById('laneOneWayField')); put(2, document.getElementById('laneTwoWayField')); put(2, ff('routeToggle'));
+  put(2, document.getElementById('smpMsg'));
+  if (!(document.getElementById('ctxSite') || {})._sbx) {   // (Brief 25 item 11: once the Site sections exist, the street's fields live in them)
+    put(2, ff('siteContextZ'));
+    var rw = document.getElementById('roadWidth'); if (rw) put(2, rw.closest('.ff-row'));
+    put(2, ff('roadDirToggle')); put(2, document.getElementById('laneOneWayField')); put(2, document.getElementById('laneTwoWayField')); put(2, ff('routeToggle'));
+  }
   put(3, document.getElementById('pkPlaceSite'));
   uiSiteStepStatus();
 }
