@@ -865,3 +865,35 @@ pass.
     run 2 met the same).
 - **README / landing wrong:** none; the README doesn't mention the shape editor.
 - Evidence: `<scratchpad>\b23\full\p4-run3\` (001–078.png; the PDF, copied as `long.pdf`).
+
+### Run: Persona 3 (landscape designer), run 3, Sonnet
+
+- **Site:** W 4th Av at Yew St, north side (host Gravity Pope): a Kitsilano block with mature street trees at the
+  curb. **Time:** about 35 minutes to the technical PDF (14 sheets).
+- **Placed:** a round planter (⌀0.9 m, shrubs), a 3 m planter wall (grass) and a bench.
+- **What worked**
+  - Trees showed in the map dialog before the side was picked, and the import drew a row of canopies in 3D.
+  - Technical mode redrew the canopies as achromatic line-art, as Brief 19 asked.
+  - **The technical PDF serves a landscape designer well:**
+    - a legend entry "Street tree canopy (genus tag)" and genus tags (Acer, Liriodendron, Prunus, Tilia, Tsuga);
+    - S-001 lists the planters and the enclosure's own end planters ("Corten, Foliage");
+    - C-001's Advisory "Street tree within 3 m of the deck: confirm clearance with Park Board" names six trees with
+      species, height and DBH, two of them 0.4 m and 1.3 m from the deck;
+    - S-002 lists every tree with its City open-data ID, "not yet verified on site".
+  - **C16 passed with the furniture in place.** C19 passed: existing trees are not "overhead elements" of the parklet.
+  - **Visualize's greyed-out "Technical" has a reason**, in a hover tooltip only: "Technical is a drawing mode (Plan,
+    Section, 3D), not a render mode." The working switch is in Design / Export. This answers persona 3 run 2's
+    question; a tablet or keyboard user never sees the tooltip (row 29: show the reason as text).
+- **Confused**
+  - **The canopies swallow the deck in the Section and 3D,** so the agent expected C19 to fail. That trees are advisory
+    only is said on the Check tab and in the PDF, not on the drawings.
+  - The Section's numbered hexagon tags (the note callouts 1, 2, 3) read as warning signs at the default zoom.
+  - Changing a planter's planting from shrub to tree did not register by clicking the open list. The second try hit the
+    colour swatches beneath and changed the finish to RAL 9016 (the harness's native-dropdown clicks, as Parent run 2).
+  - After placing a piece, the library re-flowed under the Selection panel, so the next drag grabbed page text (as
+    Parent run 3).
+- **Rejected:** "Preview report shows a blank grey page". Headless Chromium has no PDF viewer (as persona 5 run 1).
+- **Broke:** only `GEN is not defined` on every Plan render.
+- **README / landing wrong:** none. Two gaps the agent would add: the Advisory on trees, and that the two "Technical"
+  controls differ.
+- Evidence: `<scratchpad>\b23\full\p3-run3\` (001–088.png, `curbside-untitled-parklet-technical.pdf`).
