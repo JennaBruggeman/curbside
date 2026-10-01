@@ -3176,6 +3176,7 @@ ACC.planKey = function(svg) {
   if (M.H) rows.push(["<span class='pk-sym pk-h'>H</span>", 'Fire hydrant']);
   if (M.B) rows.push(["<span class='pk-sym'>B</span>", 'Bus stop']);
   if ((window._pvTreeKey || []).length) rows.push(["<span class='pk-sw pk-tree'></span>", 'Street trees by genus: ' + window._pvTreeKey.map(function(q) { return '<b>' + q[0] + '</b> ' + q[1]; }).join(', ') + ' (×n: a group)']);
+  if (svg.querySelector('[data-clr-note]')) rows.push(["<span class='pk-sym pk-clr'>5.2</span>", 'Clearance: measured · rule · check (red: fails)']);
   if (window._pvImportArea) rows.push(["<span class='pk-sw pk-area'></span>", 'Import area: buildings in detail inside, the city outline outside']);
   el.hidden = !rows.length;
   el.innerHTML = '<summary>Key</summary>' + rows.map(function(r) { return '<div class=\'pk-row\'>' + r[0] + '<span>' + r[1] + '</span></div>'; }).join('');
@@ -6433,13 +6434,16 @@ function dimArrow(x1, x2, midY, code, req, st, ctx, ann, rule) {
   const P = DRAW_STYLE.pen(ctx), z = DRAW_STYLE.zone(ctx, st), cx = (x1 + x2) / 2, k = ctx.k;
   P.line(x1, midY, x2, midY, { cls: 'context', c: z.c, op: z.op, dash: rule ? 'zone' : undefined });   // rule: dashed (Brief 27 item 8)
   DRAW_SYMBOLS.tick(P, x1, midY, { c: z.c }); DRAW_SYMBOLS.tick(P, x2, midY, { c: z.c });
+  // req: the label, a string or DRAW_STYLE.clearLbl's { val, note } (Brief 28 item 7: ink on a pass, red on a fail)
+  var L = typeof req === 'object' ? req : { val: req }, vc = st === 'fail' ? z.c : rule ? 'anno' : 'ink', nc = st === 'fail' ? z.c : 'anno';
   if (ann) {
     ann.lozenge(code, st, cx, midY - 2.6 * k, [cx, midY]);
-    ann.text('dim', req, cx, midY + 1.2 * k + DRAW_STYLE.fs(ctx, 'body'), { role: 'body', anchor: 'middle', c: z.c, axis: 'x', at: [cx, midY] });
+    ann.text('dim', L.val, cx, midY + 1.2 * k + DRAW_STYLE.fs(ctx, 'body'), { role: 'body', anchor: 'middle', c: vc, axis: 'x', at: [cx, midY], sub: L.note, subC: nc, data: " data-clr='" + code + "'" });
     return P.body();
   }
   DRAW_SYMBOLS.lozenge(P, cx, midY - 2.6 * k, code, st);
-  P.text(cx, midY + 1.2 * k + P.fs('body'), req, P.fs('body'), { anchor: 'middle', c: z.c, op: z.op });
+  P.text(cx, midY + 1.2 * k + P.fs('body'), L.val, P.fs('body'), { anchor: 'middle', c: vc });
+  if (L.note) P.text(cx, midY + 1.2 * k + P.fs('body') + 1.2 * P.fs('tag'), L.note, P.fs('tag'), { anchor: 'middle', c: nc });
   return P.body();
 }
 // ── SHARED COORDINATE HELPERS AND GRID/SNAP ─────────────────────────────────
@@ -7053,6 +7057,18 @@ DRAW_STYLE.fmtClear = function(v, req, id, max) { return DRAW_STYLE.fmt(v) + ' (
 // Brief 27 item 8 (triage row 12): a distance drawn from the rule, nothing measured or entered, reads as the requirement
 // ("6.00 req. (C03)") on a dashed dimension line, never like a measured value just meeting it ("6.00 (≥6.00 C03)")
 DRAW_STYLE.fmtReq = function(req, id) { return DRAW_STYLE.fmt(req) + ' req. (' + id + ')'; };
+// Brief 28 item 7: a clearance as an ordinary dimension and a note. The value to one decimal ("29.4"); beneath it, in plain
+// words, what it is measured to, the rule and the result: "to hydrant · min 5 m · C05 ✓" / "to crosswalk · min 6 m · C03 ✗
+// short 0.8 m". A distance from the rule, nothing measured: "6.0 req." over "to crosswalk · C03 not measured".
+// Returns { val, note, ok } (ok null: not measured); the Plan (annText's sub line) and the sheets (RPT.dimText) draw both.
+DRAW_STYLE.CLEAR_TO = { C03: 'to crosswalk', C05: 'to hydrant', C06: 'to driveway', C07: 'to pole', C08: 'to signal box', C09: 'to chamber', C13: 'parking setback' };
+DRAW_STYLE.clearLbl = function(v, req, id, o) {
+  o = o || {}; var m = function(x) { return String(+(+x).toFixed(2)); }, rule = o.rule || v == null || isNaN(v);
+  var ok = rule ? null : (o.max ? v <= req + 1e-9 : v >= req - 1e-9), gap = rule ? 0 : Math.abs(v - req);
+  var mark = rule ? 'not measured' : ok ? '✓' : '✗ ' + (o.max ? 'over ' : 'short ') + (+gap.toFixed(1) || 0.1).toFixed(1) + ' m';
+  var to = DRAW_STYLE.CLEAR_TO[id] || 'clearance';   // from the rule: the value is the requirement, so the note says only what is not known
+  return { val: rule ? (+req).toFixed(1) + ' req.' : (+v).toFixed(1), note: rule ? to + ' · ' + id + ' not measured' : to + ' · ' + (o.max ? 'max ' : 'min ') + m(req) + ' m · ' + id + ' ' + mark, ok: ok };
+};
 // a check zone's stroke: fine, dashed as 'zone'; fail = zone red; pass = ink at 50% (both styles; Brief 27 item 9)
 DRAW_STYLE.zone = function(ctx, st) { var T = ctx.T; return st === 'fail' ? { c: T.fail, op: 1 } : st === 'pass' ? { c: T.pass, op: T.passOp } : { c: T.anno, op: 0.6 }; };
 DRAW_STYLE.zoneSt = function(ctx, st, cls) { var z = DRAW_STYLE.zone(ctx, st); return DRAW_STYLE.st(ctx, cls || 'fine', { c: z.c, op: z.op, dash: 'zone' }); };
@@ -7582,12 +7598,16 @@ function _renderPlanView(o) {
   const annText = function(kind, str, x, y, o) {
     o = o || {};
     if (!atTier(o.tier || ANN_TIER[kind])) return;
-    const px = o.px || DRAW_STYLE.TYPE.screen[o.role || 'tag'], sz = px * U, w = _pvTW(str, px) * U + 2 * U, anc = o.anchor || 'start';
+    const px = o.px || DRAW_STYLE.TYPE.screen[o.role || 'tag'], sz = px * U, anc = o.anchor || 'start';
+    // o.sub (Brief 28 item 7): a second line beneath, at the tag size, in o.subC (a clearance's note)
+    const spx = DRAW_STYLE.TYPE.screen.tag, ssz = o.sub ? spx * U : 0, sh = o.sub ? 1.2 * ssz : 0;
+    const w = Math.max(_pvTW(str, px) * U, o.sub ? _pvTW(o.sub, spx) * U : 0) + 2 * U;
     const x0 = anc === 'middle' ? x - w / 2 : anc === 'end' ? x - w : x;
     // o.rot -90 (Brief 19 C: an address along a deep footprint): turned about its anchor, reading upward, centred on it
-    const rot = o.rot === -90, box = rot ? [x - 0.5 * sz, y - w / 2, x + 0.5 * sz, y + w / 2] : [x0, y - 0.82 * sz, x0 + w, y + 0.28 * sz];
+    const rot = o.rot === -90, box = rot ? [x - 0.5 * sz, y - w / 2, x + 0.5 * sz, y + w / 2] : [x0, y - 0.82 * sz, x0 + w, y + 0.28 * sz + sh];
     ANN.push({ kind: kind, t: str, x: x, y: y, box: box, axis: o.axis || 'x', lo: o.lo, hi: o.hi, at: o.at || null, lead: !!o.lead, seq: o.seq,
-      draw: function(X, Y) { return `<text x='${X.toFixed(2)}' y='${(rot ? Y : Y).toFixed(2)}'${rot ? ` transform='rotate(-90 ${X.toFixed(2)} ${Y.toFixed(2)})' dy='${(0.32 * sz).toFixed(2)}'` : ''} font-family='${DRAW_STYLE.FONT}' font-size='${sz.toFixed(2)}'${anc !== 'start' ? ` text-anchor='${anc}'` : ''}${o.bold ? ` font-weight='600'` : ''} fill='${DRAW_STYLE.c(DK, o.c || 'anno')}'${o.data || ''}>${_annEsc(str)}</text>`; } });
+      draw: function(X, Y) { return `<text x='${X.toFixed(2)}' y='${(rot ? Y : Y).toFixed(2)}'${rot ? ` transform='rotate(-90 ${X.toFixed(2)} ${Y.toFixed(2)})' dy='${(0.32 * sz).toFixed(2)}'` : ''} font-family='${DRAW_STYLE.FONT}' font-size='${sz.toFixed(2)}'${anc !== 'start' ? ` text-anchor='${anc}'` : ''}${o.bold ? ` font-weight='600'` : ''} fill='${DRAW_STYLE.c(DK, o.c || 'anno')}'${o.data || ''}>${_annEsc(str)}</text>` +
+        (o.sub ? `<text x='${X.toFixed(2)}' y='${(Y + sh).toFixed(2)}' font-family='${DRAW_STYLE.FONT}' font-size='${ssz.toFixed(2)}'${anc !== 'start' ? ` text-anchor='${anc}'` : ''} fill='${DRAW_STYLE.c(DK, o.subC || 'anno')}' data-clr-note='1'>${_annEsc(o.sub)}</text>` : ''); } });
   };
   // a rule lozenge (DRAW_SYMBOLS.lozenge) centred at x, y: it moves to the next row up when taken
   const annLozenge = function(code, st, x, y, at) {
@@ -7823,7 +7843,7 @@ const C13_REQ = 1.5;
   if (ZN) s += `<rect x="${PK_X-c13Px}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
   if (ZN) s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
   const ANNAPI = { lozenge: annLozenge, text: annText };
-  const c13Lbl = isNaN(c13Raw) ? DRAW_STYLE.fmtReq(C13_REQ, 'C13') : DRAW_STYLE.fmtClear(c13DisplayM, C13_REQ, 'C13');
+  const c13Lbl = DRAW_STYLE.clearLbl(c13Raw, C13_REQ, 'C13');
   if (ZN) s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', c13Lbl, c13St, DK, ANNAPI, isNaN(c13Raw));
   if (ZN) s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', c13Lbl, c13St, DK, ANNAPI, isNaN(c13Raw));
   // Draggable handles at outer edges of C13 zones
@@ -7846,7 +7866,7 @@ const C03_REQ = 6;
   if (c03Px > 4 && ZN) {
     s += `<rect x="${C03_LX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
     s += `<rect x="${C03_RX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
-    const c03Lbl = isNaN(c03Raw) ? DRAW_STYLE.fmtReq(C03_REQ, 'C03') : DRAW_STYLE.fmtClear(c03Raw, C03_REQ, 'C03');
+    const c03Lbl = DRAW_STYLE.clearLbl(c03Raw, C03_REQ, 'C03');
     s += dimArrow(C03_LX, C03_LX+c03Px, PK_Y+pvPkH/2, 'C03', c03Lbl, c03St, DK, ANNAPI, isNaN(c03Raw));
     s += dimArrow(C03_RX, C03_RX+c03Px, PK_Y+pvPkH/2, 'C03', c03Lbl, c03St, DK, ANNAPI, isNaN(c03Raw));
     // Draggable handles at outer edges of C03 zones
@@ -8030,7 +8050,10 @@ const C03_REQ = 6;
 // schedule tags: the label's own place, then one and two steps above / below; none free -> the label is dropped.
 const _pvClrBoxes = [];
 // (Brief 18: the clearance values go to the annotation layer at the dimension text size; the layer places them)
-const _pvClrLbl = function(cx, y, str, col) { annText('dim', str, cx, y, { role: 'body', anchor: 'middle', c: col, bold: true, axis: 'x', data: " data-clr='1'" }); return null; };
+// (Brief 28 item 7: lab is DRAW_STYLE.clearLbl's; over a dimension line, so the two lines sit above it: ink on a pass, red on a fail)
+const _pvClrLbl = function(cx, y, lab, id, at) {
+  const fail = lab.ok === false, sh = 1.2 * DRAW_STYLE.TYPE.screen.tag * U;
+  annText('dim', lab.val, cx, y - sh, { role: 'body', anchor: 'middle', c: fail ? 'fail' : 'ink', axis: 'x', at: at || null, sub: lab.note, subC: fail ? 'fail' : 'anno', data: " data-clr='" + id + "'" }); return null; };
 // ── C06: Driveway/Lane setback markers
 const dvFts = state[`driveways`] || [];
   const c6St = getCriterionStatus(criteria.find(c=>c.id===`c6`));
@@ -8049,7 +8072,7 @@ const dvFts = state[`driveways`] || [];
       s += `<line x1='${(bX0+1).toFixed(1)}' y1='${dimY2}' x2='${(bX1-1).toFixed(1)}' y2='${dimY2}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${dvXpx.toFixed(1)}' y1='${(dimY2-pvDTCK).toFixed(1)}' x2='${dvXpx.toFixed(1)}' y2='${(dvY+pvDGAP).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${nearEnd.toFixed(1)}' y1='${(dimY2-pvDTCK).toFixed(1)}' x2='${nearEnd.toFixed(1)}' y2='${(dimY2+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
-      _pvClrLbl(dmCX, dimY2 - 2 * U, DRAW_STYLE.fmtClear(dist, 1.5, 'C06'), col);
+      _pvClrLbl(dmCX, dimY2 - 2 * U, DRAW_STYLE.clearLbl(dist, 1.5, 'C06'), 'C06');
     }
     s += `<rect x='${(dvXpx-8*pvZS).toFixed(1)}' y='${(dvY-8*pvZS).toFixed(1)}' width='${(16*pvZS).toFixed(1)}' height='${(16*pvZS).toFixed(1)}' fill='${lt}'${K('edge', { c: col })}/>`;
     if (LODn >= 1) s += `<text x='${dvXpx.toFixed(1)}' y='${(dvY+4*pvZS).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9*pvZS).toFixed(1)}' fill='${col}' font-weight='800'>D</text>`;
@@ -8080,7 +8103,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       const _cfXc = Math.max(0, Math.min(VW, cfX));   // an object beyond the drawing: the tick at its edge
       s += `<line x1='${_cfXc.toFixed(1)}' y1='${(dimY-pvDTCK).toFixed(1)}' x2='${_cfXc.toFixed(1)}' y2='${(dimY+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${nearEnd.toFixed(1)}' y1='${(dimY-pvDTCK).toFixed(1)}' x2='${nearEnd.toFixed(1)}' y2='${(dimY+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
-      _pvClrLbl(dmCX, dimY - 2 * U, DRAW_STYLE.fmtClear(dist, cf.type === 'P' && state.pole_trolley === 'yes' ? 2.4 : def.req, { H: 'C05', P: 'C07', S: 'C08' }[cf.type]), col);
+      _pvClrLbl(dmCX, dimY - 2 * U, DRAW_STYLE.clearLbl(dist, cf.type === 'P' && state.pole_trolley === 'yes' ? 2.4 : def.req, { H: 'C05', P: 'C07', S: 'C08' }[cf.type]), { H: 'C05', P: 'C07', S: 'C08' }[cf.type]);
     }
     if (cfX < -2 || cfX > VW + 2) return;   // beyond the drawn stretch: its clearance only (the marker would sit in the dimension margin)
     // Dashed leader: element centre to curb face
@@ -8241,7 +8264,7 @@ const manholes = state['manholes'] || [];
     // the C09 clearance (a zone line) and DRAW_SYMBOLS.manhole: frame and opening at true size
     s += "<g data-ctx='objects'>" + '<circle cx=\'' + mhX.toFixed(2) + '\' cy=\'' + mhY.toFixed(2) + '\' r=\'' + HS.toFixed(1) + '\' fill=\'none\'' + DRAW_STYLE.zoneSt(DK, ok ? 'pass' : 'fail') + '/>';
     s += _sym(function(P) { DRAW_SYMBOLS.manhole(P, mhX, mhY, mhR, mhCR, { data: ' data-mh=\'' + mh.id + '\'' }); }) + '</g>';
-    annText('dim', DRAW_STYLE.fmtClear(distM, 1.0, 'C09'), mhX, mhY - mhR - 2 * U, { role: 'body', anchor: 'middle', c: mc, bold: true, axis: 'x', at: [mhX, mhY], data: " data-ctx='objects'" });
+    _pvClrLbl(mhX, mhY - mhR - 2 * U, DRAW_STYLE.clearLbl(distM, 1.0, 'C09'), 'C09', [mhX, mhY]);
     annObst(mhX - mhR, mhY - mhR, mhX + mhR, mhY + mhR);
     annChip('deleteManholeById(' + mh.id + ')', mhX + mhR + 3 * pvZS, mhY - mhR - 3 * pvZS);
   });
@@ -23452,22 +23475,64 @@ RPT.fmt = DRAW_STYLE.fmt; RPT.fmtClear = DRAW_STYLE.fmtClear;   // one formatter
 // a value's place: in its span when it fits and is free, else outside on a leader. h: a horizontal dimension line at
 // p (text above it); otherwise a vertical line at p (text beside it on the outer side, out = -1 left / +1 right).
 // end: -1 / +1 the span is the chain's first / last (outside goes beyond that end first). -> 'in' | 'leader' | 'lost'
+// a line of text whose ✓ / ✗ are drawn as marks (the sheet font has neither): the text in runs, each mark a short
+// path one character wide, in the text's colour
+RPT.markText = function(P, x, y, str, size, o) {
+  o = o || {}; var parts = String(str).split(/([✓✗])/), mw = size * 0.72, tw = function(t) { return /[✓✗]/.test(t) ? mw : RPT.tw(t, size); };
+  var W = parts.reduce(function(s, t) { return s + tw(t); }, 0), cx = o.anchor === 'middle' ? x - W / 2 : o.anchor === 'end' ? x - W : x;
+  if (parts.length === 1) return P.text(x, y, str, size, o);
+  parts.forEach(function(t) {
+    if (t === '✓') P.polyline([[cx + 0.08 * size, y - 0.3 * size], [cx + 0.28 * size, y - 0.06 * size], [cx + 0.64 * size, y - 0.66 * size]], { cls: 'general', c: o.c });
+    else if (t === '✗') { P.line(cx + 0.1 * size, y - 0.62 * size, cx + 0.56 * size, y - 0.04 * size, { cls: 'general', c: o.c }); P.line(cx + 0.56 * size, y - 0.62 * size, cx + 0.1 * size, y - 0.04 * size, { cls: 'general', c: o.c }); }
+    else if (t.trim()) P.text(cx + RPT.tw(t.slice(0, t.length - t.replace(/^ +/, '').length), size), y, t.trim(), size, { c: o.c, data: o.data });   // SVG drops a run's edge spaces
+    cx += tw(t);
+  });
+  return P;
+};
 RPT.dimText = function(P, h, out, p, a, b, s, o, end) {
-  o = o || {}; s = String(s);
-  var sz = RPT.DIM.size, lo = Math.min(a, b), hi = Math.max(a, b), w = RPT.tw(s, sz), mid = (lo + hi) / 2, C = { c: o.c, op: o.op, data: o.data };
+  o = o || {};
+  // s: the text, or DRAW_STYLE.clearLbl's { val, note, ok } (Brief 28 item 7): the value, its note beneath at the tag size;
+  // the value ink on a pass, the pair red on a fail (o.c is the zone's colour)
+  var N = typeof s === 'object' && s ? s : null; s = N ? N.val : String(s);
+  var sz = RPT.DIM.size, nsz = RPT.TX.tag, nh = N ? 1.2 * nsz : 0, lo = Math.min(a, b), hi = Math.max(a, b), mid = (lo + hi) / 2;
+  var w = Math.max(RPT.tw(s, sz), N ? RPT.tw(N.note, nsz) : 0);
+  var C = N ? { c: N.ok === false ? o.c : N.ok == null ? 'anno' : 'ink', data: o.data } : { c: o.c, op: o.op, data: o.data };
   var fr = o.frame, free = function(x0, y0, x1, y1) {
     if (fr && (h ? (x0 < fr[0] - 0.01 || x1 > fr[1] + 0.01) : (y0 < fr[0] - 0.01 || y1 > fr[1] + 0.01))) return false;   // outside the frame: not a place
     return !P.boxes.some(function(q) { return q.text && x0 < q.x1 + 0.3 && q.x0 - 0.3 < x1 && y0 < q.y1 + 0.3 && q.y0 - 0.3 < y1; });
   };
-  var boxAt = function(x, y, anc) { var x0 = anc === 'middle' ? x - w / 2 : anc === 'end' ? x - w : x; return [x0, y - sz * 0.74, x0 + w, y + sz * 0.22]; };
-  var put = function(x, y, anc, from) { P.text(x, y, s, sz, Object.assign({ anchor: anc }, C)); if (from) DRAW_SYMBOLS.leader(P, [from, [anc === 'end' ? x + 0.4 : anc === 'start' ? x - 0.4 : x, h ? y + sz * 0.22 : y - sz * 0.3]], { dot: true, c: o.c }); };
+  // y: the last line's baseline (the value's, or the note's under it)
+  var boxAt = function(x, y, anc) { var x0 = anc === 'middle' ? x - w / 2 : anc === 'end' ? x - w : x; return [x0, y - nh - sz * 0.74, x0 + w, y + (N ? nsz : sz) * 0.22]; };
+  var put = function(x, y, anc, from) {
+    P.text(x, y - nh, s, sz, Object.assign({ anchor: anc }, C));
+    if (N) RPT.markText(P, x, y, N.note, nsz, { anchor: anc, c: N.ok === false ? o.c : 'anno', data: " data-clr-note='1'" });
+    if (from && N) { var bb = boxAt(x, y, anc); DRAW_SYMBOLS.leader(P, [from, [Math.max(bb[0], Math.min(bb[2], from[0])), Math.max(bb[1] - 0.3, Math.min(bb[3] + 0.3, from[1]))]], { dot: true, c: o.c }); }
+    else if (from) DRAW_SYMBOLS.leader(P, [from, [anc === 'end' ? x + 0.4 : anc === 'start' ? x - 0.4 : x, h ? y + sz * 0.22 : y - nh - sz * 0.3]], { dot: true, c: o.c });
+  };
+  // a clearance (Brief 28 item 7): its two lines in its row's band beyond the line, centred on its span, else slid along the
+  // row (o.prefer first, +1 / -1 along the sheet) to the first free place; a leader when its centre leaves the span
+  if (N && h) {
+    var yb = out > 0 ? p + 0.8 + sz * 0.74 + nh : p - 0.8, pref = o.prefer || (end < 0 ? -1 : 1);
+    // wider than its span: first flush with the span's end, over-hanging on the preferred side (the neighbour's label the other)
+    var dx0 = w > hi - lo ? pref * (w - (hi - lo)) / 2 : 0;
+    // each step tries its band beyond the line, then the band on the near side of it (between the line and the object)
+    var ybs = [yb, out > 0 ? p - 0.8 : p + 0.8 + sz * 0.74 + nh];
+    for (var n = 0; n <= 120; n++) for (var yi = 0; yi < 2; yi++) {
+      var dx = dx0 + (n === 0 ? 0 : (n % 2 ? pref : -pref) * Math.ceil(n / 2) * 1.5), bc = boxAt(mid + dx, ybs[yi], 'middle');
+      if (!free(bc[0], bc[1], bc[2], bc[3])) continue;
+      var inSpan = Math.min(bc[2], hi) - Math.max(bc[0], lo) >= Math.min(1, (hi - lo) * 0.5);   // it still covers part of its span
+      put(mid + dx, ybs[yi], 'middle', inSpan ? null : [mid, p]); return inSpan ? 'in' : 'leader';
+    }
+    put(mid, yb, 'middle'); return 'lost';
+  }
   if (h) {
     var ty = p - 0.8;
     if (w + RPT.DIM.clear <= hi - lo) { var b0 = boxAt(mid, ty, 'middle'); if (free(b0[0], b0[1], b0[2], b0[3])) { put(mid, ty, 'middle'); return 'in'; } }
     var cand = [], ends = end < 0 ? [-1, 1] : [1, -1];
     ends.forEach(function(e) { cand.push(e < 0 ? [lo - 2.2, ty, 'end'] : [hi + 2.2, ty, 'start']); });
-    [1, 2, 3].forEach(function(n) { cand.push([mid, ty - out * 0 + (out < 0 ? -1 : 1) * 3.4 * n, 'middle']); });
-    ends.forEach(function(e) { cand.push(e < 0 ? [lo - 2.2, ty + (out < 0 ? -3.4 : 3.4), 'end'] : [hi + 2.2, ty + (out < 0 ? -3.4 : 3.4), 'start']); });
+    var stp = 3.4 + nh;   // a row's step: the two lines of a clearance need more
+    [1, 2, 3].forEach(function(n) { cand.push([mid, ty - out * 0 + (out < 0 ? -1 : 1) * stp * n, 'middle']); });
+    ends.forEach(function(e) { cand.push(e < 0 ? [lo - 2.2, ty + (out < 0 ? -stp : stp), 'end'] : [hi + 2.2, ty + (out < 0 ? -stp : stp), 'start']); });
     for (var i = 0; i < cand.length; i++) { var q = cand[i], bx = boxAt(q[0], q[1], q[2]); if (free(bx[0], bx[1], bx[2], bx[3])) { put(q[0], q[1], q[2], [mid, p]); return 'leader'; } }
   } else {
     var tx = out < 0 ? p - 1.2 : p + 1.2, anc = out < 0 ? 'end' : 'start';
@@ -23477,7 +23542,7 @@ RPT.dimText = function(P, h, out, p, a, b, s, o, end) {
     [1, 2].forEach(function(n) { cv.push([tx + out * (w + 2) * n, mid + sz * 0.36]); });
     for (var j = 0; j < cv.length; j++) { var bv = boxAt(cv[j][0], cv[j][1], anc); if (free(bv[0], bv[1], bv[2], bv[3])) { put(cv[j][0], cv[j][1], anc, [p, mid]); return 'leader'; } }
   }
-  P.text(h ? mid : (out < 0 ? p - 1.2 : p + 1.2), h ? p - 0.8 : mid + sz * 0.36, s, sz, Object.assign({ anchor: h ? 'middle' : (out < 0 ? 'end' : 'start') }, C));   // nowhere free: in place (the check reports it)
+  put(h ? mid : (out < 0 ? p - 1.2 : p + 1.2), h ? p - 0.8 : mid + sz * 0.36, h ? 'middle' : (out < 0 ? 'end' : 'start'));   // nowhere free: in place (the check reports it)
   return 'lost';
 };
 // A chain on a row beside an object. o = {side: 'top' | 'bottom' | 'left' | 'right', edge: the object's edge on that side
@@ -23497,7 +23562,7 @@ RPT.chain = function(P, o) {
   });
   if (h) P.line(at[0], p, at[n - 1], p, st); else P.line(p, at[0], p, at[n - 1], st);
   at.forEach(function(s) { if (h) DRAW_SYMBOLS.tick(P, s, p, { c: o.c }); else DRAW_SYMBOLS.tick(P, p, s, { c: o.c }); });
-  for (var i = 0; i + 1 < n; i++) rec.placed.push(RPT.dimText(P, h, out, p, at[i], at[i + 1], o.vals[i], { c: o.c, op: o.op, data: o.data, frame: o.frame }, i === 0 ? -1 : i === n - 2 ? 1 : 0));
+  for (var i = 0; i + 1 < n; i++) rec.placed.push(RPT.dimText(P, h, out, p, at[i], at[i + 1], o.vals[i], { c: o.c, op: o.op, data: o.data, frame: o.frame, prefer: o.prefer }, i === 0 ? -1 : i === n - 2 ? 1 : 0));
   return p;
 };
 // Single dimensions (the details sheet): the same rules, the dimension line at y (horizontal) or x (vertical), extension
@@ -23958,14 +24023,16 @@ RPT.sheetLayout = function(d) {
   var clearDim = function(row, zNear, zFar, v, req, id, rule) {   // rule: from the rule, not measured (Brief 27 item 8)
     var a = Math.max(F.zA, Math.min(F.zB, zNear)), b = Math.max(F.zA, Math.min(F.zB, zFar));
     var q = zc(id.toLowerCase().replace(/^c0/, 'c')), s = [F.sx(a), F.sx(b)].sort(function(u, w) { return u - w; });
+    // its label slides toward the deck (C13, beside it) or away from it (the rest), so the row's labels pass each other
+    var inward = F.sx(G.L / 2) > (s[0] + s[1]) / 2 ? 1 : -1, prefer = id === 'C13' ? inward : -inward;
     if (Math.abs(b - a) < 0.05) {
       if (Math.abs(zFar - zNear) >= 0.05 || zFar < F.zA || zFar > F.zB) return;
       var D = RPT.DIM, p = dBot + D.first + D.step * row, x = F.sx(zFar);
       P.line(x, dBot + D.gap, x, p + D.over, { cls: 'fine', c: q.c, op: q.op }); DRAW_SYMBOLS.tick(P, x, p, { c: q.c });
-      RPT.dimText(P, true, 1, p, x - 0.01, x + 0.01, rule ? DRAW_STYLE.fmtReq(req, id) : RPT.fmtClear(v, req, id), { c: q.c, op: q.op, data: " data-clear='" + id + "'" + (rule ? " data-rule='1'" : ''), frame: [xa, xb] }, 0);
+      RPT.dimText(P, true, 1, p, x - 0.01, x + 0.01, DRAW_STYLE.clearLbl(v, req, id, { rule: rule }), { prefer: prefer, c: q.c, op: q.op, data: " data-clear='" + id + "'" + (rule ? " data-rule='1'" : ''), frame: [xa, xb] }, 0);
       return;
     }
-    RPT.chain(P, { side: 'bottom', edge: dBot, row: row, at: s, vals: [rule ? DRAW_STYLE.fmtReq(req, id) : RPT.fmtClear(v, req, id)], c: q.c, op: q.op, dash: rule ? 'zone' : undefined, data: " data-clear='" + id + "'" + (rule ? " data-rule='1'" : ''), frame: [xa, xb] });
+    RPT.chain(P, { side: 'bottom', edge: dBot, row: row, at: s, vals: [DRAW_STYLE.clearLbl(v, req, id, { rule: rule })], prefer: prefer, c: q.c, op: q.op, dash: rule ? 'zone' : undefined, data: " data-clear='" + id + "'" + (rule ? " data-rule='1'" : ''), frame: [xa, xb] });
   };
   clearDim(0, 0, -G.c13, G.c13, 1.5, 'C13', G.c13Rule); clearDim(0, -G.c13, -G.c13 - G.c03, G.c03, 6, 'C03', G.c03Rule);
   clearDim(0, G.L, G.L + G.c13, G.c13, 1.5, 'C13', G.c13Rule); clearDim(0, G.L + G.c13, G.L + G.c13 + G.c03, G.c03, 6, 'C03', G.c03Rule);
@@ -23986,7 +24053,7 @@ RPT.sheetLayout = function(d) {
   var keys = [
     { t: 'Segments from the Section editor, chained with the overall, frontage to far curb.', at: [xa - 20, (F.sy(0) + F.sy(LM.roadRight)) / 2] },
     { t: hz != null && zs.indexOf(hz) >= 0 ? 'The deck located from the host frontage (' + (host.name || host.use || 'host') + ').' : 'The deck located along the curb from its start.', at: [F.sx(G.L / 2), ay - 9] },
-    { t: 'Clearance zones dashed, with their rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal, C09 chamber, C13 parking); red: the check fails.', at: zoneAt },
+    { t: 'Clearance zones dashed, with their rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal, C09 chamber, C13 parking). Each clearance: measured, then rule and check beneath; red: the check fails.', at: zoneAt },
     { t: RPT.tagNote(d), at: null },
     { t: RPT.CITY_NOTE, at: cityAt },
     { t: 'Section A-A: the street on A-201, the parklet on A-202; deck plan A-103.', at: [F.sx(G.sec.z) + 10, F.sy(LM.sidewalkL.x0) - 6] }
@@ -24400,7 +24467,8 @@ RPT.sheetTitle = function(d, drw) {
     function(X, Y) { RPT.sym.manhole(P, X, Y, 1.1); }, 'Access chamber / manhole', function(X, Y) { DRAW_SYMBOLS.tree(P, X, Y, 1.8, 1.8); }, 'Street tree canopy (genus tag)',
     function(X, Y) { DRAW_SYMBOLS.busStop(P, X, Y); }, 'Bus stop',
     function(X, Y) { RPT.sym.grid(P, X, Y, '1'); }, 'Grid line at a railing post', function(X, Y) { RPT.sym.level(P, X, Y + 1, '', true); }, 'Level (datum: top of curb)',
-    function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone'];
+    function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone',
+    function(X, Y) { P.text(X, Y - 0.5, '5.2', TX.tag, { anchor: 'middle' }); P.text(X, Y + 1.6, 'C05 ✓', TX.tag * 0.8, { anchor: 'middle', c: 'anno' }); }, 'Clearance: measured · rule · check (red: fails)'];
   if (RPT.userGroups(d).length) syms.push(function(X, Y) { var fs = TX.tag, w = RPT.tw('F1' + RPT.USER_DOT, fs, true) + 1.6; DRAW_SYMBOLS.ftag(P, { box: [X - w / 2, Y - fs / 2 - 0.6, X + w / 2, Y + fs / 2 + 0.6], cx: X, cy: Y, a: [X - w / 2 - 3, Y], e: [X - w / 2, Y], tag: 'F1' + RPT.USER_DOT }, fs); },
     'Furniture tag, S-001; a dot: user-supplied, not verified');   // Brief 22 item 9
 
@@ -25079,6 +25147,7 @@ RPT.print = async function() {
 .pk-sw { flex: 0 0 auto; width: 18px; height: 10px; box-sizing: border-box; }
 .pk-sym { flex: 0 0 auto; width: 18px; text-align: center; font-weight: 700; font-size: 11px; line-height: 1; }
 .pk-sym.pk-h { width: 14px; height: 14px; margin: 0 2px; border: 1px solid currentColor; border-radius: 50%; font-size: 9px; line-height: 12px; box-sizing: border-box; }
+.pk-sym.pk-clr { font-weight: 400; font-size: 10px; }
 .pk-tree { border-radius: 50%; width: 12px; height: 12px; margin: 0 3px; background: #C9D3C2; }   /* fill.treeSil */
 .dm-technical .pk-tree { background: #DEDEDE; }
 .pk-route { background: rgba(58, 168, 228, 0.14); border: 1px dashed var(--accent-ui); }
