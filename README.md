@@ -115,7 +115,7 @@ A recorded walkthrough of the whole journey is planned (Brief 26).
    Any static web server also works for everything except photoreal renders, which go through the relay in
    `tools/serve.ps1`.
 3. Enable the repository's pre-push check once: `git config core.hooksPath tools/hooks` (it refuses PDF, DWG
-   and ZIP files and anything over 5 MB).
+   and ZIP files and anything over 5 MB; the one exception is the two sample reports below).
 
 ## Developer prerequisites
 
@@ -137,6 +137,11 @@ data build) need:
 
 `node tools/screenshots.js` redraws the landing images from the recorded site data in `tools/fixtures/`
 (`--record` fetches it again).
+
+`node tools/build-sample-pdfs.js` rebuilds the two sample reports (`demo/sample-schematic.pdf` and
+`demo/sample-technical.pdf`, with their counts in the matching `.json`) from `demo/sample-design.json`, with the
+local server running. Run it after any change to the report or to the sample design: `sample.html` shows these files
+as they are (without them it builds the sample in the browser, which takes several seconds).
 
 ## Add your keys (optional)
 

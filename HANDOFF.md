@@ -1061,6 +1061,59 @@ an advisory above it, no cap; deck flush with the curb. They are done with §2.
     went elsewhere (reproduced before the fix: "2.5" became 0.1); fixed there.
 - **Seen in passing, not in this brief (triage row 30):** on A-102 the painted lane line still crosses the C03 labels.
 
+## Brief 28: clarity round (branch `clarity` from master after v0.13, 2026-10-01; one commit per item; not merged)
+§1–§4 done, in order, without pauses (Jenna's instruction). Merge on Jenna's approval, then v0.14.
+- **§1 First use.**
+  - **Item 1:** the six-card walkthrough (`WALK`) shows once per account (localStorage and `user_metadata.walkthrough_seen`).
+    Help › "How it works" opens it again.
+  - **Item 1b:** the landing page is rewritten, with the README's Purpose text as its long form.
+    The "How it works" images are to be retaken from v0.14.
+  - **Item 2:** the Locate card is one line once the site is located (Edit opens it; "Set manually" folds the fields).
+  - **Item 3:** Check rows commit on Save or Enter; Esc and leaving the field discard, with a message (`CHKS`).
+- **§2 item 4:** the Accessibility tab (`ACCTAB`): the Plan alone with the route, a live verdict, blocking pieces named, a
+  pinch label and the fix. C16's row opens it.
+- **§3 drawing language (app Plan and sheets alike).**
+  - **Item 5:** trees are flat lobed silhouettes (`DRAW_SYMBOLS.tree`, `fill.treeSil`). On the sheets they sit on the
+    ground under the deck (`planBase` `beforeDeck`).
+  - **Item 6:** genus tags by group (`TREE_TAGS`).
+    - One tag per genus within 3 m ("AC ×6"), with a leader to the group's centre tree.
+    - The leaders never cross (`_pvAnnCheck.crossings`); the tags follow the Tags toggle.
+    - The Plan key lists the codes.
+    - The "Hydrant" and "Bus stop" texts are gone; the H and B carry a tooltip.
+  - **Item 7:** clearances read as a value plus a note (`DRAW_STYLE.clearLbl`): "28.0" over
+    "to hydrant · min 5 m · C05 ✓", red only on a fail.
+    - The sheets draw ✓ and ✗ as marks (`RPT.markText`); the sheet font has neither.
+  - **Item 8:**
+    - The Plan's parking row runs the whole length, so an edited deck shape sits on the ground.
+    - The section line, the City's wheel stops and bollards, and level symbols are obstacles to text.
+  - **Item 9: context streets are road surfaces** (`SMP.streetWidth`, `CTX_ROADS`), in the Plan, A-101, A-102, the
+    locator and 3D.
+    - The EDM gives no widths by class. `SMP.CLASS_W` is estimated from its parts, and each value is cited in the
+      comment.
+    - Imported buildings keep their real footprint (`footprint.poly`): the Plan, the sheets and 3D draw it.
+      **Sections, renders and the Rhino export still use the box.**
+  - **Item 10:** the protected bike lane's posts run the whole street (`BIKE_SEP`).
+    - One post at the front of each parking space, per EDM Table 8-7 note 2 (p. 266).
+    - **The 6.0 m space length is our estimate.** The EDM gives none.
+    - Gaps at driveways and cross streets.
+- **§4 sheets.**
+  - **Item 11:** extents come from the block face (`sheetBlockFace`, `sheetAlong`).
+    - A-102 is at 1:200 or 1:250 and draws the block face.
+    - A-103's end margin is trimmed so 1:75 holds.
+    - Fill at the five sites is 0.77–0.92 of the drawing area.
+    - "Notes column clipped at the right page edge" **was not reproduced**. In both sample PDFs, only the footer's last
+      digit passes the content box, by about 1 pt, 12 mm from the page edge.
+  - **Item 12:** `sample.html` shows the prebuilt PDFs (`demo/sample-*.pdf`) under one bar; it opens in about 0.15 s
+    locally.
+    - `node tools/build-sample-pdfs.js` rebuilds them. **Rerun it after the v0.14 bump**: the current files print v0.13.
+    - The sample's umbrella is 1.8 m (it failed C19 at 2.5 m), so all 19 checks pass.
+    - The cover is the sample's own render, not a photograph.
+    - **`.gitignore` and `tools/hooks/pre-push` now let exactly these two PDFs through** (Jenna to approve).
+- **VERIFY (agents, signed out):**
+  - The brief's list at rb, cd, dn, W 4th and Main: walkthrough once, Locate one line, 12 → 1.2 Save, Accessibility
+    live, Plan at cd, chamfered deck, road surfaces, posts the full length, sheet fill, sample under 1 s.
+  - Every sheet: 0 overlaps.
+
 ## Later brief: 3D full city (Brief 25 item 24, deferred by Jenna 2026-10-01)
 The 3D view shows the city everywhere, with no cut-off at the import radius. Building cells load around the camera as it moves: far cells as simple extruded blocks, near cells in full detail, and the same for streets and trees. The import radius only decides what gets sections and checks. It needs a streaming loader for the 3D scene (the site map's cell loader, `GIS.load` / `GIS.ensure`, is the starting point) and a level-of-detail rule. Brief 25 keeps the current 3D extent.
 
