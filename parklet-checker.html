@@ -1545,7 +1545,15 @@ function buildCriterion(c) {
   // failures first, then the ones awaiting a value, then the passes (Brief 21 §3); the rule order within each
   const rank = { fail: 0, await: 1, unclear: 2, pass: 3 }, sb = {};
   criteria.forEach(function(c) { sb[c.id] = CHK.state(c).base; });
+  // Brief 27 item 1: a field with focus gets it back after the list is rebuilt (its row's open state too)
+  var fa = document.activeElement, fid = fa && fa.id && listEl.contains(fa) ? fa.id : null;
+  var fRow = fid ? fa.closest('.chk-row') : null, fOpen = !!(fRow && fRow.classList.contains('open'));
   listEl.innerHTML = criteria.slice().sort(function(a, b) { return (rank[sb[a.id]] - rank[sb[b.id]]) || (+a.num - +b.num); }).map(buildCriterion).join('');
+  if (fid) {
+    var nf = document.getElementById(fid), nr = nf && nf.closest('.chk-row');
+    if (nr && fOpen) { nr.classList.add('open'); var hh = nr.querySelector('.criterion-header'); if (hh) hh.setAttribute('aria-expanded', 'true'); }
+    if (nf) nf.focus({ preventScroll: true });
+  }
   if (typeof chkAfterRender === 'function') chkAfterRender();
   renderVerdict();
   renderSummary();
@@ -1674,7 +1682,8 @@ const resultEl = document.getElementById('result_' + critId);
   if (resultEl && c.evalFn) {
     const val = state[c.inputId] || '';
     const val2 = c.inputId2 ? (state[c.inputId2] || '') : undefined;
-    const msg = c.evalMsg ? c.evalMsg(val, val2) : '';
+    // (Brief 27 item 1) a half-typed or empty number ("-", a distance not yet typed) is "not entered", never "NaN m … Fails"
+    const msg = c.evalMsg && !/\bNaN\b/.test(c.evalMsg(val, val2)) ? c.evalMsg(val, val2) : '';
     if (msg) {
       resultEl.style.display = 'inline-block';
       resultEl.style.background = st === 'pass' ? 'var(--pass-light)' : st === 'fail' ? 'var(--fail-light)' : 'var(--unclear-light)';
@@ -3471,6 +3480,7 @@ function complianceRows() {
     if (!(status === 'unclear' && missing.length)) {
       try { msg = c.evalMsg ? c.evalMsg(state[c.inputId], c.inputId2 ? state[c.inputId2] : undefined) : ''; } catch (e) { msg = ''; }
       msg = String(msg || '').replace(/^[\s✓✗✔✘⚠?]+/, '').trim();
+      if (/\bNaN\b/.test(msg)) msg = '';   // (Brief 27 item 1) a half-typed number is not a result
       if (!msg) msg = ins.filter(function(i) { return i.entered; }).map(function(i) { return i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : ''); }).join('; ');
     }
     if (status === 'await') msg = cs.hint;
@@ -5088,9 +5098,10 @@ document.addEventListener('mouseup', function() {
     if (wi) {
       var _propFocusW = s.width;
       wi.addEventListener('focus', function(){ _propFocusW = s.width; });
-      wi.addEventListener('input', function(e){ var v=parseFloat(e.target.value); if(!isNaN(v)) _seResize(s.id,v,true); });
+      // Brief 27 item 1 (triage row 2): resize on change (Enter or leaving the field), never per keystroke: a resize
+      // re-renders this panel, and a re-render under the cursor kept only the first character typed
       wi.addEventListener('change', function(e){
-        var v=parseFloat(e.target.value);
+        var v=parseFloat(e.target.value), keep = document.activeElement === wi;
         if(!isNaN(v)) {
           if(Math.abs(v-_propFocusW)>0.001) {
             var snap=JSON.parse(JSON.stringify(_segs));
@@ -5099,6 +5110,7 @@ document.addEventListener('mouseup', function() {
             _hist.push(JSON.stringify(snap)); if(_hist.length>60) _hist.shift(); _fut=[]; _updateHistBtns();
           }
           _seResize(s.id,v,true); _seToGlobals(); _trigger();
+          if (keep) { var nw = document.getElementById('sePropW'); if (nw) { nw.focus({ preventScroll: true }); nw.select(); } }   // Enter: stay in the field
         }
       });
     }
@@ -29816,9 +29828,31 @@ var _chkF = 'all';
 // stays so for the session; an empty group is not shown. "Expand all" opens every group and row.
 var CHKG = { ORDER: [['fail', 'Fails'], ['await', 'Awaiting measurement'], ['unclear', 'Not entered'], ['prov', 'Provisional pass'], ['pass', 'Pass']], open: { fail: true, await: true } };
 CHKG.keyOf = function(c) { var st = typeof CHK !== 'undefined' ? CHK.state(c) : { base: getCriterionStatus(c) }; return st.base === 'fail' ? 'fail' : st.base === 'await' ? 'await' : st.base === 'pass' ? (st.provisional ? 'prov' : 'pass') : 'unclear'; };
-CHKG.group = function() {
+CHKG.group = function(force) {
   var list = document.getElementById('criteriaList'); if (!list || typeof criteria === 'undefined') return;
-  var gs = {};
+  // Brief 27 item 1 (triage row 1): a row whose field has focus stays put until the field loses focus or Enter is
+  // pressed; moving a focused element blurs it, and the rest of what the user types was lost
+  var fa = document.activeElement, hold = !force && fa && /^(INPUT|SELECT|TEXTAREA)$/.test(fa.tagName) && list.contains(fa) ? fa.closest('.chk-row') : null;
+  CHKG._held = !!hold;
+  if (!list._chkgEv) {
+    list._chkgEv = true;
+    list.addEventListener('focusout', function(e) {
+      if (!CHKG._held) return;
+      var nx = e.relatedTarget;
+      if (nx && /^(INPUT|SELECT|TEXTAREA)$/.test(nx.tagName) && e.target.closest('.chk-row') === nx.closest('.chk-row')) return;   // the row's other field
+      // regroup once focus has left the field; whatever has focus then (the row's own button, say) gets it back
+      setTimeout(function() {
+        var a = document.activeElement; CHKG.group();
+        if (a && a !== document.body && a !== document.activeElement && document.contains(a)) a.focus({ preventScroll: true });
+      }, 0);
+    });
+    list.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' || !CHKG._held || !/^(INPUT|SELECT)$/.test(e.target.tagName)) return;
+      var id = e.target.id; CHKG._held = false;
+      CHKG.regroupKeep(id);
+    });
+  }
+  var gs = {}, at = 0;
   CHKG.ORDER.forEach(function(g) {
     var d = list.querySelector('details.chk-grp[data-g="' + g[0] + '"]');
     if (!d) {
@@ -29826,10 +29860,19 @@ CHKG.group = function() {
       d.innerHTML = "<summary class='chk-grp-h'><span class='chk-grp-t'>" + g[1] + "</span><span class='chk-grp-n'></span></summary>";
       d.addEventListener('toggle', function() { CHKG.open[g[0]] = d.open; });
     }
-    list.appendChild(d); gs[g[0]] = d;   // (re)placed in the order
+    // placed in the order, moved only when out of place: re-appending a group that holds the focused field blurred it
+    var here = list.children[at]; if (here !== d) list.insertBefore(d, here || null);
+    at++; gs[g[0]] = d;
   });
-  criteria.forEach(function(c) { var el = document.getElementById('crit_' + c.id); if (el) gs[CHKG.keyOf(c)].appendChild(el); });
+  criteria.forEach(function(c) { var el = document.getElementById('crit_' + c.id); if (el && el !== hold) gs[CHKG.keyOf(c)].appendChild(el); });
   CHKG.counts();
+};
+// Enter in a row's field: regroup now, open the row's new group and give the field its focus back (caret at the end)
+CHKG.regroupKeep = function(id) {
+  CHKG.group(true);
+  var f = document.getElementById(id); if (!f) return;
+  var g = f.closest('details.chk-grp'); if (g && !g.open) { g.open = true; CHKG.open[g.dataset.g] = true; }
+  f.focus({ preventScroll: true }); f.scrollIntoView({ block: 'nearest' });
 };
 CHKG.counts = function() {
   document.querySelectorAll('#criteriaList details.chk-grp').forEach(function(d) {
