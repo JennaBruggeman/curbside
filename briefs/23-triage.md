@@ -945,3 +945,46 @@ pass.
 - **README / landing wrong:** step 3 doesn't mention the blank street's confirmation dialog. Everything else matched,
   and the PDF took about 15 s here.
 - Evidence: `<scratchpad>\b23\full\p5-run3\` (001–151.png, `curbside-blank-street-schematic.pdf`).
+
+### Run: Persona 6 (returning user, signed out), run 3, Sonnet
+
+- **Site:** Kingsway at Earles St, south-west side (host Top Cantonese Cuisine, 2740 Kingsway), six lanes estimated
+  at 24.00 m.
+- **What was made:** three pieces at typed positions (9.50, 11.25 and 13.00 m along) and one typed Check value (C04,
+  2.5 %).
+- **PDF:** about 15–20 s (14 pages).
+- **What a signed-out person is told about keeping work**
+  - **Only the landing page says anything:** "Your designs, saved: Designs are kept in your account and reopen where
+    you left them." It is phrased as a feature, never as "signed out, furniture and Check entries are lost on reload".
+  - **Inside the app there is no notice anywhere:** not in Help, the account menu, the sign-in form, the Export tab
+    (it mentions render keys only) or "+ New". This adds to rows 3 and 8: the loss is silent.
+- **The PDF as a record** (checked by me with `pdftotext -raw` on all 14 pages; the agent's tool stopped at page 4)
+  - **The site:** address, host, deck length, curb-to-curb.
+  - **The furniture:** S-001 lists each piece with size, finishes and count. The positions appear only as F-tags on the
+    plans, plus one in C16's failure text ("beside the armchair at z 9.50"); no table of positions.
+  - **The typed slope** is printed as "Street slope along the curb (C04) 0.1 % entered", not 2.5 %.
+    - The agent used fill (the whole value in one event), so this is not the keystroke loss.
+    - Live, a fill on C04 kept 2.5. Typed key by key, "3.5" became 2.6 and focus left the field. A click at the
+      slider's left end gave 0.
+    - Parent run 2 ("1" → 0.1 %) and Parent run 3 (2.5 → 0.1 %) printed the same 0.1. **Not reproduced; cause
+      unknown.** The C04 row is a slider plus a number field kept in step, and every input re-renders the rows
+      (row 1). Logged under row 1, to retest after its fix.
+  - **Verdict:** the PDF is enough to rebuild the site, the deck and the furniture list, and to place pieces only by
+    scaling the plan. It is not enough to restore typed values reliably.
+- **Two copies:** three `newbrowser` instances (no storage) each opened a blank "Untitled parklet", as expected.
+  - Two tabs in one browser were not testable. The agent's inference: they would overwrite each other's local save,
+    last one wins.
+  - Supporting it: the local save is one key (`pkt-design-state`), with no per-tab or per-design id when signed out.
+    Not tested.
+- **"+ New" and Back:**
+  - "+ New" asks for the new name only and discards the open design (as run 2).
+  - Back (Alt+ArrowLeft) does nothing: the URL never changes, so there is no history to return to.
+- **Also:**
+  - The sign-in form cannot be closed (row 7).
+  - The library folds away each time a placed piece is selected.
+  - A first drag onto the zoomed-out Plan placed nothing; it worked after "Fit design".
+  - `GEN is not defined`.
+- **Rejected:** "Preview report blank", the harness's missing PDF viewer.
+- **README / landing wrong:** none in the steps. The landing page's "Designs are kept in your account" is the only
+  word on saving, and it doesn't warn about the opposite case.
+- Evidence: `<scratchpad>\b23\full\p6-run3\` (001–080.png, `curbside-untitled-parklet-schematic.pdf`).
