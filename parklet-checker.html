@@ -17888,6 +17888,7 @@ async function pkSaveDesign(immediate) {
 
 async function pkLoadDesign(id) {
   if (!pkSB || !pkCurrentUser) return;
+  pkNewTicket = null;   // a "+ New" still creating its row is dropped (Brief 25 item 27)
   pkShowLoading('Opening design…');
   try {
     var res = await pkSB.from('designs').select('*').eq('id', id).eq('user_id', pkCurrentUser.id).single();
@@ -17970,10 +17971,19 @@ function pkScheduleSave() {
 }
 
 // ─── New design flow ──────────────────────────────────────────────
+// Brief 25 item 27: "+ New" opens the blank design at once. Signed in, the open design's state is taken now and saved
+// behind (pkSaveSnapshot), and the new row is created behind too: until it exists the design saves in this browser,
+// then it is saved to the new row. A later New or Open drops a create still pending (pkNewTicket).
+var pkNewTicket = null;
+function pkSaveSnapshot(id, data) {
+  if (!pkSB || !pkCurrentUser || !id || !data) return Promise.resolve(false);
+  return pkSB.from('designs').update({ state: data, updated_at: new Date().toISOString(), name: (data.project && data.project.name) || 'Untitled Parklet' }).eq('id', id).eq('user_id', pkCurrentUser.id)
+    .then(function(r) { if (r.error) throw r.error; return true; }).catch(function(e) { console.error('[pk] save of the previous design failed:', e); pkToast('The previous design could not be saved online; it is in this browser.', 'error'); return false; });
+}
 async function pkNewDesign(name, address) {
-  // Save current design first
-  if (pkCurrentDesignId) {
-    try { await pkSaveDesign(true); } catch(_e) {}
+  if (pkCurrentDesignId && pkSB && pkCurrentUser) {   // signed in: the open design's state now, saved behind
+    var _oldId = pkCurrentDesignId, _oldData = pkSerialize();
+    pkSaveSnapshot(_oldId, _oldData).then(function(ok) { if (!ok) return; var i = pkAllDesigns.findIndex(function(q) { return q.id === _oldId; }); if (i >= 0) pkAllDesigns[i].updated_at = new Date().toISOString(); });
   }
   // signed out: the blank design in this browser only (Brief 21 §4)
   if (!pkSB || !pkCurrentUser) {
@@ -17983,18 +17993,23 @@ async function pkNewDesign(name, address) {
     pkHideDesignBrowser(); pkUpdateAccountUI(); pkToast('New design: ' + (name || 'Untitled parklet'), 'success');
     return;
   }
-  pkShowLoading('Creating design…');
-  var d = await pkCreateDesign(name || 'Untitled parklet', address || '');
-  if (!d) { pkHideLoading(); pkToast('Could not create design.', 'error'); return; }
-  pkCurrentDesignId   = d.id;
-  pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at };
-  // Apply the blank state (every key reset)
-  pkApplyBlank(d.state);
-  pkHideLoading();
+  // the blank design now (every key reset); its row is created behind
+  pkCurrentDesignId = null; pkCurrentDesignMeta = null;
+  pkApplyBlank(pkDefaultState(name || 'Untitled parklet', address || ''));
   pkHideDesignBrowser();
-  pkSetSaveStatus('pk-saved', 'Saved');
+  pkSetSaveStatus('pk-saving', 'Creating…');
   pkUpdateAccountUI();
-  pkToast('Created “' + d.name + '”', 'success');
+  var ticket = pkNewTicket = {};
+  pkCreateDesign(name || 'Untitled parklet', address || '').then(function(d) {
+    if (pkNewTicket !== ticket) return;   // another design was opened meanwhile
+    pkNewTicket = null;
+    if (!d) { pkSaveLocal(pkSerialize()); pkSetSaveStatus('pk-error', 'Offline — saved locally'); pkToast('Could not create the design online; it is kept in this browser.', 'error'); return; }
+    pkCurrentDesignId = d.id;
+    pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at };
+    pkSaveDesign(true);   // whatever was done in the blank design meanwhile, into its row
+    pkUpdateAccountUI();
+    pkToast('Created “' + d.name + '”', 'success');
+  });
 }
 
 // ─── App startup ──────────────────────────────────────────────────
@@ -24048,6 +24063,11 @@ RPT.checkPages = function(pens, pages) {
   });
   return out;
 };
+// progress (Brief 25 item 27): RPT._prog(fraction, words) is set by whoever shows it (RPT.print's button); every stage
+// and every page reports, and the work yields a frame between pages so the bar moves and the page stays responsive
+RPT._prog = null;
+RPT.progress = function(f, t) { if (RPT._prog) try { RPT._prog(Math.max(0, Math.min(1, f)), t); } catch (e) {} };
+RPT.yieldFrame = function() { return new Promise(function(r) { if (typeof requestAnimationFrame === 'function' && !document.hidden) requestAnimationFrame(function() { setTimeout(r, 0); }); else setTimeout(r, 0); }); };
 RPT.render = async function(d, drw) {
   await RPT.loadEngine();
   var pages = RPT.pages(d, drw), N = pages.length, doc = RPT.newDoc(), pens = [];
@@ -24060,6 +24080,7 @@ RPT.render = async function(d, drw) {
       host.innerHTML = RPT.glyphSafe(RPT.pageSVG(P, pg.bleed));
       if (i) doc.addPage([RPT.PG.W, RPT.PG.H], 'landscape');
       await doc.svg(host.firstElementChild, { x: 0, y: 0, width: RPT.PG.W, height: RPT.PG.H });
+      RPT.progress(0.3 + 0.62 * (i + 1) / N, 'Sheet ' + (i + 1) + ' of ' + N); await RPT.yieldFrame();
     }
   } finally { host.remove(); }
   RPT.lastCheck = RPT.checkPages(pens, pages);
@@ -24070,25 +24091,40 @@ RPT.render = async function(d, drw) {
 RPT.fileName = function(d) { return 'curbside-' + String(d.DM.project.name || 'parklet').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + d.mode + (d.sample ? '-sample' : '') + '.pdf'; };
 // the whole report: data, renders, drawings, pages -> a PDF (RPT.lastPdf: {blob, name, pages, check})
 RPT.make = async function(mode) {
-  var d = RPT.data(mode || RPT.mode());
+  var T = {}, t = performance.now(), lap = function(k) { var n = performance.now(); T[k] = Math.round(n - t); t = n; };
+  RPT.progress(0.02, 'Reading the design'); await RPT.yieldFrame();
+  var d = RPT.data(mode || RPT.mode()); lap('data');
   // the renders are the design's in both reports (their credits in X-001); only the schematic prints the images
-  d.renders = await (RPT.renderSource || RPT.collectRenders)();
+  RPT.progress(0.06, 'Collecting the renders'); await RPT.yieldFrame();
+  d.renders = await (RPT.renderSource || RPT.collectRenders)(); lap('renders');
   if (!RPT.on('renders', d)) d.renders = [];   // Renders left out (Brief 22 item 7): no render sheet, no render on the cover
-  d.attach = await RPT.collectAttach(d);   // the spec cards' attachments (Brief 22 item 8)
-  var drw = await RPT.drawings(d), doc = await RPT.render(d, drw);
+  RPT.progress(0.12, 'Reading the attachments'); await RPT.yieldFrame();
+  d.attach = await RPT.collectAttach(d); lap('attachments');   // the spec cards' attachments (Brief 22 item 8)
+  RPT.progress(0.18, 'Drawing the cover and the views'); await RPT.yieldFrame();
+  var drw = await RPT.drawings(d); lap('drawings');
+  RPT.progress(0.3, 'Laying out the sheets'); await RPT.yieldFrame();
+  var doc = await RPT.render(d, drw); lap('sheets');
+  RPT.progress(0.95, 'Writing the PDF'); await RPT.yieldFrame();
   RPT.lastData = d;
-  RPT.lastPdf = { blob: doc.output('blob'), name: RPT.fileName(d), pages: doc.getNumberOfPages(), check: RPT.lastCheck };
+  RPT.lastPdf = { blob: doc.output('blob'), name: RPT.fileName(d), pages: doc.getNumberOfPages(), check: RPT.lastCheck }; lap('pdf');
+  RPT.lastTimings = T; console.info('[report] ms per stage', JSON.stringify(T));   // where the time goes, if it is ever slow again
+  RPT.progress(1, 'Done');
   return RPT.lastPdf;
 };
 RPT.print = async function() {
   var btn = document.getElementById('pdfExportBtn'), lbl = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Preparing the PDF...'; }
+  if (btn) {   // the button is the progress bar (Brief 25 item 27): its words and a fill that grows with the work
+    btn.disabled = true; btn.classList.add('rpt-busy');
+    btn.innerHTML = "<span class='rpt-bar' aria-hidden='true'></span><span class='rpt-lbl'>Preparing the PDF…</span>";
+    btn.setAttribute('role', 'progressbar'); btn.setAttribute('aria-valuemin', '0'); btn.setAttribute('aria-valuemax', '100');
+    RPT._prog = function(f, t) { var b = btn.querySelector('.rpt-bar'), l = btn.querySelector('.rpt-lbl'); if (b) b.style.width = (f * 100).toFixed(1) + '%'; if (l) l.textContent = t + ' · ' + Math.round(f * 100) + ' %'; btn.setAttribute('aria-valuenow', String(Math.round(f * 100))); };
+  }
   try {
     var r = await RPT.make(), a = document.createElement('a');
     a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function() { URL.revokeObjectURL(a.href); }, 60000);
   } catch (e) { console.error('[report]', e); alert('The report could not be prepared: ' + (e && e.message ? e.message : e)); }
-  finally { if (btn) { btn.disabled = false; btn.innerHTML = lbl; } }
+  finally { RPT._prog = null; if (btn) { btn.disabled = false; btn.classList.remove('rpt-busy'); btn.removeAttribute('role'); btn.removeAttribute('aria-valuenow'); btn.innerHTML = lbl; } }
 };
 </script>
 <style id="ui07">
@@ -24099,6 +24135,10 @@ RPT.print = async function() {
 
 /* -- Dock accordions: one style everywhere --------------------------- */
 .ctx-hdr { padding: var(--sp-2) var(--sp-3); }
+/* the report button as its own progress bar (Brief 25 item 27) */
+#pdfExportBtn.rpt-busy { position: relative; overflow: hidden; opacity: 1; cursor: progress; }
+#pdfExportBtn .rpt-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent-ui); opacity: .35; transition: width .2s linear; }
+#pdfExportBtn .rpt-lbl { position: relative; }
 .ctx-hdr-title { font-size: var(--fs-12); font-weight: 600; letter-spacing: .08em; color: var(--c-text); }
 .dk-panel { border-bottom: 1px solid var(--c-rule); }
 .dk-panel-hdr { height: 32px; padding: 0 var(--sp-3); background: transparent; gap: var(--sp-2); }
