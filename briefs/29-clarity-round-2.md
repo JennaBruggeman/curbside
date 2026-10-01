@@ -76,6 +76,15 @@ the account-storage half for Brief 30.
    cache stays as a fast path. Design ids never appear in the UI. Render still
    / Render all presets add to the gallery and still download.
 
+## §5 Save status
+
+9. **Save status must not flicker or shift the layout.** Autosave debounces:
+   write 2 s after the last change, not on every change. The status element
+   has a fixed width so the tabs never move; "Saving…" shows only if a write
+   takes longer than 500 ms, otherwise the text goes straight to "Saved ·
+   10:26". No separate "Saving…" button beside the status — one element,
+   one state. Failed saves keep the red text and the retry.
+
 ## VERIFY
 Open any design: 3D Cover, no building face in the frame, at five sites ·
 Site sidebar after import: three one-line cards, current step open · live
