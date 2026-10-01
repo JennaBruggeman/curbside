@@ -982,6 +982,66 @@ Decisions for every item are in the session's decisions log; the essentials:
 - **VERIFY by Jenna:** 3D at 30 fps or more on real hardware; Pages updating within 2 minutes of the merge push (the workflow's run shows it); the first-sign-in card (signed-in paths were reviewed, not run here).
 - **Out of scope (later):** the hosted photoreal relay; persona 6 (accounts) and the full Brief 23 pass, after this merges.
 
+## Brief 27: Friday fixes (branch `fixes-3` from master, 2026-10-01; one commit per item, triage rows cited)
+§1 done; §2–§3 after Jenna's check. Jenna's decisions (in the brief): C16 at the Manual's 1.5 m; deck default 2.5 m with
+an advisory above it, no cap; deck flush with the curb. They are done with §2.
+- **Item 0, the signed-in save (Jenna's addition, above everything).** Root cause: signing in opens no design, and the first
+  site import creates the design's row. When the account refused that insert, `pkCreateDesign` logged it and returned
+  nothing, and the import carried on without a row. Every later save then took `pkSaveDesign`'s "not authenticated" branch:
+  this browser only, shown as "Offline — saved locally" while online and signed in. The refusal is the database: the live
+  `designs` table has one policy where `supabase/schema.sql` (lines 47–55) defines four (read, insert, update and delete
+  own). **Jenna applies the four** (SQL below).
+  - **Also on that path:**
+    - An update that RLS refuses returns no error and no row, which used to show "Saved"; the save now asks for the row
+      back.
+    - The cloud save called itself through `pkSerialize` → `saveSettings` (guarded now).
+    - A save requested during another was dropped; it now follows the first.
+  - **`SAVE`:** the top bar reads exactly one of "Saved to your account · 10:32", "Saved in this browser only — sign in to
+    keep it" or "Save failed — retry", beside Save now. It never says "Offline". On a failure the reason is the tooltip. A
+    failed design is also kept as this browser's offline design, which the next sign-in here offers to move.
+- **Item 1:** typed numbers keep every keystroke.
+  - In the Check tab, `CHKG.group` re-appended every group and blurred the field. Groups now move only when out of place,
+    and the focused row waits for blur or Enter.
+  - The Section width field resizes on change. A half-typed number is "not entered".
+  - The C04 "0.1 %" was this bug.
+- **Item 2:** the top bar fits from 1024 px.
+- **Item 3:** opening a generated scheme keeps the imported site (`GEN.openState`: the scheme's deck and furniture on the
+  current design, the context shifted as `pkMove` does).
+- **Item 4:** every edit is saved (`PK_EDIT`; pagehide writes at once).
+  - Signed out, the top bar says the work is in this browser.
+  - Jenna's addition: a design made signed out is offered once on signing in, in the same browser ("Move your offline
+    design to this account?"). Another browser cannot see it.
+- **Item 5:** "+ New" asks only when work would be lost or is not in the account, then opens the first-visit "Choose a
+  site" screen.
+- **Item 6:** the sign-in dialog closes (×, Escape, backdrop) and traps focus; the account menu works by keyboard.
+- **Item 7:** "Place on deck" (`PLACE`): Plan and 3D clicks, a one-line hint, and Enter to place by the centre, then the
+  arrows to move it and Enter to confirm. A Design library card is placed by click or tap too.
+- **Supabase (Jenna):**
+  - Check the live policies:
+    `select policyname, cmd, roles, qual, with_check from pg_policies where schemaname = 'public' and tablename = 'designs';`
+  - Then run `supabase/schema.sql` lines 47–55: enable RLS, and the four "designs: … own" policies.
+  - Redirect URL for the confirmation email:
+    `https://jennabruggeman.github.io/curbside/parklet-checker.html?auth=signin`
+- **Direct write test (Jenna, signed in, the browser console):**
+  ```js
+  var r = await pkSB.from('designs').insert({ user_id: pkCurrentUser.id, name: 'RLS test', state: {}, version: 1 }).select().single(); console.log(r);
+  ```
+  Before the policies: error 42501. After: a row, which you then delete.
+- **Persona 6, signed in (Jenna, two browser contexts):**
+  1. Sign in in browser 1.
+  2. Import a site, place a bench, type a Check value (C04 2.5), rename the design.
+  3. The status should read "Saved to your account · hh:mm".
+  4. Sign in in browser 2 (or a private window): the design is in the list, and opening it shows the site, the bench, 2.5
+     and the name.
+  5. In browser 2, move the bench, wait for "Saved to your account", and reload browser 1: the move is there.
+  6. Sign out, work signed out, sign in in the same browser: the offline design is offered once.
+- **VERIFY (agents, signed out and with stand-ins; no sign-in):**
+  - Per item: see each commit.
+  - §1 together at the blank street, rb, cd, dn, W 4th, Main, and dn at 1024 × 768 with touch: typing (Check and
+    Section), "Place on deck" by keyboard, an immediate reload, Generate and Open, and "+ New". All pass.
+  - The header at 1024–1920 in each save state.
+  - The save states against fake backends: refused, no row, unreachable, accepted, signed out.
+
 ## Later brief: 3D full city (Brief 25 item 24, deferred by Jenna 2026-10-01)
 The 3D view shows the city everywhere, with no cut-off at the import radius. Building cells load around the camera as it moves: far cells as simple extruded blocks, near cells in full detail, and the same for streets and trees. The import radius only decides what gets sections and checks. It needs a streaming loader for the 3D scene (the site map's cell loader, `GIS.load` / `GIS.ensure`, is the starting point) and a level-of-detail rule. Brief 25 keeps the current 3D extent.
 
