@@ -597,19 +597,26 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 </div>
 </div>
 
-<div class='ctx-section' id='ctxSite'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site</span></div><div class="sb-section">        <div class="sb-section-lbl">Site Setup</div>                <div class="ff">          <label>Street address</label>          <input type="text" id="streetAddress" placeholder="e.g. 1000-block Robson St"                 oninput="saveSettings()">        </div>
+<div class='ctx-section' id='ctxSite'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site</span></div><div class="sb-section">        <div class="sb-section-lbl">Site Setup</div>
+        <!-- Brief 28 item 2: the Locate card. Once located, one line (the street, the side, the bearing) and Edit; open, the
+             address, Locate on map, the side and the orientation diagram, the manual fields behind "Set manually" -->
+        <div class='site-loc' id='siteLoc'>
+        <div class='site-loc-sum' id='siteLocSum' hidden><span id='siteLocTxt'></span><button type='button' class='txt-btn' id='siteLocEditBtn' onclick='siteLocEdit(true)'>Edit</button></div>
+        <div class='site-loc-body' id='siteLocBody'>
+        <div class="ff">          <label>Street address</label>          <input type="text" id="streetAddress" placeholder="e.g. 1000-block Robson St"                 oninput="saveSettings()">        </div>
         <div class='site-map-row'><button type='button' class='ctx-btn' id='siteMapBtn' onclick='SM.open()'>Locate on map</button><span class='hint' id='siteMapHint'>Search an address, click the street, then the parklet's side. Uses OpenStreetMap.</span></div>
-        <div class='pk-place-site' id='pkPlaceSite' aria-label='Place the parklet'></div>
         <div class='site-orient-block' id='siteOrient'>
+          <div class='ff'>
+            <label for='siteSideSel'>Parklet is on the <select id='siteSideSel' class='site-side' onchange='siteSetSide(this.value)'></select> side of the street</label>
+          </div>
+          <div class='site-rose-wrap'><div id='siteRose'></div><p class='site-orient-txt' id='siteOrientTxt' aria-live='polite'></p></div>
+          <details class='site-manual' id='siteManual'><summary>Set manually</summary>
           <div class='ff'>
             <label>Street runs <span class='hint'>bearing of the street axis, clockwise from true north</span></label>
             <div class='seg-group site-seg' id='siteBearingSeg' role='group' aria-label='Street runs'>
               <button type='button' class='seg-btn' data-b='0' onclick='siteChooseBearing(0)'>N-S</button><button type='button' class='seg-btn' data-b='90' onclick='siteChooseBearing(90)'>E-W</button><button type='button' class='seg-btn' data-b='45' onclick='siteChooseBearing(45)'>NE-SW</button><button type='button' class='seg-btn' data-b='135' onclick='siteChooseBearing(135)'>NW-SE</button><button type='button' class='seg-btn' data-b='c' onclick='siteChooseBearing(-1)'>Custom</button>
             </div>
-            <div id='siteBearingCustom' class='site-custom' style='display:none'><input type='number' id='siteBearingDeg' min='0' max='179' step='1' aria-label='Street bearing in degrees' onchange='siteSetBearing(this.value)'><span class='unit'>° from north, 0-179</span></div>
-          </div>
-          <div class='ff'>
-            <label for='siteSideSel'>Parklet is on the <select id='siteSideSel' class='site-side' onchange='siteSetSide(this.value)'></select> side of the street</label>
+            <div id='siteBearingCustom' class='site-custom' style='display:none'><input type='number' id='siteBearingDeg' min='0' max='179.9' step='0.1' aria-label='Street bearing in degrees' onchange='siteSetBearing(this.value)'><span class='unit'>° from north, 0-179.9</span></div>
           </div>
           <div class='ff-row'>
             <div class='ff'><label for='siteLat'>Latitude <span class='unit'>°</span></label><input type='number' id='siteLat' step='0.0001' min='-90' max='90' onchange='siteSetLatLon()'></div>
@@ -621,8 +628,12 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
             <span class='hint'>Paste "lat, lon" in decimal degrees from a map, or use Locate on map above to search an address.</span>
             <span class='hint site-msg' id='sitePasteMsg' role='status'></span>
           </div>
-          <div class='site-rose-wrap'><div id='siteRose'></div><p class='site-orient-txt' id='siteOrientTxt' aria-live='polite'></p></div>
+          </details>
         </div>
+        <button type='button' class='txt-btn site-loc-done' id='siteLocDone' onclick='siteLocEdit(false)' hidden>Done</button>
+        </div>
+        </div>
+        <div class='pk-place-site' id='pkPlaceSite' aria-label='Place the parklet'></div>
         <div class="ff-row">          <div class="ff ff--site">            <label>Roadway width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">curb-to-curb &mdash; enter from field measurement</span>            </label>            <input type="number" id="roadWidth" value="5.635" min="4.0" max="12" step="0.01"                   oninput="onRoadWidthChange()" onchange='onRoadWidthCommit()' aria-describedby='roadWidthRow roadWidthMsg'>          <span id='roadWidthNote' style='display:block;margin-top:4px;font-size:11px;color:#888'></span><span class='hint sf-rw' id='roadWidthRow'></span><span class='sf-refuse' id='roadWidthMsg' role='alert'></span></div>          <div class="ff ff--site">            <label>Sidewalk width <span class="unit">m</span><span class="site-badge">measured</span>              <span class="hint">building face to curb</span>            </label>            <input type="number" id="sidewalkWidth" value="1.8" min="0.5" max="6" step="0.01"                   oninput="onSidewalkWidthChange()">          </div>        </div>        <p class='hint sf-intro'>The existing street, as imported: each value shows its source. Override one only to correct the import; the proposed street is the Section.</p>        <div class='ff sf-ff'>          <label>Road direction</label>          <div class='sf-fact' id='sf_roadDir'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_roadDir' onclick='SITEF.toggle("roadDir")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_roadDir' hidden><div class='seg-group' id='roadDirToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("roadDir", "oneway")'>One-way</button>            <button type='button' class='seg-btn' onclick='SITEF.set("roadDir", "twoway")'>Two-way</button>          </div></div>        </div>        <div class="ff" id="laneOneWayField">          <label>Travel lanes <span class="hint">adjacent to parklet</span></label>          <input type="number" id="laneCount" value="1" min="1" max="6" step="1"                 oninput="onLaneCountChange()">        </div>        <div id="laneTwoWayField" style="display:none">          <div class="ff-row">            <div class="ff">              <label>Near lanes <span class="hint">parklet side &#x2192;</span></label>              <input type="number" id="lanesA" value="1" min="1" max="4" step="1" oninput="onLanesAChange()">            </div>            <div class="ff">              <label>Far lanes <span class="hint">&#x2190; opposite</span></label>              <input type="number" id="lanesB" value="1" min="1" max="4" step="1" oninput="onLanesBChange()">            </div>          </div>        </div>        <span class='hint sf-lanesrc' id='laneSrc' role='status'></span>        <div class='ff sf-ff'>          <label>Route type</label>          <div class='sf-fact' id='sf_routeType'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_routeType' onclick='SITEF.toggle("routeType")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_routeType' hidden><div class='seg-group' id='routeToggle'>            <button type='button' class='seg-btn active' onclick='SITEF.set("routeType", "standard")'>Standard ≥ 3.0 m</button>            <button type='button' class='seg-btn' onclick='SITEF.set("routeType", "bus_truck")'>Bus / Truck ≥ 3.2 m</button>          </div></div>        </div>        <div class='ff sf-ff'>          <label>Bike lane <span class='hint'>on the parklet side</span></label>          <div class='sf-fact' id='sf_bikeLane'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_bikeLane' onclick='SITEF.toggle("bikeLane")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_bikeLane' hidden><div class='ff-row'><div class='ff'><label for='sfBikeSel'>Type</label><select id='sfBikeSel' onchange='SITEF.setBike()'><option value='none'>None</option><option value='painted'>Painted</option><option value='protected'>Protected</option></select></div><div class='ff'><label for='sfBikeW'>Width <span class='unit'>m</span></label><input type='number' id='sfBikeW' min='1' max='2.5' step='0.05' onchange='SITEF.setBike()'></div></div></div>        </div>        <div class='ff sf-ff'>          <label>Right-of-way width <span class='hint'>property line to property line</span></label>          <div class='sf-fact' id='sf_row'><span class='sf-val'></span><button type='button' class='txt-btn sf-over' aria-controls='sfEdit_row' onclick='SITEF.toggle("row")'>Override</button><span class='sf-src'></span></div>          <div class='sf-edit' id='sfEdit_row' hidden><div class='ff'><label for='sfRowW'>Width <span class='unit'>m</span></label><input type='number' id='sfRowW' min='6' max='60' step='0.1' onchange='SITEF.set("row", this.value)'></div></div>        </div>      <div class='ff'><label for='siteContextZ'>Context each way <span class='unit'>m</span><span class='hint'>the import radius and the street scene past each deck end, 20-400 m: Plan, 3D and the import</span></label><input type='number' id='siteContextZ' min='20' max='400' step='5' value='150' onchange='SMP.setContext(this.value)'></div>      </div>      <div class='sb-section' id='contextSection'></div><div class='sb-section'>
   <div class='sb-section-lbl'>Street Objects</div>
   <div class='ctx-pill-row'>
@@ -1610,21 +1621,76 @@ function renderVerdict() {
     `<button type="button" class="verdict-act" onclick="${act.on}">${act.t}</button></div><p class="verdict-rule">${PASS_RULE}</p>`;
   ['verdictBanner', 'verdictBannerExp'].forEach(function(id) { var el = document.getElementById(id); if (el) el.innerHTML = _vh; });
 }
-// the pass rule once, on the first sign-in (Brief 25 item 32b): a card on the opening screen with Got it; seen is kept in
-// the account (user metadata rule_seen) so a later sign-in, anywhere, does not show it again (and in this browser too)
-var RULE = {
-  seen: function(u) { try { if (u && localStorage.getItem('pkt_rule_seen_' + u.id) === '1') return true; } catch (e) {} return !!(u && u.user_metadata && u.user_metadata.rule_seen); },
-  maybeShow: function(u) {
-    if (!u || RULE.seen(u) || document.getElementById('ruleCard')) return;
-    var d = document.createElement('div'); d.id = 'ruleCard'; d.className = 'rule-card'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-labelledby', 'ruleCardT');
-    d.innerHTML = "<div class='rule-card-box'><h2 id='ruleCardT'>How a check passes</h2><p>" + PASS_RULE + "</p><button type='button' class='rule-card-ok' id='ruleCardOk'>Got it</button></div>";
+// Brief 28 item 1: the walkthrough. Six cards the first time an account opens the tool (once per account: user metadata
+// walkthrough_seen, and this browser), and from Help as "How it works". Each: one image, what the step is, what you do.
+// The pass rule (Brief 25 item 32b, its own card before) is the Check card's line, so a first run has one interruption.
+var WALK = {
+  CARDS: [
+    { step: 'Site', img: 'landing/how-1-site.png', alt: 'The map: the parklet placed on a Vancouver street, its side chosen',
+      what: 'Where the parklet goes: a real Vancouver curb from the map, or a blank street to sketch on.',
+      you: 'Locate on map, click the street, then its side, and import the street. What is imported or estimated is marked; only what you measure on site is final.' },
+    { step: 'Design', img: 'landing/how-2-seed.png', alt: 'The Design tab: the deck in plan, section and 3D',
+      what: 'The deck, the edge that encloses it, and the furniture on it.',
+      you: 'Shape the deck, choose its edge, then place furniture: Place on deck, or drag a card onto the deck.' },
+    { step: 'Accessibility', img: 'landing/how-5-access.png', alt: 'The Accessibility tab: the route from the sidewalk to a seat over the deck plan',
+      what: 'The accessible route from the sidewalk to a seat, checked live as you place furniture.',
+      you: 'Keep the 1.5 m path and the turning space clear; the tab names any piece in the way and how far to move it.' },
+    { step: 'Check', img: 'landing/how-3-design.png', alt: 'The Check tab: the verdict and the checks, failures first',
+      what: 'The 19 checks of the City of Vancouver Parklet Manual, with the reason for each result.',
+      you: 'Measure on site what it asks and enter it. ' + PASS_RULE },
+    { step: 'Visualize', img: 'landing/how-6-visualize.png', alt: 'The Visualize tab: the parklet in 3D in afternoon sun',
+      what: 'The parklet in 3D, with the sun at any date and time; photoreal renders with your own key, if you want them.',
+      you: 'Pick a camera and a time; renders are optional.' },
+    { step: 'Export', img: 'landing/how-4-report.png', alt: 'The Export tab: the report options and Download report',
+      what: 'The drawing set as a PDF: the sheets, a survey sheet for the site visit, and What to do next.',
+      you: 'Choose Schematic or Technical and download; take the survey sheet to the site.' }
+  ],
+  i: 0, user: null, from: null,
+  seen: function(u) { try { if (u && localStorage.getItem('pkt_walk_seen_' + u.id) === '1') return true; } catch (e) {} return !!(u && u.user_metadata && u.user_metadata.walkthrough_seen); },
+  maybeShow: function(u) { if (u && !WALK.seen(u)) WALK.show(u); },
+  show: function(u) {
+    if (document.getElementById('walkDlg')) return;
+    WALK.user = u || null; WALK.i = 0; WALK.from = document.activeElement;
+    var d = document.createElement('div'); d.id = 'walkDlg'; d.className = 'walk'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-labelledby', 'walkT');
+    d.innerHTML = "<div class='walk-box'><figure class='walk-fig'><img id='walkImg' alt=''></figure><div class='walk-body'>" +
+      "<p class='walk-step' id='walkStep'></p><h2 id='walkT'></h2><p class='walk-what' id='walkWhat'></p><p class='walk-you' id='walkYou'></p>" +
+      "<div class='walk-foot'><div class='walk-dots' id='walkDots' aria-hidden='true'></div>" +
+      "<button type='button' class='walk-skip' id='walkSkip'>Skip</button><button type='button' class='walk-back' id='walkBack'>Back</button><button type='button' class='walk-next' id='walkNext'>Next</button></div></div></div>";
     document.body.appendChild(d);
-    var ok = document.getElementById('ruleCardOk'); ok.focus();
-    ok.onclick = function() {
-      try { localStorage.setItem('pkt_rule_seen_' + u.id, '1'); } catch (e) {}
-      if (pkSB && pkSB.auth && pkSB.auth.updateUser) pkSB.auth.updateUser({ data: { rule_seen: true } }).catch(function() {});
-      d.remove();
-    };
+    document.getElementById('walkSkip').onclick = function() { WALK.close(false); };
+    document.getElementById('walkBack').onclick = function() { WALK.go(WALK.i - 1); };
+    document.getElementById('walkNext').onclick = function() { if (WALK.i < WALK.CARDS.length - 1) WALK.go(WALK.i + 1); else WALK.close(true); };
+    d.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { e.preventDefault(); WALK.close(false); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); if (WALK.i < WALK.CARDS.length - 1) WALK.go(WALK.i + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); WALK.go(WALK.i - 1); }
+      if (e.key !== 'Tab') return;
+      var f = [].filter.call(d.querySelectorAll('button'), function(x) { return !x.disabled && x.getClientRects().length; }), k = f.indexOf(document.activeElement);
+      if (e.shiftKey && k <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && k === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    });
+    WALK.go(0);
+  },
+  go: function(i) {
+    var n = WALK.CARDS.length; i = Math.max(0, Math.min(n - 1, i)); WALK.i = i; var c = WALK.CARDS[i];
+    var img = document.getElementById('walkImg'); img.src = c.img; img.alt = c.alt;
+    document.getElementById('walkStep').textContent = (i + 1) + ' of ' + n;
+    document.getElementById('walkT').textContent = c.step;
+    document.getElementById('walkWhat').textContent = c.what;
+    document.getElementById('walkYou').textContent = c.you;
+    document.getElementById('walkDots').innerHTML = WALK.CARDS.map(function(q, k) { return "<span class='walk-dot" + (k === i ? ' on' : '') + "'></span>"; }).join('');
+    document.getElementById('walkBack').disabled = i === 0;
+    var nx = document.getElementById('walkNext'); nx.textContent = i === n - 1 ? 'Start with Site' : 'Next'; nx.focus();
+  },
+  // closing marks it seen for the account (and here); the last card's button opens the Site tab
+  close: function(start) {
+    var d = document.getElementById('walkDlg'); if (d) d.remove();
+    var u = WALK.user || (typeof pkCurrentUser !== 'undefined' ? pkCurrentUser : null);
+    if (u) {
+      try { localStorage.setItem('pkt_walk_seen_' + u.id, '1'); } catch (e) {}
+      if (typeof pkSB !== 'undefined' && pkSB && pkSB.auth && pkSB.auth.updateUser) pkSB.auth.updateUser({ data: { walkthrough_seen: true } }).catch(function() {});
+    }
+    if (start && typeof appSetMode === 'function') appSetMode('site');
+    var f = WALK.from; WALK.from = null; if (!start && f && document.contains(f) && f.focus) f.focus();
   }
 };
 function renderSummary() {
@@ -15020,13 +15086,26 @@ function siteRoseSVG(d) {
        "<text x='" + f(cx + n.x * (R + 8)) + "' y='" + f(cy + n.y * (R + 8) + 3.5) + "' class='sr-l sr-ln'>N</text>";
   return "<svg viewBox='0 0 236 104' class='site-rose' role='img' aria-label='North relative to the Plan: northDeg " + Math.round(d.northDeg) + " degrees'>" + s + '</svg>';
 }
+// a bearing to one decimal, no trailing .0 (Brief 28 item 2: "91.40999999999997" was shown)
+function siteFmtB(b) { var v = Math.round((+b || 0) * 10) / 10; return String(v); }
+// the Locate card (Brief 28 item 2): collapsed to one line once a site is located, until Edit
+function siteLocEdit(on) { siteLocEdit.open = !!on; siteLocSync(); if (on) { var a = document.getElementById('streetAddress'); if (a) a.focus(); } else { var e = document.getElementById('siteLocEditBtn'); if (e) e.focus(); } }
+function siteLocSync() {
+  var g = function(id) { return document.getElementById(id); }; if (!g('siteLoc')) return;
+  var sm = typeof state !== 'undefined' && state.__siteMap, gen = typeof state !== 'undefined' && state.__generic, located = !!(sm || gen), open = !located || !!siteLocEdit.open, d = siteDerive();
+  g('siteLocSum').hidden = open; g('siteLocBody').hidden = !open; g('siteLocDone').hidden = !located;
+  var h = g('siteMapHint'); if (h) h.hidden = located;   // the instruction only before locating
+  var name = sm ? (sm.name || 'The located street') : gen ? 'Blank street' : '';
+  g('siteLocTxt').textContent = name + ' \u00b7 ' + d.side.name + ' side \u00b7 runs ' + siteFmtB(d.streetBearing) + '\u00b0';
+}
 function siteUI() {
+  siteLocSync();
   var d = siteDerive(), g = function(id) { return document.getElementById(id); }, preset = [0, 90, 45, 135].indexOf(d.streetBearing) >= 0 && !siteUI.custom;
   var seg = g('siteBearingSeg');
   if (seg) {
     seg.querySelectorAll('.seg-btn').forEach(function(b) { var v = b.getAttribute('data-b'); b.classList.toggle('active', v === 'c' ? !preset : preset && +v === d.streetBearing); });
     g('siteBearingCustom').style.display = preset ? 'none' : '';
-    if (document.activeElement !== g('siteBearingDeg')) g('siteBearingDeg').value = d.streetBearing;
+    if (document.activeElement !== g('siteBearingDeg')) g('siteBearingDeg').value = siteFmtB(d.streetBearing);
   }
   var sel = g('siteSideSel');
   if (sel) sel.innerHTML = d.sides.map(function(s) { return "<option value='" + s.name + "'" + (s.name === d.side.name ? ' selected' : '') + '>' + s.name + '</option>'; }).join('');
@@ -15039,7 +15118,7 @@ function siteUI() {
     if (txt) { try { txt.textContent = siteOrientSentence(d, siteShade(dm)); } catch (e) { txt.textContent = ''; } }
   }
   var st = g('settNorthDeg');
-  if (st) st.textContent = 'North ' + Math.round(d.northDeg) + '° clockwise from world −Z: the street runs ' + d.streetBearing + '°, the parklet is on its ' + d.side.name + ' side.';
+  if (st) st.textContent = 'North ' + Math.round(d.northDeg) + '° clockwise from world −Z: the street runs ' + siteFmtB(d.streetBearing) + '°, the parklet is on its ' + d.side.name + ' side.';
 }
 // Printed once at load: how north follows from the street and the parklet's side.
 function sitePrintDerivation() {
@@ -17925,6 +18004,7 @@ function pkApplyDesignState(raw) {
   pkReRenderAll(_segsIn ? 'section-edit' : 'load');
   if (typeof pkStageSync === 'function') pkStageSync();   // Brief 22 item 5
   if (typeof SMP !== 'undefined' && SMP.stopNote) SMP.stopNote();   // an older save's C01 note, at the stop's position now (item 10)
+  if (typeof siteLocEdit === 'function') { siteLocEdit.open = false; try { siteLocSync(); } catch (e) {} }   // the Locate card folded (Brief 28 item 2)
   if (typeof PK_EDIT !== 'undefined') PK_EDIT.baseline();   // a design just opened is not an edit (Brief 27 item 4)
 }
 
@@ -18365,7 +18445,7 @@ async function pkInitApp() {
 
     if (session && session.user) {
       pkCurrentUser = session.user;
-      if (typeof RULE !== 'undefined') setTimeout(function() { RULE.maybeShow(session.user); }, 0);   // not yet acknowledged: shown once (Brief 25 item 32b)
+      if (typeof WALK !== 'undefined') setTimeout(function() { WALK.maybeShow(session.user); }, 0);   // not yet acknowledged: shown once (Brief 25 item 32b)
       await pkEnsureProfile(session.user);
       pkUpdateAccountUI();
       pkSetSaveStatus('', '');
@@ -18960,7 +19040,7 @@ async function pkDoSignIn() {
   }
   pkCurrentUser = res.data.user;
   pkHideAuthModal();
-  if (typeof RULE !== 'undefined') RULE.maybeShow(pkCurrentUser);   // the pass rule, first sign-in only (Brief 25 item 32b)
+  if (typeof WALK !== 'undefined') WALK.maybeShow(pkCurrentUser);   // the pass rule, first sign-in only (Brief 25 item 32b)
   await pkEnsureProfile(pkCurrentUser);
   pkUpdateAccountUI();
   pkSetSaveStatus('', '');
@@ -26888,6 +26968,14 @@ RVZP._gallery = async function() {
 .sm-status { flex: 1; color: var(--c-text-dim, #9AA0A6); line-height: 1.4; }
 .sm-status b { color: var(--c-text, #F2F2F0); font-weight: 600; }
 .site-map-row { display: grid; justify-items: start; gap: 4px; margin: 2px 0 var(--sp-2, 8px); }
+/* the Locate card (Brief 28 item 2): one line once located; open, the manual fields behind "Set manually" */
+.site-loc-sum { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; margin: 2px 0 8px; border: 1px solid var(--c-rule, #3A3F45); border-radius: 4px; font: 500 12px/1.4 var(--font-ui); color: var(--text-hi); }
+.site-loc-sum[hidden], #siteMapHint[hidden], .site-loc-body[hidden], .site-loc-done[hidden] { display: none; }
+.site-loc-sum span { flex: 1; min-width: 0; }
+.site-manual { margin-top: 6px; }
+.site-manual > summary { cursor: pointer; font: 600 11px var(--font-ui); letter-spacing: .04em; color: var(--text-lo); padding: 4px 0; }
+.site-manual > summary:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 2px; }
+.site-loc-done { margin: 4px 0 8px; }
 .site-map-row .hint { display: block; width: 100%; line-height: 1.45; }
 </style>
 <div id='smModal' role='dialog' aria-modal='true' aria-labelledby='smTitle'>
@@ -27144,6 +27232,7 @@ SM.setSide = function(lat, lon) {
 // (the search result, else the street name). SM.lastPick keeps the way for the context import.
 SM.use = function() {
   var p = SM.pick; if (!p || !p.side) return;
+  if (typeof siteLocEdit === 'function') siteLocEdit.open = false;   // a new location: the Locate card folds again (Brief 28 item 2)
   var sn = p.snap, addr = SM._addr || (p.name ? p.name + ' (near ' + sn.lat.toFixed(5) + ', ' + sn.lon.toFixed(5) + ')' : '');
   var ad = document.getElementById('streetAddress'); if (ad && addr) ad.value = addr;
   siteUI.custom = [0, 45, 90, 135].indexOf(Math.round(sn.bearing * 100) / 100) < 0;   // show the bearing field for an oblique street
@@ -30036,6 +30125,7 @@ function uiShowHelp() {
   if (!el) {
     el = document.createElement('div'); el.id = 'uiHelp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'false'); el.setAttribute('aria-label', 'Help');
     el.innerHTML = "<div class='uh-box'><button type='button' class='uh-close' onclick='uiHideHelp()'>Close</button><h2>Help</h2>" +
+      "<button type='button' class='uh-walk' onclick='uiHideHelp();WALK.show(typeof pkCurrentUser !== \"undefined\" ? pkCurrentUser : null)'>How it works: the six steps</button>" +
       "<h3>Keyboard shortcuts</h3><table>" + UI_SHORTCUTS.map(function(r) { return '<tr><td><kbd>' + r[0] + '</kbd></td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>' +
       "<h3>What this tool checks</h3><p style='margin:0'>The siting requirements of the City of Vancouver Parklet Manual v1.0 (June 2016): criteria pp. 20&ndash;21 and 60&ndash;63, with the Engineering Design Manual&rsquo;s lane widths. Results are provisional and no substitute for the City&rsquo;s review.</p></div>";
     el.addEventListener('click', function(e) { if (e.target === el) uiHideHelp(); });
@@ -30158,11 +30248,28 @@ input[data-secret] { -webkit-text-security: disc; }
 .verdict-act:hover { background: rgba(0,0,0,.06); }
 .verdict-act:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 2px; }
 .verdict-rule { margin: 6px 2px 0; font: 12px/1.45 var(--font-ui); color: var(--text-lo, #9AA0A6); }
-.rule-card { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(11,12,14,.55); }
-.rule-card-box { max-width: 440px; margin: 16px; padding: 20px 22px; border-radius: 8px; background: var(--d-paper, #fff); color: var(--d-ink, #1A1A1A); box-shadow: 0 12px 40px rgba(0,0,0,.35); }
-.rule-card-box h2 { margin: 0 0 8px; font: 600 16px var(--font-ui); }
-.rule-card-box p { margin: 0 0 16px; font: 14px/1.5 var(--font-ui); }
-.rule-card-ok { font: 600 13px var(--font-ui); padding: 7px 18px; border-radius: 4px; border: 1px solid var(--accent-ui, #3AA8E4); background: var(--accent-ui, #3AA8E4); color: #fff; cursor: pointer; }
+/* the walkthrough (Brief 28 item 1): the landing page's look (white, ink, the one blue accent, Inter) */
+.walk { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(11,12,14,.55); padding: 16px; }
+.walk-box { width: min(760px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: #FFFFFF; color: #1A1A1A; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.35); font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+.walk-fig { margin: 0; background: #F1F1F1; border-bottom: 1px solid #D8D8D8; }
+.walk-fig img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+.walk-body { padding: 18px 24px 20px; }
+.walk-step { margin: 0 0 4px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #616161; }
+.walk-body h2 { margin: 0 0 8px; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.walk-what { margin: 0 0 8px; font-size: 15px; line-height: 1.5; }
+.walk-you { margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: #616161; }
+.walk-you::before { content: 'You: '; font-weight: 600; color: #1A1A1A; }
+.walk-foot { display: flex; align-items: center; gap: 8px; }
+.walk-dots { display: flex; gap: 6px; margin-right: auto; }
+.walk-dot { width: 8px; height: 8px; border-radius: 50%; background: #D8D8D8; }
+.walk-dot.on { background: #3AA8E4; }
+.walk-foot button { font: 600 14px Inter, -apple-system, "Segoe UI", Arial, sans-serif; padding: 9px 16px; border-radius: 6px; cursor: pointer; }
+.walk-skip, .walk-back { background: #FFFFFF; color: #1A1A1A; border: 1px solid #D8D8D8; }
+.walk-skip { border-color: transparent; color: #616161; }
+.walk-back:disabled { opacity: .4; cursor: default; }
+.walk-next { background: #3AA8E4; color: #FFFFFF; border: 1px solid #3AA8E4; }
+.walk-foot button:focus-visible { outline: 2px solid #1A1A1A; outline-offset: 2px; }
+.uh-walk { font: 600 13px var(--font-ui); padding: 6px 12px; margin: 0 0 12px; border-radius: 4px; border: 1px solid var(--accent-ui, #3AA8E4); background: var(--accent-ui, #3AA8E4); color: #FFFFFF; cursor: pointer; }
 /* the Check tab's groups (Brief 25 item 31) */
 .chk-grp { border-top: 1px solid var(--d-lt); }
 .chk-grp > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font: 600 12px var(--font-ui); letter-spacing: .04em; color: var(--d-ink, #1A1A1A); background: var(--d-xlt); }
@@ -30399,7 +30506,7 @@ function uiSiteSteps() {
   var body = function(n) { return document.querySelector('#siteStep' + n + ' .site-step-body'); };
   var put = function(n, el) { if (el && el.parentNode !== body(n)) body(n).appendChild(el); };
   var ff = function(id) { var e = document.getElementById(id); return e ? (e.closest('.ff') || e) : null; };
-  put(1, ff('streetAddress')); put(1, (document.getElementById('siteMapBtn') || {}).parentNode || null); put(1, document.getElementById('siteOrient'));
+  put(1, document.getElementById('siteLoc'));   // the Locate card as a whole: its one-line summary with it (Brief 28 item 2)
   var ib = document.getElementById('smpImportBtn'); if (ib) put(2, ib.parentNode);
   put(2, document.getElementById('smpMsg'));
   if (!(document.getElementById('ctxSite') || {})._sbx) {   // (Brief 25 item 11: once the Site sections exist, the street's fields live in them)
