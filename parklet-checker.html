@@ -23584,8 +23584,9 @@ RPT.sheetSection = function(d, opt) {
 // render, then the drawing sheets, schedules, compliance and sources; the modes differ only in drawing style
 RPT.SHEETS = {
   // (Brief 25 items 22d, 22e: two sections, A-201 the street and A-202 the parklet; A-301 Details is no longer printed)
-  schematic: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources'],
-  technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
+  // (Brief 25 item 33: G-001 What to do next, right after the cover)
+  schematic: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources'],
+  technical: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 // Report options (Brief 22 item 7): the Export tab's Include boxes; a sheet left out is not in the list, so the drawing
@@ -23608,7 +23609,7 @@ RPT.sheetList = function(d) {
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     // (Brief 19b: each drawing's scale from RPT.SCALE_OF, the value its sheet draws at and its title block prints)
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop, RPT.SCALE_OF.deck(d), RPT.deckPosts(d.DM)); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
-    var M = { cover: ['V-000', 'Cover', 'NTS'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
+    var M = { cover: ['V-000', 'Cover', 'NTS'], next: ['G-001', 'What to do next', '-'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
       section: ['A-201', 'Street section', '1:' + RPT.SCALE_OF.section(d)], section2: ['A-202', 'Parklet section', '1:' + RPT.SCALE_OF.parklet(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
       compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
@@ -23631,6 +23632,7 @@ RPT.BUILDERS = {
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
   lanes: function(d) { return RPT.lanes(d); }, sources: function(d) { return RPT.sources(d); },
   survey: function(d) { return RPT.surveySheet(d); },   // S-002 (Brief 21 §11)
+  next: function(d) { return RPT.sheetNext(d); },   // G-001 (Brief 25 item 33)
   attach: function(d, drw, s) { return RPT.sheetAttach(d, s); }   // Brief 22 item 8
 };
 // Furniture groups (one schedule row each: item, size, finish, preset) and the tag every placed piece carries
@@ -30294,6 +30296,36 @@ SURV.applyTemplate = function(text, name) {
   return state.__survey;
 };
 // the report's S-002 sheet (a text sheet: the items, their values now, a blank column to measure into)
+// What to do next (Brief 25 item 33): one page after the cover: the three to five things to measure or confirm on site,
+// each with its check and the sheet to read it on (awaiting a measurement first, then the imported data provisional
+// results rest on, then the values not entered), then the failing checks with their resolution line; the pass rule last.
+// Nothing else: a cafe owner reads this page and the cover and knows what to do.
+RPT.NEXT_SHEET = { c2: 'C-002', c3: 'A-102', c5: 'A-102', c6: 'A-102', c7: 'A-102', c8: 'A-102', c9: 'A-102', c13: 'A-102', c16: 'A-103', c17: 'A-202', c18: 'A-103', c19: 'A-202' };
+RPT.nextItems = function(d) {
+  var cid = function(r) { return 'C' + String(r.num).padStart(2, '0'); }, sheet = function(r) { var k = RPT.NEXT_SHEET[r.id]; return k ? k + ', S-002' : 'S-002'; };
+  var plain = function(h) { return String(h || '').replace(/<[^>]+>/g, ' ').replace(/&ge;/g, '≥').replace(/&le;/g, '≤').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').replace(/^[✓✗]\s*/, '').trim(); };
+  var short = function(r) { return plain((typeof CHECK_SHORT !== 'undefined' && CHECK_SHORT[r.id] ? CHECK_SHORT[r.id][0] : r.title)); };
+  var todo = [];
+  d.rows.filter(function(r) { return r.status === 'await'; }).forEach(function(r) { var m = plain(r.msg); todo.push({ t: /^measure/i.test(m) ? m : 'Measure: ' + m, c: cid(r), s: sheet(r) }); });
+  d.rows.filter(function(r) { return r.provisional && r.status !== 'fail'; }).forEach(function(r) { todo.push({ t: 'Confirm on site: ' + short(r).toLowerCase() + ' (imported data)', c: cid(r), s: sheet(r) }); });
+  d.rows.filter(function(r) { return r.status === 'unclear'; }).forEach(function(r) { var ne = r.missing.map(function(m) { return plain(m.label); }).join('; '); todo.push({ t: 'Measure and enter: ' + (ne || short(r).toLowerCase()), c: cid(r), s: sheet(r) }); });
+  var fails = d.rows.filter(function(r) { return r.status === 'fail'; }).map(function(r) {
+    var c = criteria.find(function(q) { return q.id === r.id; }), res = c && c.resolutionFn ? plain(c.resolutionFn(state[c.inputId] || '')) : '';
+    return { c: cid(r), t: short(r) + (r.provisional ? ' (on imported data: confirm it first)' : ''), res: res || plain(r.msg) };
+  });
+  return { todo: todo.slice(0, 5), more: Math.max(0, todo.length - 5), fails: fails };
+};
+RPT.sheetNext = function(d) {
+  var N = RPT.nextItems(d), blocks = [{ h2: 'Measure or confirm on site' }];
+  if (N.todo.length) blocks.push({ table: { cols: [{ t: 'What', w: 0.66 }, { t: 'Check', w: 0.1 }, { t: 'Sheet', w: 0.24 }], rows: N.todo.map(function(q) { return [q.t, { t: q.c, b: true }, q.s]; }) } });
+  else blocks.push({ p: 'Nothing: every value the checks read is measured or confirmed.' });
+  if (N.more) blocks.push({ p: N.more + ' more on S-002 Site survey.' });
+  blocks.push({ h2: 'Failing checks' });
+  if (N.fails.length) blocks.push({ table: { cols: [{ t: 'Check', w: 0.1 }, { t: 'What fails', w: 0.3 }, { t: 'How to resolve it', w: 0.6 }], rows: N.fails.map(function(f) { return [{ t: f.c, b: true }, f.t, f.res]; }) } });
+  else blocks.push({ p: 'None.' });
+  blocks.push({ p: typeof PASS_RULE !== 'undefined' ? PASS_RULE : '' });
+  return RPT.textSheet('G-001', 'What to do next', 'read this page and the cover', blocks, true);
+};
 RPT.surveySheet = function(d) {
   var S = state.__survey, rows = RPT.surveyRows(d);   // Brief 25 item 22f (the downloadable template keeps every item)
   var blocks = [{ h2: 'Confirm on site' }, { p: 'Measure each item on site and write the value in the last column; enter them in Curbside with the survey template (Site > Survey), or import a survey point file.' },
