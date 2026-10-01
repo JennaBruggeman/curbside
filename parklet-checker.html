@@ -8975,7 +8975,10 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     const geom = new THREE.PlaneGeometry(x1-x0, z1-z0);
     // Ground surfaces are flat colour: unlit and unfogged, so the rendered pixel is exactly the
     // palette colour the caller passes (DS.segColor3D, re-read on every renderMassView).
-    const mat  = new THREE.MeshBasicMaterial({ color: DS.ground3D(col), fog: false });   // grey in technical
+    // Brief 25 item 25: the ground layers are 1-6 mm apart; each is drawn over the one under it by a polygon offset by its
+    // height, not by the depth buffer (which, from 40 m off, cannot tell 1 mm apart: they flickered when orbiting)
+    const _po = Math.max(1, Math.round(y * 1000));
+    const mat  = new THREE.MeshBasicMaterial({ color: DS.ground3D(col), fog: false, polygonOffset: true, polygonOffsetFactor: -_po, polygonOffsetUnits: -_po });   // grey in technical
     const mesh = new THREE.Mesh(geom, mat);
     mesh.rotation.x = -Math.PI/2;
     mesh.position.set((x0+x1)/2,y,(z0+z1)/2);
@@ -10748,7 +10751,7 @@ function ensure3DReady() {
     _3d.scene.background = new THREE.Color(_e3bg);
     _3d.scene.fog = (typeof DS !== 'undefined' && DS.mode() === 'technical')
       ? null : new THREE.Fog(_e3bg, 40, 80);
-    _3d.camera = new THREE.PerspectiveCamera(42, _e3w / _e3h, 0.05, 200);
+    _3d.camera = new THREE.PerspectiveCamera(42, _e3w / _e3h, 0.25, 200);   // near 0.25 m (was 0.05): 5x the depth precision; the closest orbit is 1.5 m (Brief 25 item 25)
     _3d.camera.position.set(-11, 14, -8); // oblique 3/4: south of scene start; overridden by posTag block
     try {
       _3d.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -10795,8 +10798,10 @@ function ensure3DReady() {
     (function _e3loop() {
       requestAnimationFrame(_e3loop);
       // (the axon preview draws on its own offscreen renderer into the Export panel: never here)
-      if (_3d && _3d.controls) _3d.controls.update();
-      if (_3d && _3d.renderer) _3d.renderer.render(_3d.scene, _3d.camera);
+      var _moved = !!(_3d && _3d.controls && _3d.controls.update());
+      // Brief 25 item 25: the sun is fixed, so the shadow map does not change with the view: while the camera moves
+      // (orbit, pan, the damping after) a frame draws the scene only; when it is still, the shadows follow every change
+      if (_3d && _3d.renderer) { _3d.renderer.shadowMap.autoUpdate = false; if (!_moved) _3d.renderer.shadowMap.needsUpdate = true; _3d.renderer.render(_3d.scene, _3d.camera); }
       if (typeof _3dUpdateCompass === 'function') _3dUpdateCompass();
       if (typeof _3dCaptureHome === 'function') _3dCaptureHome();
     })();
@@ -10844,6 +10849,9 @@ window.ensure3DReady = ensure3DReady;
 function _3dUpdateCompass() {
   var cvs = document.getElementById('_3dCompassCvs');
   if (!cvs || !_3d || !_3d.camera || typeof THREE === 'undefined') return;
+  var _q = _3d.camera.quaternion, _ck = [_q.x, _q.y, _q.z, _q.w].map(function(v) { return v.toFixed(5); }).join() + '|' + siteNorthDeg();
+  if (cvs._key === _ck && window._3dCompassNorth) return;   // the view and the north as last drawn (Brief 25 item 25)
+  cvs._key = _ck;
   var ctx = cvs.getContext('2d');
   var sz = 56, cx = sz / 2, cy = sz / 2, r = 18;
   ctx.clearRect(0, 0, sz, sz);
