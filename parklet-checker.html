@@ -27876,21 +27876,36 @@ SMP.cov = async function(ds, field, lat, lon, signal) {
   return { rows: rows, at: at };
 };
 // ── The city context to ~1 km (Brief 19 B): the outer ring ──────────────────────────────────────────
-// Past the inner ring the context is footprints and streets only, with the parks and the water, queried around the
-// located point to the context radius: City of Vancouver building-footprints-2015, public-streets and
-// parks-polygon-representation, one GeoJSON export each (no Overpass load); the water from OpenStreetMap (the coastline
-// in the context square, closed with the water on its right, and the water polygons). When the City's footprints fail
-// they come from Overpass in 300 m tiles (building=* only). Kept in local metres from the located point (e east, n
-// north) so it follows pkZ: CTX_OUTER, the model's DESIGN_MODEL.context.outer, with its provenance; no check reads it.
+// Past the inner ring the context is footprints and streets only, with the parks and the water, around the located point
+// to the context radius. Brief 25 item 29: from the site-data cells, so an import asks no live service: the buildings and
+// streets layers (OpenStreetMap, as the inner ring) and the parks layer (City parks-polygon-representation), read from
+// the cells the context square covers; the water from OpenStreetMap's coastline and water polygons, from the cache only
+// after an import from the cells (closed with the water on its right). Kept in local metres from the located point (e
+// east, n north) so it follows pkZ: CTX_OUTER, the model's DESIGN_MODEL.context.outer, with its provenance; no check reads it.
 // state.__outer keeps its summary (radius, point, sources, counts, time); on load it is rebuilt from the cache only.
 var CTX_OUTER = null;
-SMP.OUTER_DS = { bldg: 'building-footprints-2015', streets: 'public-streets', parks: 'parks-polygon-representation' };
-SMP.covExport = function(ds, lat, lon, R, signal, cacheOnly) {
-  var key = 'covx|' + ds + '|' + R + '|' + SM.round(lat) + ',' + SM.round(lon);
-  if (cacheOnly) return SM.cacheGet(key);
-  var w = 'within_distance(geom, geom\'POINT(' + lon + ' ' + lat + ')\', ' + R + 'm)';
-  return SM.fetchJSON('cov', key, SMP.COV + ds + '/exports/geojson?limit=-1&where=' + encodeURIComponent(w), null, signal);
+SMP.OUTER_LAYERS = ['buildings', 'streets', 'parks'];
+// the cells' buildings, streets and parks in the context square [-R, R] around the point, read from the cells it covers
+// (held against eviction while they are read); cacheOnly: from this browser's cell cache only (a reload)
+SMP.outerCells = async function(la, lo, R, cacheOnly) {
+  var idx = await GIS.index(), dLat = R / 110574, dLon = R / (111320 * Math.cos(la * Math.PI / 180));
+  var cells = GIS.cellsIn(lo - dLon, la - dLat, lo + dLon, la + dLat, 0), inIdx = cells.filter(function(c) { return idx.cells[c]; }), held = GIS._held;
+  if (!inIdx.length) return { nodata: true };
+  GIS._held = (held || []).concat(inIdx);
+  try {
+    var got = await GIS.ensure(SMP.OUTER_LAYERS, inIdx, { cacheOnly: !!cacheOnly });
+    var miss = got.filter(function(v) { return !v || v.st !== 'ready'; }).length;
+    var dates = {}; SMP.OUTER_LAYERS.forEach(function(l) { dates[l] = idx.layers[l] ? idx.layers[l].updatedAt : null; });
+    var keep = new Set(inIdx), byLayer = function(lid) {   // the layer's features in these cells only, deduplicated by id
+      var by = new Map();
+      inIdx.forEach(function(c) { var v = GIS.cs.get(GIS.key(c, lid)); if (v && v.st === 'ready' && v.fc) v.fc.features.forEach(function(f) { var o = by.get(f.id); if (!o) by.set(f.id, f); else if (/Line/.test(f.geometry.type)) { by.set(f.id, Object.assign({}, o, { geometry: { type: 'MultiLineString', coordinates: GIS.linesOf(o.geometry).concat(GIS.linesOf(f.geometry)) } })); } }); });
+      return [...by.values()];
+    };
+    return { cells: inIdx.length, missing: miss, dates: dates, bldg: byLayer('buildings'), streets: byLayer('streets'), parks: byLayer('parks'), hasParks: !!idx.layers.parks, keep: keep };
+  } finally { GIS._held = held; GIS.evict(); }
 };
+// a street's half width by its OpenStreetMap class (an estimate for the paired curb lines)
+SMP.HIGHWAY_HALF = { motorway: 9, trunk: 8, primary: 7.5, secondary: 6.5, tertiary: 5.5, unclassified: 4.5, residential: 4.5, living_street: 4, service: 3 };
 // GeoJSON geometry -> its rings / lines in local metres (rounded to 0.1 m)
 SMP._rings = function(g, T) {
   var q = function(c) { var v = T.to(c[1], c[0]); return [Math.round(v.e * 10) / 10, Math.round(v.n * 10) / 10]; }, out = [];
@@ -27961,35 +27976,22 @@ SMP.importOuter = async function(opts) {
   var noOv = !!opts.noOverpass || sm.via === 'cells';   // Brief 24: after an import from the cells no Overpass server is asked (the water from the cache only)
   var R = siteContextZ(SITE_CONTEXT_Z), la = +sm.lat, lo = +sm.lon, T = SM.enu(la, lo), t0 = Date.now(), co = !!opts.cacheOnly;
   var o = { R: R, lat: la, lon: lo, at: new Date().toISOString(), source: {}, counts: {}, bldg: [], streets: [], parks: [], water: [], notes: [] };
-  // footprints: the City's, else Overpass tiles
+  // footprints, streets and parks: the site-data cells (Brief 25 item 29: no live request)
   try {
-    var tb = Date.now(), fb = await SMP.covExport(SMP.OUTER_DS.bldg, la, lo, R, null, co); o.msBldg = Date.now() - tb;
-    if (!fb && co) return null;
-    (fb.features || []).forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2) o.bldg.push(r); }); });
-    o.source.bldg = 'City of Vancouver ' + SMP.OUTER_DS.bldg;
-  } catch (e) {
-    if (co) return null;
-    if (noOv) { o.notes.push('City footprints failed (' + e.message + '): none (Overpass is not asked)'); o.source.bldg = 'none'; } else {
-    o.notes.push('City footprints failed (' + e.message + '): OpenStreetMap tiles');
-    var n0 = Math.ceil(R / 300);
-    for (var i = -n0; i < n0; i++) for (var j = -n0; j < n0; j++) {
-      var a = T.from(i * 300, j * 300), b = T.from((i + 1) * 300, (j + 1) * 300);
-      var jt = await SM.overpass('ctxbldg|' + [a.lat, a.lon, b.lat, b.lon].map(function(v) { return v.toFixed(5); }).join(','), '[out:json][timeout:40];way[building](' + a.lat + ',' + a.lon + ',' + b.lat + ',' + b.lon + ');out geom;');
-      ((jt && jt.elements) || []).forEach(function(w) { if (w.geometry && w.geometry.length > 3) o.bldg.push(w.geometry.map(function(p) { var v = T.to(p.lat, p.lon); return [Math.round(v.e * 10) / 10, Math.round(v.n * 10) / 10]; })); });
+    var tb = Date.now(), cx = await SMP.outerCells(la, lo, R, co); o.msBldg = Date.now() - tb;
+    if (cx.nodata) { if (co) return null; o.notes.push('no site data here: no city context drawn'); o.source.bldg = o.source.streets = o.source.parks = 'none (outside the site data)'; }
+    else {
+      if (co && cx.missing) return null;   // a reload: only when every cell is cached
+      if (cx.missing) o.notes.push(cx.missing + ' cell file' + (cx.missing > 1 ? 's' : '') + ' could not be read: the context there is missing');
+      var inSq = function(r) { return r.some(function(p) { return Math.abs(p[0]) <= R && Math.abs(p[1]) <= R; }); };
+      cx.bldg.forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2 && inSq(r)) o.bldg.push(r); }); });
+      cx.streets.forEach(function(f) { var p = (f.properties && f.properties.props) || {}, h = SMP.HIGHWAY_HALF[String(p.highway || '').replace(/_link$/, '')] || 4.5; SMP._rings(f.geometry, T).forEach(function(l) { if (l.length > 1 && inSq(l)) o.streets.push({ half: h, use: p.highway || '', pts: l }); }); });
+      cx.parks.forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2 && inSq(r)) o.parks.push(r); }); });
+      o.source.bldg = 'OpenStreetMap building=* (site data, ' + GIS.day(cx.dates.buildings) + ')';
+      o.source.streets = 'OpenStreetMap highways (site data, ' + GIS.day(cx.dates.streets) + ')';
+      o.source.parks = cx.hasParks ? 'City of Vancouver parks-polygon-representation (site data, ' + GIS.day(cx.dates.parks) + ')' : 'none (not in this site data)';
     }
-    o.source.bldg = 'OpenStreetMap building=* (Overpass, 300 m tiles)';
-    }
-  }
-  try {
-    var fs = await SMP.covExport(SMP.OUTER_DS.streets, la, lo, R, null, co);
-    ((fs && fs.features) || []).forEach(function(f) { var p = f.properties || {}, h = SMP.STREET_HALF[p.streetuse] || 4.5; SMP._rings(f.geometry, T).forEach(function(l) { if (l.length > 1) o.streets.push({ half: h, use: p.streetuse || '', pts: l }); }); });
-    o.source.streets = fs ? 'City of Vancouver ' + SMP.OUTER_DS.streets : 'none (not cached)';
-  } catch (e) { o.notes.push('City streets failed: ' + e.message); o.source.streets = 'none'; }
-  try {
-    var fp = await SMP.covExport(SMP.OUTER_DS.parks, la, lo, R, null, co);
-    ((fp && fp.features) || []).forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2) o.parks.push(r); }); });
-    o.source.parks = fp ? 'City of Vancouver ' + SMP.OUTER_DS.parks : 'none (not cached)';
-  } catch (e) { o.notes.push('City parks failed: ' + e.message); o.source.parks = 'none'; }
+  } catch (e) { if (co) return null; o.notes.push('site data for the city context failed: ' + e.message); o.source.bldg = o.source.streets = o.source.parks = 'none'; }
   // the water: OpenStreetMap's coastline and water polygons in the context square
   try {
     var a2 = T.from(-R, -R), b2 = T.from(R, R), bb = a2.lat + ',' + a2.lon + ',' + b2.lat + ',' + b2.lon, key = 'ctxwater|' + R + '|' + SM.round(la) + ',' + SM.round(lo), jw;
