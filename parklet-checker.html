@@ -15609,7 +15609,7 @@ function _initPanelsMenu() {
   wrap.id = 'dkMenuWrap';
   wrap.style.cssText = 'position:relative;';
   wrap.innerHTML =
-    '<button id="dkMenuBtn" onclick="_dkMenuToggle()">Panels &#9662;</button>' +
+    '<button id="dkMenuBtn" onclick="_dkMenuToggle()" aria-label="Panels"><span class="dk-menu-word">Panels</span><span class="dk-menu-ico" aria-hidden="true">&#9636;</span> &#9662;</button>' +
     '<div id="dkMenuDrop" style="display:none">' +
       '<div class="dk-menu-hdr">Visible Panels</div>' +
       '<div id="dkMenuList"></div>' +
@@ -16894,12 +16894,21 @@ function _sdQuickPlace(objId) {
 #pkSaveStatus.pk-error  { color: #c03030; }
 #pkSaveStatus.pk-local  { color: #ffb800; }
 #pkSaveStatus.pk-saved  { color: var(--text-mu); }
-/* signed out (Brief 27 item 4): where the work is kept, and the way to keep it */
-.pk-ss-note { background: none; border: none; padding: 0; font: inherit; color: var(--text-mu); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; white-space: nowrap; }
+/* the save state (Brief 27 item 0): one of three texts and Save now; the long text where the bar has room, the short
+   one below 1500 px (the whole text is the tooltip) */
+#pkSaveStatus { display: flex; align-items: center; gap: 8px; }
+.pk-ss-note, .pk-ss-fail { background: none; border: none; padding: 0; font: inherit; cursor: pointer; white-space: nowrap; }
+.pk-ss-note { color: var(--text-mu); text-decoration: underline dotted; text-underline-offset: 3px; }
 .pk-ss-note:hover, .pk-ss-note:focus-visible { color: var(--text-hi); }
-.pk-ss-c { display: none; }
-@media (max-width: 1700px) { .pk-ss-b { display: none; } }
-@media (max-width: 1100px) { .pk-ss-a { display: none; } .pk-ss-c { display: inline; } #pkSaveStatus.pk-local-note { max-width: none; } }
+.pk-ss-fail { color: var(--st-fail-ink, #e05a4f); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.pk-ss-txt { color: var(--text-mu); white-space: nowrap; }
+.pk-ss-now { background: none; border: 1px solid var(--border-c); border-radius: 3px; color: var(--text-lo); font: 600 11px var(--font-ui); padding: 3px 7px; cursor: pointer; white-space: nowrap; }
+.pk-ss-now:hover, .pk-ss-now:focus-visible { color: var(--text-hi); border-color: var(--text-lo); }
+.pk-ss-now:disabled { opacity: .6; cursor: default; }
+.pk-ss-short { display: none; }
+@media (max-width: 1500px) { .pk-ss-long { display: none; } .pk-ss-short { display: inline; } .pk-acc-name { display: none; } #pkSaveStatus.pk-ss-failed .pk-ss-now { display: none; } }
+@media (max-width: 1100px) { .pk-ss-nowx { display: none; } #dkMenuBtn .dk-menu-word { display: none; } #dkMenuBtn .dk-menu-ico { display: inline; } }
+#dkMenuBtn .dk-menu-ico { display: none; }
 
 /* ── Account button ── */
 #pkAccBtn {
@@ -17371,13 +17380,73 @@ function pkInitials(name) {
 }
 
 // ─── Save status ──────────────────────────────────────────────────
+// Brief 27 item 0 (Jenna): the save state, unambiguous. The top bar reads exactly one of
+//   "Saved to your account · 10:32" | "Saved in this browser only — sign in to keep it" | "Save failed — retry"
+// beside a Save now button; autosave stays on. "Offline" is never shown. Signed in, a create or save the account refuses
+// (or cannot be reached for) is a failure, with its reason as the tooltip; the work is also kept in this browser. Before,
+// a refused create left the design with no account row and every later save fell back to this browser in silence, under
+// "Offline — saved locally".
+var SAVE = {
+  st: null, at: null, why: '', busy: false,
+  T: { account: 'Saved to your account', local: 'Saved in this browser only — sign in to keep it', failed: 'Save failed — retry' },
+  signedIn: function() { return !!(typeof pkSB !== 'undefined' && pkSB && typeof pkCurrentUser !== 'undefined' && pkCurrentUser); },
+  saved: function(when) { SAVE.st = 'account'; SAVE.at = when ? new Date(when) : new Date(); SAVE.why = ''; SAVE.busy = false; SAVE.render(); },
+  local: function() { SAVE.st = 'local'; SAVE.busy = false; SAVE.render(); },
+  fail: function(err) { SAVE.st = 'failed'; SAVE.why = SAVE.reason(err); SAVE.busy = false; console.error('[save] failed:', err); SAVE.render(); },
+  reset: function() { SAVE.st = null; SAVE.at = null; SAVE.why = ''; SAVE.busy = false; SAVE.render(); },
+  saving: function() { SAVE.busy = true; SAVE.render(); },   // the last state stays; the button says Saving…
+  // a design the account did not take is also kept as this browser's offline design, which the next sign-in here
+  // offers to move to the account (pkCheckLocalMigration): the way back to it
+  keepHere: function(data) {
+    try { var d = JSON.parse(JSON.stringify(data || pkSerialize())); delete d.savedAt; pkSaveLocal(d); localStorage.setItem('pkt-design-state', JSON.stringify(d)); } catch (e) { console.warn('[save] kept in this browser failed:', e); }
+  },
+  reason: function(e) {
+    if (!e) return 'The account did not confirm the save.';
+    if (e.code === '42501' || /row-level security/i.test(e.message || '')) return 'Your account refused the save (row-level security on the designs table).';
+    if (e.noRow) return 'Your account accepted the request but changed no design (no row matched: row-level security or a deleted design).';
+    if ((typeof navigator !== 'undefined' && navigator.onLine === false) || /fetch|network|timeout/i.test(e.message || '')) return 'Your account could not be reached.';
+    return e.message || String(e);
+  },
+  hhmm: function(d) { return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); },
+  // what there is to save: signed out always (this browser); signed in, an open design or a failed one
+  has: function() { return !SAVE.signedIn() || !!pkCurrentDesignId || SAVE.st === 'failed'; },
+  render: function() {
+    var el = document.getElementById('pkSaveStatus'); if (!el) return;
+    var st = !SAVE.signedIn() ? 'local' : SAVE.st === 'failed' ? 'failed' : (SAVE.st === 'account' && pkCurrentDesignId) ? 'account' : null;
+    var full = st === 'account' ? SAVE.T.account + ' · ' + SAVE.hhmm(SAVE.at) : st ? SAVE.T[st] : '', h = '';
+    if (st === 'account') h = "<span class='pk-ss-txt'><span class='pk-ss-long'>" + SAVE.T.account + "</span><span class='pk-ss-short'>Saved</span> · " + SAVE.hhmm(SAVE.at) + '</span>';
+    else if (st === 'local') h = "<button type='button' class='pk-ss-note' onclick='if(!pkSB&&typeof pkInitSupabase===\"function\")pkInitSupabase();pkShowAuthModal()'>" +
+      "<span class='pk-ss-long'>" + SAVE.T.local + "</span><span class='pk-ss-short'>This browser only</span></button>";
+    else if (st === 'failed') h = "<button type='button' class='pk-ss-fail' onclick='SAVE.now()'>" + SAVE.T.failed + '</button>';
+    if (SAVE.has()) h += "<button type='button' class='pk-ss-now' id='pkSaveNow' onclick='SAVE.now()' aria-label='Save now'" + (SAVE.busy ? ' disabled' : '') + '>' + (SAVE.busy ? 'Saving…' : "Save<span class='pk-ss-nowx'> now</span>") + '</button>';
+    el.className = st ? 'pk-ss-' + st : ''; el.innerHTML = h;
+    el.title = st === 'failed' && SAVE.why ? full + ': ' + SAVE.why + ' Your work is also kept in this browser.' : full;
+    el.setAttribute('role', 'status');
+  },
+  // Save now: signed out, this browser at once; signed in, the account (its row first, when the create had failed)
+  now: async function() {
+    if (!SAVE.signedIn()) {
+      if (typeof _dsLocalT !== 'undefined') clearTimeout(_dsLocalT);
+      try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); SAVE.local(); } catch (e) { SAVE.fail(e); }
+      return;
+    }
+    if (!pkCurrentDesignId) {
+      SAVE.saving();
+      var nm = (document.getElementById('projectName') || {}).value || 'Untitled parklet', ad = (document.getElementById('streetAddress') || {}).value || '';
+      var d = await pkCreateDesign(nm, ad);
+      if (!d) { SAVE.fail(pkCreateDesign.lastError); return; }
+      pkCurrentDesignId = d.id; pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at }; window.pkOpenNone = false;
+    }
+    if (typeof pkSaveTimer !== 'undefined' && pkSaveTimer) clearTimeout(pkSaveTimer);
+    await pkSaveDesign(true);
+  }
+};
+// the older calls: a status class and text, mapped to the three states (nothing else is ever shown)
 function pkSetSaveStatus(cls, txt) {
-  var el = document.getElementById('pkSaveStatus');
-  if (!el) return;
-  el.className = '';
-  if (cls) el.classList.add(cls);
-  el.textContent = txt || '';
-  el.title = txt || '';   // the whole status when the bar is narrow and the text is cut (Brief 27 item 2)
+  if (cls === 'pk-saving') SAVE.saving();
+  else if (cls === 'pk-saved') SAVE.saved();
+  else if (cls === 'pk-error' || cls === 'pk-local') { if (SAVE.signedIn()) SAVE.fail({ message: txt }); else SAVE.local(); }
+  else SAVE.render();
 }
 
 // ─── Toast ────────────────────────────────────────────────────────
@@ -17453,7 +17522,13 @@ var PK_EDIT = {
 window.addEventListener('pagehide', function() {
   if (PK_EDIT.fp === null) return;
   clearTimeout(PK_EDIT.t); PK_EDIT.check();
-  if (typeof pkCurrentUser !== 'undefined' && pkCurrentUser) return;
+  if (typeof pkCurrentUser !== 'undefined' && pkCurrentUser) {   // signed in: the account save may not finish; this browser's copy does
+    if (typeof pkSaveLocal === 'function' && (pkCurrentDesignId || (typeof SAVE !== 'undefined' && SAVE.st === 'failed'))) {
+      clearTimeout(pkScheduleSave._lt);
+      if (SAVE.st === 'failed') SAVE.keepHere(); else { try { pkSaveLocal(pkSerialize()); } catch (e) {} }
+    }
+    return;
+  }
   clearTimeout(_dsLocalT);
   try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); } catch (e) {}
 });
@@ -17980,30 +18055,40 @@ async function pkCreateDesign(name, address) {
   // the blank design (Brief 21 §4: DEFAULT_STATE, not a copy of the open design)
   var initialState = pkDefaultState(name || 'Untitled parklet', address || '');
 
-  var res = await pkSB.from('designs').insert({
-    user_id:  pkCurrentUser.id,
-    name:     name || 'Untitled parklet',
-    description: address || '',
-    state:    initialState,
-    version:  1
-  }).select().single();
-  if (res.error) { console.error('[pk] create design error:', res.error); return null; }
+  var res;
+  try {
+    res = await pkSB.from('designs').insert({
+      user_id:  pkCurrentUser.id,
+      name:     name || 'Untitled parklet',
+      description: address || '',
+      state:    initialState,
+      version:  1
+    }).select().single();
+  } catch (e) { res = { error: e }; }   // the account not reached (Brief 27 item 0)
+  if (res.error || !res.data) { console.error('[pk] create design error:', res.error); pkCreateDesign.lastError = res.error || { noRow: true }; return null; }
+  pkCreateDesign.lastError = null;
   pkAllDesigns.unshift(res.data);
   return res.data;
 }
 
+var pkSaveAgain = false;
 async function pkSaveDesign(immediate) {
-  if (!pkSB || !pkCurrentUser || !pkCurrentDesignId) {
-    // Not authenticated — save locally only
+  if (!pkSB || !pkCurrentUser) {   // signed out: this browser only
     pkSaveLocal(pkSerialize());
-    pkSetSaveStatus('pk-local', 'Offline — saved locally');
+    SAVE.local();
     return;
   }
-  if (pkSaving) return;
+  if (!pkCurrentDesignId) {        // signed in with no account row (its create failed): kept here, and said so
+    SAVE.keepHere();
+    if (!pkNewTicket) SAVE.fail(pkCreateDesign.lastError || { message: 'This design has no copy in your account yet.' });
+    return;
+  }
+  if (pkSaving) { pkSaveAgain = true; return; }   // a save under way: this one follows it (it was dropped before)
   pkSaving = true;
-  pkSetSaveStatus('pk-saving', 'Saving…');
+  SAVE.saving();
+  var data = null;
   try {
-    var data = pkSerialize();
+    data = pkSerialize();
     var thumb = immediate ? null : pkGetThumbnail();
     var payload = { state: data, updated_at: new Date().toISOString(), name: data.project.name || 'Untitled Parklet' };
     if (thumb) payload.thumbnail_data = thumb;
@@ -18012,20 +18097,22 @@ async function pkSaveDesign(immediate) {
     pkSaveLocal(data);
     try { localStorage.setItem('parklet-state', JSON.stringify(typeof state !== 'undefined' ? state : {})); } catch(_e) {}
 
-    var res = await pkSB.from('designs').update(payload).eq('id', pkCurrentDesignId).eq('user_id', pkCurrentUser.id);
+    // the row comes back: an update row-level security refuses returns no error and changes nothing, which was a
+    // false "Saved" (Brief 27 item 0)
+    var res = await pkSB.from('designs').update(payload).eq('id', pkCurrentDesignId).eq('user_id', pkCurrentUser.id).select('id, updated_at');
     if (res.error) throw res.error;
-    pkSetSaveStatus('pk-saved', 'Saved ✓');
+    if (!res.data || !res.data.length) throw { noRow: true };
+    SAVE.saved(res.data[0].updated_at || payload.updated_at);
     // Update in-memory list
     var idx = pkAllDesigns.findIndex(function(d) { return d.id === pkCurrentDesignId; });
     if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, updated_at: payload.updated_at });
     pkCurrentDesignMeta && (pkCurrentDesignMeta.name = data.project.name);
-    setTimeout(function() { pkSetSaveStatus('pk-saved', 'Saved ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})); }, 1200);
   } catch(e_) {
-    console.error('[pk] save error:', e_);
-    pkSaveLocal(pkSerialize());
-    pkSetSaveStatus('pk-error', 'Offline — saved locally');
+    SAVE.keepHere(data);
+    SAVE.fail(e_);
   }
   pkSaving = false;
+  if (pkSaveAgain) { pkSaveAgain = false; pkSaveDesign(true); }
 }
 
 async function pkLoadDesign(id) {
@@ -18038,7 +18125,7 @@ async function pkLoadDesign(id) {
     pkCurrentDesignId   = res.data.id;
     pkCurrentDesignMeta = { id: res.data.id, name: res.data.name, updated_at: res.data.updated_at };
     pkApplyDesignState(res.data.state);
-    pkSetSaveStatus('pk-saved', 'Saved');
+    SAVE.saved(res.data.updated_at);   // what the account holds, and when (Brief 27 item 0)
     pkUpdateAccountUI();
   } catch(e_) {
     console.error('[pk] load design error:', e_);
@@ -18104,9 +18191,13 @@ async function pkRenameDesign(id, newName) {
 
 // ─── Autosave ─────────────────────────────────────────────────────
 function pkScheduleSave() {
-  pkSetSaveStatus('pk-saving', 'Saving…');
-  // Immediate local write
-  try { pkSaveLocal(pkSerialize()); } catch(_e) {}
+  // pkSerialize calls saveSettings, which (signed in) calls this again: once is enough (Brief 27 item 0: the loop never
+  // ran before, as no design ever had an account row)
+  if (pkScheduleSave._in) return;
+  SAVE.saving();
+  // the copy in this browser, soon (an import calls this dozens of times: one serialisation, not one each)
+  clearTimeout(pkScheduleSave._lt);
+  pkScheduleSave._lt = setTimeout(function() { pkScheduleSave._in = true; try { pkSaveLocal(pkSerialize()); } catch(_e) {} pkScheduleSave._in = false; }, 250);
   // Debounced cloud write
   if (pkSaveTimer) clearTimeout(pkSaveTimer);
   pkSaveTimer = setTimeout(function() { pkSaveDesign(false).catch(function(){}); }, 1000);
@@ -18119,8 +18210,8 @@ function pkScheduleSave() {
 var pkNewTicket = null;
 function pkSaveSnapshot(id, data) {
   if (!pkSB || !pkCurrentUser || !id || !data) return Promise.resolve(false);
-  return pkSB.from('designs').update({ state: data, updated_at: new Date().toISOString(), name: (data.project && data.project.name) || 'Untitled Parklet' }).eq('id', id).eq('user_id', pkCurrentUser.id)
-    .then(function(r) { if (r.error) throw r.error; return true; }).catch(function(e) { console.error('[pk] save of the previous design failed:', e); pkToast('The previous design could not be saved online; it is in this browser.', 'error'); return false; });
+  return pkSB.from('designs').update({ state: data, updated_at: new Date().toISOString(), name: (data.project && data.project.name) || 'Untitled Parklet' }).eq('id', id).eq('user_id', pkCurrentUser.id).select('id')
+    .then(function(r) { if (r.error) throw r.error; if (!r.data || !r.data.length) throw { noRow: true }; return true; }).catch(function(e) { console.error('[pk] save of the previous design failed:', e, SAVE.reason(e)); pkToast('The previous design could not be saved to your account: ' + SAVE.reason(e) + ' A copy is in this browser.', 'error'); return false; });
 }
 async function pkNewDesign(name, address) {
   if (pkCurrentDesignId && pkSB && pkCurrentUser) {   // signed in: the open design's state now, saved behind
@@ -18145,7 +18236,7 @@ async function pkNewDesign(name, address) {
   pkCreateDesign(name || 'Untitled parklet', address || '').then(function(d) {
     if (pkNewTicket !== ticket) return;   // another design was opened meanwhile
     pkNewTicket = null;
-    if (!d) { pkSaveLocal(pkSerialize()); pkSetSaveStatus('pk-error', 'Offline — saved locally'); pkToast('Could not create the design online; it is kept in this browser.', 'error'); return; }
+    if (!d) { SAVE.keepHere(); SAVE.fail(pkCreateDesign.lastError); pkToast('The design could not be saved to your account; it is kept in this browser. Save now retries.', 'error'); return; }
     pkCurrentDesignId = d.id;
     pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at };
     pkSaveDesign(true);   // whatever was done in the blank design meanwhile, into its row
@@ -18502,7 +18593,8 @@ function pkUpdateAccountUI() {
   if (pkCurrentUser) {
     var displayName = (pkCurrentProfile && pkCurrentProfile.display_name) || pkCurrentUser.email.split('@')[0];
     var initials    = pkInitials(displayName);
-    if (label) label.innerHTML = '<span class="pk-acc-avatar">' + pkEsc(initials) + '</span> ' + pkEsc(displayName) + ' &#9660;';
+    if (label) label.innerHTML = '<span class="pk-acc-avatar">' + pkEsc(initials) + '</span> <span class="pk-acc-name">' + pkEsc(displayName) + '</span> &#9660;';
+    if (btn) btn.title = displayName + ' (' + pkCurrentUser.email + ')';   // the name is the avatar alone on a narrow bar (Brief 27 item 0)
     if (mn) {
       mn.innerHTML = '<div class="pk-menu-user-name">' + pkEsc(displayName) + '</div>' +
         '<div class="pk-menu-user-email">' + pkEsc(pkCurrentUser.email) + '</div>';
@@ -18511,15 +18603,8 @@ function pkUpdateAccountUI() {
     if (label) label.innerHTML = 'Sign in &#9660;';
     if (mn) mn.innerHTML = '<div class="pk-menu-user-name">Not signed in</div>';
   }
-  // signed out, the top bar says where the work is kept (Brief 27 item 4); it opens the sign-in. A narrow bar shows the
-  // short form, the whole sentence is its tooltip
-  var ss = document.getElementById('pkSaveStatus');
-  if (ss && !pkCurrentUser) {
-    var note = 'Saved in this browser only — sign in to keep designs.';
-    ss.className = 'pk-local-note'; ss.title = note;
-    ss.innerHTML = "<button type='button' class='pk-ss-note' onclick='if(!pkSB&&typeof pkInitSupabase===\"function\")pkInitSupabase();pkShowAuthModal()' aria-label='" + note + "'>" +
-      "<span class='pk-ss-a'>Saved in this browser only</span><span class='pk-ss-b'> — sign in to keep designs</span><span class='pk-ss-c'>This browser only</span></button>";
-  } else if (ss && ss.classList.contains('pk-local-note')) { ss.className = ''; ss.title = ''; ss.textContent = ''; }
+  // the save state (Brief 27 item 0): signed out it says the work is in this browser only, and opens the sign-in
+  if (typeof SAVE !== 'undefined') SAVE.render();
   // the menu opens either way (Brief 21 §3: Settings lives in it); signed out it offers Sign in first
   var items = document.getElementById('pkMenuItems'), it = function(fn, label, cls) { return '<button class="pk-menu-item' + (cls ? ' ' + cls : '') + '" onclick="pkHideAccountMenu();' + fn + '">' + label + '</button>'; };
   if (items) items.innerHTML = pkCurrentUser
@@ -18704,6 +18789,7 @@ async function pkMigResolve(doMove) {
   pkCurrentDesignMeta = { id: res.data.id, name: res.data.name };
   window.pkOpenNone = false;
   pkApplyDesignState(res.data.state);
+  SAVE.saved(res.data.updated_at);
   try { localStorage.removeItem('pkt-design-state'); } catch (e) {}   // moved: the account holds it now
   pkToast('Moved to your account.', 'success');
   if (M.resolve) M.resolve(true);
@@ -18804,7 +18890,8 @@ window.addEventListener('load', function() {
     var _origSS = saveSettings;
     saveSettings = function() {
       _origSS();
-      if (pkCurrentDesignId) pkScheduleSave();
+      // signed in: the account (a design whose account copy failed keeps its copy in this browser, Brief 27 item 0)
+      if (pkCurrentDesignId || (pkSB && pkCurrentUser && typeof SAVE !== 'undefined' && SAVE.st === 'failed')) pkScheduleSave();
     };
   }
 
@@ -29110,7 +29197,8 @@ SEED.parklet = function(rep) {
   if (typeof pkSB !== 'undefined' && pkSB && pkCurrentUser && !pkCurrentDesignId && typeof pkCreateDesign === 'function') {
     var nm = (state.__siteMap && state.__siteMap.name) || 'Untitled parklet';
     pkCreateDesign(nm, (document.getElementById('streetAddress') || {}).value || '').then(function(d) {
-      if (!d) return; pkCurrentDesignId = d.id; pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at }; window.pkOpenNone = false;
+      if (!d) { SAVE.keepHere(); SAVE.fail(pkCreateDesign.lastError); return; }   // refused: said so, never a quiet fallback (Brief 27 item 0)
+      pkCurrentDesignId = d.id; pkCurrentDesignMeta = { id: d.id, name: d.name, updated_at: d.updated_at }; window.pkOpenNone = false;
       var pn = document.getElementById('projectName'); if (pn && !pn.value) pn.value = d.name;
       try { pkScheduleSave(); pkUpdateAccountUI(); } catch (e) {}
     });
@@ -29718,7 +29806,7 @@ function uiApplyTips(root) {
   .topbar { padding: 0 8px; gap: 8px; }
   .topbar-brand { margin-right: 0; }
   #pkAccBtn { max-width: 120px; }
-  #pkSaveStatus { min-width: 0; max-width: 64px; overflow: hidden; text-overflow: ellipsis; margin-right: 0; }
+  #pkSaveStatus { min-width: 0; margin-right: 0; gap: 6px; }
   .topbar-tabs { gap: 0; }
   .ttab { padding: 0 5px; }
   .topbar-right { gap: 6px; }
