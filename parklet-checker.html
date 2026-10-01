@@ -2430,7 +2430,11 @@ function _checkLandmarkConsistency(verbose) {
       var _pw = planDeltaToWorld(window._pvNorthV.x, window._pvNorthV.y), _pb = _nb(_pw.x, _pw.z);
       if (_dd(_pb) > 0.5) bad.push({ value: 'north: Plan arrow', model: _nd, independent: +_pb.toFixed(2) });
     }
-    if (window._3dCompassNorth) {
+    // one north, one store (Brief 25 item 23): the compass reads DESIGN_MODEL.site.northDeg when it draws; one drawn before
+    // the north last changed (the 3D view hidden, so not redrawing) is redrawn from the model before it is compared
+    if (window._3dCompassNorth && _dd(window._3dCompassNorth.deg) > 1e-6 && typeof _3dUpdateCompass === 'function') { try { _3dUpdateCompass(); } catch (e) {} }
+    if (window._3dCompassNorth && _dd(window._3dCompassNorth.deg) > 1e-6) info.push('3D compass not redrawn since the north changed (no 3D view yet), its north check skipped');
+    else if (window._3dCompassNorth) {
       var _cb = _nb(window._3dCompassNorth.x, window._3dCompassNorth.z);
       if (_dd(_cb) > 0.5) bad.push({ value: 'north: 3D compass', model: _nd, independent: +_cb.toFixed(2) });
     } else info.push('3D compass not drawn yet, its north check skipped');
@@ -10845,7 +10849,7 @@ function _3dUpdateCompass() {
     return { x: v.x / m, y: -v.y / m };  // flip Y: canvas Y grows down, world Y grows up
   }
   var _cn = CAD_CARDINAL.N, nDir = _screenDir(_cn.x, 0, _cn.z);
-  window._3dCompassNorth = { x: _cn.x, z: _cn.z };   // the north it draws (checkLandmarkConsistency)
+  window._3dCompassNorth = { x: _cn.x, z: _cn.z, deg: siteNorthDeg() };   // the north it drew, and from which northDeg (checkLandmarkConsistency)
   var eDir = _screenDir(CAD_CARDINAL.E.x, 0, CAD_CARDINAL.E.z);
   // Background disc
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
