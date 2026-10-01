@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curbside sample report</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* The sample report viewer (Brief 28 item 12): one bar over the prebuilt PDF of the bundled reference design
+   (demo/sample-<mode>.pdf, tools/build-sample-pdfs.js). Opened on its own (the landing page, the README) or inside the
+   app's report overlay (?embed=1). With no prebuilt PDF it builds one in a hidden frame (parklet-checker.html?sample=
+   <mode>&build=1, in-memory storage, never your design) and shows a blank page with its progress meanwhile. */
+:root { --bar: #17191C; --ink: #F2F2F0; --mute: #B8BCC2; --acc: #3AA8E4; --page: #DADADA; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; background: var(--page); font: 13px/1.3 'DM Sans', 'Helvetica Neue', Arial, sans-serif; color: var(--ink); }
+.bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; min-height: 44px; padding: 6px 16px; background: var(--bar); flex-shrink: 0; }
+.bar b { font-weight: 600; }
+.bar .note { color: var(--mute); }
+.bar .sp { flex: 1 1 auto; }
+.bar a, .bar button { font: inherit; padding: 6px 12px; border-radius: 4px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.bar .alt { color: var(--acc); padding-left: 0; padding-right: 0; }
+.bar .dl { border: 1px solid var(--acc); color: var(--acc); background: transparent; }
+.bar .dl[aria-disabled='true'] { opacity: .45; pointer-events: none; }
+.bar .back { border: 0; background: var(--acc); color: var(--bar); font-weight: 600; }
+.bar a:focus-visible, .bar button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+main { flex: 1 1 auto; display: flex; min-height: 0; }
+iframe.pdf { flex: 1 1 auto; width: 100%; border: 0; background: var(--page); }
+.wait { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; background: #FFFFFF; color: #2B2B2B; font-size: 15px; }
+#builder { position: absolute; left: -20000px; top: 0; width: 1400px; height: 900px; border: 0; }
+@media (max-width: 640px) { .bar .note { display: none; } }
+</style>
+</head>
+<body>
+<div class="bar" role="banner">
+  <b>Sample report</b><span class="note">a reference design, not your parklet</span>
+  <span id="info" aria-live="polite"></span>
+  <span class="sp"></span>
+  <a id="alt" class="alt" href="#"></a>
+  <a id="dl" class="dl" href="#" aria-disabled="true">Download PDF</a>
+  <button id="back" class="back" type="button">&larr; Back</button>
+</div>
+<main id="main"><div class="wait" id="wait">Opening the sample&hellip;</div></main>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search), mode = q.get('m') === 'technical' ? 'technical' : 'schematic', embed = q.get('embed') === '1';
+  var other = mode === 'technical' ? 'schematic' : 'technical', cap = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
+  var info = document.getElementById('info'), dl = document.getElementById('dl'), main = document.getElementById('main'), wait = document.getElementById('wait');
+  document.getElementById('alt').textContent = cap(other) + ' sample';
+  document.getElementById('alt').href = 'sample.html?m=' + other + (embed ? '&embed=1' : '');
+  var back = function () {
+    if (embed && window.parent !== window) { window.parent.postMessage('curbside:close-report', location.origin); return; }
+    if (history.length > 1 && document.referrer) history.back(); else location.href = 'parklet-checker.html';
+  };
+  document.getElementById('back').onclick = back;
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); back(); } });
+  // the counts, the pages: "Schematic · 15 pass · 0 fail · 17 pages"
+  var say = function (m) {
+    var n = m.n || {}, parts = [cap(mode), n.pass + ' pass', n.fail + ' fail'];
+    if (n.await) parts.push(n.await + ' awaiting measurement'); if (n.unclear) parts.push(n.unclear + ' not confirmed');
+    info.textContent = parts.concat(m.pages + ' pages').join(' · ');
+  };
+  var show = function (url, name) {
+    var f = document.createElement('iframe'); f.className = 'pdf'; f.title = 'Sample report, ' + mode; f.src = url;
+    main.replaceChildren(f);
+    dl.href = url; dl.setAttribute('download', name); dl.removeAttribute('aria-disabled');
+  };
+  // no prebuilt PDF: build it in a hidden frame (its own document, in-memory storage), the progress on a blank page
+  var build = function () {
+    wait.textContent = 'Building the sample…';
+    window.addEventListener('message', function (e) {
+      if (e.origin !== location.origin || !e.data || typeof e.data !== 'object') return;
+      if (e.data.type === 'curbside:sample-progress') wait.textContent = 'Building the sample… ' + (e.data.t || '');
+      if (e.data.type === 'curbside:sample-ready') { say(e.data.info); show(e.data.url, 'curbside-sample-' + mode + '.pdf'); }
+      if (e.data.type === 'curbside:sample-error') wait.textContent = 'The sample could not be built: ' + e.data.message;
+    });
+    var b = document.createElement('iframe'); b.id = 'builder'; b.setAttribute('aria-hidden', 'true'); b.tabIndex = -1;
+    b.src = 'parklet-checker.html?sample=' + mode + '&build=1'; document.body.appendChild(b);
+  };
+  fetch('demo/sample-' + mode + '.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (m) { say(m); show('demo/sample-' + mode + '.pdf', 'curbside-sample-' + mode + '.pdf'); })
+    .catch(build);
+})();
+</script>
+</body>
+</html>

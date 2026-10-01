@@ -1,6 +1,6 @@
 # Curbside
 
-**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/parklet-checker.html?sample=schematic) (no account needed)
+**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/sample.html?m=schematic) (no account needed)
 
 Schematic parklet design for Vancouver streets. Draw a parklet on a real street, check it live against the
 Vancouver Parklet Manual and the Engineering Design Manual, furnish it, see it in plan, section and 3D, and
@@ -8,7 +8,7 @@ export a drawing set.
 
 ## Purpose
 
-_To be written by Jenna._
+Curbside is a schematic design and compliance tool that helps turn an idea for a Vancouver parklet into a site-specific, reviewable proposal. Designed for anyone who might initiate a parklet, from a café owner to a designer preparing a first sketch, it builds the street from the address using City open data, OpenStreetMap and TransLink, incorporating lanes, bike routes, transit stops, hydrants, trees and buildings. Users can generate and refine furnished layouts according to their priorities, such as seating, planting or shade, while the Parklet Manual's clearance and access requirements are checked throughout. Each value is identified as measured, imported or estimated; estimates cannot satisfy compliance checks, and a survey sheet lists what must still be verified on site. From one model, Curbside produces both a schematic package for communicating the proposal and a technical package documenting compliance, assumptions and sources for pre-application review.
 
 ## How to use it
 
@@ -115,7 +115,7 @@ A recorded walkthrough of the whole journey is planned (Brief 26).
    Any static web server also works for everything except photoreal renders, which go through the relay in
    `tools/serve.ps1`.
 3. Enable the repository's pre-push check once: `git config core.hooksPath tools/hooks` (it refuses PDF, DWG
-   and ZIP files and anything over 5 MB).
+   and ZIP files and anything over 5 MB; the one exception is the two sample reports below).
 
 ## Developer prerequisites
 
@@ -137,6 +137,11 @@ data build) need:
 
 `node tools/screenshots.js` redraws the landing images from the recorded site data in `tools/fixtures/`
 (`--record` fetches it again).
+
+`node tools/build-sample-pdfs.js` rebuilds the two sample reports (`demo/sample-schematic.pdf` and
+`demo/sample-technical.pdf`, with their counts in the matching `.json`) from `demo/sample-design.json`, with the
+local server running. Run it after any change to the report or to the sample design: `sample.html` shows these files
+as they are (without them it builds the sample in the browser, which takes several seconds).
 
 ## Add your keys (optional)
 
