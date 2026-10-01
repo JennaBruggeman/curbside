@@ -16894,6 +16894,12 @@ function _sdQuickPlace(objId) {
 #pkSaveStatus.pk-error  { color: #c03030; }
 #pkSaveStatus.pk-local  { color: #ffb800; }
 #pkSaveStatus.pk-saved  { color: var(--text-mu); }
+/* signed out (Brief 27 item 4): where the work is kept, and the way to keep it */
+.pk-ss-note { background: none; border: none; padding: 0; font: inherit; color: var(--text-mu); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; white-space: nowrap; }
+.pk-ss-note:hover, .pk-ss-note:focus-visible { color: var(--text-hi); }
+.pk-ss-c { display: none; }
+@media (max-width: 1700px) { .pk-ss-b { display: none; } }
+@media (max-width: 1100px) { .pk-ss-a { display: none; } .pk-ss-c { display: inline; } #pkSaveStatus.pk-local-note { max-width: none; } }
 
 /* ── Account button ── */
 #pkAccBtn {
@@ -17410,6 +17416,9 @@ function applyDesignState(ds) { return pkApplyDesignState(ds); }
 var _dsLocalT = null, _dsLocalBusy = false;
 function _dsScheduleLocal() {
   if (_dsLocalBusy) return;
+  // the local design state is the signed-out ("offline") design (Brief 27 item 4): signed in, the account keeps the
+  // design (and pkt-cloud-cache its copy), so this would refill the offline slot with an account's design
+  if (typeof pkCurrentUser !== 'undefined' && pkCurrentUser) return;
   clearTimeout(_dsLocalT);
   _dsLocalT = setTimeout(function() {
     _dsLocalBusy = true;   // pkSerialize calls saveSettings: don't reschedule from inside it
@@ -17417,6 +17426,37 @@ function _dsScheduleLocal() {
     _dsLocalBusy = false;
   }, 400);
 }
+// Brief 27 item 4 (triage row 3): every edit is saved. The save runs from saveSettings (the local design state, and the
+// cloud signed in), which only the site, name and Edge edits called: furniture placed, moved, resized, refinished,
+// duplicated or deleted, and every Check entry, were lost on reload. Rather than a call in each of their handlers, a
+// short while after any user input the furniture and the Check values are compared with what was last saved, and a
+// change saves. Opening a design resets the comparison (a design just opened is not an edit).
+var PK_EDIT = {
+  fp: null, t: null,
+  print: function() {
+    var f = (window.FL3D && FL3D.placed || []).map(function(i) { return [i.objId, +(+i.x || 0).toFixed(3), +(+i.z || 0).toFixed(3), i.userRotation || 0, i.params ? JSON.stringify(i.params) : '', i.materials ? JSON.stringify(i.materials) : '']; });
+    var c = typeof criteria === 'undefined' ? [] : criteria.map(function(q) { return [state[q.inputId], q.inputId2 ? state[q.inputId2] : null]; });
+    return JSON.stringify([f, c]);
+  },
+  baseline: function() { PK_EDIT.fp = PK_EDIT.print(); },
+  check: function() {
+    if (PK_EDIT.fp === null) return;   // no design applied yet (the page is still loading its saved one): nothing to save
+    var p = PK_EDIT.print();
+    if (p === PK_EDIT.fp) return;
+    PK_EDIT.fp = p;
+    try { saveSettings(); } catch (e) { console.warn('[save] after an edit:', e); }
+  },
+  soon: function() { clearTimeout(PK_EDIT.t); PK_EDIT.t = setTimeout(PK_EDIT.check, 250); }
+};
+['pointerup', 'keyup', 'change', 'input', 'drop'].forEach(function(ev) { document.addEventListener(ev, PK_EDIT.soon, true); });
+// a reload or a closed tab right after an edit: the pending check runs now, and signed out the design is written at once
+window.addEventListener('pagehide', function() {
+  if (PK_EDIT.fp === null) return;
+  clearTimeout(PK_EDIT.t); PK_EDIT.check();
+  if (typeof pkCurrentUser !== 'undefined' && pkCurrentUser) return;
+  clearTimeout(_dsLocalT);
+  try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); } catch (e) {}
+});
 window.addEventListener('load', function() {
   setTimeout(function() {
     if (window.pkCurrentDesignId || window.pkOpenNone) return;   // a cloud design is (being) loaded instead, or signing in opened none
@@ -17734,6 +17774,7 @@ function pkApplyDesignState(raw) {
   // Full re-render (with saved segments the strip is already right: do not rebuild it)
   pkReRenderAll(_segsIn ? 'section-edit' : 'load');
   if (typeof pkStageSync === 'function') pkStageSync();   // Brief 22 item 5
+  if (typeof PK_EDIT !== 'undefined') PK_EDIT.baseline();   // a design just opened is not an edit (Brief 27 item 4)
 }
 
 // ─── Clear all furniture ──────────────────────────────────────────
@@ -18201,25 +18242,28 @@ async function pkInitApp() {
 }
 
 // ─── Local migration ──────────────────────────────────────────────
+// Brief 27 item 4 (Jenna): a design made signed out ("offline") lives only in this browser. On signing in here, it is
+// offered to the account once: "Move your offline design to this account?" (whether or not the account has designs).
+// "Not now" keeps it in this browser and is not asked again for that design; a design changed offline since is offered
+// again at the next sign-in. The offline design is the local design state (pkt-design-state), which only a signed-out
+// session writes (_dsScheduleLocal); the earlier check read the old parklet-state key and offered only to an empty account.
+function pkOfflineDesign() {
+  var raw = null; try { raw = localStorage.getItem('pkt-design-state'); } catch (e) {}
+  if (!raw) return null;
+  var d = null; try { d = JSON.parse(raw); } catch (e) { return null; }
+  if (!d || typeof d !== 'object') return null;
+  var so = d.siteObjects || {}, nm = (d.project && d.project.name) || '', c0 = (typeof DEFAULT_STATE !== 'undefined' && DEFAULT_STATE.compliance) || {};
+  var content = !!so.siteMap || !!so.generic || ((d.furniture || {}).placed || []).length > 0 ||
+    Object.keys(d.compliance || {}).some(function(k) { var v = d.compliance[k]; return v !== '' && v != null && v !== c0[k]; }) ||
+    (!!nm && nm !== 'Untitled parklet' && nm !== 'New Parklet');
+  return content ? d : null;
+}
+function pkOfflineKey(d) { var s = JSON.stringify(d), h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
 async function pkCheckLocalMigration() {
-  // Only offer migration if this is the user's first design
-  if (pkAllDesigns.length > 0) return false;
-  try {
-    var local = localStorage.getItem('parklet-state');
-    if (!local) return false;
-    var parsed = JSON.parse(local);
-    // Check if there's meaningful content (e.g. project name set, or site objects, or criteria)
-    var hasContent = (parsed['__projectName'] && parsed['__projectName'] !== 'New Parklet' && parsed['__projectName'] !== 'Untitled parklet') ||
-      (parsed['manholes'] && parsed['manholes'].length > 0) ||
-      (parsed['curb_features'] && parsed['curb_features'].length > 0) ||
-      (parsed['route_type'] && parsed['route_type'] !== '');
-    if (!hasContent) return false;
-
-    // Show migration offer
-    return await new Promise(function(resolve) {
-      pkShowMigrationDialog(parsed, resolve);
-    });
-  } catch(e_) { return false; }
+  var d = pkOfflineDesign(); if (!d || !pkCurrentUser) return false;
+  var seenKey = 'pkt_offline_offered_' + pkCurrentUser.id, k = pkOfflineKey(d);
+  try { if (localStorage.getItem(seenKey) === k) return false; } catch (e) {}
+  return await new Promise(function(resolve) { pkShowMigrationDialog(d, resolve, seenKey, k); });
 }
 
 // ─── UI Injection ─────────────────────────────────────────────────
@@ -18467,6 +18511,15 @@ function pkUpdateAccountUI() {
     if (label) label.innerHTML = 'Sign in &#9660;';
     if (mn) mn.innerHTML = '<div class="pk-menu-user-name">Not signed in</div>';
   }
+  // signed out, the top bar says where the work is kept (Brief 27 item 4); it opens the sign-in. A narrow bar shows the
+  // short form, the whole sentence is its tooltip
+  var ss = document.getElementById('pkSaveStatus');
+  if (ss && !pkCurrentUser) {
+    var note = 'Saved in this browser only — sign in to keep designs.';
+    ss.className = 'pk-local-note'; ss.title = note;
+    ss.innerHTML = "<button type='button' class='pk-ss-note' onclick='if(!pkSB&&typeof pkInitSupabase===\"function\")pkInitSupabase();pkShowAuthModal()' aria-label='" + note + "'>" +
+      "<span class='pk-ss-a'>Saved in this browser only</span><span class='pk-ss-b'> — sign in to keep designs</span><span class='pk-ss-c'>This browser only</span></button>";
+  } else if (ss && ss.classList.contains('pk-local-note')) { ss.className = ''; ss.title = ''; ss.textContent = ''; }
   // the menu opens either way (Brief 21 §3: Settings lives in it); signed out it offers Sign in first
   var items = document.getElementById('pkMenuItems'), it = function(fn, label, cls) { return '<button class="pk-menu-item' + (cls ? ' ' + cls : '') + '" onclick="pkHideAccountMenu();' + fn + '">' + label + '</button>'; };
   if (items) items.innerHTML = pkCurrentUser
@@ -18607,55 +18660,53 @@ async function pkDoDelete(id) {
 }
 
 // ─── Migration dialog ─────────────────────────────────────────────
-function pkShowMigrationDialog(localData, resolve) {
+function pkShowMigrationDialog(d, resolve, seenKey, k) {
   pkHideLoading(); // safety guard — interactive dialog must never sit under the loading overlay
-  var localName = (localData['__projectName'] || 'Local Design');
+  var name = (d.project && d.project.name) || 'Untitled parklet', where = d.project && d.project.streetAddress ? ' (' + d.project.streetAddress + ')' : '';
   var html = [
-    '<div class="pk-modal-overlay active" id="pkMigDlg">',
+    '<div class="pk-modal-overlay active" id="pkMigDlg" role="dialog" aria-modal="true" aria-labelledby="pkMigT">',
     '<div class="pk-dialog-box">',
-    '<div class="pk-dialog-title">Local design found</div>',
-    '<div class="pk-dialog-body">An existing design was found in this browser.<br>Would you like to import it into your account?</div>',
-    '<div class="pk-form-group"><label class="pk-form-label">Design Name</label>',
-    '<input type="text" id="pkMigName" class="pk-form-input" value="' + pkEsc(localName) + '"></div>',
-    '<div class="pk-dialog-btns" style="justify-content:space-between;flex-wrap:wrap;gap:6px;">',
-    '<button class="pk-btn-secondary" style="width:auto;margin:0;" onclick="pkMigResolve(false)">Start Fresh</button>',
-    '<button class="pk-btn-secondary" style="width:auto;margin:0;opacity:.7;" onclick="var el=document.getElementById(\'pkMigDlg\');if(el)el.remove();">Work Offline</button>',
-    '<button class="pk-btn-primary" style="width:auto;margin:0;" onclick="pkMigResolve(true)">Import Design &rarr;</button>',
+    '<div class="pk-dialog-title" id="pkMigT">Move your offline design to this account?</div>',
+    '<div class="pk-dialog-body">&ldquo;' + pkEsc(name) + '&rdquo;' + pkEsc(where) + ' was made in this browser without signing in, so it is kept only here. ' +
+      'Moved to your account, it is listed with your designs and opens wherever you sign in.</div>',
+    '<div class="pk-form-group"><label class="pk-form-label" for="pkMigName">Design name</label>',
+    '<input type="text" id="pkMigName" class="pk-form-input" value="' + pkEsc(name) + '"></div>',
+    '<div class="pk-dialog-btns" style="justify-content:flex-end;flex-wrap:wrap;gap:6px;">',
+    '<button type="button" class="pk-btn-secondary" style="width:auto;margin:0;" onclick="pkMigResolve(false)">Not now</button>',
+    '<button type="button" class="pk-btn-primary" style="width:auto;margin:0;" id="pkMigMove" onclick="pkMigResolve(true)">Move to my account</button>',
     '</div>',
     '</div></div>'
   ].join('');
   document.body.insertAdjacentHTML('beforeend', html);
-  window._pkMigResolve = resolve;
-  window._pkMigLocalData = localData;
+  window._pkMig = { resolve: resolve, d: d, seenKey: seenKey, k: k };
+  var dlg = document.getElementById('pkMigDlg');
+  dlg.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); pkMigResolve(false); } });
+  var mv = document.getElementById('pkMigMove'); if (mv) mv.focus();
 }
-async function pkMigResolve(doImport) {
+async function pkMigResolve(doMove) {
+  var M = window._pkMig || {}; window._pkMig = null;
+  var name = ((document.getElementById('pkMigName') || {}).value || '').trim();
   var dlg = document.getElementById('pkMigDlg');
   if (dlg) dlg.remove();
-  if (doImport) {
-    var name = (document.getElementById('pkMigName')||{}).value || 'Imported Design';
-    var migState = pkMigrate(window._pkMigLocalData);
-    if (migState && name) migState.project.name = name.trim();
-    pkShowLoading('Importing design…');
-    var res = await pkSB.from('designs').insert({
-      user_id: pkCurrentUser.id,
-      name: name.trim() || 'Imported Design',
-      state: migState,
-      version: 1
-    }).select().single();
-    pkHideLoading();
-    if (!res.error && res.data) {
-      pkAllDesigns.unshift(res.data);
-      pkCurrentDesignId   = res.data.id;
-      pkCurrentDesignMeta = { id: res.data.id, name: res.data.name };
-      pkApplyDesignState(res.data.state);
-      pkToast('Design imported successfully', 'success');
-      window._pkMigResolve && window._pkMigResolve(true);
-      return;
-    }
+  try { if (M.seenKey) localStorage.setItem(M.seenKey, M.k); } catch (e) {}   // asked once for this design
+  if (!doMove || !M.d) { if (M.resolve) M.resolve(false); return; }
+  var st = pkMigrate(M.d); if (st && st.project) st.project.name = name || st.project.name || 'Untitled parklet';
+  pkShowLoading('Moving the design to your account…');
+  var res = await pkSB.from('designs').insert({ user_id: pkCurrentUser.id, name: (st && st.project && st.project.name) || 'Untitled parklet', state: st, version: 1 }).select().single();
+  pkHideLoading();
+  if (res.error || !res.data) {
+    console.error('[pk] moving the offline design failed:', res.error);
+    pkToast('The design could not be moved; it is still in this browser.', 'error');
+    if (M.resolve) M.resolve(false); return;
   }
-  // Start fresh
-  await pkNewDesign('My First Parklet', '');
-  window._pkMigResolve && window._pkMigResolve(true);
+  pkAllDesigns.unshift(res.data);
+  pkCurrentDesignId   = res.data.id;
+  pkCurrentDesignMeta = { id: res.data.id, name: res.data.name };
+  window.pkOpenNone = false;
+  pkApplyDesignState(res.data.state);
+  try { localStorage.removeItem('pkt-design-state'); } catch (e) {}   // moved: the account holds it now
+  pkToast('Moved to your account.', 'success');
+  if (M.resolve) M.resolve(true);
 }
 
 // ─── Auth handlers ────────────────────────────────────────────────
