@@ -1166,6 +1166,37 @@ The 3D view shows the city everywhere, with no cut-off at the import radius. Bui
 - **Triage:** `briefs/23-triage.md` "## v0.14 smoke" (S1–S19). Nothing there is fixed except where a Brief 29 item
   covers it (S12–S14).
 
+## Brief 29b: fixes after the v0.14 smoke (branch `fixes-4` from v0.15, 2026-10-01; merged as v0.16)
+Four items from `briefs/23-triage.md` "## v0.14 smoke", nothing else.
+- **S1, a long drag empties the deck: a load race, not the drag.**
+  - Signed out, a reload restores `pkt-design-state` 1.3 s after load.
+  - A click or drag in that window called `saveSettings`. The local save then wrote the half-built page over the stored
+    design: its site from `parklet-state`, the default 19.8 m deck, no furniture.
+  - The restore read that back. Reproduced from demo run 1's own stored state (state09).
+  - Now nothing writes (local save, autosave, Save now) until a design is applied (`_dsDesignApplied`, PK_EDIT's
+    baseline).
+- **S2, the host frontage and C05 change between reloads: the same race.**
+  - Demo run 1's states 3 and 10 carry the default 19.8 m deck and no furniture, where the design had 11.19 m and 5–6
+    pieces. The buildings are identical in every state.
+  - The host frontage is picked from the deck's length and place, so it moved (Blenz Coffee → Rocky Mountain
+    Flatbread).
+  - C05 moved with the deck's ends. Not an ordering bug in the data.
+- **S4, Generate 48 s with a blank screen, and the slow technical PDF: the hidden 3D view.**
+  - Its loop drew every frame on every tab, with the shadow map on every still frame.
+  - Every synchronous WebGL read waited behind those frames: the thumbnails' `toDataURL` and the report's drawings.
+  - The loops now skip frames while the 3D canvas is off screen (`_3dShown`).
+  - `GEN.run` shows "Generating schemes…" before it computes.
+  - The cards come first; the axon thumbnails follow one per turn, onto canvases, via `createImageBitmap`.
+- **VERIFY at Main St & E 26th Ave**, through the UI (software GL, 1920 px):
+  - Generate (real click): message 40 ms, cards 0.37 s, thumbnails 0.68 s.
+  - Open in Design: 10 pieces. Real long drags in Design and Accessibility keep all 10.
+  - Three reloads, two with a click and a long drag straight after load: pieces, 12.3 m deck, host "The Main" and C05
+    unchanged.
+  - Technical PDF (real click): 1.1 s.
+  - The 3D view draws when shown.
+- **Not in scope, seen in VERIFY:** a long drag can leave a piece off the deck (beyond its end, or in the lane) with no
+  warning.
+
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
 

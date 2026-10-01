@@ -1304,6 +1304,9 @@ About 2 min of in-app waiting. The Generate refusal matched the script word for 
 - **Synthetic mouse drags not moving pieces (D2):** D1's drag worked; the harness.
 - **Downtown restaurant names on Fraser St:** OSM data, not confirmed either way.
 
+### Fixed since
+- **Brief 29b (v0.16):** S1, S2, S4 and S6. S1 and S2 were one load race, not a drag bug or a data-order bug; S4 and S6 were the hidden 3D view drawing every frame. See HANDOFF.md.
+
 ### For Jenna
 - **The demo script:** the corrections from these runs are in the chat report (Gallery, Technical as a radio, "You"
   for a measured value, Place on deck instead of dragging the card, the Check table's grouping).
