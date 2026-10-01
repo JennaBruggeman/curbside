@@ -28728,8 +28728,29 @@ FTAG.segHits = function(p, q, b) {   // does segment p-q enter box b (Liang-Bars
 };
 // pieces [{key, tag, polys, box}] (all of them are obstacles; those with a tag are tagged), taken [[x0, y0, x1, y1]] the
 // text already drawn, S {w(tag): box width, h: box height, rings: [gaps], m: clearance, bounds}
+// pieces at the same point (Brief 25 item 20c: a planter on a planter, a lamp in it): one tag for them all, "PR ×2, LA",
+// on one leader, rather than a tag each stacked on the same leader. The same point: the boxes meet and the smaller one's
+// centre is inside the larger. The merged piece keeps every key (keys) and outline; its box is their union.
+FTAG.merge = function(pieces) {
+  var P = pieces.filter(function(p) { return p.tag; }), par = P.map(function(_, i) { return i; });
+  var root = function(i) { while (par[i] !== i) i = par[i] = par[par[i]]; return i; };
+  var area = function(b) { return (b[2] - b[0]) * (b[3] - b[1]); }, inside = function(c, b) { return c[0] >= b[0] && c[0] <= b[2] && c[1] >= b[1] && c[1] <= b[3]; };
+  for (var i = 0; i < P.length; i++) for (var j = i + 1; j < P.length; j++) {
+    var a = P[i].box, b = P[j].box, sm = area(a) <= area(b) ? a : b, lg = sm === a ? b : a;
+    if (FTAG.hit(a, b, 0) && inside([(sm[0] + sm[2]) / 2, (sm[1] + sm[3]) / 2], lg)) par[root(j)] = root(i);
+  }
+  var groups = {};
+  P.forEach(function(p, i) { (groups[root(i)] = groups[root(i)] || []).push(p); });
+  return Object.keys(groups).map(function(k) {
+    var g = groups[k]; if (g.length === 1) return Object.assign({ keys: [g[0].key] }, g[0]);
+    var n = {}, order = []; g.forEach(function(p) { if (!n[p.tag]) { n[p.tag] = 0; order.push(p.tag); } n[p.tag]++; });
+    return { key: g[0].key, keys: g.map(function(p) { return p.key; }), tag: order.map(function(t) { return t + (n[t] > 1 ? ' ×' + n[t] : ''); }).join(', '),
+      polys: [].concat.apply([], g.map(function(p) { return p.polys; })),
+      box: [Math.min.apply(null, g.map(function(p) { return p.box[0]; })), Math.min.apply(null, g.map(function(p) { return p.box[1]; })), Math.max.apply(null, g.map(function(p) { return p.box[2]; })), Math.max.apply(null, g.map(function(p) { return p.box[3]; }))] };
+  });
+};
 FTAG.place = function(pieces, taken, S) {
-  var out = [], occ = taken.slice();
+  var out = [], occ = taken.slice(); pieces = FTAG.merge(pieces);
   var tryAt = function(pc, t, w, h, strict) {
     var tb = [t[0] - w / 2, t[1] - h / 2, t[0] + w / 2, t[1] + h / 2], B = S.bounds;
     if (B && (tb[0] < B[0] || tb[1] < B[1] || tb[2] > B[2] || tb[3] > B[3])) return null;
@@ -28737,7 +28758,7 @@ FTAG.place = function(pieces, taken, S) {
     if (occ.some(function(q) { return FTAG.hit(tb, q, strict ? S.m : 0); })) return null;
     var a = FTAG.near(pc.polys, t[0], t[1]), e = [Math.max(tb[0], Math.min(tb[2], a[0])), Math.max(tb[1], Math.min(tb[3], a[1]))];
     if (strict && pieces.some(function(q) { return q !== pc && FTAG.segHits(a, e, q.box); })) return null;
-    return { key: pc.key, tag: pc.tag, box: tb, cx: t[0], cy: t[1], a: a, e: e, pbox: pc.box, polys: pc.polys };
+    return { key: pc.key, keys: pc.keys, tag: pc.tag, box: tb, cx: t[0], cy: t[1], a: a, e: e, pbox: pc.box, polys: pc.polys };
   };
   pieces.filter(function(p) { return p.tag; }).sort(function(a, b) { return (a.box[0] - b.box[0]) || (a.box[1] - b.box[1]); }).forEach(function(pc) {
     var b = pc.box, w = S.w(pc.tag), h = S.h, cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, got = null;
@@ -28761,7 +28782,8 @@ FTAG.audit = function(res, pieces, tol) {
     for (var j = i + 1; j < res.length; j++) if (FTAG.hit(r.box, res[j].box, 0)) tt++;
     var n = FTAG.near(r.polys, r.a[0], r.a[1]); if (Math.hypot(n[0] - r.a[0], n[1] - r.a[1]) > tol) off++;
   });
-  return { tags: res.length, wanted: pieces.filter(function(p) { return p.tag; }).length, tagPiece: tp, tagTag: tt, leaderOff: off };
+  // wanted: the pieces with a tag; covered: those a placed tag names (a merged tag names several: Brief 25 item 20c)
+  return { tags: res.length, wanted: pieces.filter(function(p) { return p.tag; }).length, covered: res.reduce(function(n, r) { return n + ((r.keys && r.keys.length) || 1); }, 0), tagPiece: tp, tagTag: tt, leaderOff: off };
 };
 // the symbol: the leader (its dot on the outline), the rounded box, the text; through any pen (sheet or screen)
 DRAW_SYMBOLS.ftag = function(P, t, fs) {
