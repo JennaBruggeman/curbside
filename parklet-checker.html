@@ -17371,6 +17371,7 @@ function pkSetSaveStatus(cls, txt) {
   el.className = '';
   if (cls) el.classList.add(cls);
   el.textContent = txt || '';
+  el.title = txt || '';   // the whole status when the bar is narrow and the text is cut (Brief 27 item 2)
 }
 
 // ─── Toast ────────────────────────────────────────────────────────
@@ -29617,6 +29618,31 @@ function uiApplyTips(root) {
 .tb-new { background: rgba(255,255,255,.06); border: 1px solid var(--border-c); border-radius: 4px; color: var(--text-hi); font: 600 12px var(--font-ui); padding: 4px 10px; cursor: pointer; }
 .tb-new:hover { background: rgba(255,255,255,.12); }
 #helpBtn { width: 26px; height: 26px; font-size: 13px; }
+/* Brief 27 item 2 (triage row 6): the top bar fits from 1024 px up. The right-hand controls (the name, + New, Help,
+   Sign in) never shrink or leave the screen; the tabs tighten first, the subtitle goes, the name field narrows; below
+   1024 px the tabs scroll inside their own strip as a last resort */
+.topbar-right { flex-shrink: 0; }
+.topbar-tabs { min-width: 0; overflow-x: auto; scrollbar-width: none; justify-content: safe center; }
+.topbar-tabs::-webkit-scrollbar { display: none; }
+.ttab { flex-shrink: 0; }
+@media (max-width: 1440px) { .brand-sub { display: none; } }
+@media (max-width: 1300px) {
+  .topbar { gap: 10px; }
+  .ttab { padding: 0 9px; }
+  .proj-name-input { width: 140px !important; }
+}
+#pkAccBtn { max-width: 180px; white-space: nowrap; }
+#pkAccLabel { overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px; min-width: 0; }
+@media (max-width: 1100px) {
+  .topbar { padding: 0 8px; gap: 8px; }
+  .topbar-brand { margin-right: 0; }
+  #pkAccBtn { max-width: 120px; }
+  #pkSaveStatus { min-width: 0; max-width: 64px; overflow: hidden; text-overflow: ellipsis; margin-right: 0; }
+  .topbar-tabs { gap: 0; }
+  .ttab { padding: 0 5px; }
+  .topbar-right { gap: 6px; }
+  .proj-name-input { width: 100px !important; }
+}
 /* the left column: the Selection, Grid and Move blocks only with something selected */
 #cadTools.cad-empty { display: none !important; }
 .cad-hd { font: 600 13px var(--font-ui); color: var(--muted); margin: 2px 0 4px; }
