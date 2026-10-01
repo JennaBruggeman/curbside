@@ -104,6 +104,23 @@ create policy "user-furniture: update own" on storage.objects for update to auth
 create policy "user-furniture: delete own" on storage.objects for delete to authenticated
   using (bucket_id = 'user-furniture' and (storage.foldername(name))[1] = auth.uid()::text);
 
+-- ── Design renders (Brief 29 item 8): a private bucket, one folder per user, one per design's gallery ──
+-- (<user id>/<gallery id>/<render id>.png | .jpg, .thumb.jpg, .json); the same per-user policies as above
+insert into storage.buckets (id, name, public) values ('design-renders', 'design-renders', false)
+  on conflict (id) do nothing;
+drop policy if exists "design-renders: read own"   on storage.objects;
+drop policy if exists "design-renders: insert own" on storage.objects;
+drop policy if exists "design-renders: update own" on storage.objects;
+drop policy if exists "design-renders: delete own" on storage.objects;
+create policy "design-renders: read own"   on storage.objects for select to authenticated
+  using (bucket_id = 'design-renders' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "design-renders: insert own" on storage.objects for insert to authenticated
+  with check (bucket_id = 'design-renders' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "design-renders: update own" on storage.objects for update to authenticated
+  using (bucket_id = 'design-renders' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "design-renders: delete own" on storage.objects for delete to authenticated
+  using (bucket_id = 'design-renders' and (storage.foldername(name))[1] = auth.uid()::text);
+
 -- ── check: RLS is on for every table in public (all rows should read true) ─────────────────────────
 -- select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r';
 

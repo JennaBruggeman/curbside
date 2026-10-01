@@ -18289,7 +18289,8 @@ function pkSerialize() {
       neighbourhood:(typeof state !== 'undefined' && typeof state['__neighbourhood'] === 'string') ? state['__neighbourhood'] : '',
       survey:       (typeof state !== 'undefined' && state['__survey'])      ? JSON.parse(JSON.stringify(state['__survey']))      : null,
       existing:     (typeof state !== 'undefined' && state['__existing'])    ? JSON.parse(JSON.stringify(state['__existing']))    : null,   // Brief 22 item 3: the street as imported
-      surveyMap:    (typeof state !== 'undefined' && state['__surveyMap'])   ? JSON.parse(JSON.stringify(state['__surveyMap']))   : null
+      surveyMap:    (typeof state !== 'undefined' && state['__surveyMap'])   ? JSON.parse(JSON.stringify(state['__surveyMap']))   : null,
+      gallery:      (typeof state !== 'undefined' && state['__gallery'])     ? { id: state['__gallery'].id }                       : null    // Brief 29 item 8: the renders' gallery
     },
     furniture: {
       placed: (typeof FL3D !== 'undefined' && FL3D && FL3D.placed) ? FL3D.placed.map(function(inst) {
@@ -18482,6 +18483,7 @@ function pkApplyDesignState(raw) {
       state['__survey']      = data.siteObjects.survey        || null;
       state['__existing']    = data.siteObjects.existing      || null;
       state['__surveyMap']   = data.siteObjects.surveyMap     || null;
+      state['__gallery']     = data.siteObjects.gallery       || null;
     }
   }
 
@@ -26429,7 +26431,7 @@ RVZ.fnv = function(s) { var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) {
 // The text a building's sign carries: its name; an unnamed restaurant / cafe / shop gets its use;
 // other uses unnamed get no sign ('').
 RVZ.signText = function(b) { return b.name || { restaurant: 'Restaurant', cafe: 'Cafe', retail: 'Shop' }[b.use] || ''; };
-RVZ.designHash = function() { return RVZ.fnv(JSON.stringify(getDesignState())); };
+RVZ.designHash = function() { var d = getDesignState(); if (d.siteObjects) delete d.siteObjects.gallery; return RVZ.fnv(JSON.stringify(d)); };
 RVZ.renderKey = function(o, W, H) { return [o.preset, o.appearance, o.year + '-' + o.doy, o.min, 'N' + RVZ.northDeg(), W + 'x' + H, o.people ? 'people' : 'empty'].join('|'); };
 RVZ.cached = function(hash, o, W, H) {
   var m = RVZ.cache.get(hash); if (!m) return null;
@@ -26504,6 +26506,7 @@ RVZ.download = function(e) { PX.download(e.blob, RVZ.fileName(e), 'image/png'); 
 // ── The Visualize tab ─────────────────────────────────────────────────────────────────────────
 RVZ.onOpen = function() {
   RVZ._ui();
+  if (typeof GAL !== 'undefined') GAL.sync().then(function(n) { if (n) GAL.render(); });   // (Brief 29 item 8)
   if (typeof RVZP !== 'undefined') RVZP.ui();
   if (typeof THREE === 'undefined') { RVZ._status('3D is not available in this browser (WebGL).'); return; }
   var L = RVZ._live || (RVZ._live = RVZ._makeLive());
@@ -26684,13 +26687,15 @@ RVZ._drawPath = function(s, dp) {
 };
 RVZ._ctx = function() {
   var el = document.getElementById('rvzCtx'); if (!el) return;
-  var DM = _dmCurrent(), n = (FL3D.placed || []).length, hash = null;
-  try { hash = RVZ.designHash(); } catch (e) {}
-  var m = hash && RVZ.cache.get(hash);
-  el.innerHTML = "<div class='sb-section'><div class='sb-section-lbl'>Scene</div>" +
-    "<p class='rvz-ctx'>Renders the current design: a " + DM.parklet.length.toFixed(1) + ' × ' + DM.landmarks.deckW.toFixed(2) + ' m deck, ' + n + ' placed piece' + (n === 1 ? '' : 's') + ', the street from the Section editor. Edit the design in Design; this tab only looks.</p>' +
-    "<p class='rvz-ctx rvz-dim'>Sidewalks and the deck stand at the Section drawing's heights (the sidewalk and the deck flush, 0.15 m above the road).</p></div>" +
-    "<div class='sb-section'><div class='sb-section-lbl'>Cached renders</div><p class='rvz-ctx'>" + (m && m.size ? m.size + ' for this design' : 'None for this design yet') + (hash ? " <span class='rvz-dim'>(design " + hash + ')</span>' : '') + '</p></div>';
+  var DM = _dmCurrent(), n = (FL3D.placed || []).length;
+  var scene = "<p class='rvz-ctx'>Renders the current design: a " + DM.parklet.length.toFixed(1) + ' × ' + DM.landmarks.deckW.toFixed(2) + ' m deck, ' + n + ' placed piece' + (n === 1 ? '' : 's') + ', the street from the Section editor. Edit the design in Design; this tab only looks.</p>' +
+    "<p class='rvz-ctx rvz-dim'>Sidewalks and the deck stand at the Section drawing's heights (the sidewalk and the deck flush, 0.15 m above the road).</p>";
+  // built once, then updated in place, so the sidebar's folds (SBX.vis) keep them (Brief 29 item 8: the Gallery, no design id)
+  var sc = document.getElementById('rvzScene');
+  if (sc && document.getElementById('galBody')) sc.innerHTML = scene;
+  else el.innerHTML = "<div class='sb-section'><div class='sb-section-lbl'>Scene</div><div id='rvzScene'>" + scene + '</div></div>' +
+    "<div class='sb-section' id='galSec'><div class='sb-section-lbl'>Gallery</div><div id='galBody'></div></div>";
+  if (typeof GAL !== 'undefined') GAL.render();
 };
 RVZ._info = function(s) {
   var el = document.getElementById('rvzViewInfo'); if (!el) return;
@@ -26709,7 +26714,7 @@ RVZ.exportStill = async function(over) {
   try {
     RVZ._status('Rendering ' + (over && over.preset || RVZ.o.preset) + '…', 0);
     var e = await RVZ.renderStill(over, function(p, t) { RVZ._status(t, p); });
-    RVZ.download(e);
+    RVZ.download(e); GAL.addStill(e);
     RVZ._status((e.cached ? 'From the cache: ' : 'Saved ') + RVZ.fileName(e) + ', ' + e.w + ' × ' + e.h + (e.cached ? '' : ' (' + (e.ms / 1000).toFixed(1) + ' s)'), 1);
     RVZ._ctx();
     return e;
@@ -26727,7 +26732,7 @@ RVZ.exportAll = async function() {
     for (var i = 0; i < RVZ.PRESETS.length; i++) {
       var p = RVZ.PRESETS[i][0];
       var e = await RVZ.renderStill({ preset: p }, function(f, t) { RVZ._status(RVZ.PRESETS[i][1] + ' (' + (i + 1) + ' of ' + RVZ.PRESETS.length + '): ' + t, (i + f) / RVZ.PRESETS.length); });
-      RVZ.download(e); done.push(e);
+      RVZ.download(e); GAL.addStill(e); done.push(e);
       await new Promise(function(r) { setTimeout(r, 400); });   // browsers accept a run of downloads spaced out
     }
     RVZ._status('Saved ' + done.length + ' stills (' + done.filter(function(e) { return e.cached; }).length + ' from the cache).', 1);
@@ -26737,6 +26742,164 @@ RVZ.exportAll = async function() {
     RVZ._status('The render failed: ' + (err && err.message ? err.message : err) + '.', 0);
   } finally { RVZ._lock(false); }
   return done;
+};
+
+// ── Gallery (Brief 29 item 8): the open design's renders ────────────────────────────────────────
+// Every still (Render still, Render all presets) and every photoreal render joins the design's gallery: a thumbnail,
+// its preset, date and size; open, re-export (PNG at a chosen scale), delete. The gallery belongs to the design, by an
+// id kept in the design (siteObjects.gallery), so it follows the design to the account and so to any machine. This
+// browser keeps a copy (IndexedDB) as the fast path; signed in, each render also goes to the account's private bucket
+// 'design-renders' (<user id>/<gallery id>/<render id>.png | .jpg, .thumb.jpg, .json; supabase/schema.sql). No id is
+// ever shown.
+var GAL = { DB: 'curbside-gallery', BUCKET: 'design-renders', cloudErr: null, _urls: [], _tok: 0 };
+GAL._hex = function(n) { return Array.from(crypto.getRandomValues(new Uint8Array(n))).map(function(b) { return ('0' + b.toString(16)).slice(-2); }).join(''); };
+GAL.gid = function(make) {
+  if (typeof state === 'undefined') return null;
+  if (!state.__gallery && make) { state.__gallery = { id: GAL._hex(8) }; try { saveSettings(); } catch (e) {} }
+  return state.__gallery ? state.__gallery.id : null;
+};
+// (an open just after a reload can stall while the previous page lets go of its connection: given up after 3 s, and
+// the next call opens again)
+GAL._db = function() {
+  if (!GAL._dbp) GAL._dbp = new Promise(function(res, rej) {
+    var q = indexedDB.open(GAL.DB, 1), t = setTimeout(function() { GAL._dbp = null; rej(new Error('the browser storage did not open')); }, 3000);
+    q.onupgradeneeded = function() { q.result.createObjectStore('items', { keyPath: 'id' }).createIndex('gid', 'gid'); };
+    q.onsuccess = function() { clearTimeout(t); res(q.result); }; q.onerror = function() { clearTimeout(t); GAL._dbp = null; rej(q.error); };
+  });
+  return GAL._dbp;
+};
+GAL._tx = async function(mode, fn) {
+  var db = await GAL._db();
+  return new Promise(function(res, rej) { var t = db.transaction('items', mode), r = fn(t.objectStore('items')); t.oncomplete = function() { res(r && r.result); }; t.onerror = function() { rej(t.error); }; });
+};
+GAL.local = async function(gid, strict) { if (!gid) return []; try { return (await GAL._tx('readonly', function(st) { return st.index('gid').getAll(gid); })) || []; } catch (e) { if (strict) throw e; return []; } };
+GAL.get = function(id) { return GAL._tx('readonly', function(st) { return st.get(id); }); };
+GAL.put = function(it) { return GAL._tx('readwrite', function(st) { return st.put(it); }); };
+GAL._thumb = async function(blob) {
+  var bmp = await createImageBitmap(blob), W = 360, H = Math.max(1, Math.round(W * bmp.height / bmp.width)), c = document.createElement('canvas');
+  c.width = W; c.height = H; c.getContext('2d').drawImage(bmp, 0, 0, W, H);
+  return new Promise(function(r) { c.toBlob(r, 'image/jpeg', 0.82); });
+};
+// a render in: o = { kind 'still' | 'photoreal', preset, w, h, src: what made it (the same render again is not added twice) }
+GAL.add = async function(blob, o) {
+  try {
+    if (!blob) return null;
+    var gid = GAL.gid(true); if (!gid) return null;
+    if (o.src && (await GAL.local(gid)).some(function(x) { return x.src === o.src; })) return null;
+    var it = { id: GAL._hex(8), gid: gid, kind: o.kind, preset: o.preset, w: o.w, h: o.h, bytes: blob.size, created: Date.now(), src: o.src || null, type: blob.type || 'image/png', blob: blob, thumb: await GAL._thumb(blob), cloud: false };
+    await GAL.put(it); GAL.render();
+    GAL.up(it).then(function(ok) { if (ok !== null) GAL.render(); });
+    return it;
+  } catch (e) { console.warn('[gallery] add', e); return null; }
+};
+GAL.addStill = function(e) { if (e && e.blob) return GAL.add(e.blob, { kind: 'still', preset: e.opts.preset, w: e.w, h: e.h, src: e.design + '|' + e.key }); };
+// the account (signed in): the image, its thumbnail and a small record; failures leave the item to retry
+GAL._in = function() { return typeof pkSB !== 'undefined' && pkSB && pkSB.storage && typeof pkCurrentUser !== 'undefined' && pkCurrentUser && pkCurrentUser.id; };
+GAL._ext = function(t) { return /jpe?g/.test(t || '') ? '.jpg' : '.png'; };
+GAL._path = function(it, ext) { return pkCurrentUser.id + '/' + it.gid + '/' + it.id + ext; };
+GAL.up = async function(it) {
+  if (!GAL._in() || it.cloud || !it.blob) return null;
+  try {
+    var B = pkSB.storage.from(GAL.BUCKET), meta = { kind: it.kind, preset: it.preset, w: it.w, h: it.h, bytes: it.bytes, created: it.created, src: it.src, type: it.type };
+    var parts = [[GAL._ext(it.type), it.blob, it.type], ['.thumb.jpg', it.thumb, 'image/jpeg'], ['.json', new Blob([JSON.stringify(meta)], { type: 'application/json' }), 'application/json']];
+    for (var i = 0; i < parts.length; i++) { if (!parts[i][1]) continue; var r = await B.upload(GAL._path(it, parts[i][0]), parts[i][1], { upsert: true, contentType: parts[i][2] }); if (r.error) throw r.error; }
+    it.cloud = true; await GAL.put(it); GAL.cloudErr = null; return true;
+  } catch (e) { GAL.cloudErr = (e && e.message) || String(e); console.warn('[gallery] account upload', GAL.cloudErr); return false; }
+};
+// opening the design (Visualize): the account's renders this browser lacks come down as thumbnails (the image on first
+// open); renders deleted elsewhere go; renders made here while the account was unreachable go up
+GAL.sync = async function() {
+  var gid = GAL.gid(false); if (!GAL._in() || !gid) return 0;
+  try {
+    var B = pkSB.storage.from(GAL.BUCKET), dir = pkCurrentUser.id + '/' + gid, r = await B.list(dir, { limit: 1000 }); if (r.error) throw r.error;
+    var names = (r.data || []).map(function(f) { return f.name; }), ids = {}, have = {}, n = 0;
+    names.forEach(function(nm) { if (/\.json$/.test(nm)) ids[nm.replace(/\.json$/, '')] = 1; });
+    (await GAL.local(gid)).forEach(function(x) { have[x.id] = x; });
+    for (var id in ids) {
+      if (have[id]) { if (!have[id].cloud) { have[id].cloud = true; await GAL.put(have[id]); } continue; }
+      var m = await B.download(dir + '/' + id + '.json'); if (m.error || !m.data) continue;
+      var meta = JSON.parse(await m.data.text()), t = await B.download(dir + '/' + id + '.thumb.jpg');
+      await GAL.put({ id: id, gid: gid, kind: meta.kind, preset: meta.preset, w: meta.w, h: meta.h, bytes: meta.bytes || null, created: meta.created, src: meta.src || null, type: meta.type || 'image/png', blob: null, thumb: t.error ? null : t.data, cloud: true });
+      n++;
+    }
+    for (var k in have) {
+      if (have[k].cloud && !ids[k]) { await GAL._tx('readwrite', function(st) { return st.delete(k); }); n++; }
+      else if (!have[k].cloud && have[k].blob) { await GAL.up(have[k]); n++; }
+    }
+    GAL.cloudErr = null; return n;
+  } catch (e) { GAL.cloudErr = (e && e.message) || String(e); console.warn('[gallery] account sync', GAL.cloudErr); return 0; }
+};
+// the image: this browser's copy, else the account's (kept here after)
+GAL.full = async function(it) {
+  if (it.blob) return it.blob;
+  if (!GAL._in()) return null;
+  var r = await pkSB.storage.from(GAL.BUCKET).download(GAL._path(it, GAL._ext(it.type))); if (r.error || !r.data) return null;
+  it.blob = r.data; it.bytes = it.bytes || r.data.size; await GAL.put(it); return it.blob;
+};
+GAL.label = function(it) { var p = (RVZ.PRESETS.find(function(q) { return q[0] === it.preset; }) || [0, it.preset || 'View'])[1]; return p + (it.kind === 'photoreal' ? ' · photoreal' : ''); };
+GAL.when = function(t) { var d = new Date(t); return d.getDate() + ' ' + RVZ.MONTHS[d.getMonth()] + ' ' + d.getFullYear() + ', ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); };
+GAL.size = function(it) { return it.w + ' × ' + it.h + (it.bytes ? ' · ' + (it.bytes / 1048576).toFixed(1) + ' MB' : ''); };
+GAL.render = async function() {
+  var el = document.getElementById('galBody'); if (!el) return;
+  var tok = ++GAL._tok, gid = GAL.gid(false), list;
+  try { list = await GAL.local(gid, true); } catch (e) { if (tok === GAL._tok) setTimeout(function() { if (tok === GAL._tok) GAL.render(); }, 500); return; }   // the storage not open yet: once more
+  if (tok !== GAL._tok) return;
+  GAL._urls.forEach(function(u) { URL.revokeObjectURL(u); }); GAL._urls = [];
+  list.sort(function(a, b) { return b.created - a.created; });
+  var esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;'); };
+  var cards = list.map(function(it) {
+    var u = it.thumb ? URL.createObjectURL(it.thumb) : ''; if (u) GAL._urls.push(u);
+    var nm = GAL.label(it) + ', ' + GAL.when(it.created);
+    return "<li class='gal-card' data-gal='" + it.id + "'>" +
+      "<button type='button' class='gal-thumb' onclick=\"GAL.open('" + it.id + "')\" aria-label='Open " + esc(nm) + "'>" + (u ? "<img src='" + u + "' alt=''>" : "<span class='gal-noimg'>" + esc(GAL.label(it)) + '</span>') + '</button>' +
+      "<p class='gal-meta'><b>" + esc(GAL.label(it)) + '</b><br>' + esc(GAL.when(it.created)) + '<br>' + esc(GAL.size(it)) + '</p>' +
+      "<p class='gal-acts'><button type='button' class='txt-btn' onclick=\"GAL.open('" + it.id + "')\">Open</button>" +
+      "<select class='gal-exp' aria-label='Re-export " + esc(nm) + " as PNG' onchange=\"GAL.reexport('" + it.id + "', +this.value); this.value=''\"><option value=''>Re-export</option><option value='1'>PNG, full size</option><option value='0.5'>PNG, half size</option><option value='0.25'>PNG, quarter size</option></select>" +
+      "<button type='button' class='txt-btn gal-del' onclick=\"GAL.del('" + it.id + "', this)\">Delete</button></p></li>";
+  });
+  var where = !GAL._in() ? 'Kept in this browser only. Sign in to keep renders with the design in your account, on any machine.'
+    : GAL.cloudErr ? 'Kept in this browser; the copy to your account did not go through (' + GAL.cloudErr + '). It is tried again when you open Visualize.'
+    : 'Kept with this design in your account, and in this browser.';
+  el.innerHTML = (cards.length ? "<ul class='gal-grid'>" + cards.join('') + '</ul>' : "<p class='rvz-ctx'>No renders of this design yet. Render still, Render all presets and photoreal renders appear here.</p>") +
+    "<p class='rvz-ctx rvz-dim gal-where'>" + esc(where) + '</p>';
+};
+// open: the full image over the view; Esc or Close
+GAL.open = async function(id) {
+  var it = await GAL.get(id); if (!it) return;
+  var ov = document.getElementById('galView');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'galView'; ov.className = 'gal-view'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.hidden = true;
+    ov.addEventListener('keydown', function(e) { if (e.key === 'Escape') GAL.close(); });
+    ov.addEventListener('click', function(e) { if (e.target === ov) GAL.close(); });
+    document.body.appendChild(ov);
+  }
+  GAL._back = document.activeElement;
+  ov.setAttribute('aria-label', GAL.label(it));
+  ov.innerHTML = "<figure><div class='gal-view-img'><p class='rvz-ctx'>Loading…</p></div><figcaption><span>" + GAL.label(it) + ' · ' + GAL.when(it.created) + ' · ' + GAL.size(it) + (it.kind === 'photoreal' ? ' · ' + RVZP.CAPTION.replace(' - ', ' · ') : '') + "</span><button type='button' class='rvz-btn' id='galClose'>Close</button></figcaption></figure>";
+  ov.hidden = false; document.getElementById('galClose').onclick = GAL.close; document.getElementById('galClose').focus();
+  var b = await GAL.full(it), box = ov.querySelector('.gal-view-img'); if (!box) return;
+  if (!b) { box.innerHTML = "<p class='rvz-ctx'>The image is not in this browser and your account could not be reached.</p>"; return; }
+  if (GAL._viewUrl) URL.revokeObjectURL(GAL._viewUrl);
+  GAL._viewUrl = URL.createObjectURL(b); box.innerHTML = "<img src='" + GAL._viewUrl + "' alt='" + GAL.label(it).replace(/'/g, '&#39;') + "'>";
+};
+GAL.close = function() { var ov = document.getElementById('galView'); if (ov) ov.hidden = true; if (GAL._back && GAL._back.focus) try { GAL._back.focus(); } catch (e) {} };
+// re-export: the image as PNG at a scale of its own size
+GAL.reexport = async function(id, k) {
+  if (!(k > 0)) return;
+  var it = await GAL.get(id), b = it && await GAL.full(it); if (!b) { RVZ._status('That render is not in this browser and your account could not be reached.'); return; }
+  var bmp = await createImageBitmap(b), W = Math.max(1, Math.round(bmp.width * k)), H = Math.max(1, Math.round(bmp.height * k)), c = document.createElement('canvas');
+  c.width = W; c.height = H; var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(bmp, 0, 0, W, H);
+  var out = await new Promise(function(r) { c.toBlob(r, 'image/png'); }), pn = document.getElementById('projectName');
+  PX.download(out, PX.slug(pn && pn.value) + '-' + (it.preset || 'view') + (it.kind === 'photoreal' ? '-photoreal' : '') + '-' + W + 'x' + H + '.png', 'image/png');
+  RVZ._status('Saved ' + GAL.label(it) + ' at ' + W + ' × ' + H + '.', 1);
+};
+// delete: a second click within 4 s confirms
+GAL.del = async function(id, btn) {
+  if (btn && !btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = 'Delete?'; btn.classList.add('gal-armed'); setTimeout(function() { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = 'Delete'; btn.classList.remove('gal-armed'); } }, 4000); return; }
+  var it = await GAL.get(id); if (!it) return;
+  await GAL._tx('readwrite', function(st) { return st.delete(id); });
+  if (it.cloud && GAL._in()) { try { await pkSB.storage.from(GAL.BUCKET).remove([GAL._path(it, GAL._ext(it.type)), GAL._path(it, '.thumb.jpg'), GAL._path(it, '.json')]); } catch (e) { console.warn('[gallery] account delete', e); } }
+  GAL.render();
 };
 </script>
 <style>
@@ -27433,7 +27596,7 @@ RVZP.runPreset = async function(preset, prompt, strength) {
     meta: { strengths: [sD, sC], depthRange: P.depthRange, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, model: RVZP.o.provider, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
     blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), zdist: await RVZP._blob(P.zdist), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), aiDesign: got[0], aiContext: got[1], final: await RVZP._blob(fin) } };
   await RVZP.dbPut(e);
-  RVZP.entries[preset] = e;
+  RVZP.entries[preset] = e; GAL.add(e.blobs.final, { kind: 'photoreal', preset: preset, w: P.W, h: P.H, src: key });
   console.log('[photoreal] rendered ' + preset + ' ' + P.W + 'x' + P.H + ' (design ' + hash + ', strengths ' + sD + ' / ' + sC + '), edge IoU in the mask vs edges.png ' + al.edges + ' (base render ' + al.ceiling + ', relative ' + al.relative + '), vs the base render ' + al.base + ', benches in the design region ' + benches.visibleInMask + ' of ' + benches.placed + ' placed; cached');
   RVZP._set(preset, 'done', 'edges ' + al.edges + ' / ' + al.ceiling + ', vs base ' + al.base);
   return e;
@@ -27469,7 +27632,7 @@ RVZP._runEdit = async function(preset, prompt, P, hash, key) {
     meta: { kind: 'edit', model: model, outputSize: bmp.width + 'x' + bmp.height, iou: al.edges, alignment: al, benches: { placed: benches.placed, visibleInMask: benches.visibleInMask }, benchKept: bk, design: dc, framing: fr, pass: !!(fr.pass && dc && dc.pass), attempts: attempts, contextPhoto: ref ? { id: ref.id, creator: ref.creator, captured: ref.captured, license: ref.license, attribution: ref.attribution } : null, jobId: a.job.id, provider: RVZP.adapter + '-' + ((RVZP.proxy && RVZP.proxy.mode) || 'live') },
     blobs: { colour: await RVZP._blob(P.colour), depth: await RVZP._blob(P.depth), edges: await RVZP._blob(P.edges), mask: await RVZP._blob(P.mask), output: a.got, final: await RVZP._blob(nat) } };
   await RVZP.dbPut(e);
-  RVZP.entries[preset] = e;
+  RVZP.entries[preset] = e; GAL.add(e.blobs.final, { kind: 'photoreal', preset: preset, w: bmp.width, h: bmp.height, src: key });
   console.log('[photoreal] rendered ' + preset + ' with ' + model + ' (' + e.meta.outputSize + ', design ' + hash + ', ' + tries.length + ' attempt' + (tries.length > 1 ? 's, kept ' + a.n : '') + '): ' + fr.card + '; ' + (dc ? dc.card + (dc.pass ? ' PASS' : ' FAIL') + '; ' : '') + 'relative edge score ' + al.relative + ', bench kept ' + bk + '; cached');
   RVZP._set(preset, 'done', fr.card + (dc ? '; ' + dc.card : ''));
   return e;
@@ -27531,7 +27694,7 @@ RVZP.ui = function() {
       "<button type='button' class='rvz-chip' id='rvzpReset'>Use the generated prompt</button>" +
       "<button type='button' class='rvz-btn rvz-primary' id='rvzpGo'>Render 4</button>" +
       "<ul class='rvzp-list' id='rvzpList'></ul>" +
-      "<div class='rvz-row'><button type='button' class='rvz-btn' id='rvzpGal'>Gallery</button><button type='button' class='rvz-btn' id='rvzpClear' title='Deletes every cached render in this browser (all designs). Renders already in a downloaded report are not affected.'>Clear renders</button></div>" +
+      "<div class='rvz-row'><button type='button' class='rvz-btn' id='rvzpGal' title='Each photoreal render beside its base render, with the fidelity checks'>Compare with base</button><button type='button' class='rvz-btn' id='rvzpClear' title='Deletes every cached render in this browser (all designs). Renders already in a downloaded report are not affected.'>Clear renders</button></div>" +
     '</div>';
   rail.appendChild(sec);
   var view = document.getElementById('rvzView'), gal = document.createElement('div');
@@ -27607,6 +27770,27 @@ RVZP._gallery = async function() {
 };
 </script>
 <style>
+/* -- the Gallery (Brief 29 item 8): the design's renders in the Visualize sidebar ---------------- */
+.gal-grid { list-style: none; margin: 0 0 8px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px 8px; }
+.gal-card { display: grid; gap: 4px; min-width: 0; }
+.gal-thumb { display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 1px solid var(--sb-rule, rgba(255,255,255,.08)); border-radius: 3px; background: rgba(255,255,255,.04); overflow: hidden; cursor: zoom-in; }
+.gal-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gal-thumb:focus-visible, .gal-acts button:focus-visible, .gal-exp:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
+.gal-noimg { display: flex; height: 100%; align-items: center; justify-content: center; font: 11px var(--font-ui); color: var(--sb-muted); }
+.gal-meta { margin: 0; font: 11px/1.4 var(--font-ui); color: var(--sb-muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.gal-meta b { color: var(--sb-text, #E2E5E8); font-weight: 600; }
+.gal-acts { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font: 11px var(--font-ui); }
+.gal-acts .txt-btn { font: 600 11px var(--font-ui); color: var(--accent-ui, #3AA8E4); background: none; border: 0; padding: 0; cursor: pointer; }
+.gal-acts .gal-del { color: var(--sb-muted); }
+.gal-acts .gal-del.gal-armed { color: #E06060; }
+.gal-exp { max-width: 100%; height: 20px; font: 11px var(--font-ui); color: var(--sb-text, #E2E5E8); background: rgba(255,255,255,.06); border: 1px solid var(--sb-rule, rgba(255,255,255,.12)); border-radius: 3px; }
+.gal-where { margin-top: 4px; }
+.gal-view { position: fixed; inset: 0; z-index: 9100; background: rgba(12, 14, 17, .86); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.gal-view[hidden] { display: none; }
+.gal-view figure { margin: 0; max-width: 100%; max-height: 100%; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; }
+.gal-view-img { min-height: 0; display: flex; align-items: center; justify-content: center; }
+.gal-view-img img { max-width: min(92vw, 100%); max-height: calc(100vh - 110px); object-fit: contain; display: block; }
+.gal-view figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #E2E5E8; font: 12px var(--font-ui); }
 /* -- Site from map (Brief 13): the map picker ----------------------------------------------- */
 #smModal { position: fixed; inset: 0; z-index: 900; display: none; background: rgba(10, 12, 14, .62); }
 #smModal.open { display: flex; align-items: center; justify-content: center; }
@@ -28742,7 +28926,8 @@ SBX.vis = function() {
   var ctx = document.getElementById('rvzCtx');
   if (ctx) [].slice.call(ctx.querySelectorAll(':scope > .sb-section')).forEach(function(sec, i) {
     var lb = sec.querySelector('.sb-section-lbl'), t = lb ? lb.textContent.trim() : 'Scene'; if (lb) lb.hidden = true;
-    SBX.fold('vzCtx' + i, t, [].slice.call(sec.children).filter(function(c) { return c !== lb; }));
+    var fd = SBX.fold('vzCtx' + i, t, [].slice.call(sec.children).filter(function(c) { return c !== lb; }));
+    if (fd && sec.id === 'galSec' && SBX.visOpen()[fd.id] === undefined) fd.open = true;   // the Gallery open until closed (Brief 29 item 8)
   });
   SBX.relay();
   return true;
