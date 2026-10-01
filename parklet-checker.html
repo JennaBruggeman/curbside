@@ -18342,12 +18342,15 @@ function pkOfflineDesign() {
   var raw = null; try { raw = localStorage.getItem('pkt-design-state'); } catch (e) {}
   if (!raw) return null;
   var d = null; try { d = JSON.parse(raw); } catch (e) { return null; }
-  if (!d || typeof d !== 'object') return null;
+  return pkDesignHasContent(d) ? d : null;
+}
+// a design with something in it: a site (real or blank), a piece placed, a Check value, or a name of its own
+function pkDesignHasContent(d) {
+  if (!d || typeof d !== 'object') return false;
   var so = d.siteObjects || {}, nm = (d.project && d.project.name) || '', c0 = (typeof DEFAULT_STATE !== 'undefined' && DEFAULT_STATE.compliance) || {};
-  var content = !!so.siteMap || !!so.generic || ((d.furniture || {}).placed || []).length > 0 ||
+  return !!so.siteMap || !!so.generic || ((d.furniture || {}).placed || []).length > 0 ||
     Object.keys(d.compliance || {}).some(function(k) { var v = d.compliance[k]; return v !== '' && v != null && v !== c0[k]; }) ||
     (!!nm && nm !== 'Untitled parklet' && nm !== 'New Parklet');
-  return content ? d : null;
 }
 function pkOfflineKey(d) { var s = JSON.stringify(d), h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
 async function pkCheckLocalMigration() {
@@ -18671,31 +18674,44 @@ async function pkOpenDesignFromBrowser(id) {
 }
 
 // ─── New design dialog ────────────────────────────────────────────
-function pkShowNewDesignDialog() {
-  var html = [
-    '<div class="pk-modal-overlay active" id="pkNewDlg">',
-    '<div class="pk-dialog-box">',
-    '<div class="pk-dialog-title">New Design</div>',
-    '<div class="pk-form-group"><label class="pk-form-label">Design Name</label>',
-    '<input type="text" id="pkNDName" class="pk-form-input" value="Untitled parklet" placeholder="e.g. Main St Parklet" onkeydown="if(event.key===\'Enter\')pkDoCreateNewDesign()"></div>',
-    '<div class="pk-form-group"><label class="pk-form-label">Street Address <span style="color:var(--text-mu);font-weight:400;">(optional)</span></label>',
-    '<input type="text" id="pkNDAddr" class="pk-form-input" placeholder="e.g. 1000-block Robson St" onkeydown="if(event.key===\'Enter\')pkDoCreateNewDesign()"></div>',
-    '<div class="pk-dialog-btns">',
-    '<button class="pk-btn-secondary" style="width:auto;margin:0;" onclick="document.getElementById(\'pkNewDlg\').remove()">Cancel</button>',
-    '<button class="pk-btn-primary" style="width:auto;margin:0;" onclick="pkDoCreateNewDesign()">Create Design &rarr;</button>',
-    '</div>',
-    '</div>',
-    '</div>'
-  ].join('');
-  document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(function() { var el = document.getElementById('pkNDName'); if (el) { el.select(); } }, 50);
+// Brief 27 item 5 (triage row 8): "+ New" asks first only when the open design would be lost or is not in the account,
+// then opens the same "Choose a site" screen as a first visit (no naming dialog: a first visit has none; the name is set
+// in the top bar, and signed in the first site makes the account row, as after signing in)
+function pkNewRisk() {
+  var nm = ((document.getElementById('projectName') || {}).value || 'Untitled parklet').trim();
+  if (!SAVE.signedIn()) {
+    return pkDesignHasContent(getDesignState()) ? { t: '“' + nm + '” is kept only in this browser, and a new design replaces it. Sign in first to keep it in your account.', signIn: true } : null;
+  }
+  if (SAVE.st === 'failed') return { t: '“' + nm + '” is not saved to your account: the last save failed. It stays in this browser, and the next sign-in here offers to move it to your account.' };
+  return null;
 }
-async function pkDoCreateNewDesign() {
-  var name = (document.getElementById('pkNDName')||{}).value || 'Untitled parklet';
-  var addr = (document.getElementById('pkNDAddr')||{}).value || '';
-  var dlg  = document.getElementById('pkNewDlg');
-  if (dlg) dlg.remove();
-  await pkNewDesign(name.trim() || 'Untitled parklet', addr.trim());
+function pkShowNewDesignDialog() {
+  var risk = pkNewRisk();
+  if (!risk) { pkStartNew(); return; }
+  var html = "<div class='pk-modal-overlay active' id='pkNewDlg' role='dialog' aria-modal='true' aria-labelledby='pkNewT'><div class='pk-dialog-box'>" +
+    "<div class='pk-dialog-title' id='pkNewT'>Start a new design?</div><div class='pk-dialog-body'>" + pkEsc(risk.t) + '</div>' +
+    "<div class='pk-dialog-btns' style='flex-wrap:wrap;gap:6px;'>" +
+    "<button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' id='pkNewCancel' onclick='pkNewClose()'>Cancel</button>" +
+    (risk.signIn ? "<button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' onclick='pkNewClose();if(!pkSB&&typeof pkInitSupabase===\"function\")pkInitSupabase();pkShowAuthModal()'>Sign in to keep it</button>" : '') +
+    "<button type='button' class='pk-btn-danger' style='width:auto;margin:0;' onclick='pkNewClose();pkStartNew()'>Start a new design</button>" +
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  var dlg = document.getElementById('pkNewDlg');
+  dlg.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); pkNewClose(); } });
+  document.getElementById('pkNewCancel').focus();   // the safe choice first
+}
+function pkNewClose() { var d = document.getElementById('pkNewDlg'); if (d) d.remove(); var b = document.getElementById('pkNewBtn'); if (b) b.focus(); }
+function pkStartNew() {
+  if (pkCurrentDesignId && pkSB && pkCurrentUser) {   // signed in: the open design's state now, saved behind
+    var _oldId = pkCurrentDesignId, _oldData = pkSerialize();
+    pkSaveSnapshot(_oldId, _oldData).then(function(ok) { if (!ok) return; var i = pkAllDesigns.findIndex(function(q) { return q.id === _oldId; }); if (i >= 0) pkAllDesigns[i].updated_at = new Date().toISOString(); });
+  }
+  pkNewTicket = null; pkCurrentDesignId = null; pkCurrentDesignMeta = null;
+  if (pkSB && pkCurrentUser) window.pkOpenNone = true;   // the first site makes its row (SEED.parklet)
+  pkApplyBlank(pkDefaultState());
+  if (typeof SAVE !== 'undefined') SAVE.reset();
+  pkHideDesignBrowser(); pkUpdateAccountUI();
+  if (typeof appSetMode === 'function') appSetMode('site');
 }
 
 // ─── Rename dialog ────────────────────────────────────────────────
@@ -18931,7 +18947,6 @@ window.pkCloseProfile      = pkCloseProfile;
 window.pkDoSaveProfile     = pkDoSaveProfile;
 window.pkSignOut           = pkSignOut;
 window.pkShowNewDesignDialog    = pkShowNewDesignDialog;
-window.pkDoCreateNewDesign      = pkDoCreateNewDesign;
 window.pkOpenDesignFromBrowser  = pkOpenDesignFromBrowser;
 window.pkPromptRename      = pkPromptRename;
 window.pkDoRename          = pkDoRename;
