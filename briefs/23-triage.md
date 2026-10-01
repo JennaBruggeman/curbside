@@ -636,3 +636,45 @@ pass.
     send it back sooner.
   - Trusts neither for C03 or C13 until site values are entered.
 - Evidence: the agent's report (this block); the input PDFs in `<scratchpad>\b23\full\p2-run2\` and `p3-run2\`.
+
+### Run: Persona 6 (returning user, signed out), run 2, Sonnet
+
+- **Site:** Victoria Dr at E 22nd Av, east side. **Time:** about 10 minutes to an imported site with a verdict (C01
+  fails on a bus zone), then the persistence table. Signed out throughout.
+- **Persistence, signed out (the point of this run)**
+
+  | Change, then reload | Survived? |
+  |---|---|
+  | Import the street context | yes |
+  | Rename the design | yes |
+  | Change the traffic-side edge (Steel picket → Timber boards) | yes |
+  | Place furniture, reload at once | **no** |
+  | Place furniture, switch to Check and back, reload | **no** |
+  | Type a value in the Check tab (street slope 2.5 %) | **no** |
+  | "+ New" | replaces the open design at once, no warning; signed out there is no way back to it |
+
+- **Confirmed on the live site** (Dunbar, signed out):
+  - **Furniture after a tab switch:** two pieces placed, a switch to Check and back. The stored design held 0 pieces
+    before the reload and 0 after. **Correction to the run 1 block above:** a tab switch does not save; my earlier
+    check was wrong.
+  - **A Check value:** C04 set to 2.5 in one input event. The value is written to the old `parklet-state` key but not
+    to `pkt-design-state`, and the restore on load reads only `pkt-design-state`, so after the reload the field is
+    empty.
+  - **What saves:** only `saveSettings` (site, name, Edge) schedules the design save, so **neither furniture nor any
+    Check entry survives a reload signed out.** Signed in is not tested (no account).
+- **Also**
+  - "+ New" gives no warning about the open design, and signed out there is no list to get it back from.
+  - The sign-in dialog has no close control (Escape and the backdrop do nothing), as run 1 and persona 5 found.
+  - "Place" switches to the 3D view with nothing placed; only a drag in the Plan places a piece (as before).
+  - In the shape editor the corner and edge handles look alike, so a corner drag notches the deck when a resize was
+    meant. This is likely how persona 3 run 2's notched deck came about (persona 8 run 2). The edge-length box
+    disappears when the pointer leaves the edge to click it.
+  - `GEN is not defined` (as all runs). It does not cause the save loss: the save is simply never called.
+- **README / landing wrong:**
+  - Nothing says furniture and Check entries are lost on reload signed out.
+  - "+ New" is not in the README.
+  - Step 5 doesn't say a piece is dragged in the Plan.
+- **For Jenna (signed in):** run the same table signed in, (c), (d) and (f) first. If the cloud save also loses them,
+  the save bug is on both paths. Also try "+ New" with unsaved edits, then reopen the earlier design from the design
+  list.
+- Evidence: `<scratchpad>\b23\full\p6-run2\` (001–092.png; 054–055 the bench gone, 078 the Check value reverted).
