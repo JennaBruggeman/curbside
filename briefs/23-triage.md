@@ -825,3 +825,43 @@ pass.
   - "Designs are kept in your account and reopen where you left them": not tested signed out; locally the furniture was
     not kept.
 - Evidence: `<scratchpad>\b23\full\parent-run3\` (001–075.png, `curbside-untitled-parklet-schematic.pdf`).
+
+### Run: Persona 4 (sceptical engineer), run 3, Sonnet
+
+- **Site:** E Broadway at Fraser St, south side (one-way, three 3.12 m lanes). The deck was cut to 4.00 × 2.65 m in
+  the end. **Time:** about 10 minutes to a sited deck, 45 in all, then a 14-page PDF.
+- **What held up**
+  - **The shape editor's checks:**
+    - a self-crossing outline: "The outline crosses itself: edges 2 and 4", with the crossing marked;
+    - a sliver: "Edge 2 is 0.15 m long; the shortest edge allowed is 0.25 m";
+    - letters in a length: "An edge must be at least 0.25 m long";
+    - "1e3" (1000 m): "Edge 1 runs past the end of the parking segment".
+    - Each one disabled Apply.
+  - The editor's own Undo / Redo stepped through valid and invalid shapes, and their errors, correctly; Cancel
+    reverted cleanly.
+  - " 4 " became 4.
+  - **C18 failed sensibly** on the 4 m deck (no room for two 1.8 m openings).
+  - **Switching tabs during the PDF build** did not disturb it: the button kept its progress and the PDF was complete.
+- **Broke**
+  - **"2,5" becomes 25** in the shape editor's length box: the comma is dropped silently, a tenfold error. This is
+    browser behaviour for a number field in an English locale. Here the geometry check caught the 25 m edge; a value
+    that stays plausible would pass unnoticed. Also "3 m" kept 3 silently.
+  - **A long design name breaks the title sheet:**
+    - On A-000 the name (about 230 characters) runs over the legend and the notes. In the PDF text the legend's labels
+      are cut off at the left ("ailing (0.35)", "op of curb)").
+    - The app's own check logged `[report] layout check: {overlaps: Array(4), outside: Array(106)}`. Confirmed in the
+      PDF text.
+  - **The file name is not truncated:** a 222-character name, which put the saved path past Windows' 260-character
+    limit. The test folder could not open it until it was copied to a short name.
+  - **Emoji print as "????" plus a replacement glyph** in every sheet's header (confirmed in the PDF text). The sheets'
+    fonts have no emoji, and the name is printed unfiltered.
+  - `GEN is not defined` twice on opening Design.
+- **Not tested:** two browser windows (the harness gives `newbrowser` to persona 6 only; persona 6 run 3 has it).
+  Browser Back by Alt+ArrowLeft changed nothing, and the URL never changes between tabs; inconclusive.
+- **Confused:**
+  - The deck's "Length 19.80 m × width 2.65 m" looks editable but is a summary: the editor is behind "✎ Edit the deck's
+    shape".
+  - Hover-then-click on an edge's length label closed it. A single click on the edge opens the "Edge 3" box (persona 6
+    run 2 met the same).
+- **README / landing wrong:** none; the README doesn't mention the shape editor.
+- Evidence: `<scratchpad>\b23\full\p4-run3\` (001–078.png; the PDF, copied as `long.pdf`).
