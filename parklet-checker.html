@@ -4810,10 +4810,15 @@ document.addEventListener('mouseup', function() {
     return LM && LM.sidewalkL ? [LM.sidewalkL.x0, Math.max(LM.roadRight, LM.allocatedRight) + ((+SIDEWALK_W > 0) ? +SIDEWALK_W : 2)] : null;
   }
   function _recomputeScale() {
-    if (!_fitMode && _userSC) { SECTION_PX_PER_M = _userSC; return; }
-    SECTION_PX_PER_M = 60;
-    var sp = _streetSpan(), avail = _vpWidth() - 26;
-    if (sp && sp[1] > sp[0] && avail > 40) SECTION_PX_PER_M = Math.max(4, Math.min(120, avail / (sp[1] - sp[0])));
+    if (!_fitMode && _userSC) SECTION_PX_PER_M = _userSC;
+    else {
+      SECTION_PX_PER_M = 60;
+      var sp = _streetSpan(), avail = _vpWidth() - 26;
+      if (sp && sp[1] > sp[0] && avail > 40) SECTION_PX_PER_M = Math.max(4, Math.min(120, avail / (sp[1] - sp[0])));
+    }
+    // its tier (Brief 29 item 5): far, no text (names and widths on hover); mid, the band names and widths; near, the
+    // drawing's own labels too (CSS on data-lod)
+    var root = document.getElementById('seRoot'); if (root && typeof lodLive === 'function') root.setAttribute('data-lod', lodLive(SECTION_PX_PER_M));
   }
   // in the fit: the street's left end at the viewport's left (13 px in); vertical too (the ground in view) when asked
   function _fitScroll(vert) {
@@ -5202,7 +5207,7 @@ document.addEventListener('mouseup', function() {
       html += '<div class="se-seg'+(def.fixed?' se-fixed':'')+(s.id===_selId?' se-selected':'')+'" '+
         'id="seg_'+s.id+'" data-id="'+s.id+'" data-type="'+s.type+'" '+
         (def.fixed?'':'tabindex="0" aria-label="' + name + ' ' + s.width.toFixed(2) + ' m" ')+
-        'style="left:'+bx[0].toFixed(2)+'px;width:'+px.toFixed(2)+'px">'+
+        'title="' + name + (s.width > 0 ? ' · ' + s.width.toFixed(2) + ' m' : '') + '" style="left:'+bx[0].toFixed(2)+'px;width:'+px.toFixed(2)+'px">'+
         inner + lhHtml + rhHtml + '</div>';
     }
     var ub = _boxOf('unalloc', f), unallocPx = Math.abs(m.remaining) >= 0.001 ? ub[1] - ub[0] : 0;
@@ -6347,7 +6352,7 @@ function _drawSection(svgEl, o) {
           var a = X(f.frontageX), b = X(f.faceX), yy = SW_TOP - 6;
           g += "<line x1='" + f1(a) + "' y1='" + yy + "' x2='" + f1(b) + "' y2='" + yy + "'" + K1('context', { c: BINK }) + '/>';
           [a, b].forEach(function(q) { g += "<line x1='" + f1(q - 2.5) + "' y1='" + (yy + 2.5) + "' x2='" + f1(q + 2.5) + "' y2='" + (yy - 2.5) + "'" + K1('edge', { c: BINK }) + '/>'; });
-          if (Math.abs(b - a) > 26) g += "<text x='" + f1((a + b) / 2) + "' y='" + (yy - 3) + "' text-anchor='middle' font-family='" + DRAW_STYLE.FONT + "' font-size='" + f2(LBL) + "' fill='" + BINK + "'>" + f.setback.toFixed(2) + '</text>';
+          if (Math.abs(b - a) > 26) g += "<text class='se-lbl' x='" + f1((a + b) / 2) + "' y='" + (yy - 3) + "' text-anchor='middle' font-family='" + DRAW_STYLE.FONT + "' font-size='" + f2(LBL) + "' fill='" + BINK + "'>" + f.setback.toFixed(2) + '</text>';
         }
       } else if (it.kind === 'street') {
         var cf = d.cf, sx = X(cx), w2 = (it.x1 - it.x0) / 2 * SC;
@@ -6399,7 +6404,7 @@ function _drawSection(svgEl, o) {
             rot: (typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0)),
             xToPx: X, yDeck: b0, SC: SC, isBeyond: false, tech: isTech, id: inst.id });
           var fl = Math.min(X(it.x0), X(it.x1)), fw = Math.abs(X(it.x1) - X(it.x0)), fh = Math.max(3, Y(it.y1 - it.y0));
-          if (fw > FL_ARCHETYPES[sp.type].label.length * FL_LABEL * 0.62 + 4) g += '<text x="' + Math.round(fl + fw / 2) + '" y="' + Math.round(b0 - fh / 2 + 2) + '" text-anchor="middle" font-family="' + DRAW_STYLE.FONT + '" font-size="' + f2(FL_LABEL) + '" fill="' + T.anno + '" dominant-baseline="middle">' + FL_ARCHETYPES[sp.type].label + '</text>';
+          if (fw > FL_ARCHETYPES[sp.type].label.length * FL_LABEL * 0.62 + 4) g += '<text class="se-lbl" x="' + Math.round(fl + fw / 2) + '" y="' + Math.round(b0 - fh / 2 + 2) + '" text-anchor="middle" font-family="' + DRAW_STYLE.FONT + '" font-size="' + f2(FL_LABEL) + '" fill="' + T.anno + '" dominant-baseline="middle">' + FL_ARCHETYPES[sp.type].label + '</text>';
         } else g += rectXY(X(it.x0), X(it.x1), pkSurface, pkSurface - Y(it.y1 - it.y0), solid('fill.furniture'));
       } else if (it.kind === 'street') {
         // poles and hydrants, cut: steel / cast iron, solid; a signal cabinet in its concrete fill
@@ -6537,7 +6542,7 @@ function dimArrow(x1, x2, midY, code, req, st, ctx, ann, rule) {
   var L = typeof req === 'object' ? req : { val: req }, vc = st === 'fail' ? z.c : rule ? 'anno' : 'ink', nc = st === 'fail' ? z.c : 'anno';
   if (ann) {
     ann.lozenge(code, st, cx, midY - 2.6 * k, [cx, midY]);
-    ann.text('dim', L.val, cx, midY + 1.2 * k + DRAW_STYLE.fs(ctx, 'body'), { role: 'body', anchor: 'middle', c: vc, axis: 'x', at: [cx, midY], sub: L.note, subC: nc, data: " data-clr='" + code + "'" });
+    ann.text('dim', L.val, cx, midY + 1.2 * k + DRAW_STYLE.fs(ctx, 'body'), { role: 'body', anchor: 'middle', c: vc, axis: 'x', at: [cx, midY], sub: L.note, subC: nc, need: st !== 'pass' || !!rule, data: " data-clr='" + code + "'" });
     return P.body();
   }
   DRAW_SYMBOLS.lozenge(P, cx, midY - 2.6 * k, code, st);
@@ -7152,6 +7157,13 @@ function treeSeed(v) {
 function treeN(v) { return Math.max(64, Math.min(200, Math.round(24 * (v.canopyR || 1)))); }
 function lodTier(pxPerM) { return pxPerM < 2 ? 'far' : pxPerM <= 8 ? 'mid' : 'near'; }
 var LOD_RANK = { far: 0, mid: 1, near: 2 };
+// the live Plan and Section (Brief 29 item 5): the tier by on-screen scale, 1:n with a CSS mm of 96 / 25.4 px. Far, smaller
+// than 1:500: deck, ground, buildings, canopies and the rule lozenges, the check zones as faint fills, no text; mid, to
+// 1:150: adds the furniture tags and the clearances of failing or unmeasured checks; near: everything the sheets show,
+// without leaders. Hovering a zone, a piece, a building, the deck or a band shows its full label at every tier. Live text
+// is set in screen px, so it never shrinks below the readable size: what has no free place is dropped instead.
+function lodScale(pxPerM) { return Math.round(1000 * (96 / 25.4) / Math.max(1e-6, pxPerM)); }
+function lodLive(pxPerM) { var n = lodScale(pxPerM); return n > 500 ? 'far' : n > 150 ? 'mid' : 'near'; }
 DRAW_STYLE.fmtClear = function(v, req, id, max) { return DRAW_STYLE.fmt(v) + ' (' + (max ? '≤' : '≥') + DRAW_STYLE.fmt(req) + ' ' + id + ')'; };
 // Brief 27 item 8 (triage row 12): a distance drawn from the rule, nothing measured or entered, reads as the requirement
 // ("6.00 req. (C03)") on a dashed dimension line, never like a measured value just meeting it ("6.00 (≥6.00 C03)")
@@ -7673,9 +7685,9 @@ function _renderPlanView(o) {
   // plan-unit annotation (handles, chips, small marks) at a steady screen size: this frame's U (Brief 18: never the last one's)
   const pvZS = paper ? 1 : U;
   // the annotation tier (Brief 19 A): from the screen's px per metre (paper: the sheet scale, 2 px/m per mm/m)
-  const LOD = paper ? lodTier(2 * (o.mmPerM || 10)) : lodTier(PLAN_PX_M / U), LODn = LOD_RANK[LOD];
+  const LOD = paper ? lodTier(2 * (o.mmPerM || 10)) : lodLive(PLAN_PX_M / U), LODn = LOD_RANK[LOD];   // live: by on-screen scale (Brief 29 item 5)
   const atTier = function(t) { return LODn >= LOD_RANK[t]; };
-  if (!paper) window._pvLod = { tier: LOD, pxPerM: +(PLAN_PX_M / U).toFixed(2) };
+  if (!paper) window._pvLod = { tier: LOD, pxPerM: +(PLAN_PX_M / U).toFixed(2), scale: lodScale(PLAN_PX_M / U) };
   const pvDFV = 8 * pvZS, pvDFL = 6 * pvZS, pvDFS = 5.5 * pvZS;
   const pvDTK = (0.85 * pvZS).toFixed(2), pvDEXT = (0.55 * pvZS).toFixed(2);
   const pvDTCK = 2.5 * pvZS, pvDGAP = 1.5 * pvZS;
@@ -7692,11 +7704,12 @@ function _renderPlanView(o) {
   const _annEsc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
   // a text: kind, the string, its anchor point, o = {role 'body' | 'tag' (screen px sizes), px, anchor, c, bold, axis 'x' | 'y', lo, hi (the
   // axis's bounds), data, at [x, y] (the object a leader points to; default the anchor)}
-  // each kind's first tier (o.tier overrides): clearance values, object labels and tree tags near; segment labels mid
-  const ANN_TIER = { dim: 'near', object: 'near', segment: 'mid', tree: 'near' };
+  // each kind's first tier (o.tier overrides): clearance values, object labels and tree tags near; segment labels and
+  // addresses mid on paper, near live; live, the clearance of a failing or unmeasured check (o.need) from mid (Brief 29 item 5)
+  const ANN_TIER = { dim: 'near', object: 'near', segment: paper ? 'mid' : 'near', tree: 'near' };
   const annText = function(kind, str, x, y, o) {
     o = o || {};
-    if (!atTier(o.tier || ANN_TIER[kind])) return;
+    if (!atTier(o.tier || (!paper && kind === 'dim' && o.need ? 'mid' : ANN_TIER[kind]))) return;
     const px = o.px || DRAW_STYLE.TYPE.screen[o.role || 'tag'], sz = px * U, anc = o.anchor || 'start';
     // o.sub (Brief 28 item 7): a second line beneath, at the tag size, in o.subC (a clearance's note)
     const spx = DRAW_STYLE.TYPE.screen.tag, ssz = o.sub ? spx * U : 0, sh = o.sub ? 1.45 * ssz : 0;   // (1.45: the two lines clear, Brief 29 item 4)
@@ -7710,7 +7723,7 @@ function _renderPlanView(o) {
   };
   // a rule lozenge (DRAW_SYMBOLS.lozenge) centred at x, y: it moves to the next row up when taken
   const annLozenge = function(code, st, x, y, at) {
-    if (!atTier(st === 'fail' ? 'mid' : 'near')) return;   // mid: a failed check's rule only
+    if (paper && !atTier(st === 'fail' ? 'mid' : 'near')) return;   // paper mid: a failed check's rule only; live: every tier (Brief 29 item 5)
     const fs = DRAW_STYLE.fs(DK, 'tag'), w = Math.max(6 * DK.k, String(code).length * fs * 0.62 + 2.4 * DK.k), h = 3 * DK.k;
     ANN.push({ kind: 'lozenge', x: x, y: y, box: [x - w / 2, y - h / 2, x + w / 2, y + h / 2], axis: 'y', hi: y + h / 2, at: at || null,
       draw: function(X, Y) { return _sym(function(P) { DRAW_SYMBOLS.lozenge(P, X, Y, code, st); }); } });
@@ -7810,7 +7823,7 @@ function _renderPlanView(o) {
     s += `<rect x='${_ia.toFixed(1)}' y='${(-CTX_TOP).toFixed(1)}' width='${(_ib - _ia).toFixed(1)}' height='${(OPP_BOTTOM + CTX_TOP).toFixed(1)}' fill='none'${K('fine', { c: 'mid', dash: 'hidden' })} pointer-events='none' data-import-area='1'/>`; }
   { const _swSeg = _pvXS.find(function(sg){ return sg.type === 'sidewalk'; });
     const _swR = function(a) { return `<rect x='0' y='${SW_Y.toFixed(2)}' width='${VW}' height='${SW_H.toFixed(2)}'${a}/>`; };
-    s += _swR(` fill='${DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`) + _band('concrete', _swR); }
+    s += _swR(` fill='${DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`).replace(/\/>$/, paper ? '/>' : '><title>Sidewalk' + (_swSeg ? ' · ' + DRAW_STYLE.fmt(Math.abs(_swSeg.x1 - _swSeg.x0)) + ' m' : '') + '</title></rect>') + _band('concrete', _swR); }
   // segment labels: at the left edge of what is on screen, moving along their band, never under an object
   const SEGX = Math.max(0, VIS.x0) + 8 * U, SEGLO = Math.max(0, VIS.x0) + 2 * U, SEGHI = Math.min(VW, VIS.x1);
   const annSeg = function(str, y, o) { annText('segment', str, SEGX, y, Object.assign({ axis: 'x', lo: SEGLO, hi: SEGHI }, o || {})); };
@@ -7829,7 +7842,7 @@ function _renderPlanView(o) {
     const _ft = sg.type === 'bike-lane' && !blOkPV ? 'bike-lane-fail' : sg.type === 'travel-lane' && !_lanesPass ? 'travel-lane-fail'
       : (sg.type === 'buf-pk' || sg.type === 'buf-bl') ? (_planted ? 'planting' : sg.variant === 'raised' ? 'curb' : 'travel-lane') : sg.type;
     const _sgR = function(a) { return `<rect x='0' y='${sg.y0.toFixed(2)}' width='${VW}' height='${(sg.y1 - sg.y0).toFixed(2)}'${a}/>`; };
-    s += _sgR(` fill='${DRAW_STYLE.seg(_ft, DK.mode)}' data-seg='${sg.id}'`);
+    s += _sgR(` fill='${DRAW_STYLE.seg(_ft, DK.mode)}' data-seg='${sg.id}'`).replace(/\/>$/, paper ? '/>' : '><title>' + _annEsc(((window.SE_TYPES && SE_TYPES[sg.type] && SE_TYPES[sg.type].label) || sg.type) + ' · ' + DRAW_STYLE.fmt(Math.abs(sg.x1 - sg.x0)) + ' m') + '</title></rect>');
     // hatch bands: planting beds and planted buffers, concrete (curbs, raised buffers); asphalt has its edge line only
     if (_planted) s += _band('planting', _sgR); else if (_ft === 'curb') s += _band('concrete', _sgR);
     if (_segLbl[sg.type]) {
@@ -7840,7 +7853,7 @@ function _renderPlanView(o) {
   // Roadway no segment covers (lanes capped by LANE_ENVELOPE): its own band up to the far curb.
   if (_pvLM.roadRight - _pvLM.allocatedRight > 0.005) {
     const uy0 = _yOf(_pvLM.allocatedRight), uy1 = _yOf(_pvLM.roadRight);
-    s += `<rect x='0' y='${uy0.toFixed(2)}' width='${VW}' height='${(uy1 - uy0).toFixed(2)}' fill='${DRAW_STYLE.seg('unallocated', DK.mode)}' data-seg='unallocated'/>`;
+    s += `<rect x='0' y='${uy0.toFixed(2)}' width='${VW}' height='${(uy1 - uy0).toFixed(2)}' fill='${DRAW_STYLE.seg('unallocated', DK.mode)}' data-seg='unallocated'>${paper ? '' : '<title>Unallocated roadway · ' + DRAW_STYLE.fmt(_pvLM.roadRight - _pvLM.allocatedRight) + ' m</title>'}</rect>`;
     s += `<line x1='0' y1='${uy0.toFixed(2)}' x2='${VW}' y2='${uy0.toFixed(2)}'${K('context', { c: 'mid', dash: 'hidden' })}/>`;
     annSeg('Unallocated ' + DRAW_STYLE.fmt(_pvLM.roadRight - _pvLM.allocatedRight), uy1 - 3 * U);
   }
@@ -7944,13 +7957,20 @@ const C13_REQ = 1.5;
   // the check zone: DRAW_STYLE's zone line (fine, dashed; fail red, pass per the style), its length with the rule's lozenge
   const c13Z = DRAW_STYLE.zoneSt(DK, c13St);
   // the check zones are annotation: none at the far tier (Brief 19 A)
-  const ZN = LODn >= 1;
-  if (ZN) s += `<rect x="${PK_X-c13Px}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
-  if (ZN) s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${c13Px}" height="${pvPkH}" fill="none"${c13Z}/>`;
+  // live, far (Brief 29 item 5): the zones as faint fills with their lozenges, no values; a zone's full label on hover
+  const ZN = LODn >= 1, ZF = !paper && !ZN;
   const ANNAPI = { lozenge: annLozenge, text: annText };
   const c13Lbl = DRAW_STYLE.clearLbl(c13Raw, C13_REQ, 'C13');
+  const _zTip = function(lab) { return paper ? '' : '<title>' + _annEsc(lab.val + (lab.ok == null ? '' : ' m') + ' · ' + lab.note) + '</title>'; };
+  const _zRect = function(x, w, st, lab) {
+    const z = DRAW_STYLE.zone(DK, st), a = `<rect x='${x}' y='${PK_Y}' width='${w}' height='${pvPkH}'`;
+    return ZF ? a + ` fill='${z.c}' fill-opacity='0.16' data-zone-far='1'>` + _zTip(lab) + '</rect>' : a + ` fill='${paper ? 'none' : 'transparent'}'${DRAW_STYLE.zoneSt(DK, st)}>` + _zTip(lab) + '</rect>';
+  };
+  const _zFar = function(x0, x1, code, st) { const cx = (x0 + x1) / 2, cy = PK_Y + pvPkH / 2; annLozenge(code, st, cx, cy, [cx, cy]); };
+  if (ZN || ZF) s += _zRect(PK_X-c13Px, c13Px, c13St, c13Lbl) + _zRect(PK_X+PK_W, c13Px, c13St, c13Lbl);
   if (ZN) s += dimArrow(PK_X-c13Px, PK_X, PK_Y+pvPkH/2, 'C13', c13Lbl, c13St, DK, ANNAPI, isNaN(c13Raw));
   if (ZN) s += dimArrow(PK_X+PK_W, PK_X+PK_W+c13Px, PK_Y+pvPkH/2, 'C13', c13Lbl, c13St, DK, ANNAPI, isNaN(c13Raw));
+  if (ZF) { _zFar(PK_X-c13Px, PK_X, 'C13', c13St); _zFar(PK_X+PK_W, PK_X+PK_W+c13Px, 'C13', c13St); }
   // Draggable handles at outer edges of C13 zones
   const c13HY = PK_Y + pvPkH / 2;
   (ZN ? [[PK_X-c13Px, c13HY],[PK_X+PK_W+c13Px, c13HY]] : []).forEach(function(pt) {
@@ -7968,10 +7988,10 @@ const C03_REQ = 6;
   const c03Px = Math.min(Math.round(c03DisplayM*HS), Math.round(maxC03M*HS));
   const c03Z = DRAW_STYLE.zoneSt(DK, c03St);
   const C03_LX = PK_X-c13Px-c03Px, C03_RX = PK_X+PK_W+c13Px;
+  if (c03Px > 4 && ZF) { const c03Lbl = DRAW_STYLE.clearLbl(c03Raw, C03_REQ, 'C03'); s += _zRect(C03_LX, c03Px, c03St, c03Lbl) + _zRect(C03_RX, c03Px, c03St, c03Lbl); _zFar(C03_LX, C03_LX+c03Px, 'C03', c03St); _zFar(C03_RX, C03_RX+c03Px, 'C03', c03St); }
   if (c03Px > 4 && ZN) {
-    s += `<rect x="${C03_LX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
-    s += `<rect x="${C03_RX}" y="${PK_Y}" width="${c03Px}" height="${pvPkH}" fill="none"${c03Z}/>`;
     const c03Lbl = DRAW_STYLE.clearLbl(c03Raw, C03_REQ, 'C03');
+    s += _zRect(C03_LX, c03Px, c03St, c03Lbl) + _zRect(C03_RX, c03Px, c03St, c03Lbl);
     s += dimArrow(C03_LX, C03_LX+c03Px, PK_Y+pvPkH/2, 'C03', c03Lbl, c03St, DK, ANNAPI, isNaN(c03Raw));
     s += dimArrow(C03_RX, C03_RX+c03Px, PK_Y+pvPkH/2, 'C03', c03Lbl, c03St, DK, ANNAPI, isNaN(c03Raw));
     // Draggable handles at outer edges of C03 zones
@@ -7998,8 +8018,9 @@ const C03_REQ = 6;
   // the deck, and (technical) the timber band at its edges: lines along the boards, which run along the street; at the
   // far tier the parklet is one filled rectangle (Brief 19 A)
   const _dkR = function(a) { return `<rect x='${DECK_X}' y='${PK_Y}' width='${DECK_W}' height='${pvPkH}'${a}/>`; };
-  if (LODn >= 1) s += _dkR(` fill='${DK.T.fill.deck}'`) + _band('timber', _dkR, { across: true });
-  else s += `<rect x='${PK_X}' y='${PK_Y}' width='${PK_W}' height='${pvPkH}' fill='${DRAW_STYLE.c(DK, _iTch ? 'light' : 'fill.deck')}' stroke='none' data-pk-far='1'/>`;
+  const _dkTip = paper ? '' : '<title>Parklet · ' + DRAW_STYLE.fmt(DECK_M) + ' m deck</title>';   // (hover, Brief 29 item 5)
+  if (LODn >= 1) s += _dkR(` fill='${DK.T.fill.deck}'`).replace(/\/>$/, '>' + _dkTip + '</rect>') + _band('timber', _dkR, { across: true });
+  else s += `<rect x='${PK_X}' y='${PK_Y}' width='${PK_W}' height='${pvPkH}' fill='${DRAW_STYLE.c(DK, _iTch ? 'light' : 'fill.deck')}' stroke='none' data-pk-far='1'>${_dkTip}</rect>`;
   // ── Metric world-space grid (covers full viewBox — extends with zoom/pan) ─
   if (_gridEnabled && !paper) {
     // the drawn grid's step follows the zoom (Brief 19 B): the snap spacing, else the first of 1, 5, 10, 50, 100 m whose
@@ -8059,15 +8080,16 @@ const C03_REQ = 6;
         var _fw = Math.max(4, _fl_l * HS), _fh = Math.max(3, _fl_d * pvSC);
         var _fcP = worldToPlan(_iw, _iz), _fcx = _fcP.px, _fcy = _fcP.py;
         var _fSpec = flInstSpec(inst);
+        var _fTip = paper ? '' : '<title>' + _annEsc(((_fSpec && FL_ARCHETYPES[_fSpec.type] && FL_ARCHETYPES[_fSpec.type].label) || inst.name || inst.objId || 'Piece') + ' · ' + _fl_l.toFixed(2) + ' × ' + _fl_d.toFixed(2) + ' m') + '</title>';
         // Placement + rotation + handedness all come from worldToPlan (not a hand-picked rotate sign).
         if (_fSpec) {
           // Archetype piece: its parts projected top-down in metres (the same parts 3D and Section use).
-          s += `<g transform='${worldFrameToPlanMatrix(_iw, _iz, _iury, 1, 1)}' class='pv-furn' data-inst='${inst.id}' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
+          s += `<g transform='${worldFrameToPlanMatrix(_iw, _iz, _iury, 1, 1)}' class='pv-furn' data-inst='${inst.id}' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>` + _fTip;
           s += flPlanArchetype(_fSpec.type, _fSpec.params, {mats:_fSpec.mats, sel:_iSel, tech:DS.mode() === 'technical', dk: DK});
         } else {
           // Street object: its detail-drawing footprint as a box.
           var _fFill = _iSel ? 'rgba(6,150,215,.45)' : DK.T.fill.furniture, _fSt = _iSel ? KU(1.5, 'sel') : K('object');
-          s += `<g transform='${worldFrameToPlanMatrix(_iw, _iz, _iury, _fw / _fl_l, _fh / _fl_d)}' class='pv-furn' data-inst='${inst.id}' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>`;
+          s += `<g transform='${worldFrameToPlanMatrix(_iw, _iz, _iury, _fw / _fl_l, _fh / _fl_d)}' class='pv-furn' data-inst='${inst.id}' style='cursor:grab' onclick='_pvFurnClick(${inst.id},event)'>` + _fTip;
           s += `<rect x='${(-_fw/2).toFixed(1)}' y='${(-_fh/2).toFixed(1)}' width='${_fw.toFixed(1)}' height='${_fh.toFixed(1)}' fill='${_fFill}'${_fSt}/>`;
         }
         s += `</g>`;
@@ -8161,7 +8183,7 @@ const _pvClrBoxes = [];
 // (Brief 28 item 7: lab is DRAW_STYLE.clearLbl's; over a dimension line, so the two lines sit above it: ink on a pass, red on a fail)
 const _pvClrLbl = function(cx, y, lab, id, at) {
   const fail = lab.ok === false, sh = 1.2 * DRAW_STYLE.TYPE.screen.tag * U;
-  annText('dim', lab.val, cx, y - sh, { role: 'body', anchor: 'middle', c: fail ? 'fail' : 'ink', axis: 'x', at: at || null, sub: lab.note, subC: fail ? 'fail' : 'anno', data: " data-clr='" + id + "'" }); return null; };
+  annText('dim', lab.val, cx, y - sh, { role: 'body', anchor: 'middle', c: fail ? 'fail' : 'ink', axis: 'x', at: at || null, need: lab.ok !== true, sub: lab.note, subC: fail ? 'fail' : 'anno', data: " data-clr='" + id + "'" }); return null; };
 // ── C06: Driveway/Lane setback markers
 const dvFts = state[`driveways`] || [];
   const c6St = getCriterionStatus(criteria.find(c=>c.id===`c6`));
@@ -8174,15 +8196,16 @@ const dvFts = state[`driveways`] || [];
     const _cz = DRAW_STYLE.zone(DK, pOk ? 'pass' : 'fail'), col = _cz.c, colOp = _cz.op;
     const lt  = DK.T.paper;
     const nearEnd = worldToPlan(0, dv.xM < PARKLET_M / 2 ? 0 : PARKLET_M).px;
+    const _dvLab = DRAW_STYLE.clearLbl(dist, 1.5, 'C06'), _dvTip = paper ? '' : '<title>Driveway' + (dist > 0.05 ? ' · ' + _dvLab.val + ' m · ' + _dvLab.note : '') + '</title>';
     if (dist > 0.05 && LODn >= 1) {
       const bX0 = Math.max(0, Math.min(dvXpx, nearEnd)), bX1 = Math.min(VW, Math.max(dvXpx, nearEnd));   // clipped to the drawing
       const dmCX = (bX0 + bX1) / 2, dimY2 = dvY + 14;
       s += `<line x1='${(bX0+1).toFixed(1)}' y1='${dimY2}' x2='${(bX1-1).toFixed(1)}' y2='${dimY2}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${dvXpx.toFixed(1)}' y1='${(dimY2-pvDTCK).toFixed(1)}' x2='${dvXpx.toFixed(1)}' y2='${(dvY+pvDGAP).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${nearEnd.toFixed(1)}' y1='${(dimY2-pvDTCK).toFixed(1)}' x2='${nearEnd.toFixed(1)}' y2='${(dimY2+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
-      _pvClrLbl(dmCX, dimY2 - 2 * U, DRAW_STYLE.clearLbl(dist, 1.5, 'C06'), 'C06');
+      _pvClrLbl(dmCX, dimY2 - 2 * U, _dvLab, 'C06');
     }
-    s += `<rect x='${(dvXpx-8*pvZS).toFixed(1)}' y='${(dvY-8*pvZS).toFixed(1)}' width='${(16*pvZS).toFixed(1)}' height='${(16*pvZS).toFixed(1)}' fill='${lt}'${K('edge', { c: col })}/>`;
+    s += `<rect x='${(dvXpx-8*pvZS).toFixed(1)}' y='${(dvY-8*pvZS).toFixed(1)}' width='${(16*pvZS).toFixed(1)}' height='${(16*pvZS).toFixed(1)}' fill='${lt}'${K('edge', { c: col })}>${_dvTip}</rect>`;
     if (LODn >= 1) s += `<text x='${dvXpx.toFixed(1)}' y='${(dvY+4*pvZS).toFixed(1)}' text-anchor='middle' font-family='${DRAW_STYLE.FONT}' font-size='${(9*pvZS).toFixed(1)}' fill='${col}' font-weight='800'>D</text>`;
     annChip('deleteDrivewayById(' + dv.id + ')', dvXpx + 11 * pvZS, dvY - 11 * pvZS);
     annObst(dvXpx - 8 * pvZS, dvY - 8 * pvZS, dvXpx + 8 * pvZS, dvY + 8 * pvZS);
@@ -8202,6 +8225,8 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     const pOk = dist >= def.req - 0.001;
     const _cz = DRAW_STYLE.zone(DK, pOk ? 'pass' : 'fail'), col = _cz.c, colOp = _cz.op;
     const lt  = DK.T.paper;
+    const _cfCode = { H: 'C05', P: 'C07', S: 'C08' }[cf.type], _cfLab = DRAW_STYLE.clearLbl(dist, cf.type === 'P' && state.pole_trolley === 'yes' ? 2.4 : def.req, _cfCode);
+    const _cfTip = dist > 0.05 ? ' · ' + _cfLab.val + ' m · ' + _cfLab.note : '';   // (hover, Brief 29 item 5)
     const nearEnd = worldToPlan(0, cf.xM < PARKLET_M / 2 ? 0 : PARKLET_M).px;
     const bX0 = Math.max(0, Math.min(cfX, nearEnd)), bX1 = Math.min(VW, Math.max(cfX, nearEnd));   // clipped to the drawing
     // Setback dim line at curb face level (clearances measured along street from curb)
@@ -8211,7 +8236,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       const _cfXc = Math.max(0, Math.min(VW, cfX));   // an object beyond the drawing: the tick at its edge
       s += `<line x1='${_cfXc.toFixed(1)}' y1='${(dimY-pvDTCK).toFixed(1)}' x2='${_cfXc.toFixed(1)}' y2='${(dimY+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
       s += `<line x1='${nearEnd.toFixed(1)}' y1='${(dimY-pvDTCK).toFixed(1)}' x2='${nearEnd.toFixed(1)}' y2='${(dimY+pvDTCK).toFixed(1)}'${K('context', { c: col, op: colOp })}/>`;
-      _pvClrLbl(dmCX, dimY - 2 * U, DRAW_STYLE.clearLbl(dist, cf.type === 'P' && state.pole_trolley === 'yes' ? 2.4 : def.req, { H: 'C05', P: 'C07', S: 'C08' }[cf.type]), { H: 'C05', P: 'C07', S: 'C08' }[cf.type]);
+      _pvClrLbl(dmCX, dimY - 2 * U, _cfLab, _cfCode);
     }
     if (cfX < -2 || cfX > VW + 2) return;   // beyond the drawn stretch: its clearance only (the marker would sit in the dimension margin)
     // Dashed leader: element centre to curb face
@@ -8221,7 +8246,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       const hR = Math.max(6, Math.round(0.10 * pvSC)), _c5Open = !!document.querySelector('#crit_c5.open');
       if ((_c5Open || !pOk) && LODn >= 1) s += `<circle cx='${cfX.toFixed(1)}' cy='${cfY.toFixed(1)}' r='${(def.req * pvSC).toFixed(1)}' fill='none'${K('fine', { c: col, op: colOp, dash: 'zone' })} data-c05='1'/>`;
       window._pvMarks.H++;
-      s += '<g' + _ctxA + '><title>Fire hydrant</title>' + _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC, noText: LODn < 2 }); }) + '</g>';
+      s += '<g' + _ctxA + '><title>Fire hydrant' + _cfTip + '</title>' + _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC, noText: LODn < 2 }); }) + '</g>';
       annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);   // the H is the label (Brief 28 item 6)
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + hR + 5 * pvZS, cfY - hR - 3 * pvZS);
@@ -8229,14 +8254,14 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
       // E1.3: traffic signal controller base 940×762mm (940 along street, 762 into sidewalk)
       const sW = Math.max(9, Math.round(0.47 * pvSC));
       const sH = Math.max(7, Math.round(0.38 * pvSC));
-      s += '<g' + _ctxA + '>' + _sym(function(P) { DRAW_SYMBOLS.signal(P, cfX, cfY, 0.94 * HS, 0.76 * pvSC, { c: col }); }) + '</g>';
+      s += '<g' + _ctxA + '><title>Signal controller' + _cfTip + '</title>' + _sym(function(P) { DRAW_SYMBOLS.signal(P, cfX, cfY, 0.94 * HS, 0.76 * pvSC, { c: col }); }) + '</g>';
       annText('object', 'Signal', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY], data: _ctxA }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + sW + 5 * pvZS, cfY - sH - 3 * pvZS);
     } else {
       // Pole (P): E5.19C 760mm from curb confirmed; ~200mm pole base diameter
       const pR = Math.max(5, Math.round(0.10 * pvSC));
-      s += '<g' + _ctxA + '>' + _sym(function(P) { DRAW_SYMBOLS.pole(P, cfX, cfY, { c: col }); }) + '</g>';
+      s += '<g' + _ctxA + '><title>Pole' + _cfTip + '</title>' + _sym(function(P) { DRAW_SYMBOLS.pole(P, cfX, cfY, { c: col }); }) + '</g>';
       annText('object', 'Pole', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY], data: _ctxA }); annObst(cfX - 1.4 * DK.k, cfY - 1.4 * DK.k, cfX + 1.4 * DK.k, cfY + 1.4 * DK.k);
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + pR + 5 * pvZS, cfY - pR - 3 * pvZS);
@@ -8274,7 +8299,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   // the objects segment labels and tree tags keep off: tree canopies, furniture
   _pvDM.vegetation.forEach(function(v) { const c = worldToPlan(v.x, v.z), r = (v.canopyR || 0.4) * pvSC; annObj(c.px - r, c.py - r, c.px + r, c.py + r, true); });
   _dmFurnList.forEach(function(inst) { const c = worldToPlan(+inst.x || 0, +inst.z || 0), dm = flInstDims(inst), r = Math.max(dm.l, dm.d) / 2 * pvSC; annObj(c.px - r, c.py - r, c.px + r, c.py + r); });
-  if (dimsOn && LODn >= 1) {   // far: no dimensions; mid: the overall ones (curb to curb, the deck's length) only
+  if (dimsOn && LODn >= (paper ? 1 : 2)) {   // far: no dimensions; mid: the overall ones (curb to curb, the deck's length) only; live: near only (Brief 29 item 5)
     // DRAW_STYLE: dimension lines 'context', extension lines 'fine', 45 degree ticks 'edge', text ink / annotation grey
     const INK = DK.T.ink, MID = DK.T.anno;
     const FNT = `font-family='${DRAW_STYLE.FONT}'`;
@@ -8394,12 +8419,13 @@ const manholes = state['manholes'] || [];
         const f = b.footprint;
         if (!f.visible) return;
         const body = _box(f.faceX, f.backX, f.z0, f.z1), inward = f.backX > f.faceX ? 1 : -1;
+        const _bTip = paper ? '' : '<title>' + _annEsc(b.address || 'Building') + '</title>';   // (hover, Brief 29 item 5)
         if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${DK.T.fill.sidewalk}' data-ctx='buildings'`);
         if (f.poly) {   // its real footprint (Brief 28 item 9), outlined at the cut weight: the walls as drawn
           const d = 'M' + f.poly.map(function(p) { const q = worldToPlan(p.x, p.z); return q.px.toFixed(2) + ' ' + q.py.toFixed(2); }).join('L') + 'Z';
-          s += `<path d='${d}' fill='${DK.T.fill.building}'${K('edge')} data-bldg='${side}${i}' data-bldg-poly='1' data-ctx='buildings'/>`;
+          s += `<path d='${d}' fill='${DK.T.fill.building}'${K('edge')} data-bldg='${side}${i}' data-bldg-poly='1' data-ctx='buildings'>${_bTip}</path>`;
         } else {
-          s += _rect(body, `fill='${DK.T.fill.building}'${K('context')} data-bldg='${side}${i}' data-ctx='buildings'`);
+          s += _rect(body, `fill='${DK.T.fill.building}'${K('context')} data-bldg='${side}${i}' data-ctx='buildings'`).replace(/\/>$/, '>' + _bTip + '</rect>');
           s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${DK.T.fill.cut}' data-ctx='buildings'`);   // the facade wall, cut: solid
         }
         // its address (Brief 19 C; mid and near tiers): centred in the footprint along its long axis, moving along it
@@ -8444,18 +8470,18 @@ const manholes = state['manholes'] || [];
     s += `<rect x='${f1(_sX - 7 * U)}' y='${f1(_rT)}' width='${f1(14 * U)}' height='${f1(_rB - _rT)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,0)' data-pvsl='hit'><title>Drag to move the section cut</title></rect>`;
     const _gm = (_rT + _rB) / 2, _cx = (_bxL + _bxR) / 2, _hw = Math.max(24 * U, (_bxR - _bxL) * 0.5);
     const _edge = function(x, what, tip, val, lx) {
-      s += `<rect x='${f1(x - 6 * U)}' y='${f1(_rT)}' width='${f1(12 * U)}' height='${f1(_rB - _rT)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,${what})' data-pvsl='hit${what}'><title>${tip}</title></rect>`;
+      s += `<rect x='${f1(x - 6 * U)}' y='${f1(_rT)}' width='${f1(12 * U)}' height='${f1(_rB - _rT)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,${what})' data-pvsl='hit${what}'><title>${tip}: ${val}</title></rect>`;
       s += `<line x1='${f1(x)}' y1='${f1(_gm - 9 * U)}' x2='${f1(x)}' y2='${f1(_gm + 9 * U)}'${KU(2.4, 'accent', { cap: 'round' })} pointer-events='none'/>`;
-      s += `<text x='${f1(lx)}' y='${f1(_gm + 3.5 * U)}' text-anchor='middle' ${FNT} font-size='${f1(10 * U)}' font-weight='600' fill='${DRAW_STYLE.UI.accent}' pointer-events='none' data-pvsl='v${what}'>${val}</text>`;
+      if (LODn >= 1) s += `<text x='${f1(lx)}' y='${f1(_gm + 3.5 * U)}' text-anchor='middle' ${FNT} font-size='${f1(10 * U)}' font-weight='600' fill='${DRAW_STYLE.UI.accent}' pointer-events='none' data-pvsl='v${what}'>${val}</text>`;
       { const w2 = _pvTW(val, 10) * U / 2 + 2 * U; annObst(lx - w2, _gm - 6 * U, lx + w2, _gm + 6 * U); }   // (the labels keep off it: Brief 29 item 4)
     };
     _edge(_fX, 1, 'Drag to set how far beyond the cut the section looks', _sec.depth.toFixed(1) + ' m', _fX + Math.sign(_fX - _sX || 1) * 20 * U);
     _edge(_bX, 2, 'Drag to show what lies behind the cut, as dashed hidden lines', (_sec.depthBack || 0).toFixed(1) + ' m', _bX + Math.sign(_bX - _sX || -1) * 20 * U);
     [[_y0, 3, 'Drag to set how far into the near buildings the section reaches'], [_y1, 4, 'Drag to set how far into the far buildings the section reaches']].forEach(function(q) {
       const y = q[0];
-      s += `<rect x='${f1(_bxL)}' y='${f1(y - 6 * U)}' width='${f1(Math.max(12 * U, _bxR - _bxL))}' height='${f1(12 * U)}' fill='transparent' style='cursor:ns-resize' onmousedown='_pvSecDown(event,${q[1]})' data-pvsl='hit${q[1]}'><title>${q[2]}</title></rect>`;
+      s += `<rect x='${f1(_bxL)}' y='${f1(y - 6 * U)}' width='${f1(Math.max(12 * U, _bxR - _bxL))}' height='${f1(12 * U)}' fill='transparent' style='cursor:ns-resize' onmousedown='_pvSecDown(event,${q[1]})' data-pvsl='hit${q[1]}'><title>${q[2]}: ${(q[1] === 3 ? _sec.x0 : _sec.x1).toFixed(1)} m</title></rect>`;
       s += `<line x1='${f1(_cx - 9 * U)}' y1='${f1(y)}' x2='${f1(_cx + 9 * U)}' y2='${f1(y)}'${KU(2.4, 'accent', { cap: 'round' })} pointer-events='none'/>`;
-      { const w = q[1] === 3 ? _sec.x0 : _sec.x1, ly = y + (q[1] === 3 ? 11 : -4) * U; annObst(_cx + 12 * U, ly - 10 * U, _cx + 16 * U + _pvTW(w.toFixed(1) + ' m', 10) * U, ly + 3 * U); s += `<text x='${f1(_cx + 14 * U)}' y='${f1(y + (q[1] === 3 ? 11 : -4) * U)}' ${FNT} font-size='${f1(10 * U)}' font-weight='600' fill='${DRAW_STYLE.UI.accent}' pointer-events='none' data-pvsl='v${q[1]}'>${w.toFixed(1)} m</text>`; }
+      { const w = q[1] === 3 ? _sec.x0 : _sec.x1, ly = y + (q[1] === 3 ? 11 : -4) * U; annObst(_cx + 12 * U, ly - 10 * U, _cx + 16 * U + _pvTW(w.toFixed(1) + ' m', 10) * U, ly + 3 * U); if (LODn >= 1) s += `<text x='${f1(_cx + 14 * U)}' y='${f1(y + (q[1] === 3 ? 11 : -4) * U)}' ${FNT} font-size='${f1(10 * U)}' font-weight='600' fill='${DRAW_STYLE.UI.accent}' pointer-events='none' data-pvsl='v${q[1]}'>${w.toFixed(1)} m</text>`; }
     });    // A tags: circle + arrowhead in the looking direction (locked: only Flip section reverses it, Brief 25 item 20b)
     const R = 8 * U;
     [_top, _bot].forEach(function(ty, i) {
@@ -25393,6 +25419,9 @@ RPT.print = async function() {
 /* dimension chain: extension tick + slash at every edge, value above the line */
 #seDimRow { display: block; height: 26px; position: relative; }
 .se-dim { position: absolute; top: 0; height: 26px; box-sizing: border-box; display: flex; justify-content: center; }
+/* the Section's tiers (Brief 29 item 5): far, no text; mid, names and widths; near, the drawing's labels too */
+#seRoot[data-lod='far'] .se-name, #seRoot[data-lod='far'] .se-dimv, #seRoot[data-lod='far'] .se-unalloc-hdr,
+#seRoot[data-lod='far'] .se-lbl, #seRoot[data-lod='mid'] .se-lbl { display: none; }
 .se-dim:not(.se-dim-b) { background: linear-gradient(var(--d-ink), var(--d-ink)) 0 18px / 100% 1px no-repeat; }
 .se-dim::before { content: ''; position: absolute; left: -0.5px; top: 0; height: 24px; border-left: 1px solid var(--d-mid); }
 .se-dim::after { content: ''; position: absolute; left: -3.5px; top: 15px; width: 7px; height: 7px;
