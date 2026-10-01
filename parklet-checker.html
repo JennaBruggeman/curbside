@@ -2860,6 +2860,7 @@ ENC.near = function(items, x, z) {
 };
 ENC.c16 = function() {
   if (typeof GEN === 'undefined' || !GEN.access) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'The route is checked once the layout model has loaded.' };   // the page still loading
+  if (!ENC.items().length) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'Nothing placed yet: the route is checked once there is seating on the deck.' };   // an empty deck: not a failure
   var DM = _dmCurrent(), fp = ENC.fpLive(DM), items = ENC.items(), a = GEN.access(items, fp, { paths: true }), RW = GEN.ROUTE_W, T = GEN.TURN, f = function(v) { return (+v).toFixed(2); }, bad = [];
   var op = ENC.openingsOf(items, fp).runs;
   a.entries.forEach(function(ez, k) {
@@ -30595,7 +30596,7 @@ ENC.mountCard = function() {
   var sec = document.createElement('div'); sec.className = 'sb-section'; sec.id = 'encSec';
   sec.innerHTML = "<div class='sb-section-lbl'>Edge</div><div id='encBody'></div>";
   host.insertBefore(sec, top.nextSibling);
-  if (typeof _dkWrap === 'function') { _dkWrap(sec, 'dkcdEdge', 'Edge', false); if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate(); }
+  if (typeof _dkWrap === 'function') { _dkWrap(sec, 'dkcdEdge', 'Edge', true); if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate(); }
   ENC.renderCard();
 };
 // C17 - C19 follow every redraw of the Plan (furniture placed, moved, removed; the deck changed)
