@@ -2063,15 +2063,58 @@ function siteContextZ(v) { v = Math.round((+v || 600) / 5) * 5; return Math.max(
 var SITE_SHEETS = {};
 var SHEET_CROP = { A101: { w: 78.5, h: 55, scale: 250 }, A102: { w: 30.5, h: 18, scale: 100 }, A103: { margin: 3, scale: 50 } };
 function sheetSnap(v) { return Math.round(v * 2) / 2; }
+// The block face the parklet is on (Brief 28 item 11): from the curb return of the nearest cross street before the deck to
+// the one after it, world z; a side with no cross street within 200 m: null. Cross streets: the located corners and the
+// context streets crossing this one (CTX_ROADS, at their width along it).
+function sheetBlockFace(DM) {
+  var LM = DM.landmarks, L = DM.parklet.length, lo = null, hi = null, c = typeof pkZNow === 'function' ? pkZNow() : 0;
+  var take = function(a, b) { if (b <= 0 && a > -200) lo = lo == null ? b : Math.max(lo, b); if (a >= L && b < L + 200) hi = hi == null ? a : Math.min(hi, a); };
+  (typeof pkPlace === 'function' ? pkPlace().corners : []).forEach(function(k) { var zc = k.s - c + L / 2, h = k.half || 5; take(zc - h, zc + h); });
+  (typeof CTX_ROADS !== 'undefined' ? CTX_ROADS.world(false, DM) : []).forEach(function(r) {
+    if (r.kind === 'foot' || !(r.half > 0)) return;
+    for (var i = 1; i < r.pts.length; i++) {
+      var a = r.pts[i - 1], b = r.pts[i], xc = LM.roadCenterX; if ((a[0] - xc) * (b[0] - xc) > 0 || a[0] === b[0]) continue;
+      var t = (xc - a[0]) / (b[0] - a[0]), zc = a[1] + t * (b[1] - a[1]), sn = Math.abs(b[0] - a[0]) / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1), h = r.half / Math.max(0.3, sn);
+      take(zc - h, zc + h);
+    }
+  });
+  return { z0: lo, z1: hi };
+}
+// the drawing area a plan sheet fills (RPT.DA, mm; defined with the report, later): its width and height less the dimension rows
+function sheetDA() { return typeof RPT !== 'undefined' && RPT.DA ? RPT.DA : { y: 11, w: 339.8, h: 216.4 }; }
+// a plan sheet's default along-street extent (Brief 28 item 11): the block face, 2 m into each cross street; one longer than
+// the sheet holds (maxW m) is a window of maxW centred on the deck, kept within it; one shorter is widened to fill (minW)
+function sheetAlong(DM, maxW, minW) {
+  var L = DM.parklet.length, bf = sheetBlockFace(DM), z0 = bf.z0 != null ? bf.z0 - 2 : null, z1 = bf.z1 != null ? bf.z1 + 2 : null;
+  if (z0 == null) z0 = z1 != null ? Math.min(-2, z1 - maxW) : L / 2 - maxW / 2;
+  if (z1 == null) z1 = Math.max(L + 2, z0 + maxW);
+  if (z1 - z0 > maxW) { var a = Math.max(z0, Math.min(z1 - maxW, L / 2 - maxW / 2)); z0 = a; z1 = a + maxW; }
+  if (z1 - z0 < minW) { var m = (z0 + z1) / 2; z0 = m - minW / 2; z1 = m + minW / 2; }
+  return { z0: sheetSnap(z0), z1: sheetSnap(z1), block: bf };
+}
+// A-102's scale and extent (Brief 28 item 11): 1:200 when the block face fits it along the street, else 1:250; across, the
+// street and 10 m into each side's buildings, as far as the sheet holds
+function sheetLayoutCrop(DM) {
+  var LM = DM.landmarks, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, DA = sheetDA(), bf = sheetBlockFace(DM);
+  var x0 = LM.sidewalkL.x0 - 10, x1 = far + 10, xc = (x0 + x1) / 2, mW = function(s) { return (DA.w - 30) * s / 1000; }, mH = function(s) { return (DA.h - 45) * s / 1000; };
+  var blockW = bf.z0 != null && bf.z1 != null ? bf.z1 - bf.z0 + 4 : Infinity, s = blockW <= mW(200) ? 200 : 250;   // across, it is cut to fit
+  var al = sheetAlong(DM, mW(s) - 0.5, 0.85 * mW(s)), h = Math.min(mH(s) - 0.5, x1 - x0);
+  return { scale: s, crop: { z0: al.z0, z1: al.z1, x0: sheetSnap(xc - h / 2), x1: sheetSnap(xc + h / 2) } };
+}
 function sheetCrops(DM) {
-  var LM = DM.landmarks, L = DM.parklet.length, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, dx = (LM.deckX0 + LM.deckX1) / 2, sx = (LM.sidewalkL.x0 + far) / 2;
-  var box = function(zc, xc, w, h) { return { z0: sheetSnap(zc - w / 2), z1: sheetSnap(zc + w / 2), x0: sheetSnap(xc - h / 2), x1: sheetSnap(xc + h / 2) }; };
-  var M = SHEET_CROP.A103.margin, dflt = { A101: box(L / 2, sx, SHEET_CROP.A101.w, SHEET_CROP.A101.h), A102: box(L / 2, dx, SHEET_CROP.A102.w, SHEET_CROP.A102.h),
-    A103: { z0: sheetSnap(-M), z1: sheetSnap(L + M), x0: sheetSnap(LM.deckX0 - M), x1: sheetSnap(LM.deckX1 + M) } };
+  var LM = DM.landmarks, L = DM.parklet.length, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, sx = (LM.sidewalkL.x0 + far) / 2;
+  // A-101 at its 1:250 and A-102 at 1:200 / 1:250 over the block face (Brief 28 item 11), A-103 the deck and 3 m round it
+  var a1 = sheetAlong(DM, SHEET_CROP.A101.w, 0.85 * SHEET_CROP.A101.w), lay = sheetLayoutCrop(DM), M = SHEET_CROP.A103.margin;
+  // A-103: 3 m round the deck, its ends' margin trimmed (never under 2 m) where that lets the next larger scale hold it, so
+  // the deck fills its sheet (RPT.deckScale: 1:50, 1:75, 1:100, the dimension rows' 30 mm along and 90 mm across)
+  var DA = sheetDA(), Hm = (LM.deckX1 - LM.deckX0 + 2 * M) * 1000, Mz = M;
+  [50, 75, 100].some(function(s) { var mw = (DA.w - 30) * s / 1000; if (L + 4 <= mw && Hm / s + 90 <= DA.y + DA.h) { Mz = Math.min(M, Math.floor(((mw - L) / 2) * 2) / 2); return true; } return false; });
+  var dflt = { A101: { z0: a1.z0, z1: a1.z1, x0: sheetSnap(sx - SHEET_CROP.A101.h / 2), x1: sheetSnap(sx + SHEET_CROP.A101.h / 2) }, A102: lay.crop,
+    A103: { z0: sheetSnap(-Mz), z1: sheetSnap(L + Mz), x0: sheetSnap(LM.deckX0 - M), x1: sheetSnap(LM.deckX1 + M) } };
   var out = {};
   Object.keys(dflt).forEach(function(k) {
     var u = SITE_SHEETS && SITE_SHEETS[k] && SITE_SHEETS[k].crop, ok = u && isFinite(u.z0) && isFinite(u.z1) && isFinite(u.x0) && isFinite(u.x1) && u.z1 - u.z0 >= 1 && u.x1 - u.x0 >= 1, c = ok ? u : dflt[k];
-    out[k] = { crop: { z0: c.z0, z1: c.z1, x0: c.x0, x1: c.x1 }, custom: !!ok, scale: SHEET_CROP[k].scale };
+    out[k] = { crop: { z0: c.z0, z1: c.z1, x0: c.x0, x1: c.x1 }, custom: !!ok, scale: k === 'A102' ? lay.scale : SHEET_CROP[k].scale };
   });
   return out;
 }
@@ -6461,7 +6504,7 @@ var BIKE_SEP = {
     var c = typeof pkZNow === 'function' ? pkZNow() : 0;
     (typeof pkPlace === 'function' ? pkPlace().corners : []).forEach(function(k) { var zc = k.s - c + L / 2, h = (k.half || 5) + BIKE_SEP.CROSS_PAD; gaps.push([zc - h, zc + h]); });
     // and every context street that crosses this one (CTX_ROADS, the Plan's surfaces): its width along this street
-    (typeof CTX_ROADS !== 'undefined' ? CTX_ROADS.world() : []).forEach(function(r) {
+    (typeof CTX_ROADS !== 'undefined' ? CTX_ROADS.world(false, DM) : []).forEach(function(r) {
       if (r.kind === 'foot' || !(r.half > 0)) return;
       for (var i = 1; i < r.pts.length; i++) {
         var a = r.pts[i - 1], b = r.pts[i], xc = LM.roadCenterX; if ((a[0] - xc) * (b[0] - xc) > 0 || a[0] === b[0]) continue;
@@ -14285,9 +14328,9 @@ function _pvOuterLayer(g) {
 // The context streets in the world frame (Brief 28 item 9), for the sheets and 3D, as the Plan draws them: [{ pts: [[x, z]],
 // half, kind 'road' | 'foot' }], the main street (every point within its own corridor, sidewalks included) left out.
 var CTX_ROADS = {
-  world: function(withMain) {   // withMain: the main street too (the locator, where the model is not drawn)
+  world: function(withMain, DM) {   // withMain: the main street too (the locator, where the model is not drawn); DM: the model
     var o = typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null; if (!o || !o.streets) return [];
-    var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
+    DM = DM || _dmCurrent(); var LM = DM.landmarks, L = DM.parklet.length, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
     var x0 = LM.sidewalkL.x0 - 1, x1 = LM.sidewalkR.x1 + 1;
     return o.streets.map(function(st) {
       var pts = st.pts.map(function(p) { return [LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z]; });
@@ -23723,7 +23766,7 @@ RPT.sym = {
   signal: function(P, x, y, w, h) { DRAW_SYMBOLS.signal(P, x, y, w || 0, h || 0); },
   manhole: function(P, x, y, r) { DRAW_SYMBOLS.manhole(P, x, y, r, r * 609.6 / 939.8); },
   bus: function(P, x, y) { DRAW_SYMBOLS.busStop(P, x, y); },   // the B is the label (Brief 28 item 6); "Bus stop" in the legend
-  level: function(P, x, y, label, right, dy) { DRAW_SYMBOLS.level(P, x, y, label, '', right, dy); },
+  level: function(P, x, y, label, right, dy) { DRAW_SYMBOLS.level(P, x, y, label, '', right, dy); if (P.boxes) P.boxes.push({ text: true, obst: true, t: 'level', x0: x - 2.4, x1: x + 2.4, y0: y - 2.4, y1: y + 2.4 }); },   // an obstacle (Brief 28 item 11: "2.65" on it)
   grid: function(P, x, y, label) { DRAW_SYMBOLS.bubble(P, x, y, label); }
 };
 
@@ -23908,6 +23951,7 @@ RPT.planBase = function(P, G, F, mode, o) {
   P.line(xa, sy(swL.x0), xb, sy(swL.x0), { w: RPT.LW.ctx }); P.line(xa, sy(swL.x1), xb, sy(swL.x1), { w: RPT.LW.obj });
   P.line(xa, sy(fx), xb, sy(fx), { w: RPT.LW.obj }); if (LM.sidewalkR) P.line(xa, sy(LM.sidewalkR.x1), xb, sy(LM.sidewalkR.x1), { w: RPT.LW.ctx });
   }
+  if (o.beforeDeck) o.beforeDeck();   // on the ground, under the deck: the trees (Brief 28 item 5: behind everything)
   // the deck
   var dp = RPT.fpolyPts(F, G.deck), dpA = RPT.ptsAttr(dp), dbox = [Math.min.apply(null, dp.map(function(p) { return p[0]; })), Math.min.apply(null, dp.map(function(p) { return p[1]; })), Math.max.apply(null, dp.map(function(p) { return p[0]; })), Math.max.apply(null, dp.map(function(p) { return p[1]; }))];
   var rectDeck = G.deck.length === 4 && Math.abs(G.deck[0][1]) < 1e-9 && Math.abs(G.deck[2][1] - G.L) < 1e-9;   // the plain deck is a rect (the PDF check measures its fill)
@@ -23948,8 +23992,9 @@ RPT.planFurn = function(P, G, F, d, o) {
 };
 // Sheets draw by purpose, not by the Plan viewport (Brief 19b): each plan sheet's own layers of site objects and trees.
 // A-101 the context (trees with their canopies, hydrants, poles, stops); A-102 the objects a check measures
-// (hydrants C05, poles C07, signal boxes C08, chambers C09): no trees, no canopies, no buildings; A-103 none.
-RPT.SHEET_LAYERS = { A101: ['trees', 'hydrants', 'poles', 'stops'], A102: ['hydrants', 'poles', 'signals', 'manholes'], A103: [] };
+// (hydrants C05, poles C07, signal boxes C08, chambers C09) and the stops, over the block face's buildings and trees
+// (Brief 28 item 11; the sheet draws those itself); A-103 none.
+RPT.SHEET_LAYERS = { A101: ['trees', 'hydrants', 'poles', 'stops'], A102: ['hydrants', 'poles', 'signals', 'manholes', 'stops'], A103: [] };
 RPT.planObjects = function(P, G, F, o) {
   o = o || {}; var inZ = function(z) { return z >= F.zA - 0.01 && z <= F.zB + 0.01; }, tagged = [], has = function(k) { return !o.layers || o.layers.indexOf(k) >= 0; };
   G.cf.forEach(function(c) { if (!inZ(c.z)) return; if (c.type === 'H') { if (has('hydrants')) RPT.sym.hydrant(P, F.sx(c.z), F.sy(c.x), 0.15 * F.k, o.labels === false); } else if (c.type === 'S') { if (has('signals')) RPT.sym.signal(P, F.sx(c.z), F.sy(c.x)); } else if (has('poles')) RPT.sym.pole(P, F.sx(c.z), F.sy(c.x)); });
@@ -23965,6 +24010,19 @@ RPT.planObjects = function(P, G, F, o) {
     if (inX(v.x)) shown.push(v);
   });
   if (o.genus) RPT.treeTags(P, F, shown, { mid: (G.LM.roadRight || 0) / 2, bounds: o.bounds, avoid: o.avoid });
+};
+// the trees a sheet tags (Brief 28 item 6): those whose trunk is in its extent
+RPT.sheetTrees = function(G, F, x0, x1) { return G.trees.filter(function(v) { return v.z >= F.zA - 0.01 && v.z <= F.zB + 0.01 && v.x >= x0 - 0.01 && v.x <= x1 + 0.01; }); };
+// a sheet's buildings (Brief 28 item 11: A-102 too): each footprint, its real outline where the import kept one, filled, at
+// the objects' weight; nothing past the extent
+RPT.planBuildings = function(P, G, F, mode) {
+  var FI = RPT.fills(mode), k = F.k;
+  ['L', 'R'].forEach(function(side) { (G.DM.buildings[side] || []).forEach(function(b) {
+    var fp = b.footprint; if (!fp || !fp.visible || fp.z1 < F.zA || fp.z0 > F.zB) return;
+    var x0 = Math.min(fp.faceX, fp.backX), x1 = Math.max(fp.faceX, fp.backX);
+    if (fp.poly) P.poly(fp.poly.map(function(p) { return [F.sx(p.z), F.sy(p.x)]; }), { fill: FI.building, cls: 'edge', data: " data-bldg-poly='1'" });
+    else P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, cls: 'edge' });
+  }); });
 };
 // genus tags by group (Brief 28 item 6, TREE_TAGS): the trees within the sheet's extent only; each tag above its group, sliding
 // along the street (then up a row) clear of the sheet's text so far and the boxes in o.avoid, in order along each side of the
@@ -24000,7 +24058,7 @@ RPT.treeTags = function(P, F, trees, o) {
 // the key plan in the title block shows the drawing's extent (ext).
 // The sheet's scale for its crop (Brief 17, 4b): its own, or the next one out of {1:10, 1:20, 1:50, 1:100, 1:250} when the
 // crop and its dimension rows (padW, padH mm) do not fit the drawing area; never a scale in between.
-RPT.SCALES = [10, 20, 50, 100, 250];
+RPT.SCALES = [10, 20, 50, 100, 200, 250];   // (1:200: A-102 over a block face, Brief 28 item 11)
 RPT.fitScale = function(cr, base, padW, padH) {
   var i = RPT.SCALES.indexOf(base);
   while (i < RPT.SCALES.length - 1 && ((cr.z1 - cr.z0) * 1000 / RPT.SCALES[i] + padW > RPT.DA.w || (cr.x1 - cr.x0) * 1000 / RPT.SCALES[i] + padH > RPT.DA.h)) i++;
@@ -24044,11 +24102,12 @@ RPT.sheetSite = function(d) {
   });
   // the annotation tier from the sheet's scale (Brief 19 A): 1:250 is mid (no tree tags, no object labels), nearer is near
   var lod = lodTier(2000 / sc), near = lod === 'near';
-  RPT.planBase(P, G, F, d.mode, {});
-  // genus tags at every scale (Brief 28 item 6: grouped, they read at 1:250), clear of the section marker's tags
-  RPT.planObjects(P, G, F, { genus: true, labels: near, layers: RPT.SHEET_LAYERS.A101, x0: xTop, x1: xBot, bounds: [xa + 1, ya + 1, xb - 1, yb - 1],
-    avoid: tagY.map(function(y) { return [secX - 7.2, y - 4, secX + 7.2, y + 4]; }) });
+  // the trees on the ground under the deck (Brief 28 item 5), the site objects over it
+  RPT.planBase(P, G, F, d.mode, { beforeDeck: function() { RPT.planObjects(P, G, F, { layers: ['trees'] }); } });
+  RPT.planObjects(P, G, F, { labels: near, layers: RPT.SHEET_LAYERS.A101.filter(function(l) { return l !== 'trees'; }) });
   RPT.cityPlan(P, F, d);   // the City's wheel stops and bollards (Brief 21 §13): symbols, no note (A-102 has it)
+  // genus tags last, on top, at every scale (Brief 28 item 6: grouped, they read at 1:250), clear of the section marker's tags
+  RPT.treeTags(P, F, RPT.sheetTrees(G, F, xTop, xBot), { mid: (LM.roadRight || 0) / 2, bounds: [xa + 1, ya + 1, xb - 1, yb - 1], avoid: tagY.map(function(y) { return [secX - 7.2, y - 4, secX + 7.2, y + 4]; }) });
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
   var pc = [(F.sx(0) + F.sx(G.L)) / 2, F.sy((LM.deckX0 + LM.deckX1) / 2)];
@@ -24103,7 +24162,10 @@ RPT.sheetLayout = function(d) {
   var zA = cr.z0, zB = cr.z1, xTop = cr.x0, xBot = cr.x1, F = RPT.pframe(sc, zA, zB, xTop, 46, 22);   // the sheet's crop: the drawing is clipped at it
   var xa = F.sx(zB), xb = F.sx(zA), ya = F.sy(xTop), yb = F.sy(xBot), zoneAt = null;
   P.clipOpen("<rect x='" + xa + "' y='" + ya + "' width='" + (xb - xa) + "' height='" + (yb - ya) + "'/>");
-  RPT.planBase(P, G, F, d.mode, { boards: true, hatchSidewalk: true });
+  // the block face (Brief 28 item 11): the cross streets, both sides' buildings, the trees under the deck
+  P.add(CTX_ROADS.svg(CTX_ROADS.world(false, G.DM), function(x, z) { return [F.sx(z), F.sy(x)]; }, k, DRAW_STYLE.t(d.mode), 0.18));
+  RPT.planBuildings(P, G, F, d.mode);
+  RPT.planBase(P, G, F, d.mode, { boards: true, hatchSidewalk: true, beforeDeck: function() { RPT.planObjects(P, G, F, { layers: ['trees'] }); } });
   // the parklet's own pieces: the enclosure (Brief 21 §12: its plan symbol per side); the City's wheel stops and bollards
   // (§13: symbols, with the one note)
   RPT.encPlan(P, F, d, { posts: false });
@@ -24113,22 +24175,24 @@ RPT.sheetLayout = function(d) {
   var tagLater = function() { RPT.planTags(P, [xa + 0.5, ya + 0.5, xb - 0.5, yb - 0.5], 'A-102'); };   // after the zones' lozenges (Brief 22 item 6)
   // clearance zones: DRAW_STYLE's zone line (fine, dashed; red when that check fails), the rule ID in its lozenge
   var zst = function(id) { return G.fail(id) ? 'fail' : 'pass'; };
-  var zone = function(id, z0, z1, x0, x1) {
+  var zone = function(id, z0, z1, x0, x1, at, off) {   // at: where along the zone its lozenge sits (0..1, default the middle); off: a sheet x it keeps 6 mm from
     z0 = Math.max(Math.min(z0, z1), F.zA); z1 = Math.min(Math.max(z0, z1), F.zB); if (z1 - z0 < 0.05) return;
     var z = DRAW_STYLE.zone(P.ctx, zst(id)), X0 = F.sx(z1), W = (z1 - z0) * k;
     P.rect(X0, F.sy(x0), W, (x1 - x0) * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, fill: 'none', data: " data-zone='" + id + "'" });
-    if (W > 7) { DRAW_SYMBOLS.lozenge(P, X0 + W / 2, F.sy(x0) + 2.4, id.replace(/^c(\d)$/, 'C0$1').toUpperCase(), zst(id)); if (!zoneAt) zoneAt = [X0 + W / 2 + 5, F.sy(x1) - 2]; }
+    var lx = X0 + W * (at == null ? 0.5 : at); if (off != null && Math.abs(lx - off) < 6) lx = off + 6 <= X0 + W - 3 ? off + 6 : off - 6;
+    if (W > 7) { DRAW_SYMBOLS.lozenge(P, lx, F.sy(x0) + 2.4, id.replace(/^c(\d)$/, 'C0$1').toUpperCase(), zst(id)); if (!zoneAt) zoneAt = [X0 + W / 2 + 5, F.sy(x1) - 2]; }
   };
   var dx0 = LM.deckX0, dx1 = LM.deckX1;
   zone('c13', -G.c13, 0, dx0, dx1); zone('c13', G.L, G.L + G.c13, dx0, dx1);
   zone('c3', -G.c13 - G.c03, -G.c13, dx0, dx1); zone('c3', G.L + G.c13, G.L + G.c13 + G.c03, dx0, dx1);
   G.cf.forEach(function(c) {
-    if (c.type === 'H') zone('c5', c.z - 5, c.z + 5, Math.min(c.x - 0.6, dx0), dx1);
+    if (c.type === 'H') zone('c5', c.z - 5, c.z + 5, Math.min(c.x - 0.6, dx0), dx1, 0.2, F.sx(c.z));   // off the hydrant's H (Brief 28 item 11)
     var r = c.type === 'P' ? (G.trolley ? 2.4 : 1.0) : c.type === 'S' ? 2.0 : 0, id = c.type === 'P' ? 'c7' : 'c8';
     if (r) { var z = DRAW_STYLE.zone(P.ctx, zst(id)); P.circle(F.sx(c.z), F.sy(c.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='" + id + "'" }); DRAW_SYMBOLS.lozenge(P, F.sx(c.z) + r * k + 4, F.sy(c.x) - 2, id === 'c7' ? 'C07' : 'C08', zst(id)); }
   });
   G.mh.forEach(function(m) { var z = DRAW_STYLE.zone(P.ctx, zst('c9')), r = 1 + (typeof MANHOLE_R_M !== 'undefined' ? MANHOLE_R_M : 0.47); P.circle(F.sx(m.z), F.sy(m.x), r * k, { cls: 'fine', dash: 'zone', c: z.c, op: z.op, data: " data-zone='c9'" }); DRAW_SYMBOLS.lozenge(P, F.sx(m.z) + r * k + 4, F.sy(m.x) - 2, 'C09', zst('c9')); });
   tagLater();
+  RPT.treeTags(P, F, RPT.sheetTrees(G, F, xTop, xBot), { mid: (LM.roadRight || 0) / 2, bounds: [xa + 1, ya + 1, xb - 1, yb - 1] });   // last, on top (Brief 28 item 6)
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
   RPT.secMarker(P, F.sx(G.sec.z), F.sy(G.sec.x0), F.sy(G.sec.x1), G.sec.dir === 1, [ya, yb]);   // first: the dimensions keep off its line (Brief 28 item 8)
@@ -31669,6 +31733,9 @@ RPT.cityPlan = function(P, F, d, o) {
     var x = F.sx(c.z), y = F.sy(c.x), dt = " data-city='" + c.type + "' data-end='" + c.end + "'";
     if (c.type === 'wheelStop') { DRAW_SYMBOLS.cityWheelStop(P, x, y, (c.z1 - c.z0) * F.k, (c.x1 - c.x0) * F.k, { data: dt }); if (!at) at = [x, y - (c.x1 - c.x0) * F.k / 2 - 1]; }
     else DRAW_SYMBOLS.flexBollard(P, x, y, 0.1 * F.k, { data: dt });
+    // its symbol is an obstacle to the sheet's later text (Brief 28 item 11: "2.50" was drawn over the bollard on A-103)
+    var hw = c.type === 'wheelStop' ? Math.max(1.6, (c.z1 - c.z0) * F.k / 2 + 0.6) : 1.8, hh = c.type === 'wheelStop' ? Math.max(1.6, (c.x1 - c.x0) * F.k / 2 + 0.6) : 1.8;
+    P.boxes.push({ text: true, obst: true, t: c.type, x0: x - hw, x1: x + hw, y0: y - hh, y1: y + hh });
   });
   return at;
 };
