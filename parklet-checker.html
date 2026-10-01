@@ -1563,32 +1563,70 @@ function renderVerdictCompact() {
   const el = document.getElementById('verdictCompact');
   if (el) el.innerHTML = `<div class="vc ${cls}">    <span class="vc-icon">${icon}</span>    <div><div class="vc-lbl">${lbl}</div><div class="vc-detail">${detail}</div></div>  </div>`;
 }
+// The verdict (Brief 25 item 32): one sentence and one next action, a button to the thing itself: the failing row, the
+// survey sheet, the confirm list, the report. Under it, the pass rule (item 32b), said once where it is needed.
+var PASS_RULE = 'A check passes only on measured or confirmed values; imported data gives a provisional result, estimates don\'t count.';
+var VERDICT = {
+  // a check's row: the Check tab, its group open, the row open and in view
+  row: function(id) {
+    appSetMode('check');
+    var c = criteria.find(function(q) { return q.id === id; }), el = document.getElementById('crit_' + id); if (!el) return;
+    var g = el.closest('details.chk-grp'); if (g) { g.open = true; if (typeof CHKG !== 'undefined') CHKG.open[g.dataset.g] = true; }
+    if (!el.classList.contains('open') && typeof toggleCrit === 'function') toggleCrit(id);
+    el.scrollIntoView({ block: 'center' }); var h = el.querySelector('.criterion-header'); if (h) h.focus({ preventScroll: true });
+  },
+  // the confirm list (Confirm on site, the Check tab's side column)
+  confirm: function() {
+    appSetMode('check');
+    setTimeout(function() { var sc = document.getElementById('smpCheck'); if (!sc) return; sc.scrollIntoView({ block: 'start' }); var b = sc.querySelector('button'); if (b) b.focus({ preventScroll: true }); }, 50);
+  }
+};
 function renderVerdict() {
   // Brief 25 §1: "does not pass" only when a measured or confirmed value fails; an estimate awaits a measurement
-  const n = CHK.counts(), pend = n.await + n.unclear, passing = n.pass + n.provPass;
-  const pl = (k, one, many) => k === 1 ? one : many;
-  const pending = [];
-  if (n.await) pending.push(`${n.await} ${pl(n.await, 'check awaits a measurement', 'checks await measurements')} (the value in hand is an estimate)`);
-  if (n.unclear) pending.push(`${n.unclear} ${pl(n.unclear, 'check needs', 'checks need')} a site value not yet entered`);
-  const pendTxt = pending.join('; ');
-  let cls, icon, title, body;
+  const n = CHK.counts(), todo = n.await + n.unclear, pl = (k, one, many) => k === 1 ? one : many;
+  const unconf = typeof SMP !== 'undefined' && SMP.unconfirmed ? SMP.unconfirmed().length : 0;
+  const first = (pred) => criteria.find((c) => pred(CHK.state(c))), rid = (c) => 'C' + String(c.num).padStart(2, '0');
+  let cls, icon, sentence, act;
   if (n.fail > 0) {
-    cls = 'fail-verdict'; icon = '✗'; title = 'Preliminary verdict: does not pass';
-    body = `${n.fail} ${pl(n.fail, 'check fails', 'checks fail')} on measured or confirmed values` + (n.provFail ? `, and ${n.provFail} more on imported data not yet verified on site` : '') + (pendTxt ? `; ${pendTxt}` : '') + '. Resolve the failures before going further.';
+    const c = first((s) => s.base === 'fail' && !s.provisional);
+    cls = 'fail-verdict'; icon = '✗'; sentence = `Does not pass: ${n.fail} ${pl(n.fail, 'check fails', 'checks fail')} on measured data.`;
+    act = { t: 'Open ' + rid(c), on: `VERDICT.row('${c.id}')` };
   } else if (n.provFail > 0) {
-    cls = 'partial-verdict'; icon = '⚠'; title = 'Preliminary verdict: provisional, fails on imported data';
-    body = `${n.provFail} ${pl(n.provFail, 'check fails', 'checks fail')} on imported site data not yet verified on site: confirm or correct it in Confirm on site.` + (pendTxt ? ` Also: ${pendTxt}.` : '') + ` ${passing} ${pl(passing, 'check passes', 'checks pass')} so far.`;
-  } else if (pend > 0) {
-    cls = 'partial-verdict'; icon = '⚠'; title = 'Preliminary verdict: incomplete, data needed';
-    body = `No failures on measured or confirmed values. ${pendTxt.charAt(0).toUpperCase() + pendTxt.slice(1)}. ${passing} ${pl(passing, 'check passes', 'checks pass')} so far.`;
+    const c = first((s) => s.base === 'fail');
+    cls = 'partial-verdict'; icon = '⚠'; sentence = `Does not pass yet: ${n.provFail} ${pl(n.provFail, 'check fails', 'checks fail')} on imported data; confirm or correct it on site.`;
+    act = { t: 'Open ' + rid(c), on: `VERDICT.row('${c.id}')` };
+  } else if (todo > 0) {
+    cls = 'partial-verdict'; icon = '⚠'; sentence = `Can't be judged yet: measure ${todo} ${pl(todo, 'thing', 'things')} on site.`;
+    act = { t: 'Survey sheet (PDF)', on: 'RPT.printSurvey()' };
+  } else if (n.provPass > 0 || unconf > 0) {
+    cls = 'partial-verdict'; icon = '◎'; sentence = `Passes provisionally: confirm ${unconf} imported ${pl(unconf, 'object', 'objects')}.`;
+    act = { t: 'Confirm list', on: 'VERDICT.confirm()' };
   } else {
-    cls = 'pass-verdict'; icon = '✓'; title = 'Preliminary verdict: passes every check';
-    body = `All ${passing} siting checks pass on the data provided. Proceed to detailed proposal stage. Note: City design panel review is still required.`;
+    cls = 'pass-verdict'; icon = '✓'; sentence = 'Passes: every check passes on measured or confirmed values. City review is still required.';
+    act = { t: 'Download the report', on: 'RPT.print()' };
   }
-  // the banner on the Check and Export tabs only (Brief 21 §3)
-  var _vh = `<div class="verdict ${cls}"><div class="verdict-icon">${icon}</div><div class="verdict-body"><h2>${title}</h2><p>${body}</p></div></div>`;
+  // the banner on the Check and Export tabs only (Brief 21 §3); the pass rule under it (Brief 25 item 32b)
+  var _vh = `<div class="verdict ${cls}" data-verdict="1"><div class="verdict-icon">${icon}</div><div class="verdict-body"><h2>${sentence}</h2></div>` +
+    `<button type="button" class="verdict-act" onclick="${act.on}">${act.t}</button></div><p class="verdict-rule">${PASS_RULE}</p>`;
   ['verdictBanner', 'verdictBannerExp'].forEach(function(id) { var el = document.getElementById(id); if (el) el.innerHTML = _vh; });
 }
+// the pass rule once, on the first sign-in (Brief 25 item 32b): a card on the opening screen with Got it; seen is kept in
+// the account (user metadata rule_seen) so a later sign-in, anywhere, does not show it again (and in this browser too)
+var RULE = {
+  seen: function(u) { try { if (u && localStorage.getItem('pkt_rule_seen_' + u.id) === '1') return true; } catch (e) {} return !!(u && u.user_metadata && u.user_metadata.rule_seen); },
+  maybeShow: function(u) {
+    if (!u || RULE.seen(u) || document.getElementById('ruleCard')) return;
+    var d = document.createElement('div'); d.id = 'ruleCard'; d.className = 'rule-card'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-labelledby', 'ruleCardT');
+    d.innerHTML = "<div class='rule-card-box'><h2 id='ruleCardT'>How a check passes</h2><p>" + PASS_RULE + "</p><button type='button' class='rule-card-ok' id='ruleCardOk'>Got it</button></div>";
+    document.body.appendChild(d);
+    var ok = document.getElementById('ruleCardOk'); ok.focus();
+    ok.onclick = function() {
+      try { localStorage.setItem('pkt_rule_seen_' + u.id, '1'); } catch (e) {}
+      if (pkSB && pkSB.auth && pkSB.auth.updateUser) pkSB.auth.updateUser({ data: { rule_seen: true } }).catch(function() {});
+      d.remove();
+    };
+  }
+};
 function renderSummary() {
   const g = { fail: [], provFail: [], await: [], unclear: [], pass: [] };
   criteria.forEach(c => {
@@ -18102,6 +18140,7 @@ async function pkInitApp() {
 
     if (session && session.user) {
       pkCurrentUser = session.user;
+      if (typeof RULE !== 'undefined') setTimeout(function() { RULE.maybeShow(session.user); }, 0);   // not yet acknowledged: shown once (Brief 25 item 32b)
       await pkEnsureProfile(session.user);
       pkUpdateAccountUI();
       pkSetSaveStatus('', '');
@@ -18628,6 +18667,7 @@ async function pkDoSignIn() {
   }
   pkCurrentUser = res.data.user;
   pkHideAuthModal();
+  if (typeof RULE !== 'undefined') RULE.maybeShow(pkCurrentUser);   // the pass rule, first sign-in only (Brief 25 item 32b)
   await pkEnsureProfile(pkCurrentUser);
   pkUpdateAccountUI();
   pkSetSaveStatus('', '');
@@ -23564,7 +23604,7 @@ RPT.sheetList = function(d) {
   var out = [], off = [];
   RPT.OPT_KEYS.forEach(function(k) { if (!RPT.on(k, d)) off = off.concat(RPT.OPT_SHEETS[k]); });
   RPT.SHEETS[d.mode].forEach(function(k) {
-    if (off.indexOf(k) >= 0) return;
+    if (off.indexOf(k) >= 0 || (d.only && d.only.indexOf(k) < 0)) return;
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     // (Brief 19b: each drawing's scale from RPT.SCALE_OF, the value its sheet draws at and its title block prints)
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop, RPT.SCALE_OF.deck(d), RPT.deckPosts(d.DM)); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
@@ -24136,18 +24176,19 @@ RPT.render = async function(d, drw) {
 };
 RPT.fileName = function(d) { return 'curbside-' + String(d.DM.project.name || 'parklet').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + d.mode + (d.sample ? '-sample' : '') + '.pdf'; };
 // the whole report: data, renders, drawings, pages -> a PDF (RPT.lastPdf: {blob, name, pages, check})
-RPT.make = async function(mode) {
+RPT.make = async function(mode, opt) {
   var T = {}, t = performance.now(), lap = function(k) { var n = performance.now(); T[k] = Math.round(n - t); t = n; };
   RPT.progress(0.02, 'Reading the design'); await RPT.yieldFrame();
   var d = RPT.data(mode || RPT.mode()); lap('data');
+  if (opt && opt.only) d.only = opt.only;   // some sheets only (the survey sheet: Brief 25 item 32)
   // the renders are the design's in both reports (their credits in X-001); only the schematic prints the images
   RPT.progress(0.06, 'Collecting the renders'); await RPT.yieldFrame();
-  d.renders = await (RPT.renderSource || RPT.collectRenders)(); lap('renders');
+  d.renders = d.only ? [] : await (RPT.renderSource || RPT.collectRenders)(); lap('renders');
   if (!RPT.on('renders', d)) d.renders = [];   // Renders left out (Brief 22 item 7): no render sheet, no render on the cover
   RPT.progress(0.12, 'Reading the attachments'); await RPT.yieldFrame();
-  d.attach = await RPT.collectAttach(d); lap('attachments');   // the spec cards' attachments (Brief 22 item 8)
+  d.attach = d.only ? [] : await RPT.collectAttach(d); lap('attachments');   // the spec cards' attachments (Brief 22 item 8)
   RPT.progress(0.18, 'Drawing the cover and the views'); await RPT.yieldFrame();
-  var drw = await RPT.drawings(d); lap('drawings');
+  var drw = d.only && d.only.indexOf('cover') < 0 ? {} : await RPT.drawings(d); lap('drawings');
   RPT.progress(0.3, 'Laying out the sheets'); await RPT.yieldFrame();
   var doc = await RPT.render(d, drw); lap('sheets');
   RPT.progress(0.95, 'Writing the PDF'); await RPT.yieldFrame();
@@ -24156,6 +24197,14 @@ RPT.make = async function(mode) {
   RPT.lastTimings = T; console.info('[report] ms per stage', JSON.stringify(T));   // where the time goes, if it is ever slow again
   RPT.progress(1, 'Done');
   return RPT.lastPdf;
+};
+// the survey sheet alone (Brief 25 item 32: the verdict's "Can't be judged yet" action): S-002 as its own PDF
+RPT.printSurvey = async function() {
+  try {
+    var r = await RPT.make(null, { only: ['survey'] }), a = document.createElement('a');
+    a.href = URL.createObjectURL(r.blob); a.download = r.name.replace(/\.pdf$/, '-survey.pdf'); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function() { URL.revokeObjectURL(a.href); }, 60000);
+  } catch (e) { console.error('[report] survey', e); alert('The survey sheet could not be prepared: ' + (e && e.message ? e.message : e)); }
 };
 RPT.print = async function() {
   var btn = document.getElementById('pdfExportBtn'), lbl = btn ? btn.innerHTML : '';
@@ -28593,10 +28642,7 @@ SMP.sourcesList = function() {
   wrap('updateC02Status', function() { SMP.decorateChecks(); });
 
   wrap('renderBldgList', function(side) { SMP.decorateBldg(side); });   // (siteUI is not wrapped: it keeps a flag on itself, siteUI.custom)
-  wrap('renderVerdict', function() {
-    var b = document.getElementById('verdictBanner'), n = SMP.unconfirmed().length, pv = criteria.filter(function(c) { return SMP.isProvisional(c.id); }).length; if (!b || !(n || pv)) return;
-    var p = b.querySelector('.verdict-body'); if (p) p.insertAdjacentHTML('beforeend', '<p><b>Provisional:</b> ' + pv + ' check' + (pv === 1 ? '' : 's') + ' depend on imported site data not yet verified on site (' + n + ' object' + (n === 1 ? '' : 's') + ' to confirm).</p>');
-  });
+  // (the verdict's provisional line is gone: one sentence and one action, the confirm list one of them: Brief 25 item 32)
   // the Site tab: the import button + its message, under the map row
   var row = document.getElementById('siteMapHint');
   if (row && !document.getElementById('smpImportBtn')) {
@@ -29718,6 +29764,18 @@ input[data-secret] { -webkit-text-security: disc; }
 .ui-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 12px 16px; padding: 12px 14px; border: 1px dashed var(--d-lt, #bbb); border-radius: 6px; background: var(--d-paper, #fff); color: var(--d-ink, #222); font: 13px/1.45 var(--font-ui); }
 .ui-empty p { margin: 0; flex: 1; min-width: 200px; }
 .ui-empty-btn { font: 600 12px var(--font-ui); padding: 5px 12px; border-radius: 4px; border: 1px solid var(--accent-ui, #3AA8E4); background: var(--accent-ui, #3AA8E4); color: #fff; cursor: pointer; }
+/* the verdict: one sentence, one action; the pass rule under it (Brief 25 items 32, 32b) */
+.verdict[data-verdict] { align-items: center; }
+.verdict[data-verdict] .verdict-body h2 { margin: 0; }
+.verdict-act { margin-left: auto; flex: 0 0 auto; font: 600 12px var(--font-ui); padding: 6px 14px; border-radius: 4px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; white-space: nowrap; }
+.verdict-act:hover { background: rgba(0,0,0,.06); }
+.verdict-act:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 2px; }
+.verdict-rule { margin: 6px 2px 0; font: 12px/1.45 var(--font-ui); color: var(--text-lo, #9AA0A6); }
+.rule-card { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(11,12,14,.55); }
+.rule-card-box { max-width: 440px; margin: 16px; padding: 20px 22px; border-radius: 8px; background: var(--d-paper, #fff); color: var(--d-ink, #1A1A1A); box-shadow: 0 12px 40px rgba(0,0,0,.35); }
+.rule-card-box h2 { margin: 0 0 8px; font: 600 16px var(--font-ui); }
+.rule-card-box p { margin: 0 0 16px; font: 14px/1.5 var(--font-ui); }
+.rule-card-ok { font: 600 13px var(--font-ui); padding: 7px 18px; border-radius: 4px; border: 1px solid var(--accent-ui, #3AA8E4); background: var(--accent-ui, #3AA8E4); color: #fff; cursor: pointer; }
 /* the Check tab's groups (Brief 25 item 31) */
 .chk-grp { border-top: 1px solid var(--d-lt); }
 .chk-grp > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font: 600 12px var(--font-ui); letter-spacing: .04em; color: var(--d-ink, #1A1A1A); background: var(--d-xlt); }
