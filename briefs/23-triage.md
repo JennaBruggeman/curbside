@@ -592,3 +592,47 @@ pass.
     outside: Array(1)` once (one text outside a sheet, not identified).
 - **README / landing wrong:** none.
 - Evidence: `<scratchpad>\b23\full\p3-run2\` (screenshots, the PDF).
+
+### Run: Persona 8 (City staff reviewer, the PDF only), run 2, Opus
+
+- **Input:** two sets made by this pass's runs: persona 2 run 2's technical set (W 10th Av at Tolmie St) and persona 3
+  run 2's schematic set (Fraser St at E 22nd Av, a planter-wall edge and a shaped deck), and the Manual. Three
+  dimensions chosen per set, none of run 1's. **Time:** about 16 minutes. Both scale bars true (1:250, 1:100).
+- **The dimensions**
+  - **Set 1 (technical)**
+    - C13 parking setback: "1.50 (≥1.50 C13)" on A-102: **cannot tell.** It is the rule zone, not a measurement; C-001
+      says C13 "not entered", and the near side has no parking at all (a bus zone).
+    - Deck width 2.65 m against p. 20's 2.3–2.5 m: **disagree** (as run 1).
+    - C18 openings: clear runs 11.88 and 5.07 m scaled, against C-001's 11.90 / 5.10: **agree** ("8 openings" is the
+      tool's own count, run length ÷ 1.8).
+  - **Set 2 (schematic)**
+    - C03 intersection setback: "6.00 (≥6.00 C03)", the rule zone again, cut by the frame at about 5.2 m drawn: **cannot
+      tell.** A-101 draws no cross street within its 78.5 m, while the locator shows one about 18 m before the deck.
+    - C16 route: fails on the sheets, **agree in substance, wrong basis.** It tests 1.1 m against the Manual's 1.5 m (G19,
+      p. 60, as before). The text's "entry 1 (z 3.30)" does not match the entry drawn at z 4.65–6.15. A third entry
+      drawn near z 16.5 is not mentioned, and the "0.30 m" pinch could not be found on the drawing.
+    - Deck width 2.65 m: **disagree.** By the set's own street (15.20 m curb to curb, four 3.2 m lanes) it can be at most
+      2.40 m.
+- **New since run 1**
+  - **Rule zones read as measurements:** "1.50 (≥1.50 C13)" and "6.00 (≥6.00 C03)" share the format of a real value
+    ("40.27 (≥5.00 C05)"), so a reviewer reads them as met when both checks are not entered.
+  - **Red zones contradict the legend:** the legend says "Clearance zone (red: the check fails)", but in the schematic set
+    passing C05 ("32.22") is red. **Confirmed in code:** the schematic style draws passes in zone red at 60 %.
+  - **A notched deck under a straight enclosure (set 2):** the shaped deck is cut back about 1.8 m on the traffic side at
+    the far end. The planter wall runs straight on over the missing deck, leaving a 1.36 × 0.32 m void inside the
+    enclosure. The "2.65" still spans the full width, and X-001's 50.17 m² is less than 19.80 × 2.65. Not reproduced by
+    me; it fits persona 3 run 2's use of the shape editor.
+  - **Three curb-to-curb widths in set 1:** 17.60 (X-001, imported), 18.15 (A-201's segments) and 19.00 (A-101 and S-002,
+    "user"). C02's pass rests on a "proposed" street with wider lanes (3.50 / 3.20 …) and a 2.00 m sidewalk, not the
+    imported 17.60.
+  - **The C03 and C05 strings run off A-102's frame** in both sets (as run 1).
+  - C16's text reads "beside the the deck edge". **Confirmed in code:** `ENC.near` already returns "the …".
+  - "3 routes 1.72 m clear or more" on C-001 (set 1) against "1.10 clear" on A-103; no 1.72 m anywhere on the drawing.
+  - A-101's legend lists a bus-stop symbol, but the stop 8.7 m past the deck (S-002) is not drawn on the plan.
+  - C02 again "AWAITING MEASUREMENT" in the table and "3.20 FAIL" four times in the lane panel (as run 1).
+- **Verdict as a reviewer:**
+  - Trusts the technical set's linework and its C16 / C18 geometry; distrusts its street numbers.
+  - The schematic set is more honest about estimates, but its red zones and the notched deck would make the reviewer
+    send it back sooner.
+  - Trusts neither for C03 or C13 until site values are entered.
+- Evidence: the agent's report (this block); the input PDFs in `<scratchpad>\b23\full\p2-run2\` and `p3-run2\`.
