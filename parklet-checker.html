@@ -22223,12 +22223,42 @@ GEN.toggleLock = function(i) {
   if (GEN.locked[c.key]) delete GEN.locked[c.key]; else GEN.locked[c.key] = c;
   GEN.renderCards();
 };
-// Open in Design: the current design goes to an undo slot, the scheme's DESIGN_STATE is applied
-// to the live model through the ordinary load path; everything is then editable as usual.
+// Open in Design: the current design goes to an undo slot, the scheme is applied to the live model through the ordinary
+// load path; everything is then editable as usual.
+// Brief 27 item 3 (triage row 4): a scheme is the deck and what stands on it, nothing else. The scheme's own state is a
+// skeleton (no trees, stops, import record, existing street, provenance or enclosure), and applying it whole wiped the
+// imported site and turned estimates into "entered" values. So the open design is the current one with the scheme's deck
+// (length, width, shape), its furniture, the deck-dependent distances Generate derived for it and its design commitments;
+// when the scheme moves or resizes the deck along the curb, the site context shifts the other way, as pkMove does, so
+// the street stays put.
+GEN.DERIVED_KEYS = ['hydrant_dist', 'pole_dist', 'signal_box_dist', 'driveway_dist', 'manhole_dist', 'intersection_dist', 'parking_setback'];
+GEN.COMMIT_KEYS = ['boulevard_clear', 'platform_gap', 'load_capacity'];
+GEN.openState = function(c, cur, base) {
+  var ds = c.ds, out = JSON.parse(JSON.stringify(cur)), so = out.siteObjects = out.siteObjects || {};
+  var L0 = +base.site.parkletLength, L = +ds.site.parkletLength, a = +(c.fp && c.fp.a) || 0;
+  var P0 = +((base.siteObjects || {}).place || {}).pkZ || 0, Pc = +(so.place || {}).pkZ || 0, Lc = +out.site.parkletLength;
+  var pkNew = P0 + a + L / 2 - L0 / 2, k = Pc - Lc / 2 + L / 2 - pkNew;   // a context position's world z moves by k
+  out.site.parkletWidth = ds.site.parkletWidth; out.site.parkletLength = L;
+  (out.crossSection || []).forEach(function(s) { if (s.type === 'parklet') s.width = ds.site.parkletWidth; });
+  if (Math.abs(k) > 1e-9) {
+    ['manholes', 'curb_features', 'driveways', 'street_trees', 'transit_stops'].forEach(function(n) {
+      (so[n] || []).forEach(function(o) { if (o && o.xM != null && isFinite(+o.xM)) o.xM = +(+o.xM + k).toFixed(6); });
+    });
+    [out.site.bldgL, out.site.bldgR].forEach(function(B) { ((B || {}).buildings || []).forEach(function(b) { if (b.zOffset != null && isFinite(+b.zOffset)) b.zOffset = +(+b.zOffset + k).toFixed(6); }); });
+  }
+  so.place = Object.assign({ corners: [] }, so.place || {}, { pkZ: +pkNew.toFixed(6) });
+  so.pkShape = ds.siteObjects.pkShape ? JSON.parse(JSON.stringify(ds.siteObjects.pkShape)) : null;
+  out.section = JSON.parse(JSON.stringify(ds.section));
+  out.furniture = JSON.parse(JSON.stringify(ds.furniture));
+  var moved = Math.abs(a) > 1e-6 || Math.abs(L - L0) > 1e-6;
+  GEN.COMMIT_KEYS.concat(moved ? GEN.DERIVED_KEYS : []).forEach(function(n) { if (ds.compliance[n] !== undefined) out.compliance[n] = ds.compliance[n]; });
+  return out;
+};
 GEN.open = function(i) {
   var c = GEN.result.schemes[i]; if (!c) return;
   GEN.undoSnap = getDesignState();
-  applyDesignState(JSON.parse(JSON.stringify(c.ds)));
+  applyDesignState(GEN.openState(c, GEN.undoSnap, GEN._base || GEN.undoSnap));
+  if (typeof pkAfterMove === 'function') pkAfterMove('generate-open');   // the clearances and C03 from the moved deck, saved
   GEN.opened = { title: GEN.title(c), seed: GEN.result.seed, i: i };
   appSetMode('design');
   GEN.banner();
