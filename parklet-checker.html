@@ -26922,6 +26922,56 @@ GIS.features = function(lid) {
   });
   return [...by.values()];
 };
+// ── The map's sources by diff (Brief 25 item 26) ──────────────────────────────────────────────────────────────────
+// A batch of arriving cells used to re-send each changed layer whole (setData: 12-16k trees or buildings, 14-15 ms a
+// call, 26-47 ms a batch). Now each layer keeps what its source shows (id -> the cells the feature came from) and a
+// change becomes a diff for the source's updateData (promoteId 'id'): the new features, the gone ids, and remove-and-add
+// for a feature whose cells changed (a line joined across a new cell). Large adds go in chunks; the queue is applied at
+// most GIS.FRAME_MS a frame, so no batch costs more than a frame.
+GIS._shown = {}; GIS._q = []; GIS.FRAME_MS = 6; GIS.CHUNK = 800;
+GIS.mergeParts = function(parts) {
+  var f = parts[0], o = { type: 'Feature', id: f.id, properties: f.properties, geometry: f.geometry };
+  if (parts.length < 2 || !/Line/.test(f.geometry.type)) return o;
+  var all = [], seen = {};
+  parts.forEach(function(q) { GIS.linesOf(q.geometry).forEach(function(l) { var k = JSON.stringify(l); if (!seen[k]) { seen[k] = 1; all.push(l); } }); });
+  o.geometry = { type: 'MultiLineString', coordinates: all };
+  return o;
+};
+GIS.featureIndex = function(lid) {
+  var by = new Map();
+  GIS.cs.forEach(function(v, k) {
+    var kk = k.split('|'); if (kk[1] !== lid || v.st !== 'ready' || !v.fc) return;
+    v.fc.features.forEach(function(f) { var o = by.get(f.id); if (!o) by.set(f.id, { parts: [f], cells: [kk[0]] }); else { o.parts.push(f); o.cells.push(kk[0]); } });
+  });
+  by.forEach(function(o) { o.sig = o.cells.length > 1 ? o.cells.slice().sort().join(',') : o.cells[0]; });
+  return by;
+};
+GIS.queueLayer = function(l) {
+  var src = GIS.map && GIS.map.getSource(GIS.src(l)); if (!src) return;
+  var cur = GIS.featureIndex(l), prev = GIS._shown[l] || new Map(), add = [], rem = [], shown = new Map();
+  cur.forEach(function(v, id) { var p = prev.get(id); shown.set(id, v.sig); if (p === v.sig) return; if (p !== undefined) rem.push(id); add.push(GIS.mergeParts(v.parts)); });
+  prev.forEach(function(sig, id) { if (!cur.has(id)) rem.push(id); });
+  GIS._shown[l] = shown;
+  if (typeof src.updateData !== 'function') GIS._q.push({ l: l, full: true });
+  else {
+    if (rem.length) GIS._q.push({ l: l, d: { remove: rem } });
+    for (var i = 0; i < add.length; i += GIS.CHUNK) GIS._q.push({ l: l, d: { add: add.slice(i, i + GIS.CHUNK) } });
+  }
+  GIS.pump();
+};
+GIS.pump = function() {
+  if (GIS._pumping || !GIS._q.length) return; GIS._pumping = true;
+  var next = function(fn) { if (typeof requestAnimationFrame === 'function' && !document.hidden) requestAnimationFrame(fn); else setTimeout(fn, 16); };
+  var step = function() {
+    var t0 = performance.now();
+    while (GIS._q.length && performance.now() - t0 < GIS.FRAME_MS) {
+      var j = GIS._q.shift(), s2 = GIS.map && GIS.map.getSource(GIS.src(j.l)); if (!s2) continue;
+      if (j.full) s2.setData({ type: 'FeatureCollection', features: GIS.features(j.l) }); else s2.updateData(j.d);
+    }
+    if (GIS._q.length) next(step); else GIS._pumping = false;
+  };
+  next(step);
+};
 // a line's pieces chained end to start where they meet (a way clipped at cell edges, whole again)
 GIS.joinParts = function(parts) {
   var out = parts.map(function(p) { return p.slice(); }), eq = function(a, b) { return Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6; };
@@ -26979,8 +27029,8 @@ GIS.mapInit = function(map) {
   map.on('moveend', GIS.onMove);
   GIS.listen(function(lids) {
     if (!GIS.map) return;
-    lids.forEach(function(l) { var s = GIS.map.getSource(GIS.src(l)); if (s) s.setData({ type: 'FeatureCollection', features: GIS.features(l) }); });
-    GIS.renderRows();
+    lids.forEach(function(l) { GIS.queueLayer(l); });   // diffs, applied a frame's budget at a time (Brief 25 item 26)
+    clearTimeout(GIS._rowsT); GIS._rowsT = setTimeout(GIS.renderRows, 120);   // the counts once the batch settles
   });
   GIS.onMove();
 };
