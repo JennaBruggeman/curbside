@@ -23,6 +23,15 @@ style targets shown in chat only; nothing from them goes in the repo.
    "Start with Site". Shown once per account (profile flag). Fold the 32b
    pass-rule sentence into the Check card, so first run has one
    interruption, not two. Match the landing page's look.
+1b. **Landing page audit.** Hero: one of the demo renders (ours, from the
+    repo) at full width, with the one-line description and Sign in / Try the
+    sample report. "How it works": the Brief 22 images, retaken from v0.14
+    after this brief lands so the trees, sidebar and Check tab are current;
+    draft the copy for each step (one sentence, plain words — Jenna edits).
+    A short strip of three renders further down ("What it can look like").
+    Remove the invite-code line (reads app_settings). Links: README, repo,
+    sample reports. Check it at 1024 px and on a phone. Everything shown on
+    it must be ours: renders, screenshots, our own photos — no stock images.
 2. **Locate card collapses when done.** After import, the card shows one line
    — "Howe Street · south-east side · runs 45° · Edit" — until Edit. When
    open: keep address, Locate on map, parklet side, the orientation diagram
