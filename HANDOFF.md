@@ -1166,7 +1166,7 @@ The 3D view shows the city everywhere, with no cut-off at the import radius. Bui
 - **Triage:** `briefs/23-triage.md` "## v0.14 smoke" (S1–S19). Nothing there is fixed except where a Brief 29 item
   covers it (S12–S14).
 
-## Brief 29b: fixes after the v0.14 smoke (branch `fixes-4` from v0.15, 2026-10-01; merged as v0.16)
+## Brief 29b: fixes after the v0.14 smoke (branch `fixes-4` from v0.15, 2026-10-01; merged as v0.16, then v0.16.1)
 Four items from `briefs/23-triage.md` "## v0.14 smoke", nothing else.
 - **S1, a long drag empties the deck: a load race, not the drag.**
   - Signed out, a reload restores `pkt-design-state` 1.3 s after load.
@@ -1194,8 +1194,10 @@ Four items from `briefs/23-triage.md` "## v0.14 smoke", nothing else.
     unchanged.
   - Technical PDF (real click): 1.1 s.
   - The 3D view draws when shown.
-- **Not in scope, seen in VERIFY:** a long drag can leave a piece off the deck (beyond its end, or in the lane) with no
-  warning.
+- **Off-deck drags (added before release, v0.16.1):**
+  - A deck piece dragged on the Plan keeps its whole footprint on the deck (`flDeckRange`): across it, and along it between the ends' enclosures.
+  - Against an edge it is held there, with an amber halo (`.pv-edge`).
+  - Vehicles and people may still stand off the deck.
 
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
