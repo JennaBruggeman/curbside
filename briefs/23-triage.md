@@ -988,3 +988,57 @@ pass.
 - **README / landing wrong:** none in the steps. The landing page's "Designs are kept in your account" is the only
   word on saving, and it doesn't warn about the opposite case.
 - Evidence: `<scratchpad>\b23\full\p6-run3\` (001–080.png, `curbside-untitled-parklet-schematic.pdf`).
+
+### Run: Persona 8 (City staff reviewer, the PDF only), run 3, Opus
+
+- **Input:** two sets from this pass's third runs:
+  - Parent run 3's schematic set (E 7th Av at Quebec St, values typed by the owner);
+  - persona 3 run 3's technical set (W 4th Av at Yew St, north side, under street trees).
+- **Time:** about 22 minutes.
+- **Method:** the agent rendered the sheets with pdf.js and scaled the vector paths against each sheet's scale bar.
+- **The dimensions** (none checked by earlier reviewers)
+  - **Set 1 (schematic)**
+    - **C06 driveway setback:** "12 m entered", PASS. **Cannot tell.** No curb cut, driveway or lane is drawn anywhere,
+      and the legend has none. The only gap in the frontage scales 11.3–13.0 m off the deck end, which fits the number.
+      The Manual's Context Plan (p. 42) asks for curb cuts to be shown.
+  - **Both sets**
+    - **C14 gap to the curb:** 12 mm drawn on A-202 (11 mm in set 2, within drawing precision), with note 5. **Agree.**
+    - **Drainage (P8, p. 63):**
+      - No drainage channel is drawn on either set.
+      - The clear passage along the gutter under the deck scales 0.27 × 0.06 m, against the Manual's figure of
+        0.40 × 0.10 m.
+      - No catch basins are drawn, so the 1 m clearance (P9) cannot be checked.
+      - C11 asks whether drains are clear of the footprint, a different question.
+      - **Disagree / cannot confirm.**
+    - **The furniture schedule against the deck plan:** counts and sizes match in both sets. **Agree.** Whether the
+      seating is integrated (F1, p. 66) and at most 50 % moveable (F2): **cannot tell**, as the schedule never says.
+  - **Set 2 (technical)**
+    - **The street-tree advisory:** a Park Board referral is right, since four maples' trunks are 0.11–0.41 m from the
+      curb face and two reach it. But two of the six "beside the deck" trees (chokecherry, hemlock) scale 4.1 m away
+      and plot inside the Gravity Pope building. The tree points and the building footprints are misregistered; nothing
+      says so. A-101 note 3's "genus tags on A-102" is still a dead reference.
+- **New since runs 1–2**
+  - **The failing bus stop is placed twice:** "z 31.3 m: a bus zone" in C01's source (X-001), and "z −1.2 m (1.2 m before
+    the deck)" on S-002, for the same TransLink stop 60574. **Confirmed in the PDF text.** C01's text carries a z from
+    another origin.
+    - On A-101 the stop is an unlabelled dot; the legend's "B Bus stop" symbol is never used.
+    - The technical set shows nothing in red, so its only failure is invisible on the plans.
+  - **The flexible bollard's symbol is the legend's "Utility pole"** (a circle with a dot), and bollards are not in the
+    legend. In set 1 (trolley wires: poles need 2.4 m) a reviewer sees a "pole" 1.05 m off each deck end, while C07
+    passes on a typed 4 m with no pole drawn.
+  - **A-102's overall dimension stops at the second travel lane:** "10.80" and "12.53" against A-101 and A-201's 13.20 /
+    21.20. Note 1 says it runs "frontage to far curb".
+  - **No sheet says which deck end is z 0** (it is the right-hand end). The reviewer worked it out by matching tree
+    stations.
+  - PDF 1's "2.00 Sidewalk" in the section, against about 4.05 m of paving drawn from the building face to the curb.
+  - C04 (0.1 %, see persona 6 run 3) cannot be checked: no spot elevations (p. 42 asks for them).
+- **Recurring (rows 12, 13, 18 and 28):**
+  - rule zones drawn like measured values ("6.00 (≥6.00 C03)", "1.50 (≥1.50 C13)" while not entered);
+  - red zones on passing checks (set 1), while the one real failure (C16) is not red;
+  - C03 and C05 strings cut at the frame but keeping their full values ("64.59" on a 5.5 m line);
+  - text collisions ("2.65" on the bollard, "19.80" crossed by A-A, "0.07" struck through);
+  - "+0.21" against 0.22.
+- **Verdict as a reviewer:** trusts set 2's drawing slightly more (no misleading colour, the section shows the tree
+  conflict), but neither set's checks: no one can verify C06–C11 from the drawings.
+- Evidence: the agent's report (this block) and its renders in `<scratchpad>\p8r3\`; the input PDFs in
+  `<scratchpad>\b23\full\parent-run3\` and `p3-run3\`.
