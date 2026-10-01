@@ -545,3 +545,50 @@ pass.
   blank street" asks a confirmation the README does not mention (it is the disclaimer the brief asked for).
 - **README / landing wrong:** step 5's "edit the street in the Section (Add segment)": click to append did nothing.
 - Evidence: `<scratchpad>\b23\full\p4-run2\` (screenshots, the PDF).
+
+### Run: Persona 5 (accessibility, keyboard only, 150 %), run 2, Sonnet
+
+- **Site:** a real address found by keyboard (1000 Davie St), then the blank street. **Time:** about 35 minutes to the
+  survey sheet PDF; the sample report's PDF after.
+- **New since run 1**
+  - **The search results are reachable after all**, one Tab further than expected (Tab from the box lands on "Search",
+    the next Tab on the first result; arrows do nothing). Run 1's "cannot pick a result" is softened; **the street and
+    side pick still has no keyboard way** ("Use this location" stays disabled, the map is never a tab stop): confirmed
+    again.
+  - **"Place" cannot be finished by keyboard:** the card's tooltip says "Places this piece on the deck; click in the
+    Plan to set where." So a keyboard user can never put seating on the deck, and C16 stays "Nothing placed yet". This
+    is also why "Place did nothing" for Parent run 1, persona 3 run 1 and persona 7 run 1: Place arms a placement that
+    waits for a click on the Plan, and only the tooltip says so.
+  - No keyboard way to select a placed piece (Help lists arrows for "the selected piece" but nothing selects one).
+  - Escape on the map dialog sends focus to the document start, not back to "Locate on map".
+  - The expanded Furniture library puts its 50 cards (one or two tab stops each) in the page's tab order with no skip.
+  - The Check groups are one tab stop each and open with Enter, but expose no expanded / collapsed state to a screen
+    reader (the `<summary>` is read as a plain button in the snapshot).
+  - Tooltips of the hidden app toolbar show over the sample report page when tabbing.
+  - "Accessible seat" (a bench end, or a table with knee clearance) is not a term the library's search or categories
+    know ("accessible" finds nothing; "wheelchair" finds the entourage figure).
+  - The console `GEN is not defined at ACC.planSVG` read as "the route drawing is broken": the route is drawn once the
+    layout model exists (verified in VERIFY); the warning is from the first renders. Still one issue to fix.
+- **README / landing wrong:** step 3 is mouse-only and does not say so; the PDF's "(C16 reserved)".
+- Evidence: `<scratchpad>\b23\full\p5-run2\` (001–138.png, two PDFs).
+
+### Run: Persona 3 (landscape designer), run 2, Sonnet
+
+- **Site:** Fraser St at E 22nd Av, west side (host 3755 Fraser St, a café). **Time:** about 10 minutes of steps, over
+  60 minutes on the clock (freezes of 20 s to 4 min after ordinary clicks).
+- **New since run 1**
+  - **A nicer edge breaks the route:** switching the traffic-side enclosure to Planter wall took the usable width from
+    2.65 m to 1.85 m, and a bench and a round planter then failed C16 ("no 1.10 m route to an accessible seat … beside
+    the deck edge or the enclosure"). The Edge panel had said so in "The buffer stops at 0.44 m: wider, no layout keeps
+    a 1.5 m entry space and a 1.10 m accessible route in the usable width": correct, but hard to read.
+  - The Edge panel's option tiles share their words with the tab subtitles ("Planter wall"), so a click by text landed on
+    the "Start end" tab (harness-adjacent; a person clicks the tile); the ends default to Planter wall and the traffic
+    side to Steel picket, which the README does not say.
+  - **Furniture survived a reload** here (the agent had switched tabs before reloading: consistent with persona 6's
+    finding that placing alone does not save).
+  - Visualize's "Technical" appearance button is greyed out with no reason given (not checked why).
+  - A quick drag of a card placed nothing; a slower one did (may be the harness's mouse drag).
+  - The reload itself hung for minutes ("Loading …?noauth") and then restored the design; `[report] layout check:
+    outside: Array(1)` once (one text outside a sheet, not identified).
+- **README / landing wrong:** none.
+- Evidence: `<scratchpad>\b23\full\p3-run2\` (screenshots, the PDF).
