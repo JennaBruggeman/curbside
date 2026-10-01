@@ -1441,62 +1441,128 @@ function rangeSync(el) {
   const t = el.dataset.target, c = el.dataset.crit;
   const ne = document.getElementById(t);
   if (ne) ne.value = el.value;
-  handleInput(c, t, el.value);
+  CHKS.draft(c);   // a draft until Save (Brief 28 item 3)
 }
 function numSync(el) {
   const t = el.id, c = el.dataset.crit;
   const re = document.getElementById(t + '_range');
   if (re) re.value = parseFloat(el.value) || 0;
-  handleInput(c, t, el.value);
+  CHKS.draft(c);
+}
+// Brief 28 item 3: a check's input row. Saved, it shows the value and Edit; editing, the fields and Save. Typing is a
+// draft: nothing is stored or recalculated and the row stays where it is until Save (or Enter); Escape, or leaving the
+// row, discards the draft and says so. (A label that is a question takes no colon: "?:" was shown.)
+function chkLbl(t) { t = String(t || ''); return /[?:]$/.test(t) ? t : t + ':'; }
+function chkRow(c, fields) {
+  return "<div class='input-row" + (CHKS.has(c) ? '' : ' editing') + "' id='in_" + c.id + "' data-crit='" + c.id + "'>" +
+    "<span class='chk-view'><span class='input-label'>" + chkLbl(c.inputLabel) + "</span> <span class='chk-val' id='val_" + c.id + "'>" + CHKS.text(c) + '</span>' +
+    "<button type='button' class='chk-edit' id='edit_" + c.id + "' onclick=\"CHKS.edit('" + c.id + "')\">Edit</button></span>" +
+    "<span class='chk-in'>" + fields + "<button type='button' class='chk-save' id='save_" + c.id + "' onclick=\"CHKS.save('" + c.id + "')\" disabled>Save</button></span>" +
+    "<span class='chk-draft' id='draft_" + c.id + "' role='status' aria-live='polite'></span>" +
+    "<span class='inline-result' id='result_" + c.id + "'></span></div>";
 }
 function buildRangeInput(c) {
-  const rv = parseFloat(state[c.inputId]) || 0;
+  const rv = parseFloat(state[c.inputId]) || 0, has = state[c.inputId] !== undefined && state[c.inputId] !== null && state[c.inputId] !== '';
   const mn = c.inputMin||0, mx = c.inputMax||10, st = c.inputStep||0.1;
-  let h = `<div class='input-row'><span class='input-label'>${c.inputLabel}:</span>`;
+  let h = "<span class='input-label'>" + chkLbl(c.inputLabel) + '</span>';
   h += `<input type='range' id='${c.inputId}_range' data-target='${c.inputId}' data-crit='${c.id}'`;
   h += ` min='${mn}' max='${mx}' step='${st}' value='${rv}' style='width:150px;vertical-align:middle;' oninput='rangeSync(this)'/>`;
   h += `<input class='input-field' type='number' id='${c.inputId}' data-crit='${c.id}'`;
-  h += ` min='${mn}' max='${mx}' step='${st}' value='${rv}' style='width:52px;' oninput='numSync(this)'/>`;
+  h += ` min='${mn}' max='${mx}' step='${st}' value='${has ? state[c.inputId] : ''}' style='width:60px;' oninput='numSync(this)'/>`;
   h += `<span class='input-unit'>${c.inputUnit||''}</span>`;
-  h += `<span class='inline-result' id='result_${c.id}'></span></div>`;
-  return h;
+  return chkRow(c, h);
 }
 function buildInput(c) {
   if (!c.inputId) return '';
   if (c.inputType === 'range') return buildRangeInput(c);
-  let html = '<div class="input-row">';
-  if (c.inputType === 'select') {
-    // the select shows the stored value (one fact, one store: Brief 25 §1.3); C02's route type is the Route type fact
-    html += `<span class="input-label">${c.inputLabel}:</span>      <select class="input-field" id="${c.inputId}" onchange="${c.id === 'c2' ? 'onRouteTypeToggle(this.value)' : `handleInput('${c.id}','${c.inputId}',this.value)`}" style="width:auto;min-width:220px;">`;
-    for (const opt of c.selectOptions) {
-      html += `<option value="${opt.value}"${String(state[c.inputId] == null ? '' : state[c.inputId]) === String(opt.value) ? ' selected' : ''}>${opt.label}</option>`;
-    
-}
-    html += `</select>`;
-  
-}
- else {
-    html += `<span class="input-label">${c.inputLabel}:</span>      <input class="input-field" type="number" step="0.01" id="${c.inputId}" placeholder="enter value" value="${state[c.inputId] == null ? '' : String(state[c.inputId]).replace(/"/g, '')}"        oninput="handleInput('${c.id}','${c.inputId}',this.value)" />      <span class="input-unit">${c.inputUnit || ''}</span>`;
-  
-}
+  const sel = (id, opts, cur, w) => `<select class="input-field" id="${id}" data-crit="${c.id}" onchange="CHKS.draft('${c.id}')" style="width:auto;min-width:${w}px;">` +
+    opts.map((o) => `<option value="${o.value}"${String(cur == null ? '' : cur) === String(o.value) ? ' selected' : ''}>${o.label}</option>`).join('') + '</select>';
+  let h = "<span class='input-label'>" + chkLbl(c.inputLabel) + '</span> ';
+  // the select shows the stored value (one fact, one store: Brief 25 §1.3); C02's route type is the Route type fact
+  if (c.inputType === 'select') h += sel(c.inputId, c.selectOptions, state[c.inputId], 220);
+  else h += `<input class="input-field" type="number" step="0.01" id="${c.inputId}" data-crit="${c.id}" placeholder="enter value" value="${state[c.inputId] == null ? '' : String(state[c.inputId]).replace(/"/g, '')}" oninput="CHKS.draft('${c.id}')" /> <span class="input-unit">${c.inputUnit || ''}</span>`;
   if (c.inputId2) {
-    html += `<span class="input-label" style="margin-left:12px;">${c.inputLabel2}:</span>`;
-    if (c.inputType2 === 'select') {
-      html += `<select class="input-field" id="${c.inputId2}" onchange="handleInput('${c.id}','${c.inputId2}',this.value)" style="width:auto;min-width:160px;">`;
-      for (const opt of c.selectOptions2) {
-        html += `<option value="${opt.value}"${String(state[c.inputId2] == null ? '' : state[c.inputId2]) === String(opt.value) ? ' selected' : ''}>${opt.label}</option>`;
-      
+    h += `<span class="input-label" style="margin-left:12px;">${chkLbl(c.inputLabel2)}</span> `;
+    if (c.inputType2 === 'select') h += sel(c.inputId2, c.selectOptions2, state[c.inputId2], 160);
+  }
+  return chkRow(c, h);
 }
-      html += `</select>`;
-    
-}
-  
-}
-  html += `<span class="inline-result" id="result_${c.id}"></span>`;
-  html += '</div>';
-  return html;
-
-}
+// the draft and its commit
+var CHKS = {
+  crit: function(id) { return typeof criteria === 'undefined' ? null : criteria.find(function(q) { return q.id === id; }); },
+  keys: function(c) { return [c.inputId, c.inputId2].filter(Boolean); },
+  set: function(v) { return v !== undefined && v !== null && v !== ''; },
+  has: function(c) { return !!(c && c.inputId && CHKS.set(state[c.inputId])); },
+  word: function(c, k) {   // a stored value as the row shows it
+    var v = state[k]; if (!CHKS.set(v)) return '';
+    var first = k === c.inputId, type = first ? c.inputType : c.inputType2, opts = first ? c.selectOptions : c.selectOptions2, unit = first ? c.inputUnit : c.inputUnit2;
+    if (type === 'select' && opts) { var o = opts.find(function(q) { return String(q.value) === String(v); }); return o ? o.label : String(v); }
+    return String(v) + (unit ? ' ' + unit : '');
+  },
+  text: function(c) { return CHKS.keys(c).map(function(k) { return CHKS.word(c, k); }).filter(Boolean).join(' \u00b7 ') || 'not entered'; },
+  row: function(id) { return document.getElementById('in_' + id); },
+  dirty: function(c) { return CHKS.keys(c).some(function(k) { var el = document.getElementById(k); return !!el && String(el.value) !== String(CHKS.set(state[k]) ? state[k] : ''); }); },
+  msg: function(id, t) { var m = document.getElementById('draft_' + id); if (m) m.textContent = t || ''; },
+  draft: function(id) {
+    var c = CHKS.crit(id), r = CHKS.row(id); if (!c || !r) return;
+    var d = CHKS.dirty(c); r.classList.toggle('dirty', d);
+    var b = document.getElementById('save_' + id); if (b) b.disabled = !d;
+    CHKS.msg(id, d ? 'Not saved yet: Save (or Enter) keeps it, Esc discards it.' : '');
+  },
+  save: function(id) {
+    var c = CHKS.crit(id), r = CHKS.row(id); if (!c || !r) return;
+    CHKS.keys(c).forEach(function(k) {
+      var el = document.getElementById(k); if (!el || String(el.value) === String(CHKS.set(state[k]) ? state[k] : '')) return;
+      if (c.id === 'c2' && k === c.inputId && typeof onRouteTypeToggle === 'function') onRouteTypeToggle(el.value); else handleInput(c.id, k, el.value);
+    });
+    r.classList.remove('dirty'); var b = document.getElementById('save_' + id); if (b) b.disabled = true;
+    CHKS.msg(id, ''); CHKS.view(id);
+    if (typeof CHKG !== 'undefined') CHKG.group();
+    var row = document.getElementById('crit_' + id);
+    if (row) {
+      var g = row.closest('details.chk-grp'); if (g && !g.open) { g.open = true; if (typeof CHKG !== 'undefined') CHKG.open[g.dataset.g] = true; }
+      row.classList.remove('chk-flash'); void row.offsetWidth; row.classList.add('chk-flash'); row.scrollIntoView({ block: 'nearest' });
+    }
+    var e = document.getElementById(CHKS.has(c) ? 'edit_' + id : c.inputId); if (e && e.getClientRects().length) e.focus({ preventScroll: true });
+  },
+  edit: function(id) {
+    var c = CHKS.crit(id), r = CHKS.row(id); if (!c || !r) return;
+    r.classList.add('editing');
+    var fld = document.getElementById(c.inputId); if (fld) { fld.focus(); try { fld.select(); } catch (e) {} }
+  },
+  discard: function(id, why) {
+    var c = CHKS.crit(id), r = CHKS.row(id); if (!c || !r) return;
+    var was = CHKS.dirty(c);
+    CHKS.keys(c).forEach(function(k) { var el = document.getElementById(k); if (el) el.value = CHKS.set(state[k]) ? state[k] : ''; var rg = document.getElementById(k + '_range'); if (rg) rg.value = parseFloat(state[k]) || 0; });
+    r.classList.remove('dirty'); var b = document.getElementById('save_' + id); if (b) b.disabled = true;
+    if (CHKS.has(c)) r.classList.remove('editing');
+    CHKS.msg(id, was ? 'Not saved: the change was discarded' + (why ? ' (' + why + ')' : '') + '.' : '');
+    if (was) setTimeout(function() { var m = document.getElementById('draft_' + id); if (m && /discarded/.test(m.textContent)) m.textContent = ''; }, 6000);
+  },
+  // the row's view after any change of its values (a Save, an import, a move): the value and Edit, unless a draft is open
+  view: function(id) {
+    var c = CHKS.crit(id), v = document.getElementById('val_' + id), r = CHKS.row(id); if (!c || !v || !r) return;
+    v.textContent = CHKS.text(c);
+    if (!r.classList.contains('dirty')) {
+      r.classList.toggle('editing', !CHKS.has(c));
+      CHKS.keys(c).forEach(function(k) { var el = document.getElementById(k); if (el && document.activeElement !== el) el.value = CHKS.set(state[k]) ? state[k] : ''; });
+    }
+  }
+};
+// in a check's input row: Enter saves, Escape discards; the focus leaving the row with a draft discards it
+document.addEventListener('keydown', function(e) {
+  var r = e.target && e.target.closest ? e.target.closest('.input-row[data-crit]') : null; if (!r) return;
+  if (e.key === 'Enter' && /^(INPUT|SELECT)$/.test(e.target.tagName)) { e.preventDefault(); e.stopPropagation(); CHKS.save(r.dataset.crit); }
+  else if (e.key === 'Escape' && r.classList.contains('dirty')) {
+    e.preventDefault(); e.stopPropagation(); CHKS.discard(r.dataset.crit, 'Esc');
+    var ed = document.getElementById('edit_' + r.dataset.crit); if (ed && ed.getClientRects().length) ed.focus({ preventScroll: true });   // the field hid: its Edit
+  }
+}, true);
+document.addEventListener('focusout', function(e) {
+  var r = e.target && e.target.closest ? e.target.closest('.input-row[data-crit]') : null; if (!r || !r.classList.contains('dirty')) return;
+  if (e.relatedTarget && r.contains(e.relatedTarget)) return;
+  setTimeout(function() { if (r.isConnected && !r.contains(document.activeElement) && r.classList.contains('dirty')) CHKS.discard(r.dataset.crit, 'you left the field'); }, 0);
+}, true);
 // One row per check (Brief 21 §3, the Check tab's table): rule, check, requirement, measured, result, source; the row
 // opens to the rule's text, the site condition, the value to enter and a link that shows the rule in the Plan.
 // The ids (crit_, badge_, body_, result_, resolution_) are the ones handleInput updates.
@@ -1715,7 +1781,8 @@ function renderSummary() {
 // ─────────────────────────────────────────────
 function handleInput(critId, inputId, value) {
   state[inputId] = value;
-  if (window.event && window.event.isTrusted && typeof CHK !== 'undefined') CHK.userEdit(inputId);   // the user's own edit (not a restore or an import)
+  if (window.event && window.event.isTrusted && typeof CHK !== 'undefined') CHK.userEdit(inputId);
+  if (typeof CHKS !== 'undefined') setTimeout(function() { CHKS.view(critId); }, 0);   // the row's value and Edit (Brief 28 item 3)   // the user's own edit (not a restore or an import)
   
 // Update just this criterion  
 const c = criteria.find(x => x.id === critId);
@@ -5073,7 +5140,7 @@ document.addEventListener('mouseup', function() {
       else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
       e.stopPropagation();
     });
-    inp.addEventListener('blur', function() { finish(true); });
+    inp.addEventListener('blur', function() { var v = parseFloat(inp.value); if (!done && !isNaN(v) && Math.abs(v - start) > 0.001 && typeof pkToast === 'function') pkToast('Not saved: the width change was discarded. Enter saves it.', 'info'); finish(false); });   // Brief 28 item 3
   }
 
   function _renderStats() {
@@ -5125,7 +5192,8 @@ document.addEventListener('mouseup', function() {
         '<input type="number" id="sePropW" data-id="'+s.id+'" value="'+s.width.toFixed(3)+
         '" min="'+wMin+'" max="'+wMax+'" step="0.05" '+
         'style="width:65px;padding:3px 6px;font-size:11px;font-weight:600;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--text)">'+
-        '<span style="font-size:11px;color:var(--d-mid)">m</span>'+compHtml+'</div>' :
+        '<span style="font-size:11px;color:var(--d-mid)">m</span><button type="button" class="chk-save" id="sePropSave" disabled>Save</button>'+compHtml+'</div>' +
+        '<div class="chk-draft" id="sePropMsg" role="status" aria-live="polite" style="grid-column:1 / -1"></div>' :
       '<span style="font-size:11px;font-weight:600;color:var(--text)">'+(s.width>0?s.width.toFixed(2)+'m':'context')+'</span>';
 
     var varHtml = '';
@@ -5163,23 +5231,28 @@ document.addEventListener('mouseup', function() {
 
     var wi=document.getElementById('sePropW');
     if (wi) {
-      var _propFocusW = s.width;
+      // Brief 28 item 3: the width is a draft until Save (or Enter); Escape, or leaving the field, discards it and says so
+      // (Brief 27 resized on change, which leaving the field also fired)
+      var _propFocusW = s.width, sv = document.getElementById('sePropSave'), pm = document.getElementById('sePropMsg');
+      var dirty = function() { return Math.abs((parseFloat(wi.value) || 0) - s.width) > 0.0005 || wi.value === ''; };
+      var say = function(t) { if (pm) pm.textContent = t || ''; };
       wi.addEventListener('focus', function(){ _propFocusW = s.width; });
-      // Brief 27 item 1 (triage row 2): resize on change (Enter or leaving the field), never per keystroke: a resize
-      // re-renders this panel, and a re-render under the cursor kept only the first character typed
-      wi.addEventListener('change', function(e){
-        var v=parseFloat(e.target.value), keep = document.activeElement === wi;
-        if(!isNaN(v)) {
-          if(Math.abs(v-_propFocusW)>0.001) {
-            var snap=JSON.parse(JSON.stringify(_segs));
-            var ss=snap.find(function(x){ return x.id===s.id; });
-            if(ss) ss.width=_propFocusW;
-            _hist.push(JSON.stringify(snap)); if(_hist.length>60) _hist.shift(); _fut=[]; _updateHistBtns();
-          }
-          _seResize(s.id,v,true); _seToGlobals(); _trigger();
-          if (keep) { var nw = document.getElementById('sePropW'); if (nw) { nw.focus({ preventScroll: true }); nw.select(); } }   // Enter: stay in the field
+      wi.addEventListener('input', function() { var d = dirty(); if (sv) sv.disabled = !d; say(d ? 'Not saved yet: Save (or Enter) keeps it, Esc discards it.' : ''); });
+      var commit = function() {
+        var v = parseFloat(wi.value); if (isNaN(v)) return;
+        if(Math.abs(v-_propFocusW)>0.001) {
+          var snap=JSON.parse(JSON.stringify(_segs));
+          var ss=snap.find(function(x){ return x.id===s.id; });
+          if(ss) ss.width=_propFocusW;
+          _hist.push(JSON.stringify(snap)); if(_hist.length>60) _hist.shift(); _fut=[]; _updateHistBtns();
         }
-      });
+        _seResize(s.id,v,true); _seToGlobals(); _trigger();
+        var nw = document.getElementById('sePropW'); if (nw) { nw.focus({ preventScroll: true }); nw.select(); }
+      };
+      var discard = function(why) { if (!dirty()) return; wi.value = s.width.toFixed(3); if (sv) sv.disabled = true; say('Not saved: the change was discarded (' + why + ').'); };
+      wi.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); commit(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); discard('Esc'); } });
+      wi.addEventListener('blur', function(e) { if (e.relatedTarget === sv) return; discard('you left the field'); });
+      if (sv) sv.addEventListener('click', commit);
     }
     panel.querySelectorAll('.se-var').forEach(function(b){ b.addEventListener('click', function(){ _seVariant(b.dataset.id,b.dataset.v); }); });
     var bi=document.getElementById('sePropBuf');
@@ -30270,6 +30343,22 @@ input[data-secret] { -webkit-text-security: disc; }
 .walk-next { background: #3AA8E4; color: #FFFFFF; border: 1px solid #3AA8E4; }
 .walk-foot button:focus-visible { outline: 2px solid #1A1A1A; outline-offset: 2px; }
 .uh-walk { font: 600 13px var(--font-ui); padding: 6px 12px; margin: 0 0 12px; border-radius: 4px; border: 1px solid var(--accent-ui, #3AA8E4); background: var(--accent-ui, #3AA8E4); color: #FFFFFF; cursor: pointer; }
+/* a check's input row (Brief 28 item 3): saved, the value and Edit; editing, the fields and Save; the draft's line */
+.input-row[data-crit] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.input-row[data-crit] > .chk-view, .input-row[data-crit] > .chk-in { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.input-row[data-crit].editing > .chk-view, .input-row[data-crit]:not(.editing) > .chk-in { display: none; }
+.chk-val { font-weight: 600; color: var(--d-ink); }
+.chk-edit, .chk-save { font: 600 12px var(--font-ui); padding: 3px 10px; border-radius: 3px; cursor: pointer; }
+.chk-edit { background: none; border: 1px solid var(--d-lt); color: var(--d-ink); }
+.chk-save { background: var(--accent-ui, #3AA8E4); border: 1px solid var(--accent-ui, #3AA8E4); color: #FFFFFF; }
+.chk-save:disabled { background: none; border-color: var(--d-lt); color: var(--d-mid); cursor: default; }
+.chk-edit:focus-visible, .chk-save:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 2px; }
+.chk-draft { flex-basis: 100%; font: 12px/1.4 var(--font-ui); color: var(--d-mid); }
+.chk-draft:empty { display: none; }
+.input-row.dirty .input-field { border-color: var(--accent-ui, #3AA8E4); }
+.chk-flash { animation: chkFlash 1.4s ease-out; }
+@keyframes chkFlash { from { background: rgba(58,168,228,.22); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .chk-flash { animation: none; outline: 2px solid var(--accent-ui, #3AA8E4); } }
 /* the Check tab's groups (Brief 25 item 31) */
 .chk-grp { border-top: 1px solid var(--d-lt); }
 .chk-grp > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font: 600 12px var(--font-ui); letter-spacing: .04em; color: var(--d-ink, #1A1A1A); background: var(--d-xlt); }
@@ -30304,30 +30393,8 @@ var _chkF = 'all';
 // stays so for the session; an empty group is not shown. "Expand all" opens every group and row.
 var CHKG = { ORDER: [['fail', 'Fails'], ['await', 'Awaiting measurement'], ['unclear', 'Not entered'], ['prov', 'Provisional pass'], ['pass', 'Pass']], open: { fail: true, await: true } };
 CHKG.keyOf = function(c) { var st = typeof CHK !== 'undefined' ? CHK.state(c) : { base: getCriterionStatus(c) }; return st.base === 'fail' ? 'fail' : st.base === 'await' ? 'await' : st.base === 'pass' ? (st.provisional ? 'prov' : 'pass') : 'unclear'; };
-CHKG.group = function(force) {
+CHKG.group = function() {
   var list = document.getElementById('criteriaList'); if (!list || typeof criteria === 'undefined') return;
-  // Brief 27 item 1 (triage row 1): a row whose field has focus stays put until the field loses focus or Enter is
-  // pressed; moving a focused element blurs it, and the rest of what the user types was lost
-  var fa = document.activeElement, hold = !force && fa && /^(INPUT|SELECT|TEXTAREA)$/.test(fa.tagName) && list.contains(fa) ? fa.closest('.chk-row') : null;
-  CHKG._held = !!hold;
-  if (!list._chkgEv) {
-    list._chkgEv = true;
-    list.addEventListener('focusout', function(e) {
-      if (!CHKG._held) return;
-      var nx = e.relatedTarget;
-      if (nx && /^(INPUT|SELECT|TEXTAREA)$/.test(nx.tagName) && e.target.closest('.chk-row') === nx.closest('.chk-row')) return;   // the row's other field
-      // regroup once focus has left the field; whatever has focus then (the row's own button, say) gets it back
-      setTimeout(function() {
-        var a = document.activeElement; CHKG.group();
-        if (a && a !== document.body && a !== document.activeElement && document.contains(a)) a.focus({ preventScroll: true });
-      }, 0);
-    });
-    list.addEventListener('keydown', function(e) {
-      if (e.key !== 'Enter' || !CHKG._held || !/^(INPUT|SELECT)$/.test(e.target.tagName)) return;
-      var id = e.target.id; CHKG._held = false;
-      CHKG.regroupKeep(id);
-    });
-  }
   var gs = {}, at = 0;
   CHKG.ORDER.forEach(function(g) {
     var d = list.querySelector('details.chk-grp[data-g="' + g[0] + '"]');
@@ -30340,15 +30407,16 @@ CHKG.group = function(force) {
     var here = list.children[at]; if (here !== d) list.insertBefore(d, here || null);
     at++; gs[g[0]] = d;
   });
-  criteria.forEach(function(c) { var el = document.getElementById('crit_' + c.id); if (el && el !== hold) gs[CHKG.keyOf(c)].appendChild(el); });
+  // rows in their group, in the rule order, each moved only when out of place: moving a row blurs what has focus in it
+  // (Brief 28 item 3: the Edit button after a Save)
+  var cur = {}; Object.keys(gs).forEach(function(k) { cur[k] = 1; });   // after the group's summary
+  criteria.forEach(function(c) {
+    var el = document.getElementById('crit_' + c.id); if (!el) return;
+    var g = gs[CHKG.keyOf(c)], here = g.children[cur[CHKG.keyOf(c)]];
+    if (here !== el) g.insertBefore(el, here || null);
+    cur[CHKG.keyOf(c)]++;
+  });
   CHKG.counts();
-};
-// Enter in a row's field: regroup now, open the row's new group and give the field its focus back (caret at the end)
-CHKG.regroupKeep = function(id) {
-  CHKG.group(true);
-  var f = document.getElementById(id); if (!f) return;
-  var g = f.closest('details.chk-grp'); if (g && !g.open) { g.open = true; CHKG.open[g.dataset.g] = true; }
-  f.focus({ preventScroll: true }); f.scrollIntoView({ block: 'nearest' });
 };
 CHKG.counts = function() {
   document.querySelectorAll('#criteriaList details.chk-grp').forEach(function(d) {
