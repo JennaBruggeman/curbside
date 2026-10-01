@@ -156,7 +156,8 @@ else's data:
 2. In its SQL Editor, run [`supabase/schema.sql`](supabase/schema.sql). It creates the `profiles` and `designs`
    tables, turns on Row Level Security for every table (each user reads and writes only their own rows; a
    signed-out request reads nothing), the invite check, and the private `user-furniture` storage bucket.
-3. Run [`supabase/invite-codes.sql`](supabase/invite-codes.sql) for one invite code per person (see below).
+3. Run [`supabase/invite-codes.sql`](supabase/invite-codes.sql) for one invite code per person (see below), and
+   [`supabase/invite-status.sql`](supabase/invite-status.sql) if your database was set up before it was part of `schema.sql`.
 4. Project Settings › API: copy the **Project URL** and the **anon / publishable key** into the `CONFIG` block at
    the top of `parklet-checker.html`. Only the anon key belongs there — never the service-role key or a
    database password.
@@ -177,7 +178,9 @@ select code, label, uses, last_used_at from public.invite_codes;    -- which wer
 update public.app_settings set invite_only = false;                 -- open sign-up to anyone
 ```
 
-When you open sign-up, also set `CONFIG.INVITE_ONLY = false` so the form stops asking for a code, and set
+The landing page's "invite code required" line and the sign-up form's code field follow `app_settings.invite_only`, read
+through `public.signup_invite_only()` (`invite-status.sql`: the yes / no flag only, never the code), so the one-line
+toggle above is all it takes. `CONFIG.INVITE_ONLY` is only the form's fallback when that function cannot be reached. Set
 `CONFIG.INVITE_CONTACT` to whoever hands out codes. Existing accounts are never affected.
 
 ## Repository

@@ -210,7 +210,7 @@ footer p { margin: 0 0 6px; }
           <a href="#how">See how it works</a>
           <a href="parklet-checker.html?sample=schematic">See a sample report</a>
         </div>
-        <p class="invite" data-when="out">Create account: invite code required &mdash; contact <a href="mailto:bangpowjenna@gmail.com">bangpowjenna@gmail.com</a>. Already have an account? Sign in as usual.</p>
+        <p class="invite" data-invite hidden>Create account: invite code required &mdash; contact <a href="mailto:bangpowjenna@gmail.com">bangpowjenna@gmail.com</a>. Already have an account? Sign in as usual.</p>
       </div>
       <div class="scene-box">
         <!-- SCENE:BEGIN - the street animation (Brief 15).
@@ -478,7 +478,7 @@ footer p { margin: 0 0 6px; }
   <div class="wrap">
     <p>Built at UBC SALA &middot; Parklet Manual (City of Vancouver) &middot; EDM 2026 &middot; OpenStreetMap contributors &middot; Mapillary</p>
     <p>AI-assisted visualisations are indicative.</p>
-    <p>Curbside <!-- VERSION -->v0.10-fixes<!-- /VERSION --></p>
+    <p>Curbside <!-- VERSION -->v0.11-gis<!-- /VERSION --></p>
   </div>
 </footer>
 
@@ -492,6 +492,15 @@ footer p { margin: 0 0 6px; }
   Array.prototype.forEach.call(document.querySelectorAll('[data-when]'), function (el) {
     el.hidden = el.getAttribute('data-when') !== (signedIn ? 'in' : 'out');
   });
+})();
+// The invite line shows only while sign-up asks for a code: the database's flag, through public.signup_invite_only()
+// (the flag only; the public key below is the app's anon key, which reads nothing else). No answer: the line stays hidden.
+(function () {
+  var el = document.querySelector('[data-invite]'), ref = /*SBREF*/'hkfvcbbpbtnxyvwlawva'/*/SBREF*/, key = /*SBKEY*/'sb_publishable_veqsMlJ5EBhCyYfI6ArHEg_Gf6awBML'/*/SBKEY*/, signedIn = false;
+  try { signedIn = !!(ref && localStorage.getItem('sb-' + ref + '-auth-token')); } catch (e) {}
+  if (!el || signedIn || !ref || !key || !window.fetch) return;
+  fetch('https://' + ref + '.supabase.co/rest/v1/rpc/signup_invite_only', { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/json' }, body: '{}' })
+    .then(function (r) { return r.ok ? r.json() : null; }).then(function (v) { if (v === true) el.hidden = false; }).catch(function () {});
 })();
 // The street scene pauses while it is off-screen (and runs again when it scrolls back into view).
 (function () {

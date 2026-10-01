@@ -7,6 +7,9 @@
 // behind Row Level Security, so it reads nothing without a signed-in owner. Never put a service-role key or
 // any database password here. No other key lives in the code: each user adds their own in
 // Settings > Connections, kept in their browser only.
+// Brief 25 item 6: arriving to sign in or create an account (?auth=), nothing of the empty app shows before the dialog
+// (pkHideLoading lifts it; a 9 s fallback in case the start-up never gets there)
+if (/[?&]auth=/.test(location.search)) { document.documentElement.classList.add('pk-authing'); setTimeout(function() { document.documentElement.classList.remove('pk-authing'); }, 9000); }
 var CONFIG = {
   SUPABASE_URL: 'https://hkfvcbbpbtnxyvwlawva.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_veqsMlJ5EBhCyYfI6ArHEg_Gf6awBML',
@@ -16765,6 +16768,11 @@ function _sdQuickPlace(objId) {
   justify-content: center;
 }
 .pk-modal-overlay.active { display: flex; }
+/* Brief 25 item 6: the sign-in / create-account dialog on a fully opaque ground; before it opens, the app stays hidden */
+#pkAuthModal.pk-modal-overlay { background: #0B0C0E; }
+html.pk-authing body { background: #0B0C0E; }
+html.pk-authing body > *:not(#pkAuthModal):not(#pkLoadingOverlay) { visibility: hidden !important; }
+#pkSUInviteGrp[hidden] { display: none; }
 .pk-modal-box {
   background: var(--panel-bg);
   border: 1px solid var(--border-c);
@@ -17178,6 +17186,7 @@ function pkShowLoading(txt) {
 function pkHideLoading() {
   var el = document.getElementById('pkLoadingOverlay');
   if (el) el.classList.remove('active');
+  document.documentElement.classList.remove('pk-authing');   // Brief 25 item 6: the start-up is done (the dialog, if any, opens next)
 }
 
 // ─── Serialise current design state ──────────────────────────────
@@ -17267,6 +17276,8 @@ function pkSerialize() {
       transit_stops:(typeof state !== 'undefined' && state['transit_stops']) ? JSON.parse(JSON.stringify(state['transit_stops'])) : [],
       prov:         (typeof state !== 'undefined' && state['__prov'])        ? JSON.parse(JSON.stringify(state['__prov']))        : {},
       siteMap:      (typeof state !== 'undefined' && state['__siteMap'])     ? JSON.parse(JSON.stringify(state['__siteMap']))     : null,
+      generic:      (typeof state !== 'undefined' && state['__generic'])     ? JSON.parse(JSON.stringify(state['__generic']))     : null,   // Brief 25 item 8: a blank street
+      importLayers: (typeof state !== 'undefined' && state['__importLayers']) ? JSON.parse(JSON.stringify(state['__importLayers'])) : null,   // the layers the import reads
       place:        (typeof state !== 'undefined' && state['__place'])       ? JSON.parse(JSON.stringify(state['__place']))       : null,   // Brief 18 D: pkZ, corners
       // Brief 21: the neighbourhood (§8), the applied survey and the code map (§11)
       neighbourhood:(typeof state !== 'undefined' && typeof state['__neighbourhood'] === 'string') ? state['__neighbourhood'] : '',
@@ -17458,6 +17469,8 @@ function pkApplyDesignState(raw) {
       state['transit_stops'] = data.siteObjects.transit_stops || [];
       state['__prov']        = data.siteObjects.prov          || {};
       state['__siteMap']     = data.siteObjects.siteMap       || null;
+      state['__generic']     = data.siteObjects.generic       || null;
+      state['__importLayers'] = data.siteObjects.importLayers || null;
       state['__place']       = data.siteObjects.place         || { pkZ: 0, corners: [] };
       state['__neighbourhood'] = data.siteObjects.neighbourhood || '';
       state['__survey']      = data.siteObjects.survey        || null;
@@ -17589,7 +17602,7 @@ async function pkSignUp(name, email, pass, invite) {
   // the invite code rides in the user metadata; the database's sign-up check (supabase/schema.sql) refuses a wrong one
   var res = await pkSB.auth.signUp({ email: email.trim(), password: pass, options: { data: { display_name: name.trim(), invite_code: String(invite || '').trim() } } });
   if (res.error) {
-    if (/invite/i.test(res.error.message || '') || (CONFIG.INVITE_ONLY && /database error/i.test(res.error.message || '')))
+    if (/invite/i.test(res.error.message || '') || ((typeof PKINV !== 'undefined' ? PKINV.isOnly() : CONFIG.INVITE_ONLY) && /database error/i.test(res.error.message || '')))
       res.error.message = 'That invite code was not accepted. Invite code required — contact ' + CONFIG.INVITE_CONTACT + '.';
     return res;
   }
@@ -17681,7 +17694,7 @@ var DEFAULT_STATE = Object.freeze({
     pole_trolley: '', signal_box_dist: '', manhole_dist: '', fire_exit_block: '', drainage_clear: '', boulevard_clear: '', parking_setback: '',
     platform_gap: '', load_capacity: '' },
   siteObjects: { manholes: [], curb_features: [], driveways: [], pkShape: null, street_trees: [], transit_stops: [], prov: {}, siteMap: null,
-    place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, existing: null, surveyMap: null },
+    place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, existing: null, surveyMap: null, generic: null, importLayers: null },
   furniture: { placed: [], userDefs: [] }
 });
 function pkDefaultState(name, address) {
@@ -17878,6 +17891,7 @@ async function pkNewDesign(name, address) {
 // ─── App startup ──────────────────────────────────────────────────
 async function pkInitApp() {
   pkInjectUI();
+  if (typeof PKINV !== 'undefined') PKINV.ask();   // Brief 25 item 7: whether sign-up asks for a code (the database's flag)
 
   // ?auth=signin | ?auth=signup (the landing page, index.html): open the sign-in dialog on that tab when
   // there is no session; the param leaves the address at once either way (a signed-in visitor just lands here)
@@ -18095,9 +18109,10 @@ function pkBuildAuthModalHTML() {
     '<div class="pk-form-group"><label class="pk-form-label">Confirm Password</label>',
     '<input type="password" id="pkSUPass2" class="pk-form-input" placeholder="Confirm password" onkeydown="if(event.key===\'Enter\')pkDoSignUp()"></div>',
     // invite-only sign-up (Brief 21 §7): the code is checked by the database, never here
-    (CONFIG.INVITE_ONLY ? '<div class="pk-form-group"><label class="pk-form-label">Invite code</label>' +
+    // (Brief 25 item 7: the group is always there, shown while the database asks for a code: PKINV)
+    ('<div class="pk-form-group" id="pkSUInviteGrp"' + ((typeof PKINV !== 'undefined' ? PKINV.isOnly() : CONFIG.INVITE_ONLY) ? '' : ' hidden') + '><label class="pk-form-label">Invite code</label>' +
       '<input type="text" id="pkSUInvite" class="pk-form-input" autocomplete="off" placeholder="Invite code" title="Sign-up is by invitation. Ask ' + CONFIG.INVITE_CONTACT + ' for a code." onkeydown="if(event.key===\'Enter\')pkDoSignUp()">' +
-      '<div class="pk-form-hint">Invite code required &mdash; contact ' + CONFIG.INVITE_CONTACT + '</div></div>' : ''),
+      '<div class="pk-form-hint">Invite code required &mdash; contact ' + CONFIG.INVITE_CONTACT + '</div></div>'),
     '<div class="pk-error-msg" id="pkSUError"></div>',
     '<button class="pk-btn-primary" id="pkSUBtn" onclick="pkDoSignUp()">Create Account</button>',
     '</div>',
@@ -18472,7 +18487,7 @@ async function pkDoSignUp() {
   if (pass.length < 8) { if (err) err.textContent = 'Password must be at least 8 characters.'; return; }
   if (pass !== pass2)  { if (err) err.textContent = 'Passwords do not match.'; return; }
   var invite = ((document.getElementById('pkSUInvite') || {}).value || '').trim();
-  if (CONFIG.INVITE_ONLY && !invite) { if (err) err.textContent = 'Invite code required — contact ' + CONFIG.INVITE_CONTACT + '.'; return; }
+  if ((typeof PKINV !== 'undefined' ? PKINV.isOnly() : CONFIG.INVITE_ONLY) && !invite) { if (err) err.textContent = 'Invite code required — contact ' + CONFIG.INVITE_CONTACT + '.'; return; }
   if (btn) btn.disabled = true;
   pkShowLoading('Creating account…');
   var res = await pkSignUp(name, email, pass, invite);
@@ -21955,7 +21970,7 @@ RPT.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;')
 RPT.fx = function(v, d) { return (+v).toFixed(d == null ? 3 : d); };
 // the address as printed: ', Vancouver, BC' added only when the address does not already name the city
 // the site address line (Brief 19 C): the host frontage's civic address (the City's), else the project's address field
-RPT.addr = function(DM) { var h = typeof pkHostAddress === 'function' ? pkHostAddress() : null, a = h || DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
+RPT.addr = function(DM) { if (typeof state !== 'undefined' && state.__generic) return BLANK.NOTE; var h = typeof pkHostAddress === 'function' ? pkHostAddress() : null, a = h || DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
 RPT.DISCLAIMER = 'Preliminary assessment — not a substitute for City of Vancouver review';
 
 // ── Data: one snapshot of the model for every sheet ───────────────────────────────────────────
@@ -23227,7 +23242,7 @@ RPT.sheetTitle = function(d, drw) {
   P.text(x, y, 'Curbside parklet drawing set', TX.tag, { c: RPT.MID });
   P.text(x, y + 11, DM.project.name, 8, { bold: true });
   P.text(x, y + 19, RPT.addr(DM), TX.head);
-  P.text(x, y + 25, 'Lat ' + (+DM.site.lat).toFixed(5) + ', lon ' + (+DM.site.lon).toFixed(5) + '  -  street bearing ' + (+DM.site.streetBearing).toFixed(1) + ' deg  -  parklet on the ' + DM.site.parkletSide + ' side', TX.body, { c: RPT.MID });
+  P.text(x, y + 25, (typeof state !== 'undefined' && state.__generic) ? BLANK.NOTE + ': every width is a placeholder, to be measured on site' : 'Lat ' + (+DM.site.lat).toFixed(5) + ', lon ' + (+DM.site.lon).toFixed(5) + '  -  street bearing ' + (+DM.site.streetBearing).toFixed(1) + ' deg  -  parklet on the ' + DM.site.parkletSide + ' side', TX.body, { c: RPT.MID });
   P.text(x, y + 30.5, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + (d.n.await ? d.n.await + ' awaiting measurement, ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? '  (provisional: imported site data not yet verified on site)' : ''), TX.body, { c: RPT.MID });
   // status stamp
   P.rect(x, y + 36, 112, 12, { cls: 'cut' }); P.rect(x + 1.2, y + 37.2, 109.6, 9.6, { cls: 'fine' });
@@ -26065,7 +26080,7 @@ RVZP._gallery = async function() {
   <div class='sm-box'>
     <div class='sm-head'><h3 id='smTitle'>Locate the parklet on the map</h3><button type='button' class='sm-btn' id='smLayersBtn' aria-pressed='false' aria-controls='smLayers' onclick='GIS.togglePanel()' title='The City, OpenStreetMap and TransLink layers around the site: what the import will read.'>Layers</button><button type='button' class='sm-btn' id='smClose' onclick='SM.close()'>Close</button></div>
     <form class='sm-search' onsubmit='SM.search(); return false;'>
-      <input type='search' id='smQuery' placeholder='Search an address in Vancouver, e.g. 1000 Robson St' autocomplete='off' aria-label='Address search'>
+      <input type='search' id='smQuery' placeholder='An address or an intersection, e.g. 1000 Robson St or Main St & E 20th Ave' autocomplete='off' aria-label='Address search'>
       <button type='submit' class='sm-btn' id='smGo'>Search</button>
       <ul class='sm-results' id='smResults' hidden></ul>
     </form>
@@ -26240,7 +26255,8 @@ SM.open = async function() {
       if (typeof GIS !== 'undefined') GIS.mapInit(SM.map);   // the city layers under the picked street (Brief 24)
     });
     // a click on a point of a city layer opens its popup; any other click picks the street, then the side
-    SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
+    // a data dot is information only while Layers is open, never during the side pick (Brief 25 item 10)
+    SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && (!GIS.inspecting || GIS.inspecting()) && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
   } else { SM.map.resize(); if (typeof GIS !== 'undefined') GIS.onMove(); }
   try { if (typeof GIS !== 'undefined' && localStorage.getItem('pkt_gis_panel') === '1') GIS.togglePanel(true); } catch (e) {}
   SM.status('Search an address or pan the map, then <b>click the street</b> where the parklet goes.');
@@ -26254,8 +26270,10 @@ SM.search = async function() {
   var ct = SM.contact(), url = SM.NOMINATIM + '/search?format=jsonv2&limit=5&countrycodes=ca&viewbox=' + SM.VAN.bbox + '&q=' + encodeURIComponent(q) + (ct ? '&email=' + encodeURIComponent(ct) : '');
   SM.status('Searching...');
   try {
-    var res = await SM.fetchJSON('nominatim', 'search|' + q.toLowerCase(), url);
-    ul.innerHTML = res.length ? res.map(function(r, i) { return "<li tabindex='0' data-i='" + i + "'>" + SM.esc(r.display_name) + '</li>'; }).join('') : '<li>No match. Try the street and block, e.g. 1000 Robson St.</li>';
+    // an intersection ("Main St & 20th Ave") from the site data (Brief 25 item 9); anything else from Nominatim
+    var intx = typeof INTX !== 'undefined' && INTX.RE.test(q), res = intx ? await INTX.search(q).catch(function() { return null; }) : null;
+    if (!res) { intx = false; res = await SM.fetchJSON('nominatim', 'search|' + q.toLowerCase(), url); }
+    ul.innerHTML = res.length ? res.map(function(r, i) { return "<li tabindex='0' data-i='" + i + "'>" + SM.esc(r.display_name) + '</li>'; }).join('') : (intx ? '<li>No intersection of those two streets in the site data. Try the names in full, e.g. Main St &amp; E 20th Ave, or a house number.</li>' : '<li>No match. Try a house number (1000 Robson St) or an intersection (Main St &amp; E 20th Ave).</li>');
     ul.hidden = false; SM._res = res;
     ul.onclick = ul.onkeydown = function(ev) {
       if (ev.type === 'keydown' && ev.key !== 'Enter') return;
@@ -26573,7 +26591,7 @@ GIS.mapInit = function(map) {
   // hover: one feature at a time, through feature-state (no DOM per feature)
   var hovered = null;
   map.on('mousemove', function(e) {
-    var f = GIS.hit(e.point, true);
+    var f = (!GIS.inspecting || GIS.inspecting()) ? GIS.hit(e.point, true) : null;   // no hover state on the dots while picking (Brief 25 item 10)
     if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; }
     if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); }
     map.getCanvas().style.cursor = f ? 'pointer' : '';
@@ -26747,10 +26765,12 @@ GIS.parallel = function(b, axis, tol) { if (b == null || axis == null) return fa
 GIS.pt = function(f) { var c = f.geometry.coordinates; return { lon: c[0], lat: c[1] }; };
 GIS.centroid = function(ring) { var x = 0, y = 0, n = ring.length - 1 || 1; for (var i = 0; i < n; i++) { x += ring[i][0]; y += ring[i][1]; } return { lon: x / n, lat: y / n }; };
 GIS.importData = async function(la, lo, sm) {
+  // the ticked layers only (Brief 25 item 8): a layer the map has loaded but the user did not tick is not read
+  var IMPON = function(lid) { return typeof IMP === 'undefined' || IMP.on(lid); }, F = function(lid) { return IMPON(lid) ? GIS.features(lid) : []; };
   var idx = await GIS.index();   // fails only with no network and no cached index
   var R = SMP.R, pad = R + 60, dLat = pad / 110574, dLon = pad / (111320 * Math.cos(la * Math.PI / 180));
   var cells = GIS.cellsIn(lo - dLon, la - dLat, lo + dLon, la + dLat, 0), inIdx = cells.filter(function(c) { return idx.cells[c]; });
-  var lids = GIS.LAYERS.filter(function(l) { return l.feeds.length || l.imports; }).map(function(l) { return l.id; });
+  var lids = GIS.LAYERS.filter(function(l) { return (l.feeds.length || l.imports) && IMPON(l.id); }).map(function(l) { return l.id; });
   GIS._held = cells;   // eviction keeps them while the import reads them
   await GIS.ensure(lids, cells, {});
   var missing = lids.filter(function(lid) { return cells.some(function(c) { var v = GIS.cs.get(GIS.key(c, lid)); return !v || (v.st === 'error' && v.why !== 'nodata'); }); });
@@ -26759,12 +26779,14 @@ GIS.importData = async function(la, lo, sm) {
   var day = function(lid) { return idx.layers[lid] ? idx.layers[lid].updatedAt : null; };
   var at = { osm: (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || day('streets'), gtfs: day('bus-stops') };
   var A = { nodata: !inIdx.length, at: at, notes: [], cells: inIdx };
+  var off = GIS.LAYERS.filter(function(l) { return (l.feeds.length || l.imports) && !IMPON(l.id); }).map(function(l) { return l.label.toLowerCase(); });
+  if (off.length) A.notes.push('not imported (unticked under Import): ' + off.join(', '));
   if (A.nodata) A.notes.push('no data for this location: the site is outside the site data, so the street is an estimate');
   // the street: the picked way (its part at the site), else the nearest within 30 m; the other ways within 60 m are the
   // dual-carriageway candidates (SMP.pairOf keeps a one-way way of the same name within 20 m)
   var axis = +sm.streetBearing || 0, dist = function(w) { var s = SM.snap([w], la, lo); return s ? s.dist : Infinity; };
   // the ways within 60 m, and the same street's ways within 150 m (SMP.blockLanes reads the block's lane count from them)
-  var ways = GIS.ways().filter(function(w) { var d = dist(w); return d <= 60 || (sm.name && w.tags.name === sm.name && d <= 150); });
+  var ways = (IMPON('streets') ? GIS.ways() : []).filter(function(w) { var d = dist(w); return d <= 60 || (sm.name && w.tags.name === sm.name && d <= 150); });
   var mine = ways.filter(function(w) { return sm.wayId && w.id === sm.wayId; }).sort(function(a, b) { return dist(a) - dist(b); });
   var sn = mine.length ? null : SM.snap(ways.filter(function(w) { return dist(w) <= 30; }), la, lo);
   A.way = mine[0] || (sn && sn.way) || null;
@@ -26776,26 +26798,26 @@ GIS.importData = async function(la, lo, sm) {
   A.cands = ways.filter(function(w) { return w.id !== A.way.id; });
   // bus and truck routes along the street at the site (within 20 m, within 30 degrees of its axis)
   var along = function(f) { var n = GIS.near(T, f.geometry); return n.d <= 20 && GIS.parallel(n.b, axis, 30); }, seen = {};
-  A.routes = GIS.features('bus-routes').filter(along).map(function(f) { var p = f.properties.props; return { type: 'relation', id: 'route ' + p.routeId, tags: { route: 'bus', ref: String(p.route || '').replace(/^0+(?=\d)/, ''), name: p.name } }; })   // GTFS '005' is the 5 on the sign
+  A.routes = F('bus-routes').filter(along).map(function(f) { var p = f.properties.props; return { type: 'relation', id: 'route ' + p.routeId, tags: { route: 'bus', ref: String(p.route || '').replace(/^0+(?=\d)/, ''), name: p.name } }; })   // GTFS '005' is the 5 on the sign
     .filter(function(r) { return seen[r.tags.ref] ? false : (seen[r.tags.ref] = 1); });
-  var tr = GIS.features('truck-routes').filter(along); A.truck = tr.length ? (tr[0].properties.props.name || 'Truck Route') : null;
+  var tr = F('truck-routes').filter(along); A.truck = tr.length ? (tr[0].properties.props.name || 'Truck Route') : null;
   // bus stops (TransLink) within the import radius, as the OSM stop nodes the apply code reads, with their own provenance
-  A.stops = GIS.features('bus-stops').filter(function(f) { return within(f, R); }).map(function(f) {
+  A.stops = F('bus-stops').filter(function(f) { return within(f, R); }).map(function(f) {
     var p = f.properties.props, g = GIS.pt(f);
     return { type: 'node', id: p.stopId, lat: g.lat, lon: g.lon, tags: { highway: 'bus_stop', name: p.name || '', ref: p.code || '' }, routes: p.routes, prov: { source: 'gtfs', id: 'stop ' + (p.code || p.stopId), fetchedAt: at.gtfs, via: 'cells' } };
   });
   // the City's bikeways along the street at the site (centreline data: matched by place, not by the street's name)
-  var bw = GIS.features('bikeways').filter(function(f) { var n = GIS.near(T, f.geometry); return n.d <= 15 && GIS.parallel(n.b, axis, 30); });
+  var bw = F('bikeways').filter(function(f) { var n = GIS.near(T, f.geometry); return n.d <= 15 && GIS.parallel(n.b, axis, 30); });
   var rowsOf = function(lid, list) { return { at: day(lid), via: 'cells', rows: list }; };
   // buildings and the shops / offices in them, as OSM ways and nodes (useHint: the build's use, for tags it does not carry)
   var num = function(id) { return +String(id).replace(/^.*\//, ''); };
-  A.blds = GIS.features('buildings').filter(function(f) { return within(f, R); }).map(function(f) {
+  A.blds = F('buildings').filter(function(f) { return within(f, R); }).map(function(f) {
     var p = f.properties.props, t = { building: p.kind || 'yes' }; if (p.levels != null) t['building:levels'] = String(p.levels); if (p.height != null) t.height = String(p.height); if (p.name) t.name = p.name;
     return { type: 'way', id: num(p.osmId), tags: t, useHint: p.use || null, address: p.address, geometry: f.geometry.coordinates[0].map(function(q) { return { lat: q[1], lon: q[0] }; }) };
   });
-  A.pois = GIS.features('pois').filter(function(f) { return within(f, R); }).map(function(f) { var p = f.properties.props, g = GIS.pt(f), t = { name: p.name || '' }; t[p.category] = p.kind; return { type: 'node', id: num(p.osmId), lat: g.lat, lon: g.lon, tags: t }; });
+  A.pois = F('pois').filter(function(f) { return within(f, R); }).map(function(f) { var p = f.properties.props, g = GIS.pt(f), t = { name: p.name || '' }; t[p.category] = p.kind; return { type: 'node', id: num(p.osmId), lat: g.lat, lon: g.lon, tags: t }; });
   // the City's objects, as the rows of its API
-  var pts = function(lid, fn) { return rowsOf(lid, GIS.features(lid).filter(function(f) { return within(f, R); }).map(function(f) { var g = GIS.pt(f); return Object.assign({ geo_point_2d: { lon: g.lon, lat: g.lat } }, fn(f.properties.props, f)); })); };
+  var pts = function(lid, fn) { return rowsOf(lid, F(lid).filter(function(f) { return within(f, R); }).map(function(f) { var g = GIS.pt(f); return Object.assign({ geo_point_2d: { lon: g.lon, lat: g.lat } }, fn(f.properties.props, f)); })); };
   A.cov = {
     bikeways: rowsOf('bikeways', bw.map(function(f) { var p = f.properties.props; return { near: true, bikeway_type: p.type || '', subtype: p.subtype, bike_route_name: p.name || '', object_id: String(f.id).split(':').pop() }; })),
     'water-hydrants': pts('hydrants', function(p) { return { id: p.hydrantId }; }),
@@ -26875,6 +26897,132 @@ GIS.live = async function(lid) {
   } catch (e) { failed = 'live refresh failed: ' + (e && e.message ? e.message : e); return false; }
   finally { if (btn) btn.disabled = false; setTimeout(function() { GIS.renderRows(); if (failed && src) src.textContent = failed; }, 0); }
 };
+</script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// OPENING (Brief 25 §2): invite status, the two starting paths, the import's layer picker, intersection search
+// ════════════════════════════════════════════════════════════════════════════════════════════
+
+// ── Item 7: does sign-up ask for an invite code? The database's flag (app_settings.invite_only), read through
+// public.signup_invite_only() (supabase/invite-status.sql), which returns the flag only, never the code. Until that
+// function exists, CONFIG.INVITE_ONLY stands in. The database checks the code either way. ─────────────────────
+var PKINV = { only: null };
+PKINV.ask = function() {
+  if (PKINV._p) return PKINV._p;
+  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) return (PKINV._p = Promise.resolve(null));
+  PKINV._p = fetch(CONFIG.SUPABASE_URL + '/rest/v1/rpc/signup_invite_only', { method: 'POST', headers: { apikey: CONFIG.SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, body: '{}' })
+    .then(function(r) { return r.ok ? r.json() : null; }).then(function(v) { PKINV.only = typeof v === 'boolean' ? v : null; PKINV.apply(); return PKINV.only; })
+    .catch(function() { return null; });
+  return PKINV._p;
+};
+PKINV.isOnly = function() { return PKINV.only == null ? !!CONFIG.INVITE_ONLY : PKINV.only; };
+PKINV.apply = function() { var g = document.getElementById('pkSUInviteGrp'); if (g) g.hidden = !PKINV.isOnly(); };
+
+// ── Item 8: the import's layers (the Vancouver street path). Ticked layers are read; an unticked one is not imported.
+// Defaults: Brief 24's map defaults, and every layer that feeds a site fact or the host (route type, right-of-way,
+// direction, the shops that name the host): only transit-stations starts unticked. state.__importLayers keeps the
+// choice with the design. ──────────────────────────────────────────────────────────────────────────────────────
+var IMP = {};
+IMP.defaultOn = function(L) { return !!(L.defaultOn || L.feeds.length || L.id === 'pois'); };
+IMP.get = function() { var s = (typeof state !== 'undefined' && state.__importLayers) || null, o = {}; GIS.LAYERS.forEach(function(L) { o[L.id] = s && typeof s[L.id] === 'boolean' ? s[L.id] : IMP.defaultOn(L); }); return o; };
+IMP.on = function(lid) { return IMP.get()[lid] !== false; };
+IMP.set = function(lid, v) { var o = IMP.get(); if (lid === '*') GIS.LAYERS.forEach(function(L) { o[L.id] = !!v; }); else o[lid] = !!v; state.__importLayers = o; try { saveSettings(); } catch (e) {} IMP.render(); };
+IMP.why = function(L) {
+  var f = { roadDir: 'direction', laneCount: 'lanes', bikeLane: 'bike lane', routeType: 'route type', row: 'right-of-way' };
+  return L.feeds.length ? 'feeds the ' + L.feeds.map(function(k) { return f[k] || k; }).filter(function(v, i, a) { return a.indexOf(v) === i; }).join(', ') : L.id === 'pois' ? 'names the host and its use' : L.id === 'streets' ? '' : 'drawn and checked near the deck';
+};
+// the picker: in the stage-0 panel after the pick, and under Import in the Site tab
+IMP.html = function(idp) {
+  var o = IMP.get();
+  return "<div class='imp-pick' role='group' aria-label='Data to import'><div class='imp-h'><span>Data to import</span><span class='imp-all'><button type='button' class='txt-btn' onclick='IMP.set(\"*\", true)'>Select all</button> · <button type='button' class='txt-btn' onclick='IMP.set(\"*\", false)'>None</button></span></div>" +
+    Object.keys(GIS.GROUPS).map(function(g) {
+      return "<div class='imp-grp'><div class='imp-grp-h'>" + GIS.GROUPS[g] + '</div>' + GIS.LAYERS.filter(function(L) { return L.group === g; }).map(function(L) {
+        var w = IMP.why(L);
+        return "<label class='imp-row'><input type='checkbox' id='" + idp + '_' + L.id + "'" + (o[L.id] ? ' checked' : '') + " onchange='IMP.set(\"" + L.id + "\", this.checked)'> " + SM.esc(L.label) + (w ? " <span class='imp-why'>" + SM.esc(w) + '</span>' : '') + '</label>';
+      }).join('') + '</div>';
+    }).join('') + "<p class='imp-note'>You can change these later under Import in the Site tab. Without Streets, the lanes and direction are estimates.</p></div>";
+};
+IMP.render = function() {
+  ['pkS0Layers', 'impLayers'].forEach(function(id) { var el = document.getElementById(id); if (el) el.innerHTML = IMP.html(id); });
+};
+
+// ── Item 8: the Blank street. A generic two-way street: one travel lane each way and a parking lane each side, sidewalks
+// both sides, two buildings each side of different heights, no trees or site objects. Every fact is entered (source
+// 'user'); the sheets say "Generic street - not a real location". A disclaimer with Continue comes first. ──────────
+var BLANK = { ROAD: 11.4, LANE: 3.3, PARK: 2.4, SIDEWALK: 3.0,
+  NOTE: 'Generic street — not a real location',
+  TEXT: 'A blank street is a generic two-way street: one travel lane each way, a parking lane each side, sidewalks on both sides and two buildings on each side. It is not a Vancouver location, and every width is a placeholder: replace each with a measurement taken on site. The sheets will say "Generic street — not a real location".' };
+BLANK.storeyH = function(n) { return typeof bldgHeightFromStoreys === 'function' ? bldgHeightFromStoreys(n) : 4.2 + 3.5 * (n - 1); };
+BLANK.ask = function() {
+  var m = document.getElementById('blankModal');
+  if (!m) {
+    m = document.createElement('div'); m.id = 'blankModal'; m.className = 'pk-modal-overlay'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'blankTitle');
+    m.innerHTML = "<div class='pk-modal-box blank-box'><h2 id='blankTitle'>Blank street</h2><p>" + SM.esc(BLANK.TEXT) + "</p><div class='pk-s0-acts'><button type='button' class='ctx-btn pk-s0-go' id='blankGo' onclick='BLANK.close(); BLANK.apply()'>Continue</button><button type='button' class='txt-btn' onclick='BLANK.close()'>Cancel</button></div></div>";
+    m.addEventListener('keydown', function(e) { if (e.key === 'Escape') BLANK.close(); });
+    document.body.appendChild(m);
+  }
+  m.classList.add('active'); setTimeout(function() { var b = document.getElementById('blankGo'); if (b) b.focus(); }, 0);
+};
+BLANK.close = function() { var m = document.getElementById('blankModal'); if (m) m.classList.remove('active'); };
+BLANK.bldg = function(name, use, storeys, length, zOffset, depth) {
+  var h = Math.round(BLANK.storeyH(storeys) * 10) / 10, at = new Date().toISOString(), P = { source: 'user', id: null, fetchedAt: at, note: 'blank street placeholder' };
+  var b = { name: name, use: use, storeys: storeys, height: h, depth: depth, length: length, zOffset: zOffset, setback: 0, frontage: 'glazed' };
+  b.__prov = {}; ['name', 'use', 'storeys', 'height', 'depth', 'length', 'zOffset', 'setback', 'frontage'].forEach(function(k) { b.__prov[k] = Object.assign({}, P); });
+  return b;
+};
+BLANK.apply = function() {
+  var ds = getDesignState(), lane = (BLANK.ROAD - SEED.DECK_W - BLANK.PARK) / 2;
+  ds.project = { name: (ds.project && ds.project.name && ds.project.name !== 'Untitled parklet') ? ds.project.name : 'Blank street', streetAddress: 'Generic street (not a real location)' };
+  Object.assign(ds.site, { totalRoad: BLANK.ROAD, sidewalkW: BLANK.SIDEWALK, numLanes: 2, roadDir: 'twoway', lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L, bufferEnabled: false,
+    streetBearing: 0, parkletSide: 'east',
+    bldgL: { buildings: [BLANK.bldg('Building 1', 'cafe', 2, 22, -6, 14), BLANK.bldg('Building 2', 'retail', 4, 24, 16, 16)] },
+    bldgR: { buildings: [BLANK.bldg('Building 3', 'mixed', 3, 20, -10, 15), BLANK.bldg('Building 4', 'residential', 5, 26, 10, 18)] } });
+  ds.crossSection = [{ type: 'sidewalk', width: BLANK.SIDEWALK }, { type: 'parklet', width: SEED.DECK_W }, { type: 'travel-lane', width: lane }, { type: 'travel-lane', width: lane }, { type: 'parking', width: BLANK.PARK }];
+  Object.keys(ds.compliance || {}).forEach(function(k) { ds.compliance[k] = ''; });
+  ds.compliance.route_type = 'standard';
+  ds.siteObjects = Object.assign({}, ds.siteObjects, { manholes: [], curb_features: [], driveways: [], street_trees: [], transit_stops: [], prov: {}, siteMap: null, place: { pkZ: 0, corners: [] }, neighbourhood: '', survey: null, existing: null, surveyMap: null });
+  ds.furniture = { placed: [], userDefs: [] };
+  applyDesignState(ds);
+  var at = new Date().toISOString(), note = 'blank street placeholder: measure on site';
+  state.__generic = { at: at, note: BLANK.NOTE };
+  ['roadWidth', 'roadDir', 'lanesA', 'lanesB', 'routeType', 'bikeLane', 'sidewalk'].forEach(function(k) { SMP.prov()[k] = { source: 'user', id: null, fetchedAt: at, note: note }; });
+  CTX_OUTER = null; state.__outer = null;
+  state.__existing = SITEF.record(false);
+  SEED.parklet(null);   // the deck at the host frontage, the default enclosure; the first site of a signed-in user makes a design
+  try { SMP.refresh(); } catch (e) {}
+  try { syncDesignModel('blank-street'); } catch (e) {}
+  try { render(); } catch (e) {}
+  console.log('[blank] a generic street: ' + BLANK.ROAD + ' m curb to curb, 1 + 1 lanes of ' + lane.toFixed(3) + ' m, parking ' + BLANK.PARK + ' m, sidewalks ' + BLANK.SIDEWALK + ' m, 2 + 2 buildings');
+};
+
+// ── Item 9: intersections ("Main St & 20th Ave", "Main and 20th"): curbside-data's intersections.json (every node where
+// differently named streets meet), fetched once, when a search looks like one ─────────────────────────────────────
+var INTX = { data: null };
+INTX.RE = /^\s*(.+?)\s*(?:&|\+|@|\/|\band\b|\bat\b)\s*(.+?)\s*(?:,\s*vancouver.*)?$/i;
+INTX.norm = function(s) {
+  return ' ' + String(s || '').toLowerCase().replace(/[.,']/g, ' ').replace(/\b(street|st)\b/g, 'st').replace(/\b(avenue|ave|av)\b/g, 'ave').replace(/\b(road|rd)\b/g, 'rd')
+    .replace(/\b(drive|dr)\b/g, 'dr').replace(/\b(boulevard|blvd)\b/g, 'blvd').replace(/\b(east|west|north|south|e|w|n|s)\b/g, ' ').replace(/\b(\d+)(st|nd|rd|th)\b/g, '$1').replace(/\s+/g, ' ').trim() + ' ';
+};
+// a typed part matches a name when all its words are words of the name ("main" -> "Main Street"); exact scores higher
+INTX.score = function(part, name) { var p = INTX.norm(part).trim(), n = INTX.norm(name); if (!p) return 0; if (n.trim() === p) return 2; return p.split(' ').every(function(w) { return n.indexOf(' ' + w + ' ') >= 0; }) ? 1 : 0; };
+INTX.load = function() { if (INTX._p) return INTX._p; INTX._p = GIS.fetchJSON(GIS.BASE + 'intersections.json').then(function(j) { INTX.data = j; return j; }).catch(function(e) { INTX._p = null; throw e; }); return INTX._p; };
+INTX.search = async function(q) {
+  var m = INTX.RE.exec(q); if (!m) return null;
+  var j = await INTX.load(), sa = {}, sb = {};
+  j.names.forEach(function(n, i) { var a = INTX.score(m[1], n), b = INTX.score(m[2], n); if (a) sa[i] = a; if (b) sb[i] = b; });
+  var hits = [];
+  j.rows.forEach(function(r) { var s = Math.max((sa[r[0]] && sb[r[1]]) ? sa[r[0]] + sb[r[1]] : 0, (sa[r[1]] && sb[r[0]]) ? sa[r[1]] + sb[r[0]] : 0); if (s) hits.push({ s: s, a: j.names[r[0]], b: j.names[r[1]], lon: r[2], lat: r[3] }); });
+  // one result per corner: the nodes of one intersection (within 40 m) merge
+  var out = [];
+  hits.sort(function(x, y) { return y.s - x.s; }).forEach(function(h) {
+    var o = out.find(function(q) { return q.a === h.a && q.b === h.b && Math.hypot((q.lon - h.lon) * 72000, (q.lat - h.lat) * 111000) < 40; });
+    if (!o) out.push({ s: h.s, a: h.a, b: h.b, lon: h.lon, lat: h.lat });
+  });
+  return out.slice(0, 5).map(function(h) { return { display_name: h.a + ' & ' + h.b + ', Vancouver', lat: h.lat, lon: h.lon, intersection: true }; });
+};
+
+// ── Item 10: the map's data dots are information while the Layers tab is open, and never while a side is being picked ─
+GIS.inspecting = function() { var p = document.getElementById('smLayers'); return !!(p && !p.hidden) && !(SM.pick && SM.pick.snap); };
 </script>
 <style>
 /* -- Brief 24 B4: the site map's Layers tab ------------------------------------------------- */
@@ -27440,7 +27588,7 @@ SMP.importContext = async function() {
     if (PK_NOSTREET && typeof SEED !== 'undefined') SEED.parklet(rep);   // stage 0 -> 1: the deck at the host frontage (Brief 22 item 5)
     SITEF.fromImport(P.way, cov['right-of-way-widths'], data.osm.at, rep);   // the existing street, before any design change
     SMP._via = null; SMP._truck = null;
-    SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString(); state.__siteMap.via = 'cells'; state.__siteMap.cellsBuild = A.build;
+    SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString(); state.__generic = null; state.__siteMap.via = 'cells'; state.__siteMap.cellsBuild = A.build;
     // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import
     cur = 'city'; st.city = 'run'; show();
     try { var oc = await SMP.importOuter({ noOverpass: true }); st.city = 'ok'; if (oc) rep.notes.push('city context to ' + oc.R + ' m: ' + oc.counts.bldg + ' footprints, ' + oc.counts.streets + ' streets, ' + oc.counts.parks + ' parks, ' + oc.counts.waterRings + ' water rings (' + (oc.ms / 1000).toFixed(1) + ' s)'); }
@@ -27773,7 +27921,7 @@ SMP.sourcesList = function() {
   // the Site tab: the import button + its message, under the map row
   var row = document.getElementById('siteMapHint');
   if (row && !document.getElementById('smpImportBtn')) {
-    row.parentNode.insertAdjacentHTML('afterend', "<div class='site-map-row'><button type='button' class='ctx-btn' id='smpImportBtn' onclick='SMP.importContext()' disabled>Import street context</button><span class='hint' id='smpImportHint'>Locate on map first: the import needs the street the parklet is on.</span></div><span class='smp-msg' id='smpMsg' role='status' aria-live='polite'></span>");
+    row.parentNode.insertAdjacentHTML('afterend', "<div class='site-map-row'><button type='button' class='ctx-btn' id='smpImportBtn' onclick='SMP.importContext()' disabled>Import street context</button><span class='hint' id='smpImportHint'>Locate on map first: the import needs the street the parklet is on.</span></div><span class='smp-msg' id='smpMsg' role='status' aria-live='polite'></span><div id='impLayers' class='imp-side'></div>");
   }
   // the map pick records its provenance (lat, lon, bearing, side, address)
   SM.onUse = function(p) {
@@ -27830,6 +27978,25 @@ SMP.sourcesList = function() {
 .pk-s0-done b { color: var(--c-text, #F2F2F0); font-weight: 600; }
 .pk-s0-msg { min-height: 1.4em; font-size: 12px; }
 .pk-s0-msg:empty { display: none; }
+/* -- Brief 25 item 8: the two starting paths, the import's layer picker, the blank street's disclaimer --------------- */
+.pk-s0-card.pk-s0-wide { max-width: 62em; }
+.pk-s0-paths { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; width: 100%; }
+.pk-s0-path { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--border-c, #2E3338); border-radius: 6px; background: var(--c-panel, #202328); }
+.pk-s0-path h3 { margin: 0; font: 600 15px var(--font-ui); color: var(--c-text, #F2F2F0); }
+.pk-s0-foot { font-size: 12px !important; }
+.imp-pick { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--c-text, #F2F2F0); }
+.imp-h { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; }
+.imp-all { font-weight: 400; color: var(--c-text-dim, #9AA0A6); }
+.imp-grp { display: flex; flex-direction: column; gap: 2px; }
+.imp-grp-h { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--c-text-dim, #9AA0A6); margin-top: 4px; }
+.imp-row { display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+.imp-why { font-size: 11px; color: var(--c-text-dim, #9AA0A6); }
+.imp-note { margin: 4px 0 0 !important; font-size: 11px !important; color: var(--c-text-dim, #9AA0A6); }
+.imp-side { margin: 8px 0 4px; }
+.blank-box { max-width: 30em; display: flex; flex-direction: column; gap: 12px; padding: 22px 24px; }
+.blank-box h2 { margin: 0; font: 600 18px var(--font-ui); }
+.blank-box p { margin: 0; font-size: 13px; line-height: 1.55; }
+
 /* -- Brief 24 B5: the Plan's Context toggles ------------------------------------------------ */
 .pv-ctx { position: relative; display: inline-block; }
 .pv-ctx > summary { list-style: none; }
@@ -28118,15 +28285,22 @@ function pkStageSync() {
     // the panel leads through both steps: once the site is located, the import is its button (the Site setup panel
     // that also has one may be closed), with the import's progress under it
     var sm = typeof state !== 'undefined' && state.__siteMap, busy = typeof SMP !== 'undefined' && SMP._busy;
-    ov.innerHTML = "<div class='pk-s0-card'><h2>Choose a site</h2><p>There is no street yet. A design starts from a real curb:</p>" +
-      "<ol><li" + (sm ? " class='pk-s0-done'" : '') + ">Locate on map: search the address, click the street, then the parklet's side." + (sm ? ' <b>Located: ' + SM.esc(sm.name || 'the street') + (sm.parkletSide ? ', ' + SM.esc(sm.parkletSide) + ' side' : '') + '.</b>' : '') + "</li>" +
-      "<li>Import street context: the existing street, its buildings and the City's site objects.</li></ol>" +
-      "<p>A deck of the default length is then placed at the host frontage, and the checks run on the site's facts.</p>" +
-      "<div class='pk-s0-acts'>" + (sm ? "<button type='button' class='ctx-btn pk-s0-go' id='pkS0Import' onclick='SMP.importContext()'" + (busy ? ' disabled' : '') + ">" + (busy ? 'Importing...' : 'Import street context') + "</button><button type='button' class='txt-btn' onclick='appSetMode(\"site\"); SM.open()'>Locate again</button>"
-        : "<button type='button' class='ctx-btn pk-s0-go' onclick='appSetMode(\"site\"); SM.open()'>Locate on map</button>") + "</div>" +
-      "<p class='pk-s0-msg' id='pkS0Msg' role='status' aria-live='polite'>" + (sm ? SEED.msgCopy() : '') + "</p></div>";
+    // Brief 25 item 8: two starting paths, side by side: a Vancouver street (locate, choose the data, import) or a blank street
+    var bt = busy ? 'Importing...' : 'Import street context';
+    ov.innerHTML = "<div class='pk-s0-card pk-s0-wide'><h2>Choose a site</h2><p>Start from a real Vancouver curb, or sketch on a generic street first.</p><div class='pk-s0-paths'>" +
+      "<section class='pk-s0-path' aria-labelledby='pkS0VanH'><h3 id='pkS0VanH'>Vancouver street</h3><ol>" +
+        "<li" + (sm ? " class='pk-s0-done'" : '') + ">Locate on map: search an address or an intersection, click the street, then the parklet's side." + (sm ? ' <b>Located: ' + SM.esc(sm.name || 'the street') + (sm.parkletSide ? ', ' + SM.esc(sm.parkletSide) + ' side' : '') + '.</b>' : '') + "</li>" +
+        "<li>Choose the data to import.</li><li>Import street context: the existing street, its buildings and the site objects.</li></ol>" +
+        (sm && typeof IMP !== 'undefined' ? "<div id='pkS0Layers'>" + IMP.html('pkS0Layers') + "</div>" : '') +
+        "<div class='pk-s0-acts'>" + (sm ? "<button type='button' class='ctx-btn pk-s0-go' id='pkS0Import' onclick='SMP.importContext()'" + (busy ? ' disabled' : '') + ">" + bt + "</button><button type='button' class='txt-btn' onclick='appSetMode(\"site\"); SM.open()'>Locate again</button>"
+          : "<button type='button' class='ctx-btn pk-s0-go' onclick='appSetMode(\"site\"); SM.open()'>Locate on map</button>") + "</div>" +
+        "<p class='pk-s0-msg' id='pkS0Msg' role='status' aria-live='polite'>" + (sm ? SEED.msgCopy() : '') + "</p></section>" +
+      "<section class='pk-s0-path' aria-labelledby='pkS0BlankH'><h3 id='pkS0BlankH'>Blank street</h3><p>A generic two-way street with parking, sidewalks and buildings, to sketch a parklet before choosing a site. It is not a real location, and every width is a placeholder.</p>" +
+        "<div class='pk-s0-acts'><button type='button' class='ctx-btn' id='pkS0Blank' onclick='BLANK.ask()'>Start a blank street</button></div></section>" +
+      "</div><p class='pk-s0-foot'>Either way a deck of the default length is placed at the host frontage, and the checks run on the street's facts.</p></div>";
   }
   if (ov) ov.hidden = !s0;
+  try { if (typeof IMP !== 'undefined') IMP.render(); } catch (e) {}
   if (s0) ['roadWidth', 'sidewalkWidth', 'laneCount', 'lanesA', 'lanesB'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
   var act = document.querySelector('.ttab.active'), m = act ? (String(act.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : null;
   if (s0 && m && SEED.GATED.indexOf(m) >= 0) appSetMode('site');
