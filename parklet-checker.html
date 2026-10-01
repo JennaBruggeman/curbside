@@ -7740,9 +7740,9 @@ function _renderPlanView(o) {
     s += `<line x1='0' y1='${uy0.toFixed(2)}' x2='${VW}' y2='${uy0.toFixed(2)}'${K('context', { c: 'mid', dash: 'hidden' })}/>`;
     annSeg('Unallocated ' + DRAW_STYLE.fmt(_pvLM.roadRight - _pvLM.allocatedRight), uy1 - 3 * U);
   }
-  // the parking row each side of the parklet, under the trees' canopies
-  s += `<rect x="0" y="${PK_Y}" width="${PK_X}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}"/>`;
-  s += `<rect x="${PK_X+PK_W}" y="${PK_Y}" width="${VW-PK_X-PK_W}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}"/>`;
+  // the parking row, one surface the whole length (Brief 28 item 8: under the deck too, so an edited deck shape sits on the
+  // ground and nothing is cut from it), under the trees' canopies
+  s += `<rect x="0" y="${PK_Y}" width="${VW}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}" data-ground='parking'/>`;
   // Trees and planters from DESIGN_MODEL.vegetation, on top of their bands, true scale
   // (ellipse radii use each axis's own px/m). Tagged data-veg='<index>' for the check.
   _pvDM.vegetation.forEach(function(v, i) {
@@ -7884,7 +7884,9 @@ const C03_REQ = 6;
   // the deck, at their nominal places (DESIGN_MODEL.cityItems); symbols only, the City sets them
   if (LODn >= 1) (_pvDM.cityItems || []).forEach(function(c) {
     const p = worldToPlan(c.x, c.z);
-    if (c.type === 'wheelStop') { const a = worldToPlan(c.x0, c.z0), b = worldToPlan(c.x1, c.z1); s += _sym(function(P) { DRAW_SYMBOLS.cityWheelStop(P, p.px, p.py, Math.abs(b.px - a.px), Math.abs(b.py - a.py), { data: " data-city='wheelStop' data-end='" + c.end + "'" }); }); }
+    // their symbols are obstacles: no clearance value on them (Brief 28 item 8)
+    annObst(p.px - 2 * DK.k, p.py - 2 * DK.k, p.px + 2 * DK.k, p.py + 2 * DK.k);
+    if (c.type === 'wheelStop') { const a = worldToPlan(c.x0, c.z0), b = worldToPlan(c.x1, c.z1); annObst(Math.min(a.px, b.px) - U, Math.min(a.py, b.py) - U, Math.max(a.px, b.px) + U, Math.max(a.py, b.py) + U); s += _sym(function(P) { DRAW_SYMBOLS.cityWheelStop(P, p.px, p.py, Math.abs(b.px - a.px), Math.abs(b.py - a.py), { data: " data-city='wheelStop' data-end='" + c.end + "'" }); }); }
     else s += _sym(function(P) { DRAW_SYMBOLS.flexBollard(P, p.px, p.py, 0.1 * pvSC, { data: " data-city='flexBollard' data-end='" + c.end + "'" }); });
   });
   if (_clipD) s += `<g clip-path='url(#pkSC)'>`;
@@ -8325,6 +8327,7 @@ const manholes = state['manholes'] || [];
     s += `<rect x='${f1(_bxL)}' y='${f1(_rT)}' width='${f1(_bxR - _bxL)}' height='${f1(_rB - _rT)}' fill='${DRAW_STYLE.UI.secFill}'${KU(0.8, 'accent', { dash: [5, 3] })} pointer-events='none' data-pvsl='depth'/>`;
     // cutting-plane line over the box's extent: DRAW_STYLE's object weight, centre line
     s += `<line x1='${f1(_sX)}' y1='${f1(_rT)}' x2='${f1(_sX)}' y2='${f1(_rB)}'${K('object', { dash: 'centre' })} pointer-events='none' data-pvsl='vl'/>`;
+    annObst(_sX - 2 * U, _rT, _sX + 2 * U, _rB);   // no text on the cut line (Brief 28 item 8: "deck" was struck by it)
     // hit areas: the line (z); the box's four edges: forward (depth), back (depthBack), x0, x1 (the section tool's handles)
     s += `<rect x='${f1(_sX - 7 * U)}' y='${f1(_rT)}' width='${f1(14 * U)}' height='${f1(_rB - _rT)}' fill='transparent' style='cursor:ew-resize' onmousedown='_pvSecDown(event,0)' data-pvsl='hit'><title>Drag to move the section cut</title></rect>`;
     const _gm = (_rT + _rB) / 2, _cx = (_bxL + _bxR) / 2, _hw = Math.max(24 * U, (_bxR - _bxL) * 0.5);
@@ -23527,7 +23530,8 @@ RPT.dimText = function(P, h, out, p, a, b, s, o, end) {
   }
   if (h) {
     var ty = p - 0.8;
-    if (w + RPT.DIM.clear <= hi - lo) { var b0 = boxAt(mid, ty, 'middle'); if (free(b0[0], b0[1], b0[2], b0[3])) { put(mid, ty, 'middle'); return 'in'; } }
+    // in its span: the middle, else slid along the span (still clear of the ticks) off what is in the way (the section line)
+    if (w + RPT.DIM.clear <= hi - lo) for (var k = 0; k <= 16; k++) { var dk = k === 0 ? 0 : (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 1.2, b0 = boxAt(mid + dk, ty, 'middle'); if (b0[0] < lo + RPT.DIM.clear / 2 || b0[2] > hi - RPT.DIM.clear / 2) continue; if (free(b0[0], b0[1], b0[2], b0[3])) { put(mid + dk, ty, 'middle'); return 'in'; } }
     var cand = [], ends = end < 0 ? [-1, 1] : [1, -1];
     ends.forEach(function(e) { cand.push(e < 0 ? [lo - 2.2, ty, 'end'] : [hi + 2.2, ty, 'start']); });
     var stp = 3.4 + nh;   // a row's step: the two lines of a clearance need more
@@ -23590,7 +23594,8 @@ RPT.northSym = function(P, cx, cy, r) {
 };
 // section marker: DRAW_SYMBOLS.sectionLine, the arrows on the looking side
 // lim [ya, yb]: the drawing frame; a line longer than the frame stops at it, so its tags stay on the sheet
-RPT.secMarker = function(P, x, y0, y1, lookLeft, lim) { if (lim) { y0 = Math.max(y0, lim[0]); y1 = Math.min(y1, lim[1]); } DRAW_SYMBOLS.sectionLine(P, x, y0, y1, 'A', lookLeft ? -1 : 1); };
+// (Brief 28 item 8: the cut line is an obstacle to the sheet's later text, P.boxes obst: a dimension value slides off it)
+RPT.secMarker = function(P, x, y0, y1, lookLeft, lim) { if (lim) { y0 = Math.max(y0, lim[0]); y1 = Math.min(y1, lim[1]); } DRAW_SYMBOLS.sectionLine(P, x, y0, y1, 'A', lookLeft ? -1 : 1); P.boxes.push({ text: true, obst: true, t: 'section line', x0: x - 0.5, x1: x + 0.5, y0: y0, y1: y1 }); };
 // the report's names for DRAW_SYMBOLS
 RPT.sym = {
   hydrant: function(P, x, y, r, noText) { DRAW_SYMBOLS.hydrant(P, x, y, { r: r, noText: noText }); },
@@ -24002,6 +24007,7 @@ RPT.sheetLayout = function(d) {
   tagLater();
   P.clipClose();
   P.rect(xa, ya, xb - xa, yb - ya, { cls: 'context' });
+  RPT.secMarker(P, F.sx(G.sec.z), F.sy(G.sec.x0), F.sy(G.sec.x1), G.sec.dir === 1, [ya, yb]);   // first: the dimensions keep off its line (Brief 28 item 8)
   // across, left of the drawing: the running chain of segments (frontage .. far curb), the overall on the next row
   var stops = [LM.sidewalkL.x0, 0], m = [0 - LM.sidewalkL.x0];
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk') return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
@@ -24049,7 +24055,6 @@ RPT.sheetLayout = function(d) {
     var near = c.z < 0 ? 0 : G.L, sd = c.z < 0 ? 'lo' : 'hi'; if (sideRow[sd] > 2) return;
     clearDim(sideRow[sd]++, near, c.z, Math.abs(c.z - near), req, id);
   });
-  RPT.secMarker(P, F.sx(G.sec.z), F.sy(G.sec.x0), F.sy(G.sec.x1), G.sec.dir === 1, [ya, yb]);   // the section's box across, x0 .. x1 (Brief 21 §5), within the crop
   var keys = [
     { t: 'Segments from the Section editor, chained with the overall, frontage to far curb.', at: [xa - 20, (F.sy(0) + F.sy(LM.roadRight)) / 2] },
     { t: hz != null && zs.indexOf(hz) >= 0 ? 'The deck located from the host frontage (' + (host.name || host.use || 'host') + ').' : 'The deck located along the curb from its start.', at: [F.sx(G.L / 2), ay - 9] },
@@ -24899,7 +24904,7 @@ RPT.pages = function(d, drw) {
 RPT.checkPages = function(pens, pages) {
   var out = { overlaps: [], outside: [], texts: 0 };
   pens.forEach(function(P, pi) {
-    var B = P.boxes.filter(function(b) { return b.text; }); out.texts += B.length;
+    var B = P.boxes.filter(function(b) { return b.text && !b.obst; }); out.texts += B.length;   // obst: a line kept clear, not a text
     var bl = pages[pi].bleed, bw = bl ? RPT.PG.W : RPT.SW, bh = bl ? RPT.PG.H : RPT.SH;   // a bleed page: the whole sheet
     for (var i = 0; i < B.length; i++) {
       var a = B[i];
