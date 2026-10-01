@@ -6447,6 +6447,34 @@ function bikePostZs(L, ws) {
   z.push(L - ws / 2);
   return z;
 }
+// Brief 28 item 10: the protected bike lane's separation belongs to the street, not the parklet: flex-posts the whole
+// modelled length, one at the front of each parking space (City of Vancouver Engineering Design Manual 2026, Table 8-7
+// note 2, p. 266: intermittent separation "at the front of each marked parking space", about 1.5 m long), stepping out
+// from the parklet's ends one space (EVERY) at a time. The EDM gives no space length: 6.0 m is our estimate. Gaps only at
+// the driveways (DRIVE_HALF each side of one) and the cross streets (their width and CROSS_PAD each side). Along the
+// parklet: bikePostZs, the Parklet Manual's posts between the wheel stops, as before. -> world z, ascending.
+var BIKE_SEP = {
+  EVERY: 6.0, DRIVE_HALF: 3.0, CROSS_PAD: 2.0, WS: 1.1,
+  zs: function(DM) {
+    DM = DM || _dmCurrent(); var LM = DM.landmarks, L = DM.parklet.length, ws = BIKE_SEP.WS, z0 = LM.sceneMinZ, z1 = LM.sceneMaxZ, gaps = [];
+    ((typeof state !== 'undefined' && state.driveways) || []).forEach(function(dv) { if (isFinite(+dv.xM)) gaps.push([+dv.xM - BIKE_SEP.DRIVE_HALF, +dv.xM + BIKE_SEP.DRIVE_HALF]); });
+    var c = typeof pkZNow === 'function' ? pkZNow() : 0;
+    (typeof pkPlace === 'function' ? pkPlace().corners : []).forEach(function(k) { var zc = k.s - c + L / 2, h = (k.half || 5) + BIKE_SEP.CROSS_PAD; gaps.push([zc - h, zc + h]); });
+    // and every context street that crosses this one (CTX_ROADS, the Plan's surfaces): its width along this street
+    (typeof CTX_ROADS !== 'undefined' ? CTX_ROADS.world() : []).forEach(function(r) {
+      if (r.kind === 'foot' || !(r.half > 0)) return;
+      for (var i = 1; i < r.pts.length; i++) {
+        var a = r.pts[i - 1], b = r.pts[i], xc = LM.roadCenterX; if ((a[0] - xc) * (b[0] - xc) > 0 || a[0] === b[0]) continue;
+        var t = (xc - a[0]) / (b[0] - a[0]), zc = a[1] + t * (b[1] - a[1]), sn = Math.abs(b[0] - a[0]) / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1), h = r.half / Math.max(0.3, sn) + BIKE_SEP.CROSS_PAD;
+        gaps.push([zc - h, zc + h]);
+      }
+    });
+    var open = function(z) { return z >= z0 && z <= z1 && !gaps.some(function(g) { return z >= g[0] && z <= g[1]; }); }, out = bikePostZs(L, ws).slice();
+    for (var z = L + ws / 2 + BIKE_SEP.EVERY; z <= z1; z += BIKE_SEP.EVERY) if (open(z)) out.push(z);
+    for (var y = ws / 2 - BIKE_SEP.EVERY; y >= z0; y -= BIKE_SEP.EVERY) if (open(y)) out.push(y);
+    return out.sort(function(a, b) { return a - b; });
+  }
+};
 // A check zone's length along the street: a context dimension line in the zone's colour with 45 degree ticks, the rule
 // ID in its lozenge above (DRAW_SYMBOLS.lozenge), the requirement under it. st: the check's status; ctx: the drawing's
 // DRAW_STYLE context.
@@ -7800,9 +7828,10 @@ function _renderPlanView(o) {
     // Protected bike lane: flexible bollard row in plan at parklet/bike-lane boundary
     // Manual p.21, p.48: City installs flexible bollards at each end and as needed
     if (bikeLaneType() === 'protected') {
-      // every 2 m along the deck and one at each end (Manual p.48); DRAW_SYMBOLS.post: a 0.1 m dot at 'general'
+      // the street's separation the whole length (BIKE_SEP, Brief 28 item 10: a post at the front of each parking space, gaps
+      // at driveways and cross streets; along the deck the Manual's, p. 48); DRAW_SYMBOLS.post: a 0.1 m dot at 'general'
       const bollardY = _corrEdgeY, bR = 0.05 * pvSC;
-      bikePostZs(PARKLET_M, 1.1).forEach(function(z) { s += _sym(function(P) { DRAW_SYMBOLS.post(P, PK_X + z * HS, bollardY, bR, { data: " data-post='1'" }); }); });
+      BIKE_SEP.zs(_pvDM).forEach(function(z) { const x = worldToPlan(0, z).px; if (x < -bR || x > VW + bR) return; s += _sym(function(P) { DRAW_SYMBOLS.post(P, x, bollardY, bR, { data: " data-post='1'" }); }); });
     }
   }
   // Vegetated buffer strip between the sidewalk and the building frontage (landmarks.bufferL,
@@ -9579,7 +9608,9 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       const geomBoll = new THREE.CylinderGeometry(0.038, 0.062, 0.75, 8);
       const geomRefl = new THREE.CylinderGeometry(0.043, 0.043, 0.055, 8);
       const bollX = _lnS.length > 0 ? _lnS[0].x0 : PW + bld;
-      for (let bz = 0; bz <= L; bz += 2.0) {
+      // the street's separation, the whole modelled length (BIKE_SEP, Brief 28 item 10)
+      window._3dBikePosts = 0;
+      for (const bz of BIKE_SEP.zs(_dm3d)) { window._3dBikePosts++;
         const bm = new THREE.Mesh(geomBoll, matBoll);
         bm.position.set(bollX, 0.065 + 0.375, bz);
         bm.castShadow = true;
@@ -23860,7 +23891,7 @@ RPT.planBase = function(P, G, F, mode, o) {
       else for (var bz = Math.ceil(F.zA / 12) * 12 + 6; bz < F.zB; bz += 12) DRAW_SYMBOLS.bike(P, F.sx(bz), bkY, bkR, { cls: 'context' });
       // protected: the flexible posts on its traffic side, every 2 m along the deck and one at each end, as on screen
       if (bikeLaneType() === 'protected') {
-        bikePostZs(G.DM.parklet.length, 1.1).forEach(function(z) { if (z >= F.zA && z <= F.zB) DRAW_SYMBOLS.post(P, F.sx(z), y0 + h, 0.05 * F.k); });
+        BIKE_SEP.zs(G.DM).forEach(function(z) { if (z >= F.zA && z <= F.zB) DRAW_SYMBOLS.post(P, F.sx(z), y0 + h, 0.05 * F.k); });   // the street's separation (Brief 28 item 10)
       }
     }
     if (o.labels !== false && h > 3.2) P.text(xa + 3, y0 + h / 2 + 0.9, RPT.SEG[sg.type] || sg.type.toUpperCase(), RPT.TX.tag, { c: RPT.MID, ls: 0.15 });
