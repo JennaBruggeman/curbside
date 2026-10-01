@@ -281,3 +281,55 @@ pass.
   gave no inline warning.
 - **README / landing wrong:** none found; Blank street not tried.
 - Evidence: `<scratchpad>\b23\full\p4-run1\` (001–047.png, the PDF).
+
+### Run: Persona 5 (accessibility, keyboard only, 150 %), run 1, Sonnet
+
+- **Site:** none reachable by keyboard (see below), so the blank street. **Time:** about 35 minutes to the PDF.
+- **Broke**
+  - **The sign-in / sign-up dialog traps the keyboard:** focus is not moved into it, Tab goes to the controls behind the
+    overlay (disabled-looking ones take focus and show tooltips), Escape does nothing and there is no close control.
+    The agent had to leave by URL. (Persona 6 also found no way to close it: Escape and a click outside did nothing.)
+  - **A real site cannot be chosen by keyboard:** the map search's suggestion cannot be reached (ArrowDown does
+    nothing, Tab skips it to "Search"), and "click the street, then the side" has no keyboard way.
+  - "Place" on a furniture card put an armchair in the 3D view, but C16 kept "Nothing placed yet" and no keyboard way to
+    select or move the placed piece was found. (Not checked: the piece may still have been in placing mode.)
+  - The sample report "goes blank" and "one press gave three PDFs": **harness** (headless Chromium has no PDF viewer,
+    so the sample's PDF frame downloads instead of showing: the two UUID-named files are from the two sample visits;
+    the Download button made one file).
+  - **The sample report's banner reads "18 pass, 1 fail":** confirmed: the reference design now fails C19 ("umbrella
+    2.10 m clear, past the footprint"), so the sample no longer shows a passing design.
+  - `GEN is not defined` on every page.
+- **Confused:** Escape behaves three ways (nothing in the sign-in dialog, closes the map dialog, leaves the sample page
+  for the landing page); 10–20 Tab presses to reach "Start a blank street", "Download report (PDF)" or the first
+  "Place", with no skip links or headings to jump by inside the app.
+- **README / landing wrong:** the landing page's check list has no C16, the one check about access; README step 3's
+  "click the street" has no keyboard alternative.
+- Evidence: `<scratchpad>\b23\full\p5-run1\` (001–087.png, the PDF).
+
+### Run: Persona 6 (returning user, signed out), run 1, Sonnet
+
+- **Site:** W 4th Av at Yew St, south side. **Time:** about 30 minutes; no PDF needed. Signed out throughout (no
+  account; see the steps for Jenna below).
+- **Broke**
+  - **Placed furniture is not saved.** After placing three pieces and reloading, the site and the name came back but the
+    Furniture tab said "Nothing is placed on the deck yet" (042.png). **Reproduced:** two pieces dropped from the
+    library onto the Plan, 3 s, reload: 0 pieces; the stored design held 0 pieces before the reload. Placing a piece
+    does not save the design; a later action that saves (switching tabs did, in my check) writes it. Signed in the
+    autosave may cover it; not tested here (no account). **This loses work.**
+  - The sign-in dialog has no close control; Escape and a click outside do nothing (as persona 5).
+  - `GEN is not defined` on every Plan render.
+- **Confused:** a new browser shows a blank "Untitled parklet" with no word on where the earlier design went or that an
+  account keeps designs; signed out there is no "My designs", save or open control, and nothing in the app (only the
+  landing page) says that designs are kept in an account; "+ New" asks for a name and gives no warning about the open
+  design.
+- **README / landing wrong:** the landing page's check list has no C16.
+- **For Jenna (needs an account):**
+  1. Create an account from the landing page (Name, Email, Password, Confirm; no code during the review). Check: where
+     it lands; whether the header shows the account and a "My designs" entry. Also check the confirmation email's link
+     (the 404 fix needs the Supabase redirect setting, HANDOFF).
+  2. Locate W 4th Av & Yew St (south), import, name it, place three pieces. Check: a "Saved" / "Saving…" indicator;
+     **then reload without switching tabs and check the pieces are still there** (the signed-out run lost them).
+  3. Sign out from the account menu. Check: any warning about unsaved changes; where it lands.
+  4. In a new browser (or a private window), sign in. Check: the design list shows the design; opening it restores
+     the site, the three pieces and the name.
+- Evidence: `<scratchpad>\b23\full\p6-run1\` (001–049.png).
