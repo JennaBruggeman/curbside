@@ -26381,18 +26381,20 @@ GIS.index = async function() {
   return GIS._idxP;
 };
 // a newer index: a layer whose schemaVersion changed drops its whole cache; a newer layer refetches what is in view
+// (the view is refreshed once the drops are done, so a dropped layer is fetched again under its new version)
 GIS.onIndex = function(j, old) {
+  var drops = [];
   GIS.LAYERS.forEach(function(L) {
     var m = j.layers[L.id], o = old && old.layers[L.id]; if (!m) return;
-    if (o && o.schemaVersion !== m.schemaVersion) GIS.dropLayer(L.id);
+    if (o && o.schemaVersion !== m.schemaVersion) drops.push(GIS.dropLayer(L.id));
     else if (o && o.updatedAt !== m.updatedAt) GIS.cs.forEach(function(v, k) { if (k.split('|')[1] === L.id && v.source !== 'osm-live') v.stale = true; });
   });
-  GIS.refresh();
+  return Promise.all(drops).then(GIS.refresh);
 };
 GIS.dropLayer = async function(lid) {
+  GIS.cs.forEach(function(v, k) { if (k.split('|')[1] === lid) GIS.cs.delete(k); });   // first: nothing reads the old version meanwhile
   var keys = (await GIS.idbKeys('cells')) || [];
   for (var k of keys) if (String(k).split('|')[1] === lid) await GIS.idbDel('cells', k);
-  GIS.cs.forEach(function(v, k) { if (k.split('|')[1] === lid) GIS.cs.delete(k); });
   GIS.dirty(lid);
 };
 
@@ -26405,11 +26407,13 @@ GIS.load = async function(cell, lid, gen, signal, opts) {
   opts = opts || {};
   var idx = await GIS.index(), k = GIS.key(cell, lid), cur = GIS.cs.get(k);
   if (cur && cur.st === 'ready' && !cur.stale && !opts.force) return cur;
-  if (cur && cur.st === 'loading' && cur.p) return cur.p;
+  // a request in flight is joined (it then belongs to the newest generation that wants it), unless a pan aborted it;
+  // an import (no generation) does not join a view's request, which a pan may abort
+  if (cur && cur.st === 'loading' && cur.p && !(cur.signal && cur.signal.aborted) && !(gen == null && cur.signal)) { if (gen == null) cur.keep = true; else if (cur.gen != null && gen > cur.gen) cur.gen = gen; return cur.p; }
   var entry = idx.cells[cell] && idx.cells[cell][lid], meta = idx.layers[lid];
   if (!idx.cells[cell]) { var nd = { st: 'error', why: 'nodata', fc: null }; GIS.cs.set(k, nd); return nd; }
   if (!entry || !meta) { var em = { st: 'ready', fc: { type: 'FeatureCollection', features: [] }, updatedAt: meta && meta.updatedAt }; GIS.cs.set(k, em); GIS.dirty(lid); return em; }
-  var dbKey = k + '|' + meta.schemaVersion, st = { st: 'loading', gen: gen };
+  var dbKey = k + '|' + meta.schemaVersion, st = { st: 'loading', gen: gen, signal: signal }, mine = function() { return GIS.cs.get(k) === st; };
   GIS.cs.set(k, st);
   st.p = (async function() {
     var c = await GIS.idbGet('cells', dbKey);
@@ -26426,14 +26430,15 @@ GIS.load = async function(cell, lid, gen, signal, opts) {
       for (var i = 1; i <= n; i++) parts.push(GIS.fetchJSON(GIS.BASE + 'cells/' + cell + '/' + lid + (n > 1 ? '.' + i : '') + '.json', signal));
       var got = await Promise.all(parts), fc = { type: 'FeatureCollection', features: [].concat.apply([], got.map(function(g) { return g.features || []; })) };
       if (!GIS.valid(fc)) throw new Error('not a cell file');
-      if (gen != null && gen < GIS.gen) {   // a pan moved on while this was in flight: never applied
-        GIS.genLog.push({ key: k, gen: gen, current: GIS.gen, t: Date.now() });
-        if (!c) GIS.cs.delete(k); return null;
+      if (!st.keep && st.gen != null && st.gen < GIS.gen) {   // a pan moved on while this was in flight and no newer request wants it: never applied
+        GIS.genLog.push({ key: k, gen: st.gen, current: GIS.gen, t: Date.now() });
+        if (!c && mine()) GIS.cs.delete(k); return null;
       }
       GIS.idbPut('cells', { key: dbKey, fc: fc, updatedAt: meta.updatedAt, storedAt: Date.now(), source: 'cells' });
       var r = { st: 'ready', fc: fc, updatedAt: meta.updatedAt, source: 'cells' }; GIS.cs.set(k, r); GIS.dirty(lid); return r;
     } catch (e) {
-      if (e && e.name === 'AbortError') { if (!c) GIS.cs.delete(k); return null; }
+      if (e && e.name === 'AbortError') { if (!c && mine()) GIS.cs.delete(k); return null; }
+
       if (c) { var kept = GIS.cs.get(k); if (kept) kept.stale = false; return kept; }   // the cached file stays
       var er = { st: 'error', why: navigator.onLine === false || (e && /fetch|network/i.test(e.message)) ? 'offline' : 'error', fc: null, err: e && e.message }; GIS.cs.set(k, er); GIS.dirty(lid); return er;
     }
@@ -26909,9 +26914,13 @@ SMP.prov = function() { if (!state.__prov || typeof state.__prov !== 'object') s
 SMP.set = function(key, source, id, at, note) { if (SMP._touched && SMP._touched.indexOf(key) < 0) SMP._touched.push(key); SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; if (SMP._via) SMP.prov()[key].via = SMP._via; };
 SMP.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
 // "data <day>" for what the cells gave (the date of the data), "fetched <day>" for a request made then
-SMP.when = function(p) { return (p && p.via === 'cells' ? 'data ' : 'fetched ') + SMP.day(p && p.fetchedAt); };
-SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', gtfs: 'TransLink GTFS', estimate: 'estimate', user: 'you', survey: 'site survey' };
-SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', gtfs: 'TransLink', estimate: 'Estimate', user: 'You', survey: 'Survey' };   // no abbreviations in labels (Brief 21 §2)
+SMP.when = function(p) { return (p && (p.via === 'cells' || p.source === 'cell') ? 'data ' : 'fetched ') + SMP.day(p && p.fetchedAt); };
+// (cell and osm-live: the brief's names, for a record that carries them; an import from the cells keeps source osm /
+// cov with via: 'cells', since the checks and the report read those sources)
+SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', cell: 'City of Vancouver Open Data (cell)', gtfs: 'TransLink GTFS', 'osm-live': 'OpenStreetMap (live)', estimate: 'estimate', user: 'you', survey: 'site survey' };
+SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', cell: 'City data', gtfs: 'TransLink', 'osm-live': 'OpenStreetMap', estimate: 'Estimate', user: 'You', survey: 'Survey' };   // no abbreviations in labels (Brief 21 §2)
+// the source, its dataset and the record: "City of Vancouver Open Data, bikeways, 578" from the cells (Brief 24 B7)
+SMP.srcOf = function(p) { var n = (SMP.SRC[p.source] || p.source || '').replace(/ \(cell\)$/, ''), parts = [p.dataset, p.id].filter(Boolean); return p.via === 'cells' || p.source === 'cell' ? [n].concat(parts).join(', ') : n + parts.map(function(s) { return ' ' + s; }).join(''); };
 // Site-tab fields that carry a tag: key -> the element whose .ff label gets it
 SMP.FIELDS = { sidewalk: 'sidewalkWidth', address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
   roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'csPanel' };
@@ -26919,7 +26928,7 @@ SMP.CRIT_FIELDS = { c2: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'r
 
 // ── Provenance tags in the Site tab; editing a field flips it to 'user'; a click confirms ─────
 SMP.tagHtml = function(p) {
-  var t = p.source === 'user' ? (p.from ? 'Confirmed by you (was ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'Entered by you') : SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.when(p) + (p.note ? ' - ' + p.note : '') + '. Click to confirm it.';
+  var t = p.source === 'user' ? (p.from ? 'Confirmed by you (was ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'Entered by you') : SMP.srcOf(p) + ', ' + SMP.when(p) + (p.note ? ' - ' + p.note : '') + '. Click to confirm it.';
   return { text: SMP.TAG[p.source] || p.source, title: t };
 };
 SMP.tagEl = function(host, p, onConfirm) {
@@ -27691,9 +27700,9 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
 // ── Report: the imported items with their source and date (sources sheet) ────────────────────
 SMP.sourcesList = function() {
   var P = SMP.prov(), out = [], lab = { sidewalk: 'Sidewalk width', address: 'Street address', lat: 'Latitude', lon: 'Longitude', streetBearing: 'Street bearing', parkletSide: 'Parklet side', roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', farParking: 'Far-side parking lane (Section segment)', farBike: 'Far-side bike lane (Section segment)', parkingRestrictions: 'Parking restrictions' };
-  Object.keys(P).forEach(function(k) { var p = P[k], s = p.source === 'user' ? (p.from ? 'confirmed or edited by you (imported from ' + SMP.SRC[p.from] + ', ' + SMP.when(p) + ')' : 'entered by you') : SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.when(p) + (p.note ? ' (' + p.note + ')' : ''); out.push((lab[k] || k) + ': ' + s); });
+  Object.keys(P).forEach(function(k) { var p = P[k], s = p.source === 'user' ? (p.from ? 'confirmed or edited by you (imported from ' + SMP.SRC[p.from] + ', ' + SMP.when(p) + ')' : 'entered by you') : SMP.srcOf(p) + ', ' + SMP.when(p) + (p.note ? ' (' + p.note + ')' : ''); out.push((lab[k] || k) + ': ' + s); });
   ['L', 'R'].forEach(function(side) { ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).forEach(function(b, i) { if (!b.__prov) return; var ks = Object.keys(b.__prov), src = {}; ks.forEach(function(k) { var s = b.__prov[k].source; (src[s] = src[s] || []).push(k); }); out.push((side === 'L' ? 'Near-side' : 'Far-side') + ' building ' + (i + 1) + (b.name ? ' (' + b.name + ')' : '') + ': ' + Object.keys(src).map(function(s) { return src[s].join(', ') + ' from ' + SMP.SRC[s]; }).join('; ') + ((b.__prov.length || b.__prov.zOffset || {}).id ? ', ' + (b.__prov.length || b.__prov.zOffset).id + ', ' + SMP.when(b.__prov.length || b.__prov.zOffset) : '')); }); });
-  SMP.objects().forEach(function(o) { var p = o.obj.prov || {}; out.push(o.label + ' at ' + SMP.where(o.obj) + ': ' + (SMP.SRC[p.source] || '') + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + ', ' + SMP.when(p) + (o.obj.confirmed ? ', confirmed ' + SMP.day(o.obj.confirmedAt) : ', not yet verified on site')); });
+  SMP.objects().forEach(function(o) { var p = o.obj.prov || {}; out.push(o.label + ' at ' + SMP.where(o.obj) + ': ' + SMP.srcOf(p) + ', ' + SMP.when(p) + (o.obj.confirmed ? ', confirmed ' + SMP.day(o.obj.confirmedAt) : ', not yet verified on site')); });
   return out;
 };
 
@@ -27834,7 +27843,7 @@ SITEF.fmt = function(k, ex) {
   if (k === 'row') return ex && ex.row ? (+ex.row.width).toFixed(2) + ' m' + (ex.row.ft ? ' (' + ex.row.ft + ' ft)' : '') : 'Not known';
   return '';
 };
-SITEF.srcLine = function(p) { return p ? (SMP.SRC[p.source] || p.source) + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + (p.fetchedAt ? ', ' + SMP.when(p) : '') + (p.note ? ' (' + p.note + ')' : '') : ''; };
+SITEF.srcLine = function(p) { return p ? SMP.srcOf(p) + (p.fetchedAt ? ', ' + SMP.when(p) : '') + (p.note ? ' (' + p.note + ')' : '') : ''; };
 SITEF.srcText = function(k) {
   var ex = SITEF.ex(), o = ex && ex.over && ex.over[k];
   if (o) return 'Overridden by you, ' + SMP.day(o.at) + ': overrides ' + o.from + ', which gave ' + o.was + '.';
@@ -27862,7 +27871,8 @@ SITEF.render = function() {
 SITEF.roadHints = function() {
   var P = SMP.prov(), ex = SITEF.ex(), row = roadRowCeil(), p = P.roadWidth, r = document.getElementById('roadWidthRow'), el = document.getElementById('roadWidth');
   var src = !p ? 'the default, not measured' : p.source === 'user' ? (p.from ? 'entered by you (was ' + (SMP.SRC[p.from] === 'estimate' ? 'an estimate' : SMP.SRC[p.from]) + ', ' + SMP.day(p.fetchedAt) + ')' : 'entered by you')
-    : p.source === 'survey' ? 'the site survey' : (p.source === 'estimate' ? 'an estimate' : SMP.SRC[p.source]) + ', ' + SMP.day(p.fetchedAt) + (p.note ? ': ' + p.note : '');
+    : p.source === 'survey' ? 'the site survey' : (p.source === 'estimate' ? 'an estimate' : SMP.SRC[p.source]) + ', ' + (p.via === 'cells' ? SMP.when(p) : SMP.day(p.fetchedAt)) + (p.note ? ': ' + p.note : '');
+
   if (r) r.textContent = (row ? 'ROW ' + row.toFixed(2) + ' m' + (ex.row.ft ? ' (' + ex.row.ft + ' ft)' : '') + '; curb-to-curb must be less. ' : 'ROW not known, so no ceiling. ') + 'Current value: ' + src + '.';
   if (el) el.max = row ? (Math.ceil(row * 100) / 100 - 0.01).toFixed(2) : '40';
   var ls = document.getElementById('laneSrc'); if (!ls) return;
