@@ -53,7 +53,7 @@ C-001 and X-001 sheets.
 | C03 | ≥ 6 m from the nearest intersection or crosswalk edge | p. 20 | |
 | C04 | Street running slope ≤ 5 % | p. 20 | |
 | C05 | ≥ 5 m either side of a fire hydrant | p. 21 | Standard Detail Drawing W4.1 |
-| C06 | ≥ 1.5 m from an adjacent driveway or lane | p. 20 | |
+| C06 | ≥ 1.5 m from an adjacent driveway or lane | P2, p. 62 | |
 | C07 | ≥ 1 m from poles (2.4 m with trolley wires) | p. 21 | Standard Detail Drawing E5.19C |
 | C08 | ≥ 2 m from signal controller boxes and electrical kiosks | p. 21 | Standard Detail Drawing E1.3 |
 | C09 | ≥ 1 m from manhole lids, valves, grates, access chambers | p. 21 | Standard Detail Drawing WW1 |
@@ -63,13 +63,13 @@ C-001 and X-001 sheets.
 | C13 | ≥ 1.5 m from adjacent parking spaces | p. 62 | |
 | C14 | Deck flush with the sidewalk (gap ≤ 12 mm, connector ≤ 13 mm) | p. 62 | |
 | C15 | Deck load capacity ≥ 7.2 kPa | p. 62 | |
-| C16 | Accessible route 1.1 m clear from each entry to an accessible seat; 1.5 m turning space at the entry, turns and end | to be confirmed | Guideline |
+| C16 | Accessible route 1.5 m clear from the sidewalk to an accessible seat; a 1.5 m turning area | G19, p. 60 | |
 | C17 | Enclosure 0.75–1.0 m high on the traffic side and both ends | E2, p. 64 | |
 | C18 | At least two unobstructed openings of 1.8 m or more to the sidewalk | E3, p. 65 | |
 | C19 | Overhead elements ≥ 2.1 m clear above the deck and within the footprint | E5, p. 65 | |
 
-Section numbers for C01–C15 are still to be added from the Manual (the app records their pages). C16's Manual page
-is still to be confirmed (its values are the 1.1 m route and 1.5 m turning space this tool uses). Bike lane and buffer widths follow EDM §8.5.4.5. Site data comes from City of Vancouver Open
+Section numbers for C01–C15 are still to be added from the Manual (the app records their pages). C16 follows the Manual's
+G19 (p. 60), 1.5 m, not the BC Building Code's 1.1 m route. Bike lane and buffer widths follow EDM §8.5.4.5. Site data comes from City of Vancouver Open
 Data, OpenStreetMap (© OpenStreetMap contributors, ODbL) and TransLink's GTFS feed, prepared weekly in 1 km cells by
 [curbside-data](https://github.com/JennaBruggeman/curbside-data); the report's X-001 lists each dataset and the date
 of its data.
