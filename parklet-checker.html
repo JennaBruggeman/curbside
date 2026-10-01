@@ -682,7 +682,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <p class='hint chk-counts' id='chkCounts' aria-live='polite'></p>
 </div>
-<div class='sb-section' id='chkSide'><div class='sb-section-lbl'>Confirm on site</div><p class='hint' id='chkSideEmpty'>Nothing imported to confirm: every value here was entered or drawn.</p></div>
+<div class='sb-section' id='chkSide' hidden><button type='button' class='ctx-btn ctx-btn-full' id='chkConfirmBtn' onclick='SBX.drawer(true)' aria-haspopup='dialog' aria-controls='chkDrawer'>Confirm imported items</button></div>
 </div><div class='ctx-section' id='ctxSettings' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Settings</span></div>
 <nav style='padding:4px 0 8px;'>
   <button class='sw-nav-btn' onclick='swScrollTo("swGeneral")'>General</button>
@@ -1603,7 +1603,7 @@ function buildCriterion(c) {
     `<div class="criterion-header chk-hdr" role="button" tabindex="0" aria-expanded="false" onclick="toggleCrit('${c.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrit('${c.id}')}">` +
       `<span class="chk-id" role="cell">${rid}</span><span class="chk-title" role="cell">${sh[0]}</span><span class="chk-req" role="cell">${sh[1]}</span>` +
       `<span class="chk-meas" role="cell" id="meas_${c.id}"></span>` +
-      `<span class="chk-res" role="cell"><span class="badge ${badgeClass}" id="badge_${c.id}">${badgeText}</span><span class="chk-prov" id="prov_${c.id}" hidden>provisional</span></span>` +
+      `<span class="chk-res" role="cell"><span class="badge ${badgeClass}" id="badge_${c.id}">${badgeText}</span><span class="chk-prov" id="prov_${c.id}" hidden>provisional</span><button type="button" class="chk-conf" id="conf_${c.id}" hidden onclick="event.stopPropagation();SBX.confirmFor('${c.id}')" onkeydown="event.stopPropagation()" title="Mark the imported data this check uses as confirmed on site">Confirm</button></span>` +
       `<span class="chk-src" role="cell">${c.page ? 'Manual p. ' + c.page : (c.src || '')}</span></div>` +
     `<div class="criterion-body ${bodyClass}" id="body_${c.id}">` +
       `<div class="chk-rule">${c.requirement}</div>` +
@@ -1660,7 +1660,7 @@ var VERDICT = {
   // the confirm list (Confirm on site, the Check tab's side column)
   confirm: function() {
     appSetMode('check');
-    setTimeout(function() { var sc = document.getElementById('smpCheck'); if (!sc) return; sc.scrollIntoView({ block: 'start' }); var b = sc.querySelector('button'); if (b) b.focus({ preventScroll: true }); }, 50);
+    setTimeout(function() { if (typeof SBX !== 'undefined' && SBX.drawer) SBX.drawer(true); }, 50);   // (Brief 29 item 7: the Confirm drawer)
   }
 };
 function renderVerdict() {
@@ -3053,7 +3053,7 @@ ENC.c16 = function() {
     if (ez === null) { bad.push('entry ' + (k + 1) + ': no ' + f(T) + ' m turning space clear at the sidewalk edge'); return; }
     var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }); if (r && r.w < RW - 1e-9) bad.push('entry ' + (k + 1) + ': opening ' + f(r.w) + ' m, under ' + f(RW));
   });
-  if (!a.seats) bad.push('no accessible seat (a bench end, or a table 0.70-0.80 m high) for the route to reach');
+  if (!a.seats) return { ok: false, unknown: true, acc: a, bad: [], msg: 'No accessible seat on the deck yet (a bench end, or a table 0.70–0.80 m high): the route is checked once there is one.' };   // not entered, never a fail (Brief 29 item 7)
   var loose = null;
   a.per.forEach(function(p, k) {
     if (p.seat) return;
@@ -22220,6 +22220,12 @@ GEN.REACH = 0.3;      // a wheelchair space counts as at a seat if within this o
 GEN.END_PL = 1.02;    // the old end planters' inner face; a footprint's zA / zBd (the enclosure's ends, Brief 21 §12) take its place
 GEN.BENCH_T = { bench: 1, backless_bench: 1, planter_bench: 1, seat_wall: 1 };
 GEN.KNEE_T = { table: 1, cafe_table: 1, communal_table: 1 };   // open-legged, 0.70-0.80 m high: knee clearance
+// an accessible seat at a table (Brief 29 item 7): any table (picnic and game tables too) 0.70-0.80 m high; its height from
+// its parameters, else its drawn height
+GEN.kneeSeat = function(it) {
+  var a = (typeof FL_ARCHETYPES !== 'undefined' && FL_ARCHETYPES[it.type]) || {}, h = +(it.params && it.params.h) || +it.h || 0;
+  return !!(GEN.KNEE_T[it.type] || a.cat === 'table' || it.type === 'game_table') && h >= 0.7 - 1e-9 && h <= 0.8 + 1e-9;
+};
 GEN.ZONES = {};
 (function() {
   var P = Math.PI;
@@ -22616,7 +22622,7 @@ GEN.access = function(items, fp, opt) {
                 seats.push({ what: it.type + ' end', z: b.z1, box: { x0: b.x0 - 0.4, x1: b.x1 + 0.4, z0: b.z1, z1: b.z1 + a } }); }
       else { seats.push({ what: it.type + ' end', z: it.z, box: { x0: b.x0 - a, x1: b.x0, z0: b.z0 - 0.4, z1: b.z1 + 0.4 } });
              seats.push({ what: it.type + ' end', z: it.z, box: { x0: b.x1, x1: b.x1 + a, z0: b.z0 - 0.4, z1: b.z1 + 0.4 } }); }
-    } else if (GEN.KNEE_T[it.type] && it.params.h >= 0.7 && it.params.h <= 0.8) {
+    } else if (GEN.kneeSeat(it)) {
       seats.push({ what: it.type, z: it.z, box: { x0: b.x0 - a, x1: b.x1 + a, z0: b.z0 - a, z1: b.z1 + a } });
     }
   });
@@ -28698,6 +28704,49 @@ SBX.confirmKind = function(kind, quiet) {
   if (!quiet) SMP.refresh(); return n;
 };
 SBX.confirmAll = function() { var n = 0; SBX.KINDS.forEach(function(k) { n += SBX.confirmKind(k[0], true); }); SMP.refresh(); return n; };
+// (Brief 29 item 7) what is still to confirm, counted the way the list counts it: imported street facts (estimates are
+// measured, not confirmed) and unconfirmed imported objects; any = something was imported at all
+SBX.openCount = function() {
+  if (typeof SMP === 'undefined' || !SMP.prov) return { open: 0, any: false };
+  var P = SMP.prov(), objs = SMP.objects(), fields = Object.keys(P).filter(function(k) { return P[k].source !== 'user' && P[k].source !== 'survey' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); });
+  return { open: fields.filter(function(k) { return P[k].source !== 'estimate'; }).length + objs.filter(function(o) { return !o.obj.confirmed; }).length, any: !!(fields.length || objs.length) };
+};
+// the drawer that holds the list (#smpCheck): over the canvas at the right, Esc or x closes it
+SBX.body = function() {
+  var d = document.getElementById('chkDrawer');
+  if (!d) {
+    d = document.createElement('aside'); d.id = 'chkDrawer'; d.className = 'chk-drawer'; d.hidden = true;
+    d.setAttribute('role', 'dialog'); d.setAttribute('aria-labelledby', 'chkDrawerH');
+    d.innerHTML = "<div class='chk-drawer-h'><h2 id='chkDrawerH'>Confirm imported items</h2><button type='button' class='chk-drawer-x' onclick='SBX.drawer(false)' aria-label='Close'>×</button></div>" +
+      "<p class='chk-drawer-note'>Imported data gives a provisional result until you confirm it matches what is on site.</p><div class='chk-drawer-b'></div>";
+    d.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.stopPropagation(); SBX.drawer(false); } });
+    document.body.appendChild(d);
+  }
+  return d.querySelector('.chk-drawer-b');
+};
+SBX.drawer = function(on) {
+  var b = SBX.body(), d = b.parentNode, host = document.getElementById('smpCheck');
+  if (host && host.parentNode !== b) b.appendChild(host);
+  if (on && typeof SMP !== 'undefined' && SMP.renderCheck) try { SMP.renderCheck(); } catch (e) {}
+  if (!!on === !d.hidden) return;
+  d.hidden = !on;
+  if (on) { var x = d.querySelector('.chk-drawer-x'); if (x) x.focus(); }
+  else { var cb = document.getElementById('chkConfirmBtn'); if (cb && window.APP_MODE === 'check' && d.contains(document.activeElement)) cb.focus(); }
+};
+// a check's own imported data still open: street-fact keys and object kinds ('hydrant', 'transit')
+SBX.pendingFor = function(critId) {
+  if (typeof CHK === 'undefined' || typeof SMP === 'undefined') return [];
+  var c = criteria.find(function(q) { return q.id === critId; }); if (!c) return [];
+  var P = SMP.prov();
+  return CHK.inputs(c).filter(function(i) { return i.cls === 'imported'; }).map(function(i) { return i.key; }).filter(function(k) {
+    return k === 'hydrant' || k === 'transit' ? SBX.items(k).length > 0 : !!(P[k] && P[k].source !== 'user' && P[k].source !== 'survey' && P[k].source !== 'estimate');
+  });
+};
+SBX.confirmFor = function(critId) {
+  var P = SMP.prov();
+  SBX.pendingFor(critId).forEach(function(k) { if (k === 'hydrant' || k === 'transit') SBX.confirmKind(k, true); else P[k] = SMP.userOf(P[k]); });
+  SMP.refresh();
+};
 // the list, grouped by kind, each group with its own confirm
 SBX.renderCheck = function() {
   var host = document.getElementById('smpCheck'); if (!host || host.hidden) return;
@@ -28756,6 +28805,7 @@ FLZ.hide = function() { var g = document.getElementById('_fdZonePrev'); if (g) g
   var init = function() {
     if (!hooked && typeof SMP !== 'undefined') { hooked = true;
       wrapFn(SMP, 'refresh', SBX.badges); wrapFn(SMP, 'renderCheck', SBX.renderCheck); wrapFn(window, 'pkStageSync', SBX.sync);
+      wrapFn(window, 'appSetMode', function() { if (window.APP_MODE !== 'check' && document.getElementById('chkDrawer')) SBX.drawer(false); });
       wrapFn(window, 'uiVisLayout', function() { SBX.vis(); SBX.relay(); }); if (typeof RVZP !== 'undefined') wrapFn(RVZP, '_syncUI', SBX.relay); }
     var ok = SBX.site(); SBX.design(); SBX.furniture(); SBX.badges(); try { SBX.vis(); } catch (e) {}
     if (!ok && !(document.getElementById('ctxSite') || {})._sbx && ++tries < 30) setTimeout(init, 500);
@@ -28962,13 +29012,13 @@ SMP.renderAdvice = function() {
   var cl = document.getElementById('criteriaList'); if (!cl) return;
   var el = document.getElementById('smpAdvice'), all = SMP.advisories();
   if (!all.length) { if (el) el.remove(); return; }
-  if (!el) { el = document.createElement('div'); el.id = 'smpAdvice'; el.setAttribute('role', 'note'); var sd = document.getElementById('chkSide'); if (sd) sd.appendChild(el); else cl.parentNode.insertBefore(el, cl); }   // the Check tab's left panel (Brief 21 §3)
+  if (!el) { el = document.createElement('div'); el.id = 'smpAdvice'; el.setAttribute('role', 'note'); cl.parentNode.insertBefore(el, cl); }   // (Brief 29 item 7: above the checks; the sidebar holds filters and counts only)   // the Check tab's left panel (Brief 21 §3)
   el.innerHTML = all.map(function(a) { return '<p><b>Advisory (no numbered check):</b> ' + SM.esc(a.text) + ". <span class='smp-src'>" + SM.esc(a.detail) + '</span></p>'; }).join('');
 };
 SMP.renderCheck = function() {
   SMP.renderAdvice();
   var host = document.getElementById('smpCheck');
-  if (!host) { var cl = document.getElementById('criteriaList'); if (!cl) return; host = document.createElement('div'); host.id = 'smpCheck'; var sd = document.getElementById('chkSide'); if (sd) sd.appendChild(host); else cl.parentNode.insertBefore(host, cl); }   // the confirm-on-site list: the Check tab's left panel (Brief 21 §3)
+  if (!host) { var cl = document.getElementById('criteriaList'); if (!cl) return; host = document.createElement('div'); host.id = 'smpCheck'; var sd = typeof SBX !== 'undefined' && SBX.body ? SBX.body() : null; if (sd) sd.appendChild(host); else cl.parentNode.insertBefore(host, cl); }   // (Brief 29 item 7: in the Confirm drawer)   // the confirm-on-site list: the Check tab's left panel (Brief 21 §3)
   var objs = SMP.objects(), P = SMP.prov(), fields = Object.keys(P).filter(function(k) { return P[k].source !== 'user' && P[k].source !== 'survey' && (SMP.CRIT_FIELDS.c2.indexOf(k) >= 0 || k === 'parkingRestrictions'); });
   if (!objs.length && !fields.length) { host.hidden = true; host.innerHTML = ''; return; }
   host.hidden = false;
@@ -30792,6 +30842,18 @@ document.addEventListener('keydown', function(e) {
 .chk-res .badge-await, #ctxCheck .badge-await { color: var(--accent-ui, #3AA8E4); border-color: currentColor; white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }   /* Brief 25 §1: an estimate awaits a measurement (wraps in the Result column) */
 
 .chk-prov { font: 600 11px var(--font-ui); color: #8A5A00; background: #FEF7E4; border-radius: 3px; padding: 1px 5px; }
+/* Brief 29 item 7: a provisional row's own Confirm; the Confirm drawer */
+.chk-conf { font: 600 11px var(--font-ui); color: var(--accent-ui, #3AA8E4); background: none; border: 1px solid currentColor; border-radius: 3px; padding: 0 6px; cursor: pointer; line-height: 17px; }
+.chk-conf:hover { background: var(--d-paper, #fff); }
+.chk-conf:focus-visible, .chk-drawer-x:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
+.chk-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 950; background: var(--bg, #fff); color: var(--text, #222);
+  box-shadow: -6px 0 24px rgba(20, 22, 26, .18); border-left: 1px solid var(--rule, #ddd); display: flex; flex-direction: column; font: 13px/1.5 var(--font-ui); }
+.chk-drawer-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px 6px; }
+.chk-drawer-h h2 { margin: 0; font: 600 15px var(--font-ui); }
+.chk-drawer-x { background: none; border: 0; font-size: 22px; line-height: 1; padding: 2px 6px; cursor: pointer; color: var(--d-mid, #666); }
+.chk-drawer-note { margin: 0 16px 8px; color: var(--d-mid, #666); font-size: 12px; }
+.chk-drawer-b { overflow: auto; padding: 0 16px 16px; flex: 1; }
+.chk-drawer #smpCheck > h3 { display: none; }
 #criteriaList .criterion-body { display: none; padding: 4px 14px 14px 80px; background: transparent; border-top: none; font-size: 13px; }
 #criteriaList .chk-row.open .criterion-body { display: block; }
 .chk-rule { color: var(--d-ink); line-height: 1.5; margin-bottom: 8px; max-width: 72ch; }
@@ -30799,13 +30861,13 @@ document.addEventListener('keydown', function(e) {
 #workspaceCheck .summary-section { margin: 0; }
 .chk-filters { flex-wrap: wrap; }
 .chk-counts { margin-top: 6px; }
-#chkSide #smpCheck, #chkSide #smpAdvice { margin: 6px 0 0; }
-/* the confirm-on-site list in the narrow left column: each item as a short stack (status, what and where, Confirm) */
-#chkSide #smpCheck { padding: 10px 10px; }
-#chkSide #smpCheck li { grid-template-columns: 1fr auto; grid-template-areas: 'b b' 't c'; gap: 3px 6px; align-items: start; }
-#chkSide #smpCheck li > .smp-badge { grid-area: b; justify-self: start; }
-#chkSide #smpCheck li > span:nth-child(2) { grid-area: t; min-width: 0; overflow-wrap: anywhere; }
-#chkSide #smpCheck li > button, #chkSide #smpCheck li > span:nth-child(3) { grid-area: c; }
+.chk-drawer #smpCheck { margin: 0; }
+/* the confirm-on-site list in the Confirm drawer (Brief 29 item 7): each item as a short stack (status, what and where, Confirm) */
+.chk-drawer #smpCheck { padding: 10px 10px; }
+.chk-drawer #smpCheck li { grid-template-columns: 1fr auto; grid-template-areas: 'b b' 't c'; gap: 3px 6px; align-items: start; }
+.chk-drawer #smpCheck li > .smp-badge { grid-area: b; justify-self: start; }
+.chk-drawer #smpCheck li > span:nth-child(2) { grid-area: t; min-width: 0; overflow-wrap: anywhere; }
+.chk-drawer #smpCheck li > button, .chk-drawer #smpCheck li > span:nth-child(3) { grid-area: c; }
 /* Export's report card: buttons that read on the white card */
 .exp-report .ctx-btn { background: var(--d-paper, #fff) !important; color: var(--d-ink, #222) !important; border: 1px solid var(--d-lt, #ccc) !important; font: 600 13px var(--font-ui) !important; padding: 7px 10px !important; }
 .exp-report #pdfExportBtn { background: var(--accent-ui, #3AA8E4) !important; border-color: var(--accent-ui, #3AA8E4) !important; color: #fff !important; }
@@ -30999,8 +31061,14 @@ function chkAfterRender() {
   var list = document.getElementById('criteriaList'), mn = document.getElementById('chkMigrated');
   if (typeof ENC !== 'undefined' && ENC.migrated() && list) { if (!mn) { mn = document.createElement('p'); mn.id = 'chkMigrated'; mn.className = 'chk-migrated'; mn.setAttribute('role', 'note'); list.parentNode.insertBefore(mn, list); } mn.textContent = ENC.MIGRATION_NOTE + '.'; }
   else if (mn) mn.remove();
-  var se = document.getElementById('chkSideEmpty'), sc = document.getElementById('smpCheck');
-  if (se) se.hidden = !!(sc && !sc.hidden);
+  // (Brief 29 item 7) the sidebar's one button, its count from SBX.openCount, the list in the drawer; each provisional row
+  // with imported data still open carries its own Confirm
+  if (typeof SBX !== 'undefined' && SBX.openCount) {
+    var oc = SBX.openCount(), side = document.getElementById('chkSide'), cb = document.getElementById('chkConfirmBtn');
+    if (side) side.hidden = !oc.any;
+    if (cb) cb.textContent = oc.open ? 'Confirm imported items (' + oc.open + ')' : 'Imported items: all confirmed';
+    rows.forEach(function(r) { var b = document.getElementById('conf_' + r.id); if (b) b.hidden = !(r.provisional && SBX.pendingFor(r.id).length); });
+  }
   CHKG.group();
   chkFilter(_chkF);
 }
@@ -31417,10 +31485,10 @@ SURV.summary = function() { var S = typeof state !== 'undefined' ? state.__surve
 
 // ── the Check tab's Survey panel: per check, before -> after, the result, the points that drove it ────
 SURV.renderPanel = function() {
-  var side = document.getElementById('chkSide'); if (!side) return;
+  var cl = document.getElementById('criteriaList'); if (!cl) return;   // (Brief 29 item 7: above the checks, not in the sidebar)
   var host = document.getElementById('survPanel'), S = state.__survey;
   if (!S) { if (host) host.remove(); return; }
-  if (!host) { host = document.createElement('div'); host.id = 'survPanel'; side.insertBefore(host, side.firstChild); }
+  if (!host) { host = document.createElement('div'); host.id = 'survPanel'; cl.parentNode.insertBefore(host, cl); }
   var st = function(s) { return s === 'pass' ? 'Pass' : s === 'fail' ? 'Fail' : 'Not entered'; };
   host.innerHTML = '<h3>Survey</h3><p>' + SM.esc(S.file) + ' (' + SM.esc(S.date) + (S.surveyor ? ', ' + SM.esc(S.surveyor) : '') + '): ' + S.points + ' points; ' + SURV.summary() + '. The design stays provisional until the City confirms it.</p>' +
     '<table class="surv-tab"><thead><tr><th>Check</th><th>Before</th><th>After</th><th>Result</th></tr></thead><tbody>' +
