@@ -1255,8 +1255,14 @@ return n >= 2.4 ? 'pass' : null;
 }
 
 }
-,  // Brief 21 §12: the enclosure's checks, read from DESIGN_MODEL.enclosure and the placed pieces (ENC); C16 is reserved
-  // for the disability-space rule (Brief 20)
+,  // Brief 25 item 21b: C16, the accessible route (the slot Brief 20 kept), read from the placed pieces (ENC.c16)
+  {
+    id: 'c16', num: '16', title: 'Accessible route 1.1 m clear from an entry, 1.5 m turning space', requirement: 'From each entry at the sidewalk edge, a continuous route at least 1.1 m clear across the deck to an accessible seat (a bench end, or a table with knee clearance), with a 1.5 m turning space at the entry, wherever the route turns and where it ends. Furniture that narrows the route below 1.1 m fails it.', page: null, src: 'Guideline (Manual page to confirm)', status: 'unclear',
+    siteCondition: function() { var a = ENC.c16().acc; return (a.paths || []).length ? (a.paths || []).map(function(p, k) { return 'Entry ' + (k + 1) + ' at z ' + p.entry.toFixed(2) + ': ' + p.w.toFixed(2) + ' m clear to the ' + p.seat; }).join('; ') + '.' : 'No route found from the entries.'; },
+    note: 'The route is drawn on the Plan and on A-103: the band 1.1 m wide from each entry, the turning spaces as 1.5 m circles. The width is the clear width at the route\'s narrowest point (twice the distance to the nearest piece or edge).',
+    evalFn: function() { var q = ENC.c16(); return q.unknown ? null : q.ok ? 'pass' : 'fail'; }, evalMsg: function() { return ENC.c16().msg; }
+  }
+,  // Brief 21 §12: the enclosure's checks, read from DESIGN_MODEL.enclosure and the placed pieces (ENC)
   {
     id: 'c17', num: '17', title: 'Enclosure 0.75–1.0 m high on the traffic side and both ends', requirement: 'The parklet is enclosed on the traffic side and at both ends by an edge between 0.75 m and 1.0 m high (E2). A buffer of at least 0.30 m is advised from a busy travel lane.', page: 64, status: 'unclear',
     siteCondition: function() { var E = _dmCurrent().enclosure; return E ? 'Enclosure: ' + ENC.describe(_dmCurrent()) + '.' + (E.flags.length ? ' ' + E.flags.map(function(f) { return f.t; }).join(' ') : '') : 'No enclosure in the model.'; },
@@ -1314,7 +1320,7 @@ var CHK = {
     c1: { prov: ['parkingRestrictions'], inputs: ['parking_restrictions'], objects: ['transit'] },
     c2: { prov: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'routeType', 'bikeLane', 'farParking', 'farBike'], design: ['Parklet width'] },
     c5: { inputs: ['hydrant_dist'], objects: ['hydrant'] },
-    c17: { design: ['Enclosure'] }, c18: { design: ['Enclosure', 'Placed furniture'] }, c19: { design: ['Placed furniture'] }
+    c16: { design: ['Placed furniture', 'Enclosure'] }, c17: { design: ['Enclosure'] }, c18: { design: ['Enclosure', 'Placed furniture'] }, c19: { design: ['Placed furniture'] }
   },
   PROV_LBL: { roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type',
     bikeLane: 'Bike lane', farParking: 'Far-side parking lane', farBike: 'Far-side bike lane', parkingRestrictions: 'Parking restrictions' },
@@ -1485,6 +1491,7 @@ const CHECK_SHORT = {
   c13: ['Parking setback', '&ge; 1.5 m from adjacent parking spaces'],
   c14: ['Deck flush with the sidewalk', 'Gap &le; 12 mm (connector &le; 13 mm)'],
   c15: ['Deck load capacity', '&ge; 7.2 kPa'],
+  c16: ['Accessible route', '1.1 m clear; 1.5 m turning'],
   c17: ['Enclosure height', '0.75&ndash;1.0 m, traffic side and both ends'],
   c18: ['Openings to the sidewalk', 'Two or more, each &ge; 1.8 m'],
   c19: ['Overhead clearance', '&ge; 2.1 m clear, within the footprint']
@@ -1501,7 +1508,7 @@ function buildCriterion(c) {
       `<span class="chk-id" role="cell">${rid}</span><span class="chk-title" role="cell">${sh[0]}</span><span class="chk-req" role="cell">${sh[1]}</span>` +
       `<span class="chk-meas" role="cell" id="meas_${c.id}"></span>` +
       `<span class="chk-res" role="cell"><span class="badge ${badgeClass}" id="badge_${c.id}">${badgeText}</span><span class="chk-prov" id="prov_${c.id}" hidden>provisional</span></span>` +
-      `<span class="chk-src" role="cell">Manual p. ${c.page}</span></div>` +
+      `<span class="chk-src" role="cell">${c.page ? 'Manual p. ' + c.page : (c.src || '')}</span></div>` +
     `<div class="criterion-body ${bodyClass}" id="body_${c.id}">` +
       `<div class="chk-rule">${c.requirement}</div>` +
       `<div class="detail-row"><span class="detail-label">Site condition</span><span class="detail-value" id="cond_${c.id}">${siteCondText}</span></div>` +
@@ -2778,6 +2785,74 @@ ENC.c18 = function() {
   var ws = o.runs.map(function(r) { return r.w.toFixed(2); }).join(', ');
   return { ok: o.count >= 2, o: o, msg: (o.count >= 2 ? '✓ ' : '✗ ') + o.count + ' opening' + (o.count === 1 ? '' : 's') + ' of 1.8 m or more to the sidewalk (clear runs ' + (ws || 'none') + ' m)' + (o.count >= 2 ? '. Passes.' : '; two are needed. Fails.') };
 };
+// C16 (Brief 25 item 21b; the slot Brief 20 kept for accessibility): from each entry (a GEN.TURN square clear at the sidewalk
+// edge, its opening at least GEN.ROUTE_W wide) a continuous route GEN.ROUTE_W clear to an accessible seat, with GEN.TURN of
+// turning space where it turns and where it ends. A piece that narrows the route below the width fails it, by name.
+ENC.near = function(items, x, z) {
+  var bestI = null, bd = Infinity;
+  items.forEach(function(it) { var b = GEN.aabb(it), d = Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.z0 - z, 0, z - b.z1)); if (d < bd) { bd = d; bestI = it; } });
+  return bestI && bd <= 1.0 ? ((FL_ARCHETYPES[bestI.type] || {}).label || bestI.type).toLowerCase() + ' at z ' + (+bestI.z).toFixed(2) : 'the deck edge or the enclosure';
+};
+ENC.c16 = function() {
+  if (typeof GEN === 'undefined' || !GEN.access) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'The route is checked once the layout model has loaded.' };   // the page still loading
+  var DM = _dmCurrent(), fp = ENC.fpLive(DM), items = ENC.items(), a = GEN.access(items, fp, { paths: true }), RW = GEN.ROUTE_W, T = GEN.TURN, f = function(v) { return (+v).toFixed(2); }, bad = [];
+  var op = ENC.openingsOf(items, fp).runs;
+  a.entries.forEach(function(ez, k) {
+    if (ez === null) { bad.push('entry ' + (k + 1) + ': no ' + f(T) + ' m turning space clear at the sidewalk edge'); return; }
+    var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }); if (r && r.w < RW - 1e-9) bad.push('entry ' + (k + 1) + ': opening ' + f(r.w) + ' m, under ' + f(RW));
+  });
+  if (!a.seats) bad.push('no accessible seat (a bench end, or a table 0.70-0.80 m high) for the route to reach');
+  var loose = null;
+  a.per.forEach(function(p, k) {
+    if (p.seat) return;
+    loose = loose || GEN.access(items, fp, { w: 0.3, paths: true }); var lp = (loose.paths || []).find(function(q) { return q.entry === p.entry; });
+    bad.push('entry ' + (k + 1) + ' (z ' + f(p.entry) + '): no ' + f(RW) + ' m route to an accessible seat' + (lp ? '; ' + f(lp.pinch.w) + ' m at z ' + f(lp.pinch.z) + ', beside the ' + ENC.near(items, lp.pinch.x, lp.pinch.z) : ''));
+  });
+  (a.paths || []).forEach(function(p) { (p.turns || []).forEach(function(t) { if (t.w < T - 1e-9) bad.push('turning space at z ' + f(t.z) + (t.end ? ' (the route\'s end)' : '') + ': ' + f(t.w) + ' m clear, under ' + f(T) + ', beside the ' + ENC.near(items, t.x, t.z)); }); });
+  var ok = !bad.length, n = a.paths ? a.paths.length : 0;
+  return { ok: ok, acc: a, bad: bad, msg: ok ? '✓ ' + n + ' route' + (n === 1 ? '' : 's') + ' ' + f(a.route) + ' m clear or more from the entr' + (n === 1 ? 'y' : 'ies') + ' to ' + (n ? a.paths.map(function(p) { return 'the ' + p.seat; }).filter(function(v, i, A) { return A.indexOf(v) === i; }).join(', ') : 'a seat') + '; ' + f(T) + ' m turning space at each entry, turn and end. Passes.' : '✗ ' + bad.join('; ') + '. Fails.' };
+};
+// ACC (Brief 25 item 21b): the route's drawing, shared by A-103 and the Plan. band: the polyline (deck frame [x, z]) offset
+// w / 2 each side with mitred joints (capped at 2 x), as one closed outline
+var ACC = {};
+ACC.band = function(pts, w) {
+  var h = w / 2, n = pts.length, L = [], R = []; if (n < 2) return [];
+  var nrm = function(a, b) { var dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [-dz / l, dx / l]; };
+  for (var i = 0; i < n; i++) {
+    var n1 = i > 0 ? nrm(pts[i - 1], pts[i]) : null, n2 = i < n - 1 ? nrm(pts[i], pts[i + 1]) : null, m = n1 && n2 ? [n1[0] + n2[0], n1[1] + n2[1]] : (n1 || n2);
+    var ml = Math.hypot(m[0], m[1]) || 1, ref = n2 || n1, cosA = (m[0] * ref[0] + m[1] * ref[1]) / ml, k = Math.min(2, 1 / Math.max(0.5, cosA));
+    L.push([pts[i][0] + m[0] / ml * h * k, pts[i][1] + m[1] / ml * h * k]); R.push([pts[i][0] - m[0] / ml * h * k, pts[i][1] - m[1] / ml * h * k]);
+  }
+  return L.concat(R.reverse());
+};
+ACC.planSVG = function(DK, U) {
+  var c = ENC.c16(), a = c.acc, LM = DESIGN_MODEL.landmarks, RW = GEN.ROUTE_W, T = GEN.TURN, f = function(v) { return (+v).toFixed(1); }, out = '';
+  var P = function(p) { var q = worldToPlan(LM.deckX0 + p[0], p[1]); return [q.px, q.py]; }, acc = DRAW_STYLE.UI.accent;
+  ACC._drawn = { route: 0, entry: 0, turn: 0 };
+  (a.paths || []).forEach(function(rt) {
+    var b = ACC.band(rt.pts, RW).map(P); if (b.length < 3) return; ACC._drawn.route++;
+    out += "<polygon points='" + b.map(function(q) { return f(q[0]) + ',' + f(q[1]); }).join(' ') + "' fill='" + acc + "' fill-opacity='0.14'" + DRAW_STYLE.ui(DK, 1, 'accent', { dash: [4, 3] }) + " data-route='" + rt.entry + "'><title>Accessible route (C16): " + RW.toFixed(2) + ' m clear from the entry at z ' + rt.entry.toFixed(2) + ' to the ' + rt.seat + '; narrowest ' + rt.pinch.w.toFixed(2) + ' m</title></polygon>';
+    (rt.turns || []).forEach(function(t) { var q = P([t.x, t.z]), r = T / 2 * Math.abs(worldToPlan(1, 0).px - worldToPlan(0, 0).px + worldToPlan(1, 0).py - worldToPlan(0, 0).py); ACC._drawn.turn++;
+      out += "<circle cx='" + f(q[0]) + "' cy='" + f(q[1]) + "' r='" + f(r) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, t.w >= T - 1e-9 ? 'accent' : 'snapPk', { dash: [2, 2] }) + " data-turn='1'><title>Turning space " + T.toFixed(2) + ' m: ' + t.w.toFixed(2) + ' m clear here</title></circle>'; });
+  });
+  a.entries.forEach(function(ez) { if (ez == null) return; ACC._drawn.entry++;
+    var p0 = P([0, ez - T / 2]), p1 = P([T, ez + T / 2]);
+    out += "<rect x='" + f(Math.min(p0[0], p1[0])) + "' y='" + f(Math.min(p0[1], p1[1])) + "' width='" + f(Math.abs(p1[0] - p0[0])) + "' height='" + f(Math.abs(p1[1] - p0[1])) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, 'accent', { dash: [5, 3] }) + " data-entry='" + ez + "'><title>Entry: " + T.toFixed(2) + ' m turning square at the sidewalk edge (C16)</title></rect>'; });
+  return "<g data-layer='route' pointer-events='none'>" + out + '</g>';
+};
+// the Plan's key (Brief 25 items 21, 21b): one line for each kind of mark drawn that a check or a clause stands behind
+ACC.planKey = function(svg) {
+  var host = svg.parentNode; if (!host) return;
+  var el = document.getElementById('pvKey');
+  if (!el) { el = document.createElement('details'); el.id = 'pvKey'; el.className = 'pv-key'; el.open = true; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(el); }
+  var D = ACC._drawn || {}, rows = [];
+  if (D.route) rows.push(["<span class='pk-sw pk-route'></span>", 'Accessible route, ' + GEN.ROUTE_W.toFixed(2) + ' m clear (C16)']);
+  if (D.entry) rows.push(["<span class='pk-sw pk-entry'></span>", 'Entry, ' + GEN.TURN.toFixed(2) + ' m turning square (C16)']);
+  if (D.turn) rows.push(["<span class='pk-sw pk-turn'></span>", 'Turning space, ' + GEN.TURN.toFixed(2) + ' m (C16; red: too tight)']);
+  if (window._pvImportArea) rows.push(["<span class='pk-sw pk-area'></span>", 'Import area: buildings in detail inside, the city outline outside']);
+  el.hidden = !rows.length;
+  el.innerHTML = '<summary>Key</summary>' + rows.map(function(r) { return '<div class=\'pk-row\'>' + r[0] + '<span>' + r[1] + '</span></div>'; }).join('');
+};
 // overhead pieces (the shelter category): the lowest part above 1.2 m is the clearance; the part must lie on the deck
 ENC.c19 = function() {
   var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, list = [], sh = DM.parklet.outline;
@@ -3333,7 +3408,7 @@ function complianceRows() {
       if (!msg) msg = ins.filter(function(i) { return i.entered; }).map(function(i) { return i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : ''); }).join('; ');
     }
     if (status === 'await') msg = cs.hint;
-    return { id: c.id, num: c.num, title: c.title, page: c.page, status: status, raw: cs.raw, provisional: cs.provisional, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
+    return { id: c.id, num: c.num, title: c.title, page: c.page, src: c.src, status: status, raw: cs.raw, provisional: cs.provisional, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
   });
 }
 
@@ -7222,6 +7297,11 @@ function _renderPlanView(o) {
     x0: Math.min(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px), x1: Math.max(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px),
     y0: -CTX_TOP, y1: OPP_BOTTOM, ry0: SW_Y - 1, ry1: _pvOppSW1 + 1 });
   s += _oc.paper + `<rect width='${VW}' height='${VH}' fill='${DK.T.paper}'/>` + _oc.svg;
+  // the import area (Brief 25 item 21): inside it the buildings are the imported ones, drawn in detail; outside, the city's
+  // outline. Its edge faint and dashed, and a line in the Plan's key
+  window._pvImportArea = !!(_oc.svg && !paper);
+  if (_oc.svg && !paper) { const _ia = Math.min(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px), _ib = Math.max(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px);
+    s += `<rect x='${_ia.toFixed(1)}' y='${(-CTX_TOP).toFixed(1)}' width='${(_ib - _ia).toFixed(1)}' height='${(OPP_BOTTOM + CTX_TOP).toFixed(1)}' fill='none'${K('fine', { c: 'mid', dash: 'hidden' })} pointer-events='none' data-import-area='1'/>`; }
   { const _swSeg = _pvXS.find(function(sg){ return sg.type === 'sidewalk'; });
     const _swR = function(a) { return `<rect x='0' y='${SW_Y.toFixed(2)}' width='${VW}' height='${SW_H.toFixed(2)}'${a}/>`; };
     s += _swR(` fill='${DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`) + _band('concrete', _swR); }
@@ -7447,6 +7527,9 @@ const C03_REQ = 6;
       s += "<line x1='" + _oX.toFixed(1) + "' y1='" + _oY.toFixed(1) + "' x2='" + _oXa.px.toFixed(1) + "' y2='" + _oXa.py.toFixed(1) + "'" + KU(0.7, 'axisX', { op: 0.2 }) + "/>";
     }
   }
+  // the accessible route (Brief 25 item 21b, C16), under the furniture: the band from each entry, the entry squares, the
+  // turning circles; keyed in the Plan's key (ACC.planKey)
+  if (!paper && LODn >= 1) { try { s += ACC.planSVG(DK, U); } catch (e) { console.warn('[route]', e); } }
   // User-placed furniture from DESIGN_MODEL.objects (canonical source).
   // Falls back to FL3D.placed if model objects are not yet populated.
   var _dmFurnList = (typeof DESIGN_MODEL !== 'undefined' && DESIGN_MODEL.objects && DESIGN_MODEL.objects.length > 0)
@@ -7902,6 +7985,7 @@ const manholes = state['manholes'] || [];
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
   if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
+  if (!paper) { try { ACC.planKey(svg); } catch (e) { console.warn('[plan key]', e); } }   // Brief 25 items 21, 21b
   syncToolbarStates();
   initPlanInteraction();
   // the Section's objects follow the same model (cut position, deck length, furniture moves)
@@ -21125,7 +21209,7 @@ GEN.materialsFor = function(type, pal) {
 // u = PI/2 faces -z, u = -PI/2 faces +z. Pieces are modelled with their length along z at u = 0.
 GEN.END = 1.1;
 // access model constants (GEN.access below)
-GEN.ROUTE_W = 0.92;   // clear route width, m: BCBC 3.8 clear width - Jenna to confirm the Parklet Manual value
+GEN.ROUTE_W = 1.1;    // clear route width, m (Brief 25 item 21b: 1.1 m clear; was 0.92, BCBC 3.8)
 GEN.TURN = 1.5;       // entry turning space, m (square)
 GEN.ENTRY_PER = 8;    // one more entry per this many metres of deck
 GEN.CELL = 0.1;       // flood-fill grid, m
@@ -21483,8 +21567,18 @@ GEN.validate = function(items, fp) {
 // (x = 0), one in each of 1 + floor(L / 8) equal lengths of the deck. From each entry a widest-path
 // flood fill over cells >= GEN.ROUTE_W finds the route to an accessible seating position; the
 // route's narrowest point is the bottleneck of that path. Nothing is measured as min(x).
-GEN.access = function(items, fp) {
-  var C = GEN.CELL, W = fp.W, L = fp.L, nx = Math.ceil(W / C - 1e-6), nz = Math.ceil(L / C - 1e-6), R = GEN.ROUTE_W / 2, CAP = 1.5;
+// The route (Brief 25 item 21b), with opt.paths: from each entry that reaches a seat, the route drawn and checked: the
+// shortest path over the cells at least the route width clear, from the sidewalk edge at the entry to the seat the widest
+// path reached, each turn costing 0.8 m (straight legs, few corners); out.paths: its corners in the deck frame, its
+// narrowest point, its turns. opt.w: another route width (C16 asks a narrower one to find what blocks a missing route).
+GEN.rdp = function(p, eps) {
+  if (p.length < 3) return p.slice();
+  var a = p[0], b = p[p.length - 1], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, mi = 0, md = 0;
+  for (var i = 1; i < p.length - 1; i++) { var d = Math.abs((p[i][0] - a[0]) * dz - (p[i][1] - a[1]) * dx) / l; if (d > md) { md = d; mi = i; } }
+  return md <= eps ? [a, b] : GEN.rdp(p.slice(0, mi + 1), eps).slice(0, -1).concat(GEN.rdp(p.slice(mi), eps));
+};
+GEN.access = function(items, fp, opt) {
+  var C = GEN.CELL, W = fp.W, L = fp.L, nx = Math.ceil(W / C - 1e-6), nz = Math.ceil(L / C - 1e-6), RW = (opt && opt.w) || GEN.ROUTE_W, R = RW / 2, CAP = 1.5;
   var zA = fp.zA != null ? fp.zA : GEN.END_PL, zB = L - (fp.zBd != null ? fp.zBd : GEN.END_PL), j, i, k;   // the ends' enclosure (Brief 21 §12)
   var edge = new Float64Array(nz);
   for (j = 0; j < nz; j++) edge[j] = GEN.edgeAt(fp, j * C, Math.min(L, (j + 1) * C));
@@ -21509,7 +21603,7 @@ GEN.access = function(items, fp) {
       wid[j * nx + i] = 2 * d;
     }
   }
-  var pass = function(c) { return wid[c] >= GEN.ROUTE_W - 1e-9; };
+  var pass = function(c) { return wid[c] >= RW - 1e-9; };
   // accessible seating positions and the cells a wheelchair there would stand on
   var seats = [];
   items.forEach(function(it) {
@@ -21546,7 +21640,7 @@ GEN.access = function(items, fp) {
     }
     entries.push(best === null ? null : GEN.r3(best));
   }
-  var reasons = [], out = { need: need, entries: entries, seats: seats.length, per: [], route: 0, access: 0, seat: null, reasons: reasons };
+  var reasons = [], out = { need: need, entries: entries, seats: seats.length, per: [], route: 0, access: 0, seat: null, reasons: reasons, paths: [], w: RW };
   var missing = entries.filter(function(e) { return e === null; }).length;
   if (missing) reasons.push('no entry turning space (' + (need - missing) + ' of ' + need + ': ' + T + ' x ' + T + ' m at the sidewalk edge, one per ' + GEN.ENTRY_PER + ' m)');
   if (!seats.length) reasons.push('no accessible seat (bench end or table with knee clearance)');
@@ -21554,7 +21648,7 @@ GEN.access = function(items, fp) {
   // widest-path flood fill from each entry (4-connected, over cells >= ROUTE_W)
   var reached = new Uint8Array(nx * nz), worst = Infinity;
   entries.forEach(function(ez) {
-    var bott = new Float64Array(nx * nz), heap = [], found = null;
+    var bott = new Float64Array(nx * nz), par = new Int32Array(nx * nz).fill(-1), heap = [], found = null;
     function push(c, v) { heap.push([v, c]); var n = heap.length - 1; while (n > 0) { var p = (n - 1) >> 1; if (heap[p][0] >= heap[n][0]) break; var t = heap[p]; heap[p] = heap[n]; heap[n] = t; n = p; } }
     function pop() { var top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; var n = 0; for (;;) { var l = 2 * n + 1, r = l + 1, m = n; if (l < heap.length && heap[l][0] > heap[m][0]) m = l; if (r < heap.length && heap[r][0] > heap[m][0]) m = r; if (m === n) break; var t = heap[m]; heap[m] = heap[n]; heap[n] = t; n = m; } } return top; }
     for (var jq = Math.floor((ez - T / 2) / C + 1e-6); jq < Math.ceil((ez + T / 2) / C - 1e-6); jq++)
@@ -21563,15 +21657,41 @@ GEN.access = function(items, fp) {
       var e = pop(), v = e[0], c0 = e[1];
       if (v < bott[c0]) continue;
       reached[c0] = 1;
-      if (!found && tgt[c0]) found = { w: v, seat: seats[tgt[c0][0]] };
+      if (!found && tgt[c0]) found = { w: v, seat: seats[tgt[c0][0]], si: tgt[c0][0], c: c0 };
       var ci = c0 % nx, cj = (c0 - ci) / nx;
       [[ci - 1, cj], [ci + 1, cj], [ci, cj - 1], [ci, cj + 1]].forEach(function(n) {
         if (n[0] < 0 || n[0] >= nx || n[1] < 0 || n[1] >= nz) return;
         var c1 = n[1] * nx + n[0]; if (!pass(c1)) return;
-        var b1 = Math.min(v, wid[c1]); if (b1 > bott[c1] + 1e-9) { bott[c1] = b1; push(c1, b1); }
+        var b1 = Math.min(v, wid[c1]); if (b1 > bott[c1] + 1e-9) { bott[c1] = b1; par[c1] = c0; push(c1, b1); }
       });
     }
     out.per.push(found ? { entry: ez, route: GEN.r3(found.w), seat: found.seat.what + ' at z ' + found.seat.z.toFixed(2) } : { entry: ez, route: 0, seat: null });
+    if (found && opt && opt.paths) {
+      var NS = nx * nz * 4, cost = new Float64Array(NS).fill(Infinity), from = new Int32Array(NS).fill(-1), hq = [], goal = -1, DI = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      var hpush = function(st, v2) { hq.push([v2, st]); var n = hq.length - 1; while (n > 0) { var p = (n - 1) >> 1; if (hq[p][0] <= hq[n][0]) break; var t = hq[p]; hq[p] = hq[n]; hq[n] = t; n = p; } };
+      var hpop = function() { var top = hq[0], last = hq.pop(); if (hq.length) { hq[0] = last; var n = 0; for (;;) { var l = 2 * n + 1, r = l + 1, m = n; if (l < hq.length && hq[l][0] < hq[m][0]) m = l; if (r < hq.length && hq[r][0] < hq[m][0]) m = r; if (m === n) break; var t = hq[m]; hq[m] = hq[n]; hq[n] = t; n = m; } } return top; };
+      var j0 = Math.min(nz - 1, Math.max(0, Math.round(ez / C - 0.5)));
+      for (var i0 = 0; i0 < Math.round(T / C) && goal < 0; i0++) { var c5 = j0 * nx + i0; if (pass(c5)) { cost[c5 * 4] = i0 * C; hpush(c5 * 4, i0 * C); break; } }
+      while (hq.length) {
+        var e2 = hpop(), st = e2[1]; if (e2[0] > cost[st]) continue;
+        var cs = st >> 2, dd = st & 3; if (tgt[cs] && tgt[cs].indexOf(found.si) >= 0) { goal = st; break; }
+        var ci2 = cs % nx, cj2 = (cs - ci2) / nx;
+        for (var q = 0; q < 4; q++) {
+          var ni = ci2 + DI[q][0], nj = cj2 + DI[q][1]; if (ni < 0 || ni >= nx || nj < 0 || nj >= nz) continue;
+          var c6 = nj * nx + ni; if (!pass(c6)) continue;
+          var ns = c6 * 4 + q, nv = e2[0] + C + (q !== dd ? 0.8 : 0); if (nv < cost[ns] - 1e-9) { cost[ns] = nv; from[ns] = st; hpush(ns, nv); }
+        }
+      }
+      if (goal >= 0) {
+        var chain = [], n1 = 0; for (var sg = goal; sg >= 0 && n1 < NS; sg = from[sg], n1++) chain.push(sg); chain.reverse();
+        var xz = function(c7) { var i7 = c7 % nx; return [GEN.r3((i7 + 0.5) * C), GEN.r3(((c7 - i7) / nx + 0.5) * C)]; };
+        var cells2 = chain.map(function(q2) { return q2 >> 2; }), pin = cells2.reduce(function(m, c8) { return wid[c8] < wid[m] ? c8 : m; }, cells2[0]);
+        var pts = [[0, xz(cells2[0])[1]]];   // from the sidewalk edge: a corner wherever the direction changes, then the end
+        for (var v3 = 0; v3 < chain.length; v3++) { var nxt = chain[v3 + 1]; if (nxt === undefined || (nxt & 3) !== (chain[v3] & 3)) pts.push(xz(cells2[v3])); }
+        if (pts.length < 2) pts.push(xz(cells2[cells2.length - 1]));
+        out.paths.push({ entry: ez, w: GEN.r3(wid[pin]), seat: ((FL_ARCHETYPES[found.seat.what.replace(/ end$/, '')] || {}).label || found.seat.what).toLowerCase() + (/ end$/.test(found.seat.what) ? ' end' : ''), seatZ: found.seat.z, pts: pts, pinch: { x: xz(pin)[0], z: xz(pin)[1], w: GEN.r3(wid[pin]) } });
+      }
+    }
     if (!found) worst = 0; else worst = Math.min(worst, found.w);
   });
   out.route = GEN.r3(worst === Infinity ? 0 : worst);
@@ -21579,7 +21699,22 @@ GEN.access = function(items, fp) {
   var hit = {};
   Object.keys(tgt).forEach(function(c) { if (reached[c]) tgt[c].forEach(function(si) { hit[si] = 1; }); });
   out.access = Object.keys(hit).length;
-  out.grid = { C: C, nx: nx, nz: nz, reached: reached };   // the route cells (the report hatches them)
+  out.grid = { C: C, nx: nx, nz: nz, reached: reached, wid: wid };   // the cells the routes reach, the clear width of each
+  // the turning spaces (Brief 25 item 21b): at each turn of a route (over 30 deg) and at its end, the widest reached cell
+  // within 0.5 m: a turning space there when its clear width is GEN.TURN or more
+  var best = function(x, z, rad) {
+    var b = null, i0 = Math.max(0, Math.floor((x - rad) / C)), i1 = Math.min(nx - 1, Math.floor((x + rad) / C)), j0 = Math.max(0, Math.floor((z - rad) / C)), j1 = Math.min(nz - 1, Math.floor((z + rad) / C));
+    for (var jj = j0; jj <= j1; jj++) for (var ii = i0; ii <= i1; ii++) { var c3 = jj * nx + ii; if (!reached[c3]) continue; var q = [(ii + 0.5) * C, (jj + 0.5) * C]; if (Math.hypot(q[0] - x, q[1] - z) > rad) continue; if (!b || wid[c3] > b.w) b = { x: GEN.r3(q[0]), z: GEN.r3(q[1]), w: GEN.r3(wid[c3]) }; }
+    return b;
+  };
+  out.paths.forEach(function(p) {
+    p.turns = [];
+    for (var v = 1; v < p.pts.length; v++) {
+      var a = p.pts[v - 1], b = p.pts[v], c4 = p.pts[v + 1], end = !c4;
+      if (!end) { var a1 = Math.atan2(b[1] - a[1], b[0] - a[0]), a2 = Math.atan2(c4[1] - b[1], c4[0] - b[0]), da = Math.abs(((a2 - a1 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI); if (da < Math.PI / 6) continue; }
+      var t = best(b[0], b[1], 0.5) || { x: b[0], z: b[1], w: 0 }; t.end = end; t.at = [b[0], b[1]]; p.turns.push(t);
+    }
+  });
   if (out.per.some(function(p) { return !p.seat; })) reasons.push('no accessible route');
   return out;
 };
@@ -22025,9 +22160,9 @@ RPT.genMetrics = function(DM, placed) {
       var sp = flInstSpec(p), e = flEnvelope(flParts(sp.type, sp.params));
       return { type: sp.type, x: p.x || 0, z: p.z || 0, u: p.userRotation || 0, params: sp.params, l: e.l, d: e.d, h: e.h };
     });
-    var acc = GEN.access(items, fp), m = GEN.metrics({ items: items, route: acc.route, access: acc.access, acc: acc }, fp);
+    var acc = GEN.access(items, fp, { paths: true }), m = GEN.metrics({ items: items, route: acc.route, access: acc.access, acc: acc }, fp);
     return { seats: m.seats, density: m.density, util: m.util, route: acc.route, access: acc.access, need: acc.need,
-      entries: acc.entries.filter(function(e) { return e !== null; }).length, entryZ: acc.entries, grid: acc.grid || null, reasons: acc.reasons };
+      entries: acc.entries.filter(function(e) { return e !== null; }).length, entryZ: acc.entries, grid: acc.grid || null, paths: acc.paths || [], reasons: acc.reasons };
   } catch (e) { console.warn('[report] GEN metrics', e); return null; }
 };
 
@@ -22228,7 +22363,7 @@ RPT.measured = function(r) {
 };
 RPT.compBlocks = function(d) {
   var tbl = { cols: [{ t: 'Rule', w: 0.06 }, { t: 'Manual reference', w: 0.13 }, { t: 'Requirement', w: 0.31 }, { t: 'Measured value', w: 0.36 }, { t: 'Result', w: 0.14 }],
-    rows: RPT.compRows(d).map(function(r) { return [{ t: 'C' + r.num, b: true }, 'Parklet Manual p. ' + r.page + (r.id === 'c2' ? '; EDM Table 8-10' : ''), r.title, RPT.measured(r), RPT.res(r)]; }) };
+    rows: RPT.compRows(d).map(function(r) { return [{ t: 'C' + r.num, b: true }, (r.page ? 'Parklet Manual p. ' + r.page : r.src || '') + (r.id === 'c2' ? '; EDM Table 8-10' : ''), r.title, RPT.measured(r), RPT.res(r)]; }) };
   var ne = Object.keys(d.DM.inputs).map(function(k) { return d.DM.inputs[k]; }).filter(function(i) { return !i.entered; });
   var out = [{ h2: 'Checks, failures first' }, { table: tbl }];
   if (typeof SMP !== 'undefined' && SMP.treeAdvisory()) out.push({ h2: 'Advisory (no numbered check)' }, { table: { cols: [{ t: 'Advisory', w: 0.4 }, { t: 'Detail', w: 0.6 }], rows: [[SMP.treeAdvisory().text, SMP.treeAdvisory().detail]] } });
@@ -23052,21 +23187,27 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   // sidewalk edge, curb, the road side
 
   var b = RPT.planBase(P, G, F, d.mode, { boards: true, labels: false, deckOnly: true });   // A-103: the deck, furniture, grid, dimensions only (Brief 19b)
-  // accessible route (the generator's access model: cells at least the route width, reached from the entries), hatched
-  var acc = d.gm && d.gm.grid;
-  if (acc) {
-    var rects = '', C = acc.C;
-    for (var j = 0; j < acc.nz; j++) {
-      var i0 = -1;
-      for (var i = 0; i <= acc.nx; i++) {
-        var on = i < acc.nx && acc.reached[j * acc.nx + i];
-        if (on && i0 < 0) i0 = i;
-        if (!on && i0 >= 0) { var rz = (j + 0.5) * C; if (!routeAt && rz >= za && rz <= zb) routeAt = [sx(rz), sy(LM.deckX0 + (i0 + i) / 2 * C)]; rects += "<rect x='" + sx((j + 1) * C).toFixed(2) + "' y='" + sy(LM.deckX0 + i0 * C).toFixed(2) + "' width='" + (C * k).toFixed(2) + "' height='" + ((i - i0) * C * k).toFixed(2) + "'/>"; i0 = -1; }
-      }
+  // the accessible route (Brief 25 item 21b, C16): from each entry a band GEN.ROUTE_W wide along the route the access model
+  // found, hatched and outlined, its width dimensioned once; the entry's turning square (dashed, "Entry"); a GEN.TURN
+  // circle where the route turns or ends
+  var RWm = typeof GEN !== 'undefined' ? GEN.ROUTE_W : 1.1, TT = typeof GEN !== 'undefined' ? GEN.TURN : 1.5, dimDone = false;
+  var toS = function(p) { return [sx(p[1]), sy(LM.deckX0 + p[0])]; };
+  ((d.gm && d.gm.paths) || []).forEach(function(rt) {
+    var band = ACC.band(rt.pts, RWm).map(toS); if (band.length < 3) return;
+    var poly = "<polygon points='" + band.map(function(q) { return q[0].toFixed(2) + ',' + q[1].toFixed(2); }).join(' ') + "'/>";
+    P.hatch(poly, [xa, ya, xb, yb], 'route');
+    P.poly(band, { cls: 'general', fill: 'none', data: " data-route='" + rt.entry + "'" });
+    if (!routeAt) { var m0 = toS(rt.pts[Math.min(1, rt.pts.length - 1)]); routeAt = m0; }
+    if (!dimDone) {   // across the band at the middle of its longest leg
+      var lg = 0, li = 0; for (var q = 1; q < rt.pts.length; q++) { var ll = Math.hypot(rt.pts[q][0] - rt.pts[q - 1][0], rt.pts[q][1] - rt.pts[q - 1][1]); if (ll > lg) { lg = ll; li = q; } }
+      if (li) { var A = rt.pts[li - 1], B = rt.pts[li], ux = (B[0] - A[0]) / lg, uz = (B[1] - A[1]) / lg, mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2;
+        var e0 = toS([mx - uz * RWm / 2, mz + ux * RWm / 2]), e1 = toS([mx + uz * RWm / 2, mz - ux * RWm / 2]);
+        P.line(e0[0], e0[1], e1[0], e1[1], { cls: 'context', data: " data-route-dim='1'" }); [e0, e1].forEach(function(e) { P.line(e[0] - 0.9, e[1] + 0.9, e[0] + 0.9, e[1] - 0.9, { cls: 'general' }); });
+        P.text((e0[0] + e1[0]) / 2 + 1.4, (e0[1] + e1[1]) / 2 + 0.9, RPT.fmt(RWm) + ' clear', RPT.TX.tag, { c: RPT.INK }); dimDone = true; }
     }
-    if (rects) P.hatch(rects, [xa, ya, xb, yb], 'route');
-    (d.gm.entryZ || []).forEach(function(ez) { if (ez == null || ez < zA || ez > zB) return; var T = typeof GEN !== 'undefined' ? GEN.TURN : 1.5; P.rect(sx(ez + T / 2), sy(LM.deckX0), T * k, T * k, { cls: 'general', dash: 'hidden' }); P.text(sx(ez), sy(LM.deckX0) + T * k / 2 + 0.7, 'Entry', RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); if (!entryAt) entryAt = [sx(ez) + T * k / 2 + 4, sy(LM.deckX0) + 3]; });
-  }
+    (rt.turns || []).forEach(function(t) { var c = toS([t.x, t.z]); P.circle(c[0], c[1], TT / 2 * k, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-turn='" + (t.w >= TT - 1e-9 ? 'ok' : 'short') + "'" }); });
+  });
+  (d.gm && d.gm.entryZ || []).forEach(function(ez) { if (ez == null || ez < zA || ez > zB) return; P.rect(sx(ez + TT / 2), sy(LM.deckX0), TT * k, TT * k, { cls: 'general', dash: 'hidden' }); P.text(sx(ez), sy(LM.deckX0) - 1.2, 'Entry', RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); if (!entryAt) entryAt = [sx(ez) + TT * k / 2 + 4, sy(LM.deckX0) + 3]; });
   // the wheel stops; the enclosure (Brief 21 §12): each side's plan symbol with its posts, a grid line through each
   // traffic-side post
   var EN = G.enc, rT = EN.runs[0];
@@ -23102,8 +23243,8 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   var keys = [
     { t: 'Grid lines 1, 2, 3 ... at the enclosure posts on the traffic side' + (posts.length > 1 ? ', ' + (posts[1] - posts[0]).toFixed(2) + ' m apart, the first at ' + posts[0].toFixed(2) + ' m' : '') + '.', at: null },
     { t: 'Enclosure: ' + ENC.describe(G.DM) + ': in section on A-202.', at: encAt.traffic || null },
-    { t: 'Hatched: the accessible route, clear width ' + (typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92) + ' m or more from the entries.', at: routeAt },
-    { t: 'Entry turning space, ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(2) + ' m square.', at: entryAt },
+    { t: 'Accessible route (C16), hatched: ' + RPT.fmt(RWm) + ' m clear from each entry to an accessible seat; dashed circles: ' + RPT.fmt(TT) + ' m turning space where it turns and ends.', at: routeAt },
+    { t: 'Entry: ' + RPT.fmt(TT) + ' m turning square at the sidewalk edge (C16).', at: entryAt },
     { t: 'End enclosure: ' + EN.runs[1].name.toLowerCase() + ', ' + EN.runs[1].depth.toFixed(2) + ' m deep, ' + EN.runs[1].top.toFixed(2) + ' m high' + (EN.runs[2].id !== EN.runs[1].id ? '; far end ' + EN.runs[2].name.toLowerCase() : '') + '.', at: plAt },
     { t: RPT.tagNote(d), at: null }
   ];
@@ -24056,6 +24197,15 @@ RPT.print = async function() {
   opacity: 0; pointer-events: none; transition: opacity .2s; }
 .se-notes { padding: 4px 12px 6px; font: var(--fs-11)/1.45 var(--font-ui); color: var(--d-mid); display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 18px; max-height: calc(3 * 1.45em + 12px); overflow-y: auto; }
 .se-k { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+/* the Plan's key (Brief 25 items 21, 21b) */
+.pv-key { position: absolute; left: 8px; bottom: 8px; z-index: 3; max-width: 300px; padding: 4px 8px 6px; background: var(--d-paper); border: 1px solid var(--d-lt); border-radius: 3px; font: var(--fs-11)/1.4 var(--font-ui); color: var(--d-mid); }
+.pv-key summary { cursor: pointer; font-weight: 600; color: var(--d-ink, inherit); }
+.pk-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.pk-sw { flex: 0 0 auto; width: 18px; height: 10px; box-sizing: border-box; }
+.pk-route { background: rgba(58, 168, 228, 0.14); border: 1px dashed var(--accent-ui); }
+.pk-entry { border: 1px dashed var(--accent-ui); }
+.pk-turn { width: 10px; border-radius: 50%; border: 1px dashed var(--accent-ui); margin: 0 4px; }
+.pk-area { border: 1px dashed var(--d-mid); opacity: .7; }
 .se-hex { flex: 0 0 auto; width: 15px; height: 15px; margin-top: 1px; }
 .se-hex polygon { fill: none; stroke: currentColor; stroke-width: 1.1; }
 .se-hex text { font: 600 9px var(--font-ui); fill: currentColor; }
@@ -30043,7 +30193,7 @@ ENC.capacity = function(DM, E) {
 ENC.refreshChecks = function(now) {
   var go = function() {
     if (typeof criteria === 'undefined') return;
-    ['c17', 'c18', 'c19'].forEach(function(id) {
+    ['c16', 'c17', 'c18', 'c19'].forEach(function(id) {
       var c = criteria.find(function(q) { return q.id === id; }); if (!c) return;
       var st = getCriterionStatus(c), b = document.getElementById('badge_' + id), el = document.getElementById('crit_' + id), bd = document.getElementById('body_' + id), cd = document.getElementById('cond_' + id);
       if (b) { b.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : 'badge-unclear'); b.textContent = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered'; }
