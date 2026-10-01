@@ -2432,12 +2432,16 @@ function _checkLandmarkConsistency(verbose) {
       var f = b.footprint, id = side + i;
       if (!f.visible) return;
       var near = side === 'L';   // near side: face is the larger x; opposite side: the smaller
-      var row = { building: id, model: [f.z0, f.z1, f.faceX, f.backX] };
-      var r = planSvg && planSvg.querySelector("rect[data-bldg='" + id + "']");
+      // a real footprint (Brief 28 item 9): its bounds, read back from the Plan's path and the 3D prism alike
+      var pb = f.poly ? { z0: Math.min.apply(null, f.poly.map(function(p) { return p.z; })), z1: Math.max.apply(null, f.poly.map(function(p) { return p.z; })), x0: Math.min.apply(null, f.poly.map(function(p) { return p.x; })), x1: Math.max.apply(null, f.poly.map(function(p) { return p.x; })) } : null;
+      var row = { building: id, model: pb ? [pb.z0, pb.z1, near ? pb.x1 : pb.x0, near ? pb.x0 : pb.x1] : [f.z0, f.z1, f.faceX, f.backX] };
+      var r = planSvg && planSvg.querySelector("[data-bldg='" + id + "']");
       if (planSvg && planSvg.childElementCount) {
         if (!r) bad.push({ value: 'Plan draws no rect for building ' + id, model: 'visible', independent: 'missing' });
         else {
-          var x = +r.getAttribute('x'), y = +r.getAttribute('y'), w = +r.getAttribute('width'), h = +r.getAttribute('height');
+          // a path: the bounds of its own points (a hidden Plan measures 0 x 0)
+          var pn = r.tagName === 'path' ? (r.getAttribute('d').match(/-?[0-9.]+/g) || []).map(Number) : null, px = pn ? pn.filter(function(v, j) { return !(j % 2); }) : null, py = pn ? pn.filter(function(v, j) { return j % 2; }) : null;
+          var gb = pn ? { x: Math.min.apply(null, px), y: Math.min.apply(null, py), width: Math.max.apply(null, px) - Math.min.apply(null, px), height: Math.max.apply(null, py) - Math.min.apply(null, py) } : null, x = gb ? gb.x : +r.getAttribute('x'), y = gb ? gb.y : +r.getAttribute('y'), w = gb ? gb.width : +r.getAttribute('width'), h = gb ? gb.height : +r.getAttribute('height');
           var a = planToWorld(x, y), c = planToWorld(x + w, y + h);
           row.plan = [Math.min(a.z, c.z), Math.max(a.z, c.z), near ? Math.max(a.x, c.x) : Math.min(a.x, c.x), near ? Math.min(a.x, c.x) : Math.max(a.x, c.x)];
         }
@@ -3569,9 +3573,27 @@ function buildDesignModel() {
       var z0  = b.zOffset !== undefined ? b.zOffset : _lmZ0;
       var len = b.length  !== undefined ? b.length  : (_lmZ1 - _lmZ0);
       var s   = isLeft ? -1 : 1, faceX = frontageX + s * sb;
+      // poly (Brief 28 item 9): an imported building's real footprint (b.shape) at its face and start, scaled to the depth and
+      // length it now has, cut to its span along the street; null: the rectangle
+      var poly = null;
+      if (Array.isArray(b.shape) && b.shape.length >= 3) {
+        var kd = dp / (b.shapeD || dp), kl = len / (b.shapeL || len);
+        poly = _lmClipZ(b.shape.map(function(q) { return { x: faceX + s * q[0] * kd, z: z0 + q[1] * kl }; }), z0, z0 + len);
+        if (poly.length < 3) poly = null;
+      }
       return Object.assign({}, b, { footprint: {
         z0: z0, z1: z0 + len, frontageX: frontageX, faceX: faceX, backX: faceX + s * dp,
-        setback: sb, depth: dp, visible: len >= 0.1 && dp >= 0.1 } });
+        setback: sb, depth: dp, visible: len >= 0.1 && dp >= 0.1, poly: poly } });
+    }
+    // a polygon ({x, z}) cut to z0 <= z <= z1 (Sutherland-Hodgman, the two edges)
+    function _lmClipZ(pts, z0, z1) {
+      var cut = function(P, inside, at) {
+        var out = [];
+        P.forEach(function(p, i) { var q = P[(i + 1) % P.length], a = inside(p), c = inside(q); if (a) out.push(p); if (a !== c) { var t = (at - p.z) / (q.z - p.z); out.push({ x: p.x + t * (q.x - p.x), z: at }); } });
+        return out;
+      };
+      var r = cut(pts, function(p) { return p.z >= z0 - 1e-9; }, z0);
+      return r.length ? cut(r, function(p) { return p.z <= z1 + 1e-9; }, z1) : r;
     }
     DESIGN_MODEL.buildings = {
       L: _lmLBld.map(function(b){ return _lmFootprint(b, true,  _lmLFaceX); }),
@@ -8288,9 +8310,14 @@ const manholes = state['manholes'] || [];
         const f = b.footprint;
         if (!f.visible) return;
         const body = _box(f.faceX, f.backX, f.z0, f.z1), inward = f.backX > f.faceX ? 1 : -1;
-        s += _rect(body, `fill='${DK.T.fill.building}'${K('context')} data-bldg='${side}${i}' data-ctx='buildings'`);
         if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${DK.T.fill.sidewalk}' data-ctx='buildings'`);
-        s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${DK.T.fill.cut}' data-ctx='buildings'`);   // the facade wall, cut: solid
+        if (f.poly) {   // its real footprint (Brief 28 item 9), outlined at the cut weight: the walls as drawn
+          const d = 'M' + f.poly.map(function(p) { const q = worldToPlan(p.x, p.z); return q.px.toFixed(2) + ' ' + q.py.toFixed(2); }).join('L') + 'Z';
+          s += `<path d='${d}' fill='${DK.T.fill.building}'${K('edge')} data-bldg='${side}${i}' data-bldg-poly='1' data-ctx='buildings'/>`;
+        } else {
+          s += _rect(body, `fill='${DK.T.fill.building}'${K('context')} data-bldg='${side}${i}' data-ctx='buildings'`);
+          s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${DK.T.fill.cut}' data-ctx='buildings'`);   // the facade wall, cut: solid
+        }
         // its address (Brief 19 C; mid and near tiers): centred in the footprint along its long axis, moving along it
         if (b.address) {
           const _vert = body.h > body.w * 1.15, _cx = body.x + body.w / 2, _cy = body.y + body.h / 2;
@@ -9384,6 +9411,15 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
  return mesh;
   
 }
+  // a prism over a footprint ({x, z} world points) from y0 to y1 (Brief 28 item 9: a building's real footprint). The
+  // shape is drawn in (x, -z) and turned flat, as the deck's is, so it keeps its winding.
+  function mprism(pts, y0, y1, col, rough) {
+    const sh = new THREE.Shape(); sh.moveTo(pts[0].x, -pts[0].z); for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i].x, -pts[i].z); sh.closePath();
+    const geom = new THREE.ExtrudeGeometry(sh, { depth: Math.max(0.001, y1 - y0), bevelEnabled: false, steps: 1 }); geom.rotateX(-Math.PI / 2); geom.translate(0, y0, 0);
+    const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({ color: col, roughness: rough || 0.82 }));
+    mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.expLayer = _expLayer; g.add(mesh);
+    return mesh;
+  }
   function mplane(x0,z0, x1,z1, y, col) {
     const geom = new THREE.PlaneGeometry(x1-x0, z1-z0);
     // Ground surfaces are flat colour: unlit and unfogged, so the rendered pixel is exactly the
@@ -9418,6 +9454,11 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
         mplane(Math.min(f.frontageX, f.faceX), f.z0, Math.max(f.frontageX, f.faceX), f.z1, 0.002, 0xb8b4a8, 0.98);
       }
       const x0 = Math.min(f.faceX, f.backX), x1 = Math.max(f.faceX, f.backX);
+      if (f.poly) {   // its real footprint (Brief 28 item 9), extruded to its height, the plinth likewise
+        const _bm = mprism(f.poly, 0, b.height, 0xf2f0ec, 0.9); _bm.userData.bldg = side + i; _bm.userData.ctx = 'buildings';
+        mprism(f.poly, 0, 0.5, 0xe0ddd6, 0.95).userData.ctx = 'buildings';
+        return;
+      }
       const _bm = mbox(x0, 0, f.z0, x1, b.height, f.z1, 0xf2f0ec, 0.9); _bm.userData.bldg = side + i; _bm.userData.ctx = 'buildings';   // ctx: the Context toggles (Brief 24 B5)
       mbox(x0, 0, f.z0, x1, 0.5, f.z1, 0xe0ddd6, 0.95).userData.ctx = 'buildings';
     });
@@ -9436,6 +9477,24 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
   // Ground plane
   mplane(gndX0, gndZ0, gndX1, gndZ1, -0.005, 0xe0ddd6, 0.98);
+  // the cross streets on the ground (Brief 28 item 9): the Plan's road surfaces (CTX_ROADS), each segment a flat quad at
+  // its width and each bend a disc, cut to the ground plane, under the street's own surfaces and the buildings
+  { const _rc = DS.ground3D(DS.segColor3D('travel-lane')), _rm = new THREE.MeshBasicMaterial({ color: _rc, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const _in = function(x, z) { return x >= gndX0 && x <= gndX1 && z >= gndZ0 && z <= gndZ1; };
+    let _nq = 0;
+    (typeof CTX_ROADS !== 'undefined' ? CTX_ROADS.world() : []).forEach(function(r) {
+      if (r.kind === 'foot' || !(r.half > 0)) return;
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], b = r.pts[i], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz);
+        if (l < 0.01 || (!_in(a[0], a[1]) && !_in(b[0], b[1]) && !_in((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))) continue;
+        const nx = -dz / l * r.half, nz = dx / l * r.half, sh = new THREE.Shape();
+        [[a[0] + nx, a[1] + nz], [b[0] + nx, b[1] + nz], [b[0] - nx, b[1] - nz], [a[0] - nx, a[1] - nz]].forEach(function(p, k) { const X = Math.max(gndX0, Math.min(gndX1, p[0])), Z = Math.max(gndZ0, Math.min(gndZ1, p[1])); if (k) sh.lineTo(X, -Z); else sh.moveTo(X, -Z); });
+        const geo = new THREE.ShapeGeometry(sh); geo.rotateX(-Math.PI / 2);
+        const m = new THREE.Mesh(geo, _rm); m.position.y = -0.003; m.userData.flatGround = true; m.userData.ctxRoad = 1; m.userData.expLayer = _expLayer; g.add(m); _nq++;
+        [a, b].forEach(function(p) { if (!_in(p[0], p[1])) return; const dg = new THREE.CircleGeometry(r.half, 20); dg.rotateX(-Math.PI / 2); const dm = new THREE.Mesh(dg, _rm); dm.position.set(p[0], -0.003, p[1]); dm.userData.flatGround = true; dm.userData.ctxRoad = 1; g.add(dm); });
+      }
+    });
+    window._3dCtxRoads = _nq; }
 
   // Left buildings (face at XSWL - bufW, outside sidewalk)
   renderSide(_dm3d.buildings.L, 'L');
@@ -14122,8 +14181,8 @@ function pvHandleClick(e) {
 // ── The city context in the Plan (Brief 19 B) ──────────────────────────────────────────────────────
 // CTX_OUTER (local metres from the located point) through the site frame (the bearing, pkZ) and worldToPlan: the water
 // (even-odd) and the parks as fills, the footprints as fill-only silhouettes (technical 8 % grey, schematic warm grey
-// 12 %, no outline), the streets as 'context' centre lines at the far tier and as paired curb lines (each side its
-// use's half width) nearer. Footprints whose centre is in the inner strip (g.x0..x1, g.y0..y1: the inner ring's
+// 12 %, no outline) over the streets as road surfaces at every tier (Brief 28 item 9: the width from SMP.streetWidth,
+// a casing for the curbs; footways one faint line), all clipped to the context square. Footprints whose centre is in the inner strip (g.x0..x1, g.y0..y1: the inner ring's
 // buildings are the strip's own) and the host street (every point in its band g.ry0..ry1) are left out. One path per
 // layer, the string cached until the import, the frame or the tier changes: the Plan pans without rebuilding it.
 var _pvOuterCache = null;
@@ -14142,19 +14201,18 @@ function _pvOuterLayer(g) {
   var bd = '', nb = 0, skipped = 0;
   o.bldg.forEach(function(r) { if (inStrip(cen(r))) { skipped++; return; } bd += ring(r); nb++; });
   var pd = o.parks.map(ring).join(''), wd = o.water.map(ring).join('');
-  var sd = '', ns = 0;
+  // the streets (Brief 28 item 9): each a road surface, its centre line stroked at its width (round joins and ends, so
+  // the crossings merge) in the road's fill over a casing a line wider (the curbs); grouped by width, one path each.
+  // A footway: one faint line. The main street (all inside its own band) is the model's, not drawn here.
+  var byW = {}, fd = '', ns = 0;
   o.streets.forEach(function(st) {
     var q = st.pts.map(P); if (q.length < 2 || q.every(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; })) return;
     ns++;
-    if (g.far) { sd += 'M' + q.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L'); return; }
-    var h = st.half * sc;
-    [-1, 1].forEach(function(sd2) {
-      sd += 'M' + q.map(function(p, i) {
-        var a = q[Math.max(0, i - 1)], b = q[Math.min(q.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
-        return f(p[0] - dy / l * h * sd2) + ' ' + f(p[1] + dx / l * h * sd2);
-      }).join('L');
-    });
+    var d = 'M' + q.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L');
+    if (st.kind === 'foot' || !(st.half > 0)) { fd += d; return; }
+    var kw = (2 * (st.half || 4.5) * sc).toFixed(2); byW[kw] = (byW[kw] || '') + d;
   });
+  var widths = Object.keys(byW).sort(function(a, b) { return b - a; }), cw = DRAW_STYLE.sw(DK, 'context');
   var R = o.R, cs = [W(-R, -R), W(R, -R), W(R, R), W(-R, R)], xs = cs.map(function(c) { return c.px; }), ys = cs.map(function(c) { return c.py; });
   var paper = "<rect x='" + f(Math.min.apply(null, xs)) + "' y='" + f(Math.min.apply(null, ys)) + "' width='" + f(Math.max.apply(null, xs) - Math.min.apply(null, xs)) + "' height='" + f(Math.max.apply(null, ys) - Math.min.apply(null, ys)) + "' fill='" + T.paper + "' data-layer='city-paper'/>";
   var tech = DK.mode === 'technical';
@@ -14166,24 +14224,55 @@ function _pvOuterLayer(g) {
     var cx2 = cv.getContext('2d'); cx2.setTransform(k2, 0, 0, k2, -bx0 * k2, -by0 * k2);
     if (wd) { cx2.fillStyle = T.fill.sea; cx2.fill(new Path2D(wd), 'evenodd'); }
     if (pd) { cx2.fillStyle = T.fill.park; cx2.fill(new Path2D(pd)); }
+    // the roads under the buildings: every casing, then every surface (so crossings of two widths merge)
+    cx2.lineJoin = 'round'; cx2.lineCap = 'round'; var cw2 = Math.max(cw, 0.75 / k2);
+    cx2.strokeStyle = T.mid; cx2.globalAlpha = 0.6; widths.forEach(function(w) { cx2.lineWidth = +w + 2 * cw2; cx2.stroke(new Path2D(byW[w])); }); cx2.globalAlpha = 1;
+    cx2.strokeStyle = T.fill.road; widths.forEach(function(w) { cx2.lineWidth = +w; cx2.stroke(new Path2D(byW[w])); });
+    if (fd) { cx2.strokeStyle = T.mid; cx2.globalAlpha = 0.5; cx2.lineWidth = cw2; cx2.stroke(new Path2D(fd)); cx2.globalAlpha = 1; }
     if (bd) { cx2.globalAlpha = tech ? 0.08 : 0.12; cx2.fillStyle = tech ? '#000000' : T.mid; cx2.fill(new Path2D(bd)); cx2.globalAlpha = 1; }
-    if (sd) { cx2.strokeStyle = T.mid; cx2.lineWidth = Math.max(DRAW_STYLE.sw(DK, 'context'), 0.75 / k2); cx2.stroke(new Path2D(sd)); }
     var img = "<g data-layer='city' pointer-events='none'><image x='" + f(bx0) + "' y='" + f(by0) + "' width='" + f(bw) + "' height='" + f(bh) + "' preserveAspectRatio='none' href='" + cv.toDataURL('image/png') + "' data-city='raster'/></g>";
     var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height] };
     _pvOuterCache = { key: key, out: { paper: paper, svg: img }, check: chk };
     window._pvOuterCheck = chk;
     return _pvOuterCache.out;
   }
-  var svg = "<g data-layer='city' pointer-events='none'>" +
+  // clipped to the context square; water, parks, the roads (casings, then surfaces), footways, then the buildings over them
+  var rs = function(w, sw2, c, op) { return "<path d='" + byW[w] + "' fill='none' stroke='" + c + "' stroke-width='" + sw2 + "'" + (op ? " stroke-opacity='" + op + "'" : '') + " stroke-linejoin='round' stroke-linecap='round'/>"; };
+  var cl = 'pvCityClip', bx = Math.min.apply(null, xs), by = Math.min.apply(null, ys);
+  var svg = "<defs><clipPath id='" + cl + "'><rect x='" + f(bx) + "' y='" + f(by) + "' width='" + f(Math.max.apply(null, xs) - bx) + "' height='" + f(Math.max.apply(null, ys) - by) + "'/></clipPath></defs>" +
+    "<g data-layer='city' pointer-events='none' clip-path='url(#" + cl + ")'>" +
     (wd ? "<path d='" + wd + "' fill='" + T.fill.sea + "' fill-rule='evenodd' stroke='none' data-city='water'/>" : '') +
     (pd ? "<path d='" + pd + "' fill='" + T.fill.park + "' stroke='none' data-city='parks'/>" : '') +
-    (bd ? "<path d='" + bd + "' fill='" + (tech ? '#000000' : T.mid) + "' fill-opacity='" + (tech ? 0.08 : 0.12) + "' stroke='none' data-city='bldg'/>" : '') +
-    (sd ? "<path d='" + sd + "' fill='none'" + DRAW_STYLE.st(DK, 'context', { c: 'mid' }) + " data-city='streets'/>" : '') + '</g>';
+    (widths.length ? "<g data-city='streets'>" + widths.map(function(w) { return rs(w, (+w + 2 * cw).toFixed(2), T.mid, 0.6); }).join('') + widths.map(function(w) { return rs(w, w, T.fill.road); }).join('') + '</g>' : '') +
+    (fd ? "<path d='" + fd + "' fill='none'" + DRAW_STYLE.st(DK, 'fine', { c: 'mid', op: 0.5 }) + " data-city='footways'/>" : '') +
+    (bd ? "<path d='" + bd + "' fill='" + (tech ? '#000000' : T.mid) + "' fill-opacity='" + (tech ? 0.08 : 0.12) + "' stroke='none' data-city='bldg'/>" : '') + '</g>';
   var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far };
   _pvOuterCache = { key: key, out: { paper: paper, svg: svg }, check: check };
   window._pvOuterCheck = check;
   return _pvOuterCache.out;
 }
+// The context streets in the world frame (Brief 28 item 9), for the sheets and 3D, as the Plan draws them: [{ pts: [[x, z]],
+// half, kind 'road' | 'foot' }], the main street (every point within its own corridor, sidewalks included) left out.
+var CTX_ROADS = {
+  world: function(withMain) {   // withMain: the main street too (the locator, where the model is not drawn)
+    var o = typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null; if (!o || !o.streets) return [];
+    var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
+    var x0 = LM.sidewalkL.x0 - 1, x1 = LM.sidewalkR.x1 + 1;
+    return o.streets.map(function(st) {
+      var pts = st.pts.map(function(p) { return [LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z]; });
+      if (pts.length < 2 || (!withMain && pts.every(function(q) { return q[0] >= x0 && q[0] <= x1; }))) return null;
+      return { pts: pts, half: st.kind === 'foot' ? 0 : (st.half || 4.5), kind: st.kind || 'road' };
+    }).filter(Boolean);
+  },
+  // SVG for a sheet or a pen: casings then surfaces, footways faint; T: the drawing's tokens; to(x, z) -> [X, Y]; k: units per m
+  svg: function(roads, to, k, T, lw) {
+    var f = function(v) { return v.toFixed(2); }, byW = {}, fd = '';
+    roads.forEach(function(r) { var d = 'M' + r.pts.map(function(p) { var q = to(p[0], p[1]); return f(q[0]) + ' ' + f(q[1]); }).join('L'); if (r.kind === 'foot') fd += d; else { var w = f(2 * r.half * k); byW[w] = (byW[w] || '') + d; } });
+    var ws = Object.keys(byW), st = function(w, sw, c, op) { return "<path d='" + byW[w] + "' fill='none' stroke='" + c + "' stroke-width='" + sw + "'" + (op ? " stroke-opacity='" + op + "'" : '') + " stroke-linejoin='round' stroke-linecap='round'/>"; };
+    return ws.length || fd ? "<g data-ctx-roads='" + roads.length + "'>" + ws.map(function(w) { return st(w, f(+w + 2 * lw), T.mid, 0.6); }).join('') + ws.map(function(w) { return st(w, w, T.fill.road); }).join('') +
+      (fd ? "<path d='" + fd + "' fill='none' stroke='" + T.mid + "' stroke-opacity='0.5' stroke-width='" + f(lw) + "'/>" : '') + '</g>' : '';
+  }
+};
 window.addEventListener('load', function() {   // the outer ring from the cache (no request) after a reload
   setTimeout(function() { try { if (state.__outer && state.__siteMap && state.__siteMap.lat && typeof SMP !== 'undefined' && !CTX_OUTER) SMP.importOuter({ cacheOnly: true }); } catch (e) {} }, 1200);
 });
@@ -23902,12 +23991,15 @@ RPT.sheetSite = function(d) {
     opts.sort(function(a, b) { return Math.abs(a - cx) - Math.abs(b - cx); });
     return opts.length ? opts[0] : null;
   };
+  // the cross streets in the crop as surfaces, under the buildings (Brief 28 item 9; the main street is the model's)
+  P.add(CTX_ROADS.svg(CTX_ROADS.world(), function(x, z) { return [F.sx(z), F.sy(x)]; }, k, DRAW_STYLE.t(d.mode), 0.18));
   // buildings with their programme
   ['L', 'R'].forEach(function(side) {
     (G.DM.buildings[side] || []).forEach(function(b, bi) {
       var fp = b.footprint; if (!fp || !fp.visible || fp.z1 < zA || fp.z0 > zB) return;
       var x0 = Math.min(fp.faceX, fp.backX), x1 = Math.max(fp.faceX, fp.backX);
-      P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, cls: 'edge' });
+      if (fp.poly) P.poly(fp.poly.map(function(p) { return [F.sx(p.z), F.sy(p.x)]; }), { fill: FI.building, cls: 'edge', data: " data-bldg-poly='1'" });   // its real footprint (Brief 28 item 9)
+      else P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, cls: 'edge' });
       var z0 = Math.max(fp.z0, zA), z1 = Math.min(fp.z1, zB), cx = F.sx((z0 + z1) / 2), wmm = (z1 - z0) * k, face = F.sy(fp.faceX) + (side === 'L' ? -8 : 10);   // inside the footprint, clear of the section marker
       if (side === 'L' && G.DM.site.host && G.DM.site.host.index === bi) hostAt = [cx, F.sy((x0 + x1) / 2)];
       // its address (Brief 19 C), then its name and use where they fit
@@ -23949,7 +24041,7 @@ RPT.sheetSite = function(d) {
   return RPT.dsheet(d, 'A-101', 'Site plan', sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: xBot, north: true, inset: ins });
 };
 // A-101's locator (Brief 19 B): the city context at 1:10 000 around the parklet in the sheet's own orientation (sheet x
-// = -z, y = +x): the water, the parks, every footprint, the streets' centre lines, the sheet's crop dashed and the
+// = -z, y = +x): the water, the parks, the streets as surfaces, every footprint, the sheet's crop dashed and the
 // parklet filled; framed, titled under it.
 RPT.locator = function(P, x, y, w, h, G, cr, mode) {
   var o = CTX_OUTER, k = 0.1, T = DRAW_STYLE.t(mode), LM = G.LM, L = G.L, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
@@ -23962,8 +24054,9 @@ RPT.locator = function(P, x, y, w, h, G, cr, mode) {
   P.rect(x, y, w, h, { fill: '#FFFFFF', w: 0 });
   if (o.water.length) P.path(o.water.map(ring).join(''), { fill: T.fill.sea, w: 0, data: " fill-rule='evenodd' data-loc='water'" });
   if (o.parks.length) P.path(o.parks.map(ring).join(''), { fill: T.fill.park, w: 0, data: " data-loc='parks'" });
+  // the streets as surfaces (Brief 28 item 9), the buildings over them
+  P.add(CTX_ROADS.svg(CTX_ROADS.world(true), S, k, T, 0.1));
   if (o.bldg.length) P.path(o.bldg.map(ring).join(''), { fill: mode === 'technical' ? '#000000' : T.mid, fop: mode === 'technical' ? 0.14 : 0.2, w: 0, data: " data-loc='bldg'" });
-  if (o.streets.length) P.path(o.streets.map(function(s) { return 'M' + s.pts.map(function(p) { var q = Q(p); return f(q[0]) + ' ' + f(q[1]); }).join('L'); }).join(''), { cls: 'fine', c: 'mid', data: " data-loc='streets'" });
   var c0 = S(cr.x0, cr.z0), c1 = S(cr.x1, cr.z1);
   P.rect(Math.min(c0[0], c1[0]), Math.min(c0[1], c1[1]), Math.abs(c1[0] - c0[0]), Math.abs(c1[1] - c0[1]), { cls: 'general', dash: 'hidden' });
   var d0 = S(LM.deckX0, 0), d1 = S(LM.deckX1, L);
@@ -28890,8 +28983,25 @@ SMP.outerCells = async function(la, lo, R, cacheOnly) {
     return { cells: inIdx.length, missing: miss, dates: dates, bldg: byLayer('buildings'), streets: byLayer('streets'), parks: byLayer('parks'), hasParks: !!idx.layers.parks, keep: keep };
   } finally { GIS._held = held; GIS.evict(); }
 };
-// a street's half width by its OpenStreetMap class (an estimate for the paired curb lines)
-SMP.HIGHWAY_HALF = { motorway: 9, trunk: 8, primary: 7.5, secondary: 6.5, tertiary: 5.5, unclassified: 4.5, residential: 4.5, living_street: 4, service: 3 };
+// Brief 28 item 9: a context street's surface width, curb to curb. The cell's width tag (metres) where there is one; else
+// its lanes at 3.0 m and a 2.5 m parking lane each side not tagged parking=no (City of Vancouver Engineering Design Manual
+// 2026, Table 8-10, pp. 276-277: through lane 3.0 m preferred, a parking lane 2.5 m when marked; lanes and the highest
+// classes: no parking); else its class's width (SMP.CLASS_W). Footways, paths, cycleways and steps are not roads: kind
+// 'foot' (one faint line).
+// SMP.CLASS_W: a lane (alley) 6 m (EDM Table 8-1, p. 244: "generally 6m wide"); a local street 10 m, parking both sides
+// (EDM 8.5.3.3, p. 263); a collector two lanes and parking, 11 m, an arterial four lanes and parking, 17 m (Table 8-10's
+// lanes summed); the highest classes, no parking. The EDM gives no width by class: these are estimates from its parts.
+SMP.CLASS_W = { motorway: 22, trunk: 20, primary: 17, secondary: 17, tertiary: 11, unclassified: 10, residential: 10, living_street: 8, service: 6 };
+SMP.NO_PARK = /^(service|trunk|motorway)$/;
+SMP.FOOT = /^(footway|path|pedestrian|cycleway|steps|bridleway|corridor)$/;
+SMP.streetWidth = function(p) {
+  var hw = String(p.highway || '').replace(/_link$/, ''), cls = (SMP.CLASS_W[hw] || 10) / 2, w = SMP.num(p.width);
+  if (SMP.FOOT.test(hw)) return { half: 0, src: 'class', kind: 'foot' };
+  if (w && w >= 2 && w <= 60) return { half: w / 2, src: 'width', kind: 'road' };
+  var ln = SMP.num(p.lanes), pk = p.parking || {}, np = SMP.NO_PARK.test(hw) ? 0 : ['left', 'right'].filter(function(s) { return pk[s] !== 'no'; }).length;
+  if (ln && ln >= 1 && ln <= 12) return { half: (ln * 3.0 + np * 2.5) / 2, src: 'lanes', kind: 'road' };
+  return { half: cls, src: 'class', kind: 'road' };
+};
 // GeoJSON geometry -> its rings / lines in local metres (rounded to 0.1 m)
 SMP._rings = function(g, T) {
   var q = function(c) { var v = T.to(c[1], c[0]); return [Math.round(v.e * 10) / 10, Math.round(v.n * 10) / 10]; }, out = [];
@@ -28902,8 +29012,6 @@ SMP._rings = function(g, T) {
   else if (g.type === 'MultiLineString') g.coordinates.forEach(function(l) { out.push(l.map(q)); });
   return out;
 };
-// a street's half width by its use (an estimate for the paired curb lines)
-SMP.STREET_HALF = { 'Arterial': 7.5, 'Secondary Arterial': 6.5, 'Collector': 5.5, 'Residential': 4.5, 'Leisure': 4.5, 'Local': 4.5 };
 // The water in the square [-S, S] (local metres): the coastline chains clipped to it and closed along its edge with the
 // water on their right (OSM's rule), islands as holes, lakes as their own rings; drawn even-odd.
 SMP.waterRings = function(chains, lakes, S) {
@@ -28971,7 +29079,7 @@ SMP.importOuter = async function(opts) {
       if (cx.missing) o.notes.push(cx.missing + ' cell file' + (cx.missing > 1 ? 's' : '') + ' could not be read: the context there is missing');
       var inSq = function(r) { return r.some(function(p) { return Math.abs(p[0]) <= R && Math.abs(p[1]) <= R; }); };
       cx.bldg.forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2 && inSq(r)) o.bldg.push(r); }); });
-      cx.streets.forEach(function(f) { var p = (f.properties && f.properties.props) || {}, h = SMP.HIGHWAY_HALF[String(p.highway || '').replace(/_link$/, '')] || 4.5; SMP._rings(f.geometry, T).forEach(function(l) { if (l.length > 1 && inSq(l)) o.streets.push({ half: h, use: p.highway || '', pts: l }); }); });
+      cx.streets.forEach(function(f) { var p = (f.properties && f.properties.props) || {}, sw = SMP.streetWidth(p); SMP._rings(f.geometry, T).forEach(function(l) { if (l.length > 1 && inSq(l)) o.streets.push({ half: sw.half, src: sw.src, kind: sw.kind, use: p.highway || '', pts: l }); }); });
       cx.parks.forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2 && inSq(r)) o.parks.push(r); }); });
       o.source.bldg = 'OpenStreetMap building=* (site data, ' + GIS.day(cx.dates.buildings) + ')';
       o.source.streets = 'OpenStreetMap highways (site data, ' + GIS.day(cx.dates.streets) + ')';
@@ -29307,7 +29415,7 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
     if (curbDist > 30 || curbDist < -1) { rep.buildings.skipped++; return; }
     var za = Math.max(zMin, z0), zb = Math.min(zMax, z1); if (zb - za < 1) { rep.buildings.skipped++; return; }
     var inside = pw.filter(function(p) { return SMP.inPoly(p, poly); }).sort(function(a, c) { return Math.abs(a.z - zc) - Math.abs(c.z - zc); });
-    cand[side].push({ b: b, face: face, curbDist: curbDist, z0: za, z1: zb, depth: x1 - x0, poi: inside[0] || null });
+    cand[side].push({ b: b, face: face, curbDist: curbDist, z0: za, z1: zb, depth: x1 - x0, poi: inside[0] || null, poly: poly });
   });
   // 1. the buildings each side keeps: nearest faces first; one mostly behind nearer ones (>= 80 % of its span covered) is left out
   var keptBy = {};
@@ -29365,6 +29473,10 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
       if (use) { e.use = use; e.__prov.use = c.poi && poiUse ? Object.assign({}, src, { id: 'node ' + c.poi.id, note: Object.keys(c.poi.tags).filter(function(k) { return /^(amenity|shop|office)$/.test(k); }).map(function(k) { return k + '=' + c.poi.tags[k]; }).join(', ') }) : P({ note: 'building=' + t.building }); }
       if (name) { e.name = name.slice(0, 40); e.__prov.name = c.poi && c.poi.tags.name ? Object.assign({}, src, { id: 'node ' + c.poi.id }) : P(); }
       if (ht || storeys) e.heightManual = !!ht;
+      // its real footprint (Brief 28 item 9): each corner as [depth behind the face, along from its start], m; the model
+      // places it at its face (the setback) and start, scaled to its depth and length (DESIGN_MODEL.buildings footprint.poly)
+      e.shape = c.poly.map(function(p) { return [Math.round((side === 'L' ? c.face - p.x : p.x - c.face) * 100) / 100, Math.round((p.z - c.z0) * 100) / 100]; });
+      e.shapeD = e.depth; e.shapeL = e.length;
       return e;
     });
     if (!out.length) return;
