@@ -18371,6 +18371,7 @@ function pkInjectUI() {
 
     var ab = document.createElement('button');
     ab.id = 'pkAccBtn';
+    ab.type = 'button'; ab.setAttribute('aria-haspopup', 'menu'); ab.setAttribute('aria-expanded', 'false'); ab.setAttribute('aria-controls', 'pkAccountMenu');
     ab.onclick = pkToggleAccountMenu;
     ab.innerHTML = '<span id="pkAccLabel">Sign In</span>';
     tbr.appendChild(ab);
@@ -18387,9 +18388,7 @@ function pkInjectUI() {
     document.body.appendChild(menu);
     // Close on outside click
     document.addEventListener('click', function(e) {
-      if (!document.getElementById('pkAccBtn').contains(e.target) && !menu.contains(e.target)) {
-        menu.style.display = 'none';
-      }
+      if (!document.getElementById('pkAccBtn').contains(e.target) && !menu.contains(e.target) && menu.style.display === 'block') pkHideAccountMenu(false);
     });
   }
 
@@ -18446,8 +18445,9 @@ function pkInjectUI() {
 // ─── Auth modal HTML ──────────────────────────────────────────────
 function pkBuildAuthModalHTML() {
   return [
-    '<div class="pk-modal-box" style="width:360px;">',
-    '<div class="pk-modal-title">CURBSIDE</div>',
+    '<div class="pk-modal-box" style="width:360px;" role="dialog" aria-modal="true" aria-labelledby="pkAuthTitle">',
+    '<button type="button" class="pk-modal-close" id="pkAuthClose" onclick="pkHideAuthModal()" aria-label="Close">&times;</button>',
+    '<div class="pk-modal-title" id="pkAuthTitle">CURBSIDE</div>',
     '<div class="pk-auth-tabs">',
     '<button class="pk-auth-tab active" id="pkTabSignIn" onclick="pkAuthTab(\'signin\')">Sign In</button>',
     '<button class="pk-auth-tab" id="pkTabSignUp" onclick="pkAuthTab(\'signup\')">Create Account</button>',
@@ -18516,13 +18516,40 @@ function pkBuildProfileModalHTML() {
 }
 
 // ─── UI functions ─────────────────────────────────────────────────
+// Brief 27 item 6 (triage row 7): the sign-in dialog closes (×, Escape, a click outside it), takes the focus, keeps Tab
+// inside it, and gives the focus back to what opened it
 function pkShowAuthModal() {
   var m = document.getElementById('pkAuthModal');
-  if (m) m.classList.add('active');
+  if (!m) return;
+  if (!m.classList.contains('active')) {
+    var fr = document.activeElement, am = document.getElementById('pkAccountMenu');
+    pkShowAuthModal._from = fr && am && am.contains(fr) ? document.getElementById('pkAccBtn') : fr;   // a menu item is hidden by then
+  }
+  m.classList.add('active');
+  if (!m._kb) {
+    m._kb = true;
+    m.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { e.preventDefault(); pkHideAuthModal(); return; }
+      if (e.key !== 'Tab') return;
+      var f = [].filter.call(m.querySelectorAll('button, input, a[href], select'), function(x) { return !x.disabled && x.getClientRects().length; });
+      if (!f.length) return;
+      var i = f.indexOf(document.activeElement);
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    });
+    m.addEventListener('mousedown', function(e) { if (e.target === m) pkHideAuthModal(); });   // the backdrop
+  }
+  setTimeout(function() {
+    var p = document.getElementById('pkPanelSignIn'), q = p && p.style.display !== 'none' ? 'pkSIEmail' : 'pkSUName', el = document.getElementById(q);
+    if (el) el.focus();
+  }, 30);
 }
 function pkHideAuthModal() {
   var m = document.getElementById('pkAuthModal');
+  var was = m && m.classList.contains('active');
   if (m) m.classList.remove('active');
+  var from = pkShowAuthModal._from; pkShowAuthModal._from = null;
+  if (was && from && document.contains(from) && from.focus) from.focus();
 }
 
 function pkOpenDesignBrowser() {
@@ -18536,14 +18563,34 @@ function pkHideDesignBrowser() {
   if (db) db.classList.remove('active');
 }
 
+// Brief 27 item 6: the account menu works by keyboard: opening it focuses its first item; arrows, Home and End move;
+// Escape closes it and returns to the button; Tab closes it and moves on
 function pkToggleAccountMenu() {
   var m = document.getElementById('pkAccountMenu');
   if (!m) return;
-  m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+  if (m.style.display === 'block') { pkHideAccountMenu(true); return; }
+  m.style.display = 'block'; m.setAttribute('role', 'menu');
+  var b = document.getElementById('pkAccBtn'); if (b) b.setAttribute('aria-expanded', 'true');
+  var items = pkAccItems(); items.forEach(function(x) { x.setAttribute('role', 'menuitem'); x.tabIndex = -1; });
+  if (!m._kb) {
+    m._kb = true;
+    m.addEventListener('keydown', function(e) {
+      var it = pkAccItems(), i = it.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); it[(i + 1) % it.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); it[(i - 1 + it.length) % it.length].focus(); }
+      else if (e.key === 'Home') { e.preventDefault(); it[0].focus(); }
+      else if (e.key === 'End') { e.preventDefault(); it[it.length - 1].focus(); }
+      else if (e.key === 'Escape') { e.preventDefault(); pkHideAccountMenu(true); }
+      else if (e.key === 'Tab') { pkHideAccountMenu(false); }
+    });
+  }
+  if (items.length) items[0].focus();
 }
-function pkHideAccountMenu() {
+function pkAccItems() { var m = document.getElementById('pkAccountMenu'); return m ? [].filter.call(m.querySelectorAll('button'), function(x) { return x.getClientRects().length; }) : []; }
+function pkHideAccountMenu(refocus) {
   var m = document.getElementById('pkAccountMenu');
   if (m) m.style.display = 'none';
+  var b = document.getElementById('pkAccBtn'); if (b) { b.setAttribute('aria-expanded', 'false'); if (refocus === true) b.focus(); }
 }
 
 function pkOpenProfile() {
