@@ -371,3 +371,29 @@ pass.
   scales and most citations; distrusts the self-contradicting C02, the deck level against the flush note, the strings
   that do not close and the cut-off dimensions.
 - Evidence: the agent's report (this block); the input PDF in `<scratchpad>\b23\p8-input\`.
+
+### Run: Persona 3 (landscape designer), run 1, Sonnet
+
+- **Site:** Main St at E 23rd Av, east side (host Wong's Insurance, 3900 Main St). **Time:** furniture placed within
+  about 10 minutes; the PDF (14 pages) much later, after long unresponsive stretches. The agent could not write its
+  `report.md`; condensed here.
+- **What worked:** dragging library cards onto the deck, the Selection panel (size, finishes, snap, align), the 3D
+  view, Visualize's Sun panel ("A 1 m post casts a 0.57 m shadow toward NW"); **C16 named the agent's own pieces** as
+  the obstructions ("0.30 m at z 3.25, beside the tree pit at z 4.75 …") and **deleting the curved bench removed its
+  clause**: the furniture-to-check link worked.
+- **Broke**
+  - **"Place" on a card did nothing visible:** it switched to Design with an empty deck, and only dragging placed a
+    piece. (Place starts a placing mode that waits for a click on the deck; nothing says so. Parent run 1 met the same:
+    "after Place nothing told me to click on the deck".)
+  - "The drawing list on A-000 disagrees with the footers": **not so.** The rendered A-000 lists V-000 Cover, G-001 What
+    to do next, A-000 Title sheet, A-101 Site plan … in line; the agent read pdftotext's column layout, which shifts the
+    title column two rows. On the same page, "C01 – C19 Parklet Manual checks (C16 reserved)" is out of date (C16 exists
+    now) and G-001 has no scale.
+  - The app was unresponsive for minutes at a time after selecting and deleting a piece in the Plan (every command timed
+    out; it recovered and the delete went through). Not checked; three browsers were rendering in software at once.
+  - `GEN is not defined` on every Plan render; `[report] layout check: overlaps: Array(1)` after the export.
+- **Confused:** after a delete, the selection handles stayed on the Plan where the bench had been; the route overlay and
+  the floating Plan key appeared unasked and could not be dismissed (the key folds; the agent did not find that).
+- **README / landing wrong:** step 5 "place furniture from the Library" does not say it is drag and drop while each card
+  has a "Place" button.
+- Evidence: `<scratchpad>\b23\full\p3-run1\` (001–100.png, the PDF).
