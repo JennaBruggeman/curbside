@@ -212,6 +212,34 @@ measurement exists anywhere in that chain.
     move them into the cells or a cached file; import makes zero live
     requests.
 
+## §6 First-use clarity (small, do after §5)
+
+30. A step strip under the top tabs: **Site → Design → Check → Export**, the
+    current step highlighted, each a link to its tab. Generate, Furniture and
+    Visualize are reachable from the tabs but are not steps. Hides after the
+    user has exported once (per-browser).
+31. Check tab default view: rows grouped by state in this order — Fails ·
+    Awaiting measurement · Not entered · Provisional pass · Pass — with only
+    the first two groups expanded. Each collapsed group shows its count.
+    "Expand all" stays.
+32. Verdict banner = one sentence plus one next action. "Does not pass:
+    1 check fails on measured data" / "Can't be judged yet: measure 2 things
+    on site" / "Passes provisionally: confirm 47 imported objects". The
+    action is a button to the thing itself (the failing row, the survey
+    sheet, the confirm list).
+32b. The pass rule, said once where it's needed: a single line under the
+    verdict banner and at the top of the Check tab — "A check passes only on
+    measured or confirmed values; imported data gives a provisional result,
+    estimates don't count." On first sign-in only, the same sentence appears
+    once on the opening screen with a Got it button; never again on later
+    sign-ins. The report's What to do next page (33) ends with the same
+    line.
+33. Report front matter: after the cover, a one-page **What to do next** —
+    the three to five things to measure or confirm, each with its check and
+    sheet reference, then the failing checks with their resolution line.
+    Nothing else on the page. A café owner reads this page and the cover and
+    knows what to do.
+
 ## README fixes (triage rows marked `readme`)
 Apply the three README rows from 23-triage.md; re-run the How-to-use steps on
 Pages after merge.
