@@ -515,3 +515,33 @@ pass.
   (provisional)" covers the "Not entered" checks.
 - **README / landing wrong:** none; export time 60–90 s here (load).
 - Evidence: `<scratchpad>\b23\full\p2-run2\` (001–063.png, the technical PDF).
+
+### Run: Persona 4 (sceptical engineer), run 2, Sonnet
+
+- **Sites:** the blank street pushed to extremes, then Dunsmuir St at Richards St (one-way, three lanes, bus / truck
+  route, a separated bike lane), the deck on a 4.30 m frontage 0.83 m from the corner. **Time:** about 30 minutes to a
+  14-page PDF of a failing design. The agent could not write its `report.md`; condensed here.
+- **What held up:** a 500 m deck edge: "Edge 1 runs past the end of the parking segment", Apply disabled; a 50 m wide
+  parklet: "⚠ Parklet: requested 50.00 m, set to 2.65 m (remaining roadway 2.65 m)"; a lane dragged to 6.8 m: "set to
+  4.80 m (EDM Table 8-10 note 8 exception cap 4.8 m)"; "Find corners" found Richards St and C03 failed "0.83 m < 6 m";
+  removing a travel lane recalculated the street. The PDF of a failing design builds.
+- **Broke**
+  - **"99999" in C03 and C07 committed as "9"; "-10" in C03 left "−" and the result "✗ NaN m < 6 m minimum. Fails."**
+    while the row's badge still said "Not entered". The 9 and the "−" are **the keystroke loss** (Parent run 2: the
+    row moves on the first character); **the "NaN m" in a compliance message and the badge disagreeing with it are
+    real** on their own (a lone "-" is evaluated).
+  - **Check values typed for one site stay when the design moves to another:** pole and signal-box distances typed on the
+    blank street still counted as passes at Dunsmuir & Richards, three kilometres away and never surveyed.
+  - **"Add segment" does nothing when clicked:** the Section's "Add segment – drag into the section or click to
+    append": Bike Lane twice, Planting once, and a drag: nothing added. **Reproduced** (Commercial & 1st): clicking Bike
+    Lane and Planting leaves the segments unchanged and says nothing (the roadway there is fully allocated, 0.001 m
+    remaining; whether appending needs free width is not said anywhere). README step 5 names this action.
+  - A negative deck edge ("-5") is shown in the field and silently ignored.
+  - `[checkLandmarkConsistency] … disagree` after editing lanes (four lane / parking positions) and once for the
+    vegetation count; `GEN is not defined`.
+- **Confused:** after a Check edit moved a row to another group the page jumped to the top of the list (the same
+  regrouping); the slope field is a slider and a number box, and a click beside it selected the whole page's text; the
+  imported separated bike lane folds into the far side's "2.40 m" in the Section rather than its own segment; "Start a
+  blank street" asks a confirmation the README does not mention (it is the disclaimer the brief asked for).
+- **README / landing wrong:** step 5's "edit the street in the Section (Add segment)": click to append did nothing.
+- Evidence: `<scratchpad>\b23\full\p4-run2\` (screenshots, the PDF).
