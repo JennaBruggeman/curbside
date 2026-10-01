@@ -17574,7 +17574,14 @@ function _sdQuickPlace(objId) {
 #pkSaveStatus.pk-saved  { color: var(--text-mu); }
 /* the save state (Brief 27 item 0): one of three texts and Save now; the long text where the bar has room, the short
    one below 1500 px (the whole text is the tooltip) */
-#pkSaveStatus { display: flex; align-items: center; gap: 8px; }
+#pkSaveStatus { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+/* Brief 29 item 9: one width whatever the state, so the tabs never move; a longer text is cut, its whole in the tooltip */
+#pkSaveStatus { flex: 0 0 var(--ss-w, 324px); width: var(--ss-w, 324px); min-width: 0; overflow: hidden; }
+#pkSaveStatus > .pk-ss-txt, #pkSaveStatus > .pk-ss-note, #pkSaveStatus > .pk-ss-fail { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#pkSaveStatus > .pk-ss-now { flex: 0 0 auto; }
+.pk-ss-busy { color: var(--text-lo); }
+@media (max-width: 1900px) { #pkSaveStatus { --ss-w: 156px; } }
+@media (max-width: 1700px) { #pkSaveStatus { --ss-w: 130px; } }
 .pk-ss-note, .pk-ss-fail { background: none; border: none; padding: 0; font: inherit; cursor: pointer; white-space: nowrap; }
 .pk-ss-note { color: var(--text-mu); text-decoration: underline dotted; text-underline-offset: 3px; }
 .pk-ss-note:hover, .pk-ss-note:focus-visible { color: var(--text-hi); }
@@ -18074,11 +18081,18 @@ var SAVE = {
   st: null, at: null, why: '', busy: false,
   T: { account: 'Saved to your account', local: 'Saved in this browser only — sign in to keep it', failed: 'Save failed — retry' },
   signedIn: function() { return !!(typeof pkSB !== 'undefined' && pkSB && typeof pkCurrentUser !== 'undefined' && pkCurrentUser); },
-  saved: function(when) { SAVE.st = 'account'; SAVE.at = when ? new Date(when) : new Date(); SAVE.why = ''; SAVE.busy = false; SAVE.render(); },
-  local: function() { SAVE.st = 'local'; SAVE.busy = false; SAVE.render(); },
-  fail: function(err) { SAVE.st = 'failed'; SAVE.why = SAVE.reason(err); SAVE.busy = false; console.error('[save] failed:', err); SAVE.render(); },
-  reset: function() { SAVE.st = null; SAVE.at = null; SAVE.why = ''; SAVE.busy = false; SAVE.render(); },
-  saving: function() { SAVE.busy = true; SAVE.render(); },   // the last state stays; the button says Saving…
+  saved: function(when) { SAVE.st = 'account'; SAVE.at = when ? new Date(when) : new Date(); SAVE.why = ''; SAVE.idle(); },
+  local: function() { SAVE.st = 'local'; SAVE.idle(); },
+  fail: function(err) { SAVE.st = 'failed'; SAVE.why = SAVE.reason(err); console.error('[save] failed:', err); SAVE.idle(); },
+  reset: function() { SAVE.st = null; SAVE.at = null; SAVE.why = ''; SAVE.idle(); },
+  // a write under way (Brief 29 item 9): the last state stays; only a write still going after 500 ms reads "Saving…",
+  // in the status itself (one element, one state); a quick one goes straight to "Saved · 10:26"
+  saving: function() {
+    if (SAVE.busy) return; SAVE.busy = true; SAVE.slow = false; clearTimeout(SAVE._slowT);
+    SAVE._slowT = setTimeout(function() { if (SAVE.busy) { SAVE.slow = true; SAVE.render(); } }, 500);
+    SAVE.render();
+  },
+  idle: function() { clearTimeout(SAVE._slowT); SAVE.busy = false; SAVE.slow = false; SAVE.render(); },
   // a design the account did not take is also kept as this browser's offline design, which the next sign-in here
   // offers to move to the account (pkCheckLocalMigration): the way back to it
   keepHere: function(data) {
@@ -18098,12 +18112,13 @@ var SAVE = {
     var el = document.getElementById('pkSaveStatus'); if (!el) return;
     var st = !SAVE.signedIn() ? 'local' : SAVE.st === 'failed' ? 'failed' : (SAVE.st === 'account' && pkCurrentDesignId) ? 'account' : null;
     var full = st === 'account' ? SAVE.T.account + ' · ' + SAVE.hhmm(SAVE.at) : st ? SAVE.T[st] : '', h = '';
-    if (st === 'account') h = "<span class='pk-ss-txt'><span class='pk-ss-long'>" + SAVE.T.account + "</span><span class='pk-ss-short'>Saved</span> · " + SAVE.hhmm(SAVE.at) + '</span>';
+    if (SAVE.busy && SAVE.slow && SAVE.signedIn()) h = "<span class='pk-ss-txt pk-ss-busy'>Saving…</span>";
+    else if (st === 'account') h = "<span class='pk-ss-txt'><span class='pk-ss-long'>" + SAVE.T.account + "</span><span class='pk-ss-short'>Saved</span> · " + SAVE.hhmm(SAVE.at) + '</span>';
     else if (st === 'local') h = "<button type='button' class='pk-ss-note' onclick='if(!pkSB&&typeof pkInitSupabase===\"function\")pkInitSupabase();pkShowAuthModal()'>" +
       "<span class='pk-ss-long'>" + SAVE.T.local + "</span><span class='pk-ss-short'>Browser only</span></button>";
     else if (st === 'failed') h = "<button type='button' class='pk-ss-fail' onclick='SAVE.now()'>" + SAVE.T.failed + '</button>';
-    if (SAVE.has()) h += "<button type='button' class='pk-ss-now' id='pkSaveNow' onclick='SAVE.now()' aria-label='Save now'" + (SAVE.busy ? ' disabled' : '') + '>' + (SAVE.busy ? 'Saving…' : "Save<span class='pk-ss-nowx'> now</span>") + '</button>';
-    el.className = st ? 'pk-ss-' + st : ''; el.innerHTML = h;
+    if (SAVE.has()) h += "<button type='button' class='pk-ss-now' id='pkSaveNow' onclick='SAVE.now()' aria-label='Save now'" + (SAVE.busy ? ' disabled' : '') + ">Save<span class='pk-ss-nowx'> now</span></button>";
+    el.className = st ? 'pk-ss-' + st : ''; if (el._h !== h) { el.innerHTML = h; el._h = h; }   // (unchanged: left alone, no flicker)
     el.title = st === 'failed' && SAVE.why ? full + ': ' + SAVE.why + ' Your work is also kept in this browser.' : full;
     el.setAttribute('role', 'status');
   },
@@ -18882,13 +18897,13 @@ function pkScheduleSave() {
   // pkSerialize calls saveSettings, which (signed in) calls this again: once is enough (Brief 27 item 0: the loop never
   // ran before, as no design ever had an account row)
   if (pkScheduleSave._in) return;
-  SAVE.saving();
+  // (Brief 29 item 9: scheduling a save shows nothing; the write itself may, when it is slow)
   // the copy in this browser, soon (an import calls this dozens of times: one serialisation, not one each)
   clearTimeout(pkScheduleSave._lt);
   pkScheduleSave._lt = setTimeout(function() { pkScheduleSave._in = true; try { pkSaveLocal(pkSerialize()); } catch(_e) {} pkScheduleSave._in = false; }, 250);
   // Debounced cloud write
   if (pkSaveTimer) clearTimeout(pkSaveTimer);
-  pkSaveTimer = setTimeout(function() { pkSaveDesign(false).catch(function(){}); }, 1000);
+  pkSaveTimer = setTimeout(function() { pkSaveDesign(false).catch(function(){}); }, 2000);   // 2 s after the last change (Brief 29 item 9)
 }
 
 // ─── New design flow ──────────────────────────────────────────────
