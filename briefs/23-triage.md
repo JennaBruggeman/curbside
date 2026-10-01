@@ -258,3 +258,26 @@ pass.
   - `GEN is not defined` (20+ times); "imported 2026-10-01" against data and a report dated 2026-09-30.
 - **README / landing wrong:** none in the steps; the landing page's "eighteen checks" without C16.
 - Evidence: `<scratchpad>\b23\full\p2-run1\` (screenshots, both PDFs, `checktext.json`).
+
+### Run: Persona 4 (sceptical engineer), run 1, Sonnet
+
+- **Sites:** 4500 Kingsway, Burnaby (Willingdon Av), then 40 m curb to curb and 0 near lanes there; Pipeline Rd at
+  Stanley Park Dr (a road inside the park). **Time:** about 35 minutes to a 13-page PDF of the park site. The agent
+  could not write its `report.md`; condensed here.
+- **What held up:** Burnaby: "No data for this location: the site data covers the City of Vancouver. The point is kept
+  as clicked …", then an import of estimates, clearly labelled. 40 m curb to curb: the lanes capped by EDM Table 8-10
+  (3.40 / 3.20 m) and "Remaining 28.350 m" left unallocated, no crash. The park road imported as a street, with "1
+  parks" in the city context; C05 failed on a hydrant at the curb (plausible). The PDF matched the Check tab.
+- **Broke**
+  - **"Near lanes" = 0 is shown and tagged "You", but ignored.** The Section still draws two travel lanes and C02 still
+    measures "2 lanes". Confirmed in code: the field's minimum is 1 and `onLanesAChange` returns without a word on 0,
+    while the provenance records the typed 0 as the user's value.
+  - "imported 2026-10-01" on an import made 2026-09-30 (the UTC date; as the other runs).
+  - `GEN is not defined` on every Plan redraw; `[report] layout check: overlaps: Array(1)` on the PDF (one overlapping
+    text, not identified; also in Parent and persona 1).
+  - The footer breadcrumb says "Vancouver · Site" for a Burnaby site.
+- **Confused:** the 28.35 m left over at 40 m gets no suggestion (add parking, planting, a median); a place name
+  ("Beaver Lake, Stanley Park") finds nothing, so a point with no street near it could not be tried; the 0-lane entry
+  gave no inline warning.
+- **README / landing wrong:** none found; Blank street not tried.
+- Evidence: `<scratchpad>\b23\full\p4-run1\` (001–047.png, the PDF).
