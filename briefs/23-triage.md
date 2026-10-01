@@ -678,3 +678,89 @@ pass.
   the save bug is on both paths. Also try "+ New" with unsaved edits, then reopen the earlier design from the design
   list.
 - Evidence: `<scratchpad>\b23\full\p6-run2\` (001–092.png; 054–055 the bench gone, 078 the Check value reverted).
+
+### Run: Persona 7 (tablet, touch, 1024 × 768), run 2, Opus
+
+- **Route and site:** the blank street first (the Section and 3D on their own), then Main St at E 26th Av, west side
+  (host Spirithouse, 4265 Main St). Then Generate, Open in Design, Place and a tap, then the PDF.
+- **Time:** about 52 minutes to the PDF (13 pages). Most of it went on entering ten site facts for Generate and on the
+  software 3D renderer (a 3D tap or the PDF took about 2 minutes each).
+- **New since run 1**
+  - **The Section's lane width field keeps only the first keystroke:** 3.3 and 3.1 both became 3.000. Only the spinner
+    arrows (about 10 px) worked.
+    - **Confirmed in code:** the field's input handler calls `_seResize`, which re-renders the inspector (`_renderProp`)
+      on every keystroke. The field is replaced after the first character.
+    - This is the same symptom as the Check fields (row 1) but separate code, and older than Brief 25.
+    - With an on-screen keyboard every typed number arrives key by key, so on a tablet no typed width or distance
+      survives. C03 typed as 25 was stored as 2, which gave a false "Does not pass … 2 m < 6 m".
+  - **The design keeps the name "Blank street" on a real site:** in the header, the Export header, every sheet and the
+    file name. **Confirmed live:** after a blank street, then locating and importing Dunbar, the name is still "Blank
+    street".
+  - **Export said "Locate a site first"** with the site located and imported, after "Open in Design". Same cause as row
+    2: opening a scheme drops `state.__siteMap`, and the Export page tests exactly that.
+  - **C02 passed on an estimate after Open in Design** (lanes "3.20 ×4 ✓ OK" on a street never measured): row 2 again.
+    Generate had narrowed the deck to 2.40 m to make the lanes fit, without saying the site fails C02 as imported.
+  - **The blank street's confirmation dialog is grey on grey** and unreadable (005–006.png).
+  - **Section by touch:**
+    - "Fit street" still cuts off the far sidewalk.
+    - A swipe selects or edits a segment instead of panning.
+  - **3D by touch:** a 200 px swipe-orbit lost the parklet behind a building. There is no reset; "Fit design" recovered
+    the view.
+  - **Placement by touch:**
+    - The Design tab's library cards have no Place button; only the Furniture tab's do.
+    - Place then a tap works only in 3D, and the bench landed on the enclosure at the road edge, not where tapped.
+    - In the Plan, Place then a tap placed nothing.
+    - The library still highlighted the first piece when the second was placed.
+  - **Generate:**
+    - The Site facts look like a list to tap but do nothing; the only hint is a hover tooltip.
+    - The stale red message and "Building 1 (cafe)" stay after the move to a real site.
+    - The facts are numbered "01…13", not "C01…", and are out of order.
+  - **PDF:** the cover says "0 not confirmed (provisional)" while G-001 lists a hydrant to confirm; "C16 reserved".
+  - **Small:**
+    - Bearing "3.229999999999989".
+    - The search returned two identical results.
+    - Hover tooltips stick after taps.
+    - The panel moved about 23 px after an edit, so the next tap missed.
+    - A pale-blue notice ("End planters raised to 0.90 m …") is barely visible.
+  - **Console:** `GEN is not defined`; `[checkLandmarkConsistency] 3 value(s) disagree` (after the scheme opened);
+    WebGL "GPU stall due to ReadPixels".
+- **Tablet fit:**
+  - **Clipped:** the header's right end and the Check table's Result column (as run 1), and the Section's far sidewalk.
+  - **Too small to tap (about 10–28 px):** the spinners, the view switcher, Plan − / +, Place / Info, "Start a blank
+    street", the toggles and the Next / Done pills.
+  - **Good by touch:** the map dialog, the scheme cards, Fit design, the Move pad, Align, sliders and selects.
+  - **Portrait (768 × 1024), the agent's estimate (the browser could not rotate):** fine for the map and Generate, poor
+    for Check, Section and Export.
+- **README / landing wrong:**
+  - Step 5: the Design library cannot place, and Generate does not say the site fails C02.
+  - Step 6: "estimates don't count", yet C02 passed on one.
+  - Step 7: "under 20 s" (load here).
+  - The landing page says nothing to tablet users (the README asks for a desktop browser).
+- Evidence: `<scratchpad>\b23\full\p7-run2\` (screenshots, `curbside-blank-street-schematic.pdf`).
+
+### Run: Persona 1 (BIA coordinator), run 3, Sonnet
+
+- **Sites:** two consecutive blocks of Fraser St, west side, checked for bus stops on the map's Layers first:
+  - **Block A** (E 21st–22nd Av): one TransLink stop, 29.1 m before the deck.
+  - **Block B** (E 22nd–23rd Av): no stop. Host Napoletana Pizza.
+  - Each design was named before export.
+- **Time:** about 25 minutes to the first PDF, 38 to the second (14 sheets each).
+- **What worked:**
+  - The two PDFs are named after their designs (`curbside-fraser-st-22nd-23rd-west-no-bus-stop-schematic.pdf`): row 25
+    applies only to unnamed designs.
+  - The Export button fills as it works ("Sheet 11 of 14 · 79 %").
+  - Layers let the agent count the bus stops per block before choosing.
+- **Broke / confused**
+  - **The two reports are the same at the summary level** ("4 pass, 0 fail, 1 to measure, 14 not confirmed"). The bus
+    stop 29.1 m before block A's deck was confirmed ("Confirm all visible (80)"), but C01 stayed "not entered". C01 is
+    about the curb at the deck, so a stop 29 m away rightly does not fail it. But nothing in either report tells a
+    coordinator that one block has a stop nearby and the other none: the comparison the persona came for never
+    appears (third run in a row).
+  - Generate came back empty for want of the ten site facts (as Parent run 2 and persona 7). README step 5's case is a
+    failing check, not missing facts, and the panel has no link to the facts.
+  - After "+ New", the Site panel still showed the previous host and import (as runs 1–2).
+  - `GEN is not defined`; `[report] layout check: outside: Array(1)` on one export (as persona 3 run 2).
+  - The map search box's accessible name defeated the driver's fill (a Playwright error), and "Use this location" by
+    text timed out while a pixel click worked. Both are harness.
+- **README / landing wrong:** step 5 (Generate comes up empty for missing facts, which the README doesn't describe).
+- Evidence: `<scratchpad>\b23\full\p1-run3\` (001–062.png, both PDFs).
