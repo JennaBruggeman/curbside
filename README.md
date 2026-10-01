@@ -17,10 +17,11 @@ _To be written by Jenna._
 2. **Sign in, or create an account.** Sign-up is normally by invite code; during the class review (until 9 October
    2026) it is open and asks for none. Signing in lists your designs and opens none.
 3. **Choose a site.** With no site, the drawings show *Choose a site*. Click **Locate on map**, search an address
-   or pan to it, click the street, then click again on the parklet's side, and **Use this location**.
-4. **Import street context** (the button in the same panel). It fetches the existing street (lanes, direction, route type, bike lane,
-   right-of-way width), the buildings and the City's site objects (hydrants, trees, bus stops). Each value shows its
-   source and date; **Override** corrects one. A deck of the default length is then placed at the host frontage.
+   or pan to it, click the street, then click again on the parklet's side, and **Use this location**. **Layers** on the
+   map shows the site data around it: streets, buildings, bikeways, bus stops, hydrants, trees and more.
+4. **Import street context** (the button in the same panel). It reads the existing street (lanes, direction, route type, bike lane,
+   right-of-way width), the buildings and the site objects (hydrants, trees, bus stops) from the site data. Each value
+   shows its source and the date of the data; **Override** corrects one. A deck of the default length is then placed at the host frontage.
 5. **Design.** In **Design**, shape the deck, set the enclosure on each side (Edge), edit the street in the Section
    (*Add segment*), and place furniture from the Library. Or let **Generate** propose layouts that pass every
    check and **Open in Design** the one you like; where the site itself fails a check no design can fix (a bus zone,
@@ -60,8 +61,9 @@ C-001 and X-001 sheets.
 
 Section numbers for C01–C15 are still to be added from the Manual (the app records their pages). C16 is reserved
 for accessibility. Bike lane and buffer widths follow EDM §8.5.4.5. Site data comes from City of Vancouver Open
-Data and OpenStreetMap (© OpenStreetMap contributors, ODbL); the report's X-001 lists each dataset and its fetch
-date.
+Data, OpenStreetMap (© OpenStreetMap contributors, ODbL) and TransLink's GTFS feed, prepared weekly in 1 km cells by
+[curbside-data](https://github.com/JennaBruggeman/curbside-data); the report's X-001 lists each dataset and the date
+of its data.
 
 ## One example
 
@@ -90,7 +92,9 @@ A recorded walkthrough of the whole journey is planned (Brief 26).
   Settings › Connections and kept only in that browser. The site ships with none.
 - **The render relay is absent on the Pages build.** Photoreal renders go through the relay in `tools/serve.ps1`,
   which only exists when you run the app locally; on the hosted site Visualize says so, and everything else works.
-- Site data is fetched live at import time; a busy OpenStreetMap server can make an import slow or ask for a retry.
+- Site data is rebuilt weekly, so it can be a week behind OpenStreetMap. **live** in the Layers tab refreshes an
+  OpenStreetMap layer on the map; the site's values change at the next import. Outside the City of Vancouver there is
+  no site data: the import then runs on estimates.
 
 ---
 

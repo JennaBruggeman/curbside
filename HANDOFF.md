@@ -922,6 +922,38 @@ Decisions for every item are in the session's decisions log; the essentials:
 - **10 Landing images:** `tools/screenshots.js` (Playwright) with `tools/fixtures/commercial/` (recorded site data, replayed byte for byte; `--record` refreshes). Kept in Brief 22 because its record / replay part is reusable as Brief 24's three-site fixtures.
 - **11 moved:** the demo walkthrough is now **Brief 26** (`briefs/26-demo-walkthrough.md`), after Brief 25. Its draft is on the local branch `demo-draft`.
 
+## Brief 24 (v2): GIS cells, Part A (the `curbside-data` repository, 2026-09-30)
+- **Repository:** `JennaBruggeman/curbside-data`, public. Pages at <https://jennabruggeman.github.io/curbside-data/> (JSON, `Access-Control-Allow-Origin: *`). Local clone beside this folder (`..\curbside-data`).
+- **Build:** `node build/build.js [--fresh] [--only=cov,osm,gtfs]` then `node build/check.js --sites`. It needs Node 24 and no npm package; the PBF and zip readers use zlib. One script per source (`build/cov.js`, `osm.js`, `gtfs.js`), each with its mapping table at the top.
+- **Output:** 12 layers in 253 cells, 463,028 features. The largest file is 127 kB gzipped since Part B made streets and buildings exact (limit 200 kB, so none split). A full build takes about 65 s.
+- **Workflow:** `refresh.yml`, Mondays at 13:00 UTC (06:00 PDT, 05:00 PST) and on demand. It downloads fresh, builds, checks, and commits and publishes (a Pages build request) only when a cell changed. Two manual runs were green; the second found "No cell changed."
+- **Decisions (approved 2026-09-30):**
+  1. OpenStreetMap from BBBike's weekly Vancouver extract (62 MB) instead of Geofabrik's BC extract (1.2 GB, and its URL was failing).
+  2. `row-width` is points (the City's label points), in metres converted from feet.
+  3. Lines are clipped per cell with one id (Part B joins the pieces by id).
+  4. Buildings are written whole into every cell they touch.
+  5. `index.json` holds no run timestamps.
+  6. Stations without a record id get a record-hash id.
+  7. The cron is in UTC.
+  8. The fixtures are 27 cells, 33 MB of JSON (about 3 MB packed).
+- **Determinism:** the City's export order differs between fetches, and one `site_id` sits at two points (525 W 2nd Av). A build must not depend on either, so address points are all kept, duplicate ids are resolved by content, ties are broken by text, and cell files are ordered by id. A build of unchanged data rewrites no file.
+- **Part B:** done on branch `gis`; see the next section.
+## Brief 24 (v2): GIS cells, Part B (the app, branch `gis`, 2026-09-30 .. 10-01; merged to master, tag v0.11-gis)
+- **Where:** the GIS scripts after the SM script. `GIS.LAYERS` is the registry (12 layers; `feeds` = the facts a layer derives, `imports` = the import reads its objects, `live` = OSM layers with "live"). `GIS.load` / `ensure` / `setView` / `evict` / `features` load and merge the cells; IndexedDB `pkt-gis` (stores `cells`, `meta`) keeps them. `GIS.mapInit` adds one source and one layer per entry. The Layers tab is `GIS.buildRows` / `renderRows`. The Plan and 3D Context toggles are `PVCTX`.
+- **Import (B7):** `GIS.importData` feeds the existing apply code (`applyStreet`, `applyBuildings`, `applyAddresses`, `applyObjects`, `SITEF.fromImport`) the shapes Overpass and the City API gave it. No Overpass and no City record request is made: pick, import and re-clip made 0 of either in VERIFY. At rb, cd and dn every SITEF fact, the lanes, the Section, curb to curb, the sidewalk, the host, C01 and every object count equal the live-Overpass baseline. Only the stop names differ (TransLink's now).
+- **Provenance:** records from the cells keep `source` osm / cov (a dozen checks and the report read those values) and carry `via: 'cells'`. They read "OpenStreetMap, way 74366383, data 2026-09-25" (`SMP.srcOf`, `SMP.when`); "data" is the date of the data, "fetched" a live request. Bus stops are `source: 'gtfs'`. `SMP.SRC` also has the brief's `cell` and `osm-live`. X-001 lists TransLink GTFS and a curbside-data row with the build date.
+- **Pick (B6):** `SM.onClick` snaps to the streets in the cells (`GIS.waysNear`). Outside the data the status says "No data for this location"; the point is kept as clicked, the axis north-south, and the import runs on estimates. Overpass is used only by "live" (`GIS.live`): one query for the view, normalised as `build/osm.js` does. It replaces the build's features inside the view in each resident cell, is stored as `osm-live`, and is kept until a newer build. Facts change only at the next import.
+- **Decisions (Part B; 1-4 approved by Jenna 2026-10-01):**
+  1. **The cells' streets and buildings are exact** (curbside-data 08de767). They are not simplified and are written to 7 decimals, against the brief's A2 (0.5 m for every line and polygon), because B7 asks for the same output. At 0.5 m the snapped axis rotated and the sidewalk estimate moved 0.1–0.2 m at cd and dn. Other lines keep 0.5 m. Buildings grew from 7.9 to 9.5 MB gzipped; the largest file is 127 kB (limit 200).
+  2. **A building's address** is now the point inside it, else the nearest within 15 m (the app's rule). With inside-only, dn had 13 addresses instead of 17.
+  3. **Matching by place, not by name:** City bikeways match within 15 m and 30 degrees of the street axis (they are centreline data); bus and truck routes within 20 m and 30 degrees.
+  4. **The 12-cell cap wins over the view +-1 ring:** cells in view first, then neighbours while under 12. A view that alone needs more than 12 cells shows "zoom in".
+  5. **The outer ring asks no Overpass server after a cell import.** The City footprints, streets and parks still come from their exports. The OSM water comes from the cache only (it is not a layer), and the import notes it. None of the three sites has water within its square.
+  6. **The 3D toggles are viewport-only:** `PVCTX.install` hides the groups for viewport frames. Exports and the report always include them.
+  7. **A request in flight is shared:** a newer generation that wants the same cell joins it (and owns it). A response is discarded only when no current request wants it, and a request a pan aborted is started again. VERIFY found that the first version left cells empty after the first jump.
+- **Next fixes round (Jenna, 2026-10-01):** each batch of arriving cells costs the main thread 35-72 ms (VERIFY 3: `GIS.features` merging every resident cell, then one `setData` per changed layer, with up to ~16k trees). Parse the cells off the main thread (a worker) or spread the `setData` calls across frames, so that no batch costs more than one frame (16 ms). Measure it as VERIFY 3 did (the GIS listeners timed around a four-cell pan, all 12 layers on).
+- **Test hooks:** `?gis=fixtures` on a dev host reads `test/gis-fixtures/` (the curbside-data fixtures; regenerate with `node build/build.js` there and copy `fixtures/`).
+- **Out of scope (candidates for a later brief):** parking regulations, zoning, existing-parklet layers, an imagery underlay on the Plan, 3D context from cells. Also open: the outer ring's water from the cells; a site with no buildings keeps the previous site's buildings (`applyBuildings` replaces a side only when it finds one; older than Brief 24).
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase and `CONFIG.INVITE_ONLY = false` in the page. **After October 9, set both back to true** (the page's comment says so) and make codes with `supabase/invite-codes.sql`; also put back the README's step 2.
 

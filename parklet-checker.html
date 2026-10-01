@@ -719,7 +719,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
 <div id='viewportGrid' data-layout='three'>
 <div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div>    </div>    <!-- Drawing 02: Plan -->    
-<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' data-pv-fit='design' aria-pressed='false' onclick='_pvFit("design")' title='Fits the Plan to the deck and 1 m around it.'>Fit design</button><button class='drw-tb-toggle active' data-pv-fit='sheet' aria-pressed='true' onclick='_pvFit("sheet")' title='Fits the Plan to the site sheet (A-101), as the report draws it.'>Fit sheet</button><button class='drw-tb-toggle' data-pv-fit='context' aria-pressed='false' onclick='_pvFit("context")' title='Fits the Plan to everything imported for the site.'>Fit context</button><button class='drw-tb-toggle' id='secTogglePV' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id='planTabShape' style='display:none'><div class='ske-head'><span class='ske-title' title='The deck outline, drawn on the parking segment between the curb and the lane edge. Nothing in the design changes until you press Apply.'>Shape editor</span><span class='ske-read' id='skeReadout' title='The outline being edited: its area, and its length along the curb by its width across.'></span><label class='ske-fld' title='The grid step the editor snaps to: the app grid step, shared with the Plan.'>Grid <select id='skeGrid' onchange='cadSetSpacing(this);skeRender()'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></label><button type='button' class='ske-btn' id='skeUndo' onclick='skeUndo()' title='Undoes the last change in the editor (Ctrl+Z).'>Undo</button><button type='button' class='ske-btn' id='skeRedo' onclick='skeRedo()' title='Redoes the change just undone (Ctrl+Y).'>Redo</button><button type='button' class='ske-btn' id='skeFit' onclick='skeFit()' title='Fits the whole parking segment in the canvas. The mouse wheel zooms; Shift+wheel or the middle button pans.'>Fit</button><span class='ske-sp'></span><button type='button' class='ske-btn' id='skeCancel' onclick='skeClose()' title='Closes the editor and discards the changes made in it.'>Cancel</button><button type='button' class='ske-btn ske-apply' id='skeApply' onclick='skeApply()' title='Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'>Apply</button></div><div class='ske-tools' id='skeTools' role='toolbar' aria-label='Shape tools'><button type='button' class='ske-tool' data-tool='rect' onclick='skeSetTool(&quot;rect&quot;)' title='Rectangle: drag across the parking segment. The length and width show as you drag; type them in the fields to set them exactly.'><svg viewBox='0 0 16 16' aria-hidden='true'><rect x='2.5' y='4.5' width='11' height='7'/></svg><span>Rectangle</span></button><button type='button' class='ske-tool' data-tool='poly' onclick='skeSetTool(&quot;poly&quot;)' title='Polygon: click each corner; click the first corner or press Enter to close. Corners snap to the grid; hold Shift for 90&deg; and 45&deg; edges. Esc cancels.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 12.5 L4 4 L10 2.5 L13.5 8 L8 13.5 Z'/></svg><span>Polygon</span></button><button type='button' class='ske-tool' data-tool='edit' onclick='skeSetTool(&quot;edit&quot;)' title='Edit: drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected corner. Hover an edge to read its length; click the length to type one.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.5 2.5 L3.5 12.5 L6.2 10 L8.2 13.8 L10 12.9 L8 9.2 L11.8 8.9 Z'/></svg><span>Edit</span></button><button type='button' class='ske-tool' data-tool='notch' onclick='skeSetTool(&quot;notch&quot;)' title='Notch: press on a corner of the outline and drag inward to cut a rectangular notch.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 4.5 H13.5 V11.5 H6.5 V8 H2.5 Z'/></svg><span>Notch</span></button><button type='button' class='ske-tool' id='skeReset' onclick='skeReset()' title='Reset to rectangle: the deck&rsquo;s length, the full width of the parking segment. Undo brings the outline back.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.6 8.5 A4.6 4.6 0 1 0 5.2 4.4'/><path d='M3 2.6 V5.2 H5.6'/></svg><span>Reset to rectangle</span></button><span class='ske-opt' id='skeOptRect'><label title='The rectangle&rsquo;s length along the curb, m. Type a value to set it exactly.'>Length <input id='skeRL' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label><label title='The rectangle&rsquo;s width across, from the curb side, m. Type a value to set it exactly.'>Width <input id='skeRW' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label></span><span class='ske-opt' id='skeOptEdge'><label title='The selected edge&rsquo;s length, m. Type a value to set it: the edge&rsquo;s end corner moves along it, and a square next edge moves with it.'>Edge <b id='skeEdgeNo'>-</b> <input id='skeEL' type='number' step='0.05' min='0.25' onchange='skeSetEdgeLen()'></label></span></div><div class='ske-msg' id='skeMsg' role='status' aria-live='polite'></div><div class='ske-canvas'><svg id='skeSVG' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='The parking segment and the deck outline'></svg></div></div>    </div>    <!-- Drawing 03: 3D View -->    
+<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' data-pv-fit='design' aria-pressed='false' onclick='_pvFit("design")' title='Fits the Plan to the deck and 1 m around it.'>Fit design</button><button class='drw-tb-toggle active' data-pv-fit='sheet' aria-pressed='true' onclick='_pvFit("sheet")' title='Fits the Plan to the site sheet (A-101), as the report draws it.'>Fit sheet</button><button class='drw-tb-toggle' data-pv-fit='context' aria-pressed='false' onclick='_pvFit("context")' title='Fits the Plan to everything imported for the site.'>Fit context</button><button class='drw-tb-toggle' id='secTogglePV' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button><details class='pv-ctx' id='pvCtx'><summary class='ptb-btn' title='Shows or hides the site context in the Plan and the 3D view. The checks and the report are not affected.'>Context</summary><div class='pv-ctx-menu' role='group' aria-label='Context'><label><input type='checkbox' id='pvCtx_trees' checked onchange='PVCTX.set("trees", this.checked)'> Trees</label><label><input type='checkbox' id='pvCtx_objects' checked onchange='PVCTX.set("objects", this.checked)'> Street objects</label><label><input type='checkbox' id='pvCtx_buildings' checked onchange='PVCTX.set("buildings", this.checked)'> Buildings</label><label><input type='checkbox' id='pvCtx_stops' checked onchange='PVCTX.set("stops", this.checked)'> Stops &amp; hydrants</label></div></details></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle' id='dimTogglePV' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>DIM</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id='planTabShape' style='display:none'><div class='ske-head'><span class='ske-title' title='The deck outline, drawn on the parking segment between the curb and the lane edge. Nothing in the design changes until you press Apply.'>Shape editor</span><span class='ske-read' id='skeReadout' title='The outline being edited: its area, and its length along the curb by its width across.'></span><label class='ske-fld' title='The grid step the editor snaps to: the app grid step, shared with the Plan.'>Grid <select id='skeGrid' onchange='cadSetSpacing(this);skeRender()'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></label><button type='button' class='ske-btn' id='skeUndo' onclick='skeUndo()' title='Undoes the last change in the editor (Ctrl+Z).'>Undo</button><button type='button' class='ske-btn' id='skeRedo' onclick='skeRedo()' title='Redoes the change just undone (Ctrl+Y).'>Redo</button><button type='button' class='ske-btn' id='skeFit' onclick='skeFit()' title='Fits the whole parking segment in the canvas. The mouse wheel zooms; Shift+wheel or the middle button pans.'>Fit</button><span class='ske-sp'></span><button type='button' class='ske-btn' id='skeCancel' onclick='skeClose()' title='Closes the editor and discards the changes made in it.'>Cancel</button><button type='button' class='ske-btn ske-apply' id='skeApply' onclick='skeApply()' title='Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'>Apply</button></div><div class='ske-tools' id='skeTools' role='toolbar' aria-label='Shape tools'><button type='button' class='ske-tool' data-tool='rect' onclick='skeSetTool(&quot;rect&quot;)' title='Rectangle: drag across the parking segment. The length and width show as you drag; type them in the fields to set them exactly.'><svg viewBox='0 0 16 16' aria-hidden='true'><rect x='2.5' y='4.5' width='11' height='7'/></svg><span>Rectangle</span></button><button type='button' class='ske-tool' data-tool='poly' onclick='skeSetTool(&quot;poly&quot;)' title='Polygon: click each corner; click the first corner or press Enter to close. Corners snap to the grid; hold Shift for 90&deg; and 45&deg; edges. Esc cancels.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 12.5 L4 4 L10 2.5 L13.5 8 L8 13.5 Z'/></svg><span>Polygon</span></button><button type='button' class='ske-tool' data-tool='edit' onclick='skeSetTool(&quot;edit&quot;)' title='Edit: drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected corner. Hover an edge to read its length; click the length to type one.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.5 2.5 L3.5 12.5 L6.2 10 L8.2 13.8 L10 12.9 L8 9.2 L11.8 8.9 Z'/></svg><span>Edit</span></button><button type='button' class='ske-tool' data-tool='notch' onclick='skeSetTool(&quot;notch&quot;)' title='Notch: press on a corner of the outline and drag inward to cut a rectangular notch.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 4.5 H13.5 V11.5 H6.5 V8 H2.5 Z'/></svg><span>Notch</span></button><button type='button' class='ske-tool' id='skeReset' onclick='skeReset()' title='Reset to rectangle: the deck&rsquo;s length, the full width of the parking segment. Undo brings the outline back.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.6 8.5 A4.6 4.6 0 1 0 5.2 4.4'/><path d='M3 2.6 V5.2 H5.6'/></svg><span>Reset to rectangle</span></button><span class='ske-opt' id='skeOptRect'><label title='The rectangle&rsquo;s length along the curb, m. Type a value to set it exactly.'>Length <input id='skeRL' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label><label title='The rectangle&rsquo;s width across, from the curb side, m. Type a value to set it exactly.'>Width <input id='skeRW' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label></span><span class='ske-opt' id='skeOptEdge'><label title='The selected edge&rsquo;s length, m. Type a value to set it: the edge&rsquo;s end corner moves along it, and a square next edge moves with it.'>Edge <b id='skeEdgeNo'>-</b> <input id='skeEL' type='number' step='0.05' min='0.25' onchange='skeSetEdgeLen()'></label></span></div><div class='ske-msg' id='skeMsg' role='status' aria-live='polite'></div><div class='ske-canvas'><svg id='skeSVG' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='The parking segment and the deck outline'></svg></div></div>    </div>    <!-- Drawing 03: 3D View -->    
 <div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"><button class='drw-tb-toggle on' id='secToggle3D' title='Shows or hides the section box, its cut plane and fill in the 3D view.' aria-pressed='true' onclick='_3dSectionOn=!_3dSectionOn;syncToolbarStates();_3dSectionHelper()'>Section box</button></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
 <div id='workspaceVisualize' style='display:none'><div id='rvzView'><p class='rvz-info' id='rvzViewInfo' aria-live='polite'></p></div><aside id='rvzRail' aria-label='Render controls'></aside></div>
@@ -7227,7 +7227,8 @@ function _renderPlanView(o) {
       // DRAW_SYMBOLS.tree: the canopy outline (conifer dashed; bare in winter fine, dashed) and the trunk; schematic lays the
       // planting fill under a leafed canopy. An imported street tree's tooltip is the City's name.
       const bare = v.segId === null && treeBare(v, treeSeasonNow());
-      s += _sym(function(P) { DRAW_SYMBOLS.tree(P, c.px, c.py, rx, ry, { seed: treeSeed(v), n: treeN(v), conifer: v.leaf === 'conifer', bare: bare, trunk: Math.max(v.trunkR || 0, 0.1) * HS, data: ` data-veg='${i}'`, title: v.segId === null && v.form ? treeTip(v) : '' }); });
+      // an imported street tree is context (the Plan's Context toggles, Brief 24 B5); a tree of the design is not
+      s += (v.segId === null ? "<g data-ctx='trees'>" : '') + _sym(function(P) { DRAW_SYMBOLS.tree(P, c.px, c.py, rx, ry, { seed: treeSeed(v), n: treeN(v), conifer: v.leaf === 'conifer', bare: bare, trunk: Math.max(v.trunkR || 0, 0.1) * HS, data: ` data-veg='${i}'`, title: v.segId === null && v.form ? treeTip(v) : '' }); }) + (v.segId === null ? '</g>' : '');
     } else {   // planter: the footprint of the 3D planter box (2r x 2r), the planting fill and (technical) its band
       const _pR = function(a) { return `<rect x='${(c.px - rx).toFixed(2)}' y='${(c.py - ry).toFixed(2)}' width='${(2*rx).toFixed(2)}' height='${(2*ry).toFixed(2)}'${a}/>`; };
       s += _pR(` fill='${DK.T.fill.planting}'${K('edge')} data-veg='${i}'`) + _band('planting', _pR);
@@ -7237,7 +7238,7 @@ function _renderPlanView(o) {
   // until confirmed on site. Tagged data-transit='<index>' for the check.
   (_pvDM.transit || []).forEach(function(t, i) {
     const c = worldToPlan(t.x, t.z);
-    s += _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'`, noText: LODn < 2 }); });
+    s += "<g data-ctx='stops'>" + _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'`, noText: LODn < 2 }); }) + '</g>';
 
   });
   if (_bikeSeg) {
@@ -7552,6 +7553,7 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   const curbFts = state[`curb_features`] || [];
   curbFts.forEach(function(cf) {
     const def = cfDefs[cf.type]; if (!def) return;
+    const _ctxA = " data-ctx='" + (cf.type === 'H' ? 'stops' : 'objects') + "'";   // the Plan's Context toggles (Brief 24 B5)
     const cfX = worldToPlan(0, cf.xM).px;
     const _cfYM = (cf.yM !== undefined) ? cf.yM : (CF_DEFAULT_YM[cf.type] || -0.76);
     const cfY = CURB_Y + _cfYM * pvSC;
@@ -7572,28 +7574,28 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
     }
     if (cfX < -2 || cfX > VW + 2) return;   // beyond the drawn stretch: its clearance only (the marker would sit in the dimension margin)
     // Dashed leader: element centre to curb face
-    s += `<line x1='${cfX.toFixed(1)}' y1='${cfY.toFixed(1)}' x2='${cfX.toFixed(1)}' y2='${CURB_Y.toFixed(1)}'${K('fine', { c: col, op: 0.5, dash: 'hidden' })}/>`;
+    s += `<line x1='${cfX.toFixed(1)}' y1='${cfY.toFixed(1)}' x2='${cfX.toFixed(1)}' y2='${CURB_Y.toFixed(1)}'${K('fine', { c: col, op: 0.5, dash: 'hidden' })}${_ctxA}/>`;
     if (cf.type === 'H') {
       // the C05 5 m radius (Brief 18): only while C05 is open in the Check list, or when it fails
       const hR = Math.max(6, Math.round(0.10 * pvSC)), _c5Open = !!document.querySelector('#crit_c5.open');
       if ((_c5Open || !pOk) && LODn >= 1) s += `<circle cx='${cfX.toFixed(1)}' cy='${cfY.toFixed(1)}' r='${(def.req * pvSC).toFixed(1)}' fill='none'${K('fine', { c: col, op: colOp, dash: 'zone' })} data-c05='1'/>`;
-      s += _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC, noText: LODn < 2 }); });
-      annText('object', 'Hydrant', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY] }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
+      s += '<g' + _ctxA + '>' + _sym(function(P) { DRAW_SYMBOLS.hydrant(P, cfX, cfY, { c: col, r: 0.15 * pvSC, noText: LODn < 2 }); }) + '</g>';
+      annText('object', 'Hydrant', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY], data: _ctxA }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + hR + 5 * pvZS, cfY - hR - 3 * pvZS);
     } else if (cf.type === 'S') {
       // E1.3: traffic signal controller base 940×762mm (940 along street, 762 into sidewalk)
       const sW = Math.max(9, Math.round(0.47 * pvSC));
       const sH = Math.max(7, Math.round(0.38 * pvSC));
-      s += _sym(function(P) { DRAW_SYMBOLS.signal(P, cfX, cfY, 0.94 * HS, 0.76 * pvSC, { c: col }); });
-      annText('object', 'Signal', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY] }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
+      s += '<g' + _ctxA + '>' + _sym(function(P) { DRAW_SYMBOLS.signal(P, cfX, cfY, 0.94 * HS, 0.76 * pvSC, { c: col }); }) + '</g>';
+      annText('object', 'Signal', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY], data: _ctxA }); annObst(cfX - 2 * DK.k, cfY - 1.6 * DK.k, cfX + 2 * DK.k, cfY + 1.6 * DK.k);
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + sW + 5 * pvZS, cfY - sH - 3 * pvZS);
     } else {
       // Pole (P): E5.19C 760mm from curb confirmed; ~200mm pole base diameter
       const pR = Math.max(5, Math.round(0.10 * pvSC));
-      s += _sym(function(P) { DRAW_SYMBOLS.pole(P, cfX, cfY, { c: col }); });
-      annText('object', 'Pole', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY] }); annObst(cfX - 1.4 * DK.k, cfY - 1.4 * DK.k, cfX + 1.4 * DK.k, cfY + 1.4 * DK.k);
+      s += '<g' + _ctxA + '>' + _sym(function(P) { DRAW_SYMBOLS.pole(P, cfX, cfY, { c: col }); }) + '</g>';
+      annText('object', 'Pole', cfX, cfY - 3 * DK.k, { anchor: 'middle', c: col, axis: 'x', at: [cfX, cfY], data: _ctxA }); annObst(cfX - 1.4 * DK.k, cfY - 1.4 * DK.k, cfX + 1.4 * DK.k, cfY + 1.4 * DK.k);
 
       annChip('deleteCurbFeatureById(' + cf.id + ')', cfX + pR + 5 * pvZS, cfY - pR - 3 * pvZS);
     }
@@ -7614,14 +7616,14 @@ const cfDefs = {H:{critId:`c5`,req:5.0},P:{critId:`c7`,req:1.0},S:{critId:`c8`,r
   // on paper at 1:100 only, each imported tree's two-letter genus tag above its canopy.
   (_pvDM.transit || []).forEach(function(t) {
     const c = worldToPlan(t.x, t.z);
-    annText('object', t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop', c.px + 2.4 * DK.k, c.py + 3 * U, { axis: 'x', at: [c.px, c.py] });
+    annText('object', t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop', c.px + 2.4 * DK.k, c.py + 3 * U, { axis: 'x', at: [c.px, c.py], data: " data-ctx='stops'" });
     annObst(c.px - 1.6 * DK.k, c.py - 1.6 * DK.k, c.px + 1.6 * DK.k, c.py + 1.6 * DK.k);
   });
   // tree tags: each imported tree's genus, above its canopy (the lowest priority: it yields to everything else)
   _pvDM.vegetation.forEach(function(v, i) {
     if (v.segId !== null || !v.genus) return;
     const c = worldToPlan(v.x, v.z);
-    annText('tree', v.genus.slice(0, 2).toUpperCase(), c.px, c.py - v.canopyR * pvSC - 5 * U, { anchor: 'middle', axis: 'y', at: [c.px, c.py], data: ` data-veg-tag='${i}'` });
+    annText('tree', v.genus.slice(0, 2).toUpperCase(), c.px, c.py - v.canopyR * pvSC - 5 * U, { anchor: 'middle', axis: 'y', at: [c.px, c.py], data: ` data-veg-tag='${i}' data-ctx='trees'` });
   });
   // the objects segment labels and tree tags keep off: tree canopies, furniture
   _pvDM.vegetation.forEach(function(v) { const c = worldToPlan(v.x, v.z), r = (v.canopyR || 0.4) * pvSC; annObj(c.px - r, c.py - r, c.px + r, c.py + r, true); });
@@ -7722,9 +7724,9 @@ const manholes = state['manholes'] || [];
     const mc = DRAW_STYLE.zone(DK, ok ? 'pass' : 'fail').c;
     const mhR = MANHOLE_R_M * pvSC, mhCR = 0.3048 * pvSC; // WW1: outer 939.8mm, opening 609.6mm
     // the C09 clearance (a zone line) and DRAW_SYMBOLS.manhole: frame and opening at true size
-    s += '<circle cx=\'' + mhX.toFixed(2) + '\' cy=\'' + mhY.toFixed(2) + '\' r=\'' + HS.toFixed(1) + '\' fill=\'none\'' + DRAW_STYLE.zoneSt(DK, ok ? 'pass' : 'fail') + '/>';
-    s += _sym(function(P) { DRAW_SYMBOLS.manhole(P, mhX, mhY, mhR, mhCR, { data: ' data-mh=\'' + mh.id + '\'' }); });
-    annText('dim', DRAW_STYLE.fmtClear(distM, 1.0, 'C09'), mhX, mhY - mhR - 2 * U, { role: 'body', anchor: 'middle', c: mc, bold: true, axis: 'x', at: [mhX, mhY] });
+    s += "<g data-ctx='objects'>" + '<circle cx=\'' + mhX.toFixed(2) + '\' cy=\'' + mhY.toFixed(2) + '\' r=\'' + HS.toFixed(1) + '\' fill=\'none\'' + DRAW_STYLE.zoneSt(DK, ok ? 'pass' : 'fail') + '/>';
+    s += _sym(function(P) { DRAW_SYMBOLS.manhole(P, mhX, mhY, mhR, mhCR, { data: ' data-mh=\'' + mh.id + '\'' }); }) + '</g>';
+    annText('dim', DRAW_STYLE.fmtClear(distM, 1.0, 'C09'), mhX, mhY - mhR - 2 * U, { role: 'body', anchor: 'middle', c: mc, bold: true, axis: 'x', at: [mhX, mhY], data: " data-ctx='objects'" });
     annObst(mhX - mhR, mhY - mhR, mhX + mhR, mhY + mhR);
     annChip('deleteManholeById(' + mh.id + ')', mhX + mhR + 3 * pvZS, mhY - mhR - 3 * pvZS);
   });
@@ -7746,14 +7748,14 @@ const manholes = state['manholes'] || [];
         const f = b.footprint;
         if (!f.visible) return;
         const body = _box(f.faceX, f.backX, f.z0, f.z1), inward = f.backX > f.faceX ? 1 : -1;
-        s += _rect(body, `fill='${DK.T.fill.building}'${K('context')} data-bldg='${side}${i}'`);
-        if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${DK.T.fill.sidewalk}'`);
-        s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${DK.T.fill.cut}'`);   // the facade wall, cut: solid
+        s += _rect(body, `fill='${DK.T.fill.building}'${K('context')} data-bldg='${side}${i}' data-ctx='buildings'`);
+        if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${DK.T.fill.sidewalk}' data-ctx='buildings'`);
+        s += _rect(_box(f.faceX, f.faceX + inward * Math.min(WALL_M, f.depth), f.z0, f.z1), `fill='${DK.T.fill.cut}' data-ctx='buildings'`);   // the facade wall, cut: solid
         // its address (Brief 19 C; mid and near tiers): centred in the footprint along its long axis, moving along it
         if (b.address) {
           const _vert = body.h > body.w * 1.15, _cx = body.x + body.w / 2, _cy = body.y + body.h / 2;
-          annText('segment', b.address, _cx, _cy, _vert ? { anchor: 'middle', rot: -90, axis: 'y', lo: body.y, hi: body.y + body.h, c: 'ink', data: ` data-addr='${side}${i}'` }
-            : { anchor: 'middle', axis: 'x', lo: Math.max(body.x, VIS.x0), hi: body.x + body.w, c: 'ink', data: ` data-addr='${side}${i}'` });
+          annText('segment', b.address, _cx, _cy, _vert ? { anchor: 'middle', rot: -90, axis: 'y', lo: body.y, hi: body.y + body.h, c: 'ink', data: ` data-addr='${side}${i}' data-ctx='buildings'` }
+            : { anchor: 'middle', axis: 'x', lo: Math.max(body.x, VIS.x0), hi: body.x + body.w, c: 'ink', data: ` data-addr='${side}${i}' data-ctx='buildings'` });
         }
       });
     };
@@ -8863,8 +8865,8 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
         mplane(Math.min(f.frontageX, f.faceX), f.z0, Math.max(f.frontageX, f.faceX), f.z1, 0.002, 0xb8b4a8, 0.98);
       }
       const x0 = Math.min(f.faceX, f.backX), x1 = Math.max(f.faceX, f.backX);
-      mbox(x0, 0, f.z0, x1, b.height, f.z1, 0xf2f0ec, 0.9).userData.bldg = side + i;
-      mbox(x0, 0, f.z0, x1, 0.5, f.z1, 0xe0ddd6, 0.95);
+      const _bm = mbox(x0, 0, f.z0, x1, b.height, f.z1, 0xf2f0ec, 0.9); _bm.userData.bldg = side + i; _bm.userData.ctx = 'buildings';   // ctx: the Context toggles (Brief 24 B5)
+      mbox(x0, 0, f.z0, x1, 0.5, f.z1, 0xe0ddd6, 0.95).userData.ctx = 'buildings';
     });
   };
 
@@ -8987,7 +8989,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     _dm3d.vegetation.forEach(function(v, i) {
       if (v.type === 'tree' && v.form) {   // imported street tree: trunk + its form's lathe crown in the season's colour
         const tm = treeMesh3D(v, _season);
-        tm.group.position.set(v.x, 0, v.z); tm.canopy.userData.veg = i; tm.group.userData.label = treeTip(v); g.add(tm.group);
+        tm.group.position.set(v.x, 0, v.z); tm.canopy.userData.veg = i; tm.group.userData.label = treeTip(v); tm.group.userData.ctx = 'trees'; g.add(tm.group);
       } else if (v.type === 'tree') {
         const tk = new THREE.Mesh(new THREE.CylinderGeometry(v.trunkR * 0.6, v.trunkR, 1.4, 6), matTrunk);
         tk.position.set(v.x, 0.7, v.z); tk.castShadow = true; g.add(tk);
@@ -9094,7 +9096,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   if (cf3d.length > 0) {
     const curbX = XCL - 0.22;
     cf3d.forEach(function(cf) {
-      const cz = cf.xM;
+      const cz = cf.xM, _n0 = g.children.length;
       if (cf.type === `H`) {
         const mH = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 0.55, 12), new THREE.MeshStandardMaterial({color:0xc03030,roughness:0.65}));
         mH.position.set(curbX, 0.275, cz); g.add(mH);
@@ -9113,6 +9115,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
         const mD = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.52, 0.02), new THREE.MeshStandardMaterial({color:0x777777,roughness:0.7}));
         mD.position.set(curbX, 0.86, cz - 0.19); g.add(mD);
       }
+      for (let k = _n0; k < g.children.length; k++) g.children[k].userData.ctx = cf.type === 'H' ? 'stops' : 'objects';
     });
   }
 
@@ -9121,9 +9124,9 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   (_dm3d.transit || []).forEach(function(t, i) {
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2.4, 0.6), new THREE.MeshStandardMaterial({color: 0x2f5d86, roughness: 0.8}));
     post.position.set(t.x, 1.2, t.z); post.castShadow = true;
-    post.userData.transit = i; post.userData.label = t.kind === 'rapid' ? 'Rapid transit station' : 'Bus stop'; g.add(post);
+    post.userData.transit = i; post.userData.ctx = 'stops'; post.userData.label = t.kind === 'rapid' ? 'Rapid transit station' : 'Bus stop'; g.add(post);
     const flag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.45, 0.6), new THREE.MeshStandardMaterial({color: 0x3AA8E4, roughness: 0.6}));
-    flag.position.set(t.x + 0.32, 2.15, t.z); g.add(flag);
+    flag.position.set(t.x + 0.32, 2.15, t.z); flag.userData.ctx = 'stops'; g.add(flag);
   });
 
   // Manholes in 3D at their stored world position (yM across, xM along), WW1 outer radius.
@@ -9138,13 +9141,13 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       const meshC = new THREE.Mesh(geomC, matC);
       meshC.position.set(mhX, 0.02, mhZ);
       meshC.receiveShadow = true;
-      meshC.userData.mh = mh.id;
+      meshC.userData.mh = mh.id; meshC.userData.ctx = 'objects';
       g.add(meshC);
       const matD = new THREE.MeshStandardMaterial({color: 0xcccccc, roughness: 0.55});
       [[MH_R * 1.5, 0.045, 0.07], [0.07, 0.045, MH_R * 1.5]].forEach(function(dim) {
         const gd = new THREE.BoxGeometry(dim[0], dim[1], dim[2]);
         const md = new THREE.Mesh(gd, matD);
-        md.position.set(mhX, 0.042, mhZ);
+        md.position.set(mhX, 0.042, mhZ); md.userData.ctx = 'objects';
         g.add(md);
       });
     });
@@ -22129,10 +22132,10 @@ RPT.streetChanges = function(DM) {
 // ── X-001 Sources ───────────────────────────────────────────────────────────────────────────────────────
 RPT.sources = function(d) {
   var DM = d.DM, dates = {}, day = function(s) { return s ? (typeof SMP !== 'undefined' ? SMP.day(s) : String(s).slice(0, 10)) : ''; };
-  var note = function(k, at) { if (at && (!dates[k] || at > dates[k])) dates[k] = at; };
+  var via = {}, note = function(k, at, p) { if (at && (!dates[k] || at > dates[k])) dates[k] = at; if (p && p.via === 'cells') via[k] = 1; };   // via: from the site data's cells (Brief 24)
   if (typeof state !== 'undefined') {
-    ['curb_features', 'street_trees', 'transit_stops', 'manholes'].forEach(function(l) { (state[l] || []).forEach(function(o) { var p = o.prov || {}; if (p.source === 'cov') note('CoV ' + (p.dataset || 'open data'), p.fetchedAt); if (p.source === 'osm') note('OSM', p.fetchedAt); }); });
-    if (typeof SMP !== 'undefined') { var PV = SMP.prov(); Object.keys(PV).forEach(function(k) { var p = PV[k]; if (p.source === 'osm' || p.from === 'osm') note('OSM', p.fetchedAt); if (p.source === 'cov') note('CoV ' + (p.dataset || 'open data'), p.fetchedAt); }); }
+    ['curb_features', 'street_trees', 'transit_stops', 'manholes'].forEach(function(l) { (state[l] || []).forEach(function(o) { var p = o.prov || {}; if (p.source === 'cov') note('CoV ' + (p.dataset || 'open data'), p.fetchedAt, p); if (p.source === 'osm') note('OSM', p.fetchedAt, p); if (p.source === 'gtfs') note('GTFS', p.fetchedAt, p); }); });
+    if (typeof SMP !== 'undefined') { var PV = SMP.prov(); Object.keys(PV).forEach(function(k) { var p = PV[k]; if (p.source === 'osm' || p.from === 'osm') note('OSM', p.fetchedAt, p); if (p.source === 'cov') note('CoV ' + (p.dataset || 'open data'), p.fetchedAt, p); if (p.source === 'gtfs' || p.from === 'gtfs') note('GTFS', p.fetchedAt, p); }); }
   }
   var std = [['City of Vancouver, Parklet Manual, Version 1.0 (June 2016)', 'criteria C01 - C15 and their pages'],
     ['Parklet Manual E2, p. 64', 'C17: the enclosure 0.75 - 1.0 m high on the traffic side and both ends; the 0.30 m buffer advised from a busy travel lane (advisory)'],
@@ -22143,8 +22146,10 @@ RPT.sources = function(d) {
     ['City of Vancouver Standard Detail Drawings', 'W4.1 fire hydrant clearance; WW1 manhole; E5.19C utility pole; E1.3 signal controller base'],
     ['City of Vancouver street standards placement guidance', 'street furniture offsets'],
     ['British Columbia Building Code 3.8', 'clear route width ' + GEN.ROUTE_W + ' m in the generator\'s access model (the Parklet Manual value is to be confirmed)']];
-  if (dates.OSM) std.push(['OpenStreetMap contributors (ODbL)', 'street geometry, lanes, buildings and their names / uses, bus stops; fetched ' + day(dates.OSM)]);
-  Object.keys(dates).filter(function(k) { return /^CoV /.test(k); }).sort().forEach(function(k) { std.push(['City of Vancouver open data: ' + k.slice(4), 'fetched ' + day(dates[k])]); });
+  if (dates.OSM) std.push(['OpenStreetMap contributors (ODbL)', 'street geometry, lanes, buildings and their names / uses' + (via.OSM ? '; data ' : ', bus stops; fetched ') + day(dates.OSM)]);
+  if (dates.GTFS) std.push(['TransLink GTFS static feed', 'bus stops and the routes that call there; data ' + day(dates.GTFS)]);
+  Object.keys(dates).filter(function(k) { return /^CoV /.test(k); }).sort().forEach(function(k) { std.push(['City of Vancouver open data: ' + k.slice(4), (via[k] ? 'data ' : 'fetched ') + day(dates[k])]); });
+  if (Object.keys(via).length) std.push(['curbside-data (jennabruggeman.github.io/curbside-data)', 'the sources above in 1 km cells, rebuilt weekly' + (typeof state !== 'undefined' && state.__siteMap && state.__siteMap.cellsBuild ? '; build ' + day(state.__siteMap.cellsBuild) : '')]);
   var mly = (d.renders || []).filter(function(r) { return r.mapillary; });
   if (mly.length) std.push(['Mapillary (CC BY-SA)', 'context photo for the photoreal renders: ' + mly.map(function(r) { return r.mapillary; }).join('; ')]);
   var SV = typeof state !== 'undefined' ? state.__survey : null;   // Brief 21 §11: the survey's facts
@@ -26021,13 +26026,14 @@ RVZP._gallery = async function() {
 </style>
 <div id='smModal' role='dialog' aria-modal='true' aria-labelledby='smTitle'>
   <div class='sm-box'>
-    <div class='sm-head'><h3 id='smTitle'>Locate the parklet on the map</h3><button type='button' class='sm-btn' id='smClose' onclick='SM.close()'>Close</button></div>
+    <div class='sm-head'><h3 id='smTitle'>Locate the parklet on the map</h3><button type='button' class='sm-btn' id='smLayersBtn' aria-pressed='false' aria-controls='smLayers' onclick='GIS.togglePanel()' title='The City, OpenStreetMap and TransLink layers around the site: what the import will read.'>Layers</button><button type='button' class='sm-btn' id='smClose' onclick='SM.close()'>Close</button></div>
     <form class='sm-search' onsubmit='SM.search(); return false;'>
       <input type='search' id='smQuery' placeholder='Search an address in Vancouver, e.g. 1000 Robson St' autocomplete='off' aria-label='Address search'>
       <button type='submit' class='sm-btn' id='smGo'>Search</button>
       <ul class='sm-results' id='smResults' hidden></ul>
     </form>
-    <div id='smMap'></div>
+    <div class='sm-body'><div id='smMap'></div>
+      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><div id='smLayersList'></div></aside></div>
     <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
       <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' disabled>Use this location</button></div>
   </div>
@@ -26194,9 +26200,12 @@ SM.open = async function() {
     SM.map.on('load', function() {
       SM.map.addSource('smWay', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       SM.map.addLayer({ id: 'smWay', type: 'line', source: 'smWay', paint: { 'line-color': '#3AA8E4', 'line-width': 6, 'line-opacity': 0.75 } });
+      if (typeof GIS !== 'undefined') GIS.mapInit(SM.map);   // the city layers under the picked street (Brief 24)
     });
-    SM.map.on('click', function(e) { SM.onClick(e.lngLat.lat, e.lngLat.lng); });
-  } else SM.map.resize();
+    // a click on a point of a city layer opens its popup; any other click picks the street, then the side
+    SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
+  } else { SM.map.resize(); if (typeof GIS !== 'undefined') GIS.onMove(); }
+  try { if (typeof GIS !== 'undefined' && localStorage.getItem('pkt_gis_panel') === '1') GIS.togglePanel(true); } catch (e) {}
   SM.status('Search an address or pan the map, then <b>click the street</b> where the parklet goes.');
 };
 SM.close = function() { document.getElementById('smModal').classList.remove('open'); document.getElementById('smResults').hidden = true; };
@@ -26226,20 +26235,23 @@ SM.search = async function() {
 SM.onClick = async function(lat, lon) {
   if (SM.pick && SM.pick.snap) return SM.setSide(lat, lon);
   SM.status('Finding the street...');
-  var q = '[out:json][timeout:10];way(around:30,' + lat + ',' + lon + ')[highway~"' + SM.HIGHWAY + '"];out tags geom;';
   try {
-    // up to two Overpass servers, 12 s each (through the relay 50 s: it answers within its 45 s): a server that does not answer hands over to the next
-    var j = null, lim = SM.useRelay() && typeof SMP !== 'undefined' ? SMP.OV_TIMEOUT : 12000;
-    for (var k = 0; k < 2 && !j; k++) {
-      var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = setTimeout(function() { if (ctl) ctl.abort({ limitS: lim / 1000 }); }, lim);
-      try { j = await SM.overpass('ways|' + SM.round(lat) + ',' + SM.round(lon), q, ctl && ctl.signal); }
-      catch (e2) { if (e2.offline) throw e2; var h0 = SM.overpassHost(); SM.nextOverpass(); if (k === 1) { e2.message = h0 + ': ' + e2.message + '; click again to try ' + SM.overpassHost(); throw e2; } SM.status('Finding the street... (' + h0 + ' did not answer; trying ' + SM.overpassHost() + ')'); }
-      finally { clearTimeout(tm); }
+    // the streets from the site data's cells (Brief 24 B6): no Overpass request
+    var ways = await GIS.waysNear(lat, lon), idx = GIS._idx || {}, at = (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || new Date().toISOString();
+    if (ways === null) {   // outside the site data: the point as clicked, the axis north-south until it is set in the Site tab
+      var nd = { way: { id: 0, tags: {}, geometry: [{ lat: lat, lon: lon }] }, lat: lat, lon: lon, dist: 0, bearing: 0, dir: 0 };
+      SM.pick = { snap: nd, wayId: 0, name: '', highway: '', tags: {}, fetchedAt: new Date().toISOString(), via: 'none' };
+      SM.map.getSource('smWay').setData({ type: 'FeatureCollection', features: [] });
+      if (SM._mk) SM._mk.remove(); if (SM._mkS) { SM._mkS.remove(); SM._mkS = null; }
+      SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([lon, lat]).addTo(SM.map);
+      document.getElementById('smUse').disabled = true;
+      SM.status('<b>No data for this location</b>: the site data covers the City of Vancouver. The point is kept as clicked, the street axis north-south: set the bearing in the Site tab. Now <b>click the side of the street</b> the parklet is on.');
+      return;
     }
-    var sn = SM.snap(j.elements || [], lat, lon);
+    var sn = SM.snap(ways.filter(function(w) { var s = SM.snap([w], lat, lon); return s && s.dist <= 30; }), lat, lon);
     if (!sn) { SM.status('No street within 30 m of that point. Click on a street.'); return; }
     var t = sn.way.tags || {};
-    SM.pick = { snap: sn, wayId: sn.way.id, name: t.name || '', highway: t.highway || '', tags: t, fetchedAt: new Date().toISOString() };
+    SM.pick = { snap: sn, wayId: sn.way.id, name: t.name || '', highway: t.highway || '', tags: t, fetchedAt: at, via: 'cells' };
     SM.map.getSource('smWay').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: sn.way.geometry.map(function(p) { return [p.lon, p.lat]; }) } });
     if (SM._mk) SM._mk.remove(); if (SM._mkS) { SM._mkS.remove(); SM._mkS = null; }
     SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([sn.lon, sn.lat]).addTo(SM.map);
@@ -26266,7 +26278,7 @@ SM.use = function() {
   var sn = p.snap, addr = SM._addr || (p.name ? p.name + ' (near ' + sn.lat.toFixed(5) + ', ' + sn.lon.toFixed(5) + ')' : '');
   var ad = document.getElementById('streetAddress'); if (ad && addr) ad.value = addr;
   siteUI.custom = [0, 45, 90, 135].indexOf(Math.round(sn.bearing * 100) / 100) < 0;   // show the bearing field for an oblique street
-  state.__siteMap = { wayId: p.wayId, name: p.name, highway: p.highway, lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name, sideBearing: p.side.bearing, address: addr, fetchedAt: p.fetchedAt };
+  state.__siteMap = { wayId: p.wayId, name: p.name, highway: p.highway, lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name, sideBearing: p.side.bearing, address: addr, fetchedAt: p.fetchedAt, via: p.via || null };
   state.__place = { pkZ: 0, corners: [] };   // a new site: the parklet at the located point, its corners not yet found
   siteSet({ lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name }, 'site-map');
   if (typeof SM.onUse === 'function') SM.onUse(state.__siteMap);
@@ -26275,10 +26287,585 @@ SM.use = function() {
 };
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('smModal').classList.contains('open')) SM.close(); });
 </script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// GIS CELLS (Brief 24 Part B): the site data the app reads, from curbside-data (1 km cells, rebuilt weekly)
+// GIS.LAYERS is the one registry: the site map's layers and Layers tab, the legend, the cache keys, the provenance
+// text and the import all read it; nothing else in the app names a layerId. A cell-layer file is fetched only when
+// that layer is on (or the import needs it) and its cell is in view +-1; files are kept in IndexedDB 'pkt-gis'
+// (cellId|layerId|schemaVersion), shown at once from there and refreshed in the background when index.json says the
+// layer is newer. Every request carries the viewport's generation: a response for an older generation is dropped.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+var GIS = { SCHEMA: 1, MAX_CELLS: 12, LS: 'pkt_gis_layers', DB: 'pkt-gis', INDEX_TTL: 24 * 3600 * 1000,
+  BASE: 'https://jennabruggeman.github.io/curbside-data/', gen: 0, genLog: [], cs: new Map(), lru: new Map(), view: [], _idx: null };
+// on a development host, ?gis=fixtures reads the vendored fixtures (test/gis-fixtures/): every VERIFY runs offline
+(function() { if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && /[?&]gis=fixtures\b/.test(location.search)) { GIS.BASE = 'test/gis-fixtures/'; GIS.fixtures = true; } })();
+// feeds: the site facts a layer derives (import reads it even when it is off); imports: the import reads its objects
+GIS.LAYERS = [
+  { id: 'buildings', label: 'Buildings', group: 'OSM', geometry: 'polygon', style: { colour: '#9AA0A6', opacity: 0.32 }, defaultOn: true, legend: 'Footprints, with the City civic address and the use', feeds: [], imports: true, live: true },
+  { id: 'streets', label: 'Streets', group: 'OSM', geometry: 'line', style: { colour: '#E8A33D', width: 2 }, defaultOn: true, legend: 'The ways the map snaps to: lanes, one-way, cycleway and parking tags', feeds: ['roadDir', 'laneCount', 'bikeLane'], imports: true, live: true },
+  { id: 'bikeways', label: 'Bikeways', group: 'City', geometry: 'line', style: { colour: '#2E9E5B', width: 3 }, defaultOn: true, legend: 'Painted, protected, shared and local-street bikeways (the side is approximate)', feeds: ['bikeLane'] },
+  { id: 'truck-routes', label: 'Truck routes', group: 'City', geometry: 'line', style: { colour: '#8E5B3F', width: 3 }, defaultOn: false, legend: 'Truck routes and restricted-access truck routes', feeds: ['routeType'] },
+  { id: 'one-way', label: 'One-way streets', group: 'City', geometry: 'line', style: { colour: '#8C6BC8', width: 3 }, defaultOn: false, legend: 'The City\'s one-way street blocks', feeds: ['roadDir'] },
+  { id: 'bus-routes', label: 'Bus routes', group: 'TransLink', geometry: 'line', style: { colour: '#D6453D', width: 2 }, defaultOn: false, legend: 'Bus route shapes', feeds: ['routeType'] },
+  { id: 'row-width', label: 'Right-of-way widths', group: 'City', geometry: 'point', style: { colour: '#6B7C8C', radius: 3 }, defaultOn: false, legend: 'Property line to property line, not curb to curb', feeds: ['row'] },
+  { id: 'bus-stops', label: 'Bus stops', group: 'TransLink', geometry: 'point', style: { colour: '#D6453D', radius: 4.5 }, defaultOn: true, legend: 'Stops, with the routes that call there', feeds: [], imports: true },
+  { id: 'hydrants', label: 'Fire hydrants', group: 'City', geometry: 'point', style: { colour: '#C0392B', radius: 3.5 }, defaultOn: true, legend: 'Fire hydrants (C05)', feeds: [], imports: true },
+  { id: 'trees', label: 'Street trees', group: 'City', geometry: 'point', style: { colour: '#3F8F3F', radius: 3 }, defaultOn: true, legend: 'Public trees, with the species and the diameter', feeds: [], imports: true },
+  { id: 'transit-stations', label: 'Rapid transit stations', group: 'City', geometry: 'point', style: { colour: '#1B6FB8', radius: 5 }, defaultOn: false, legend: 'SkyTrain stations', feeds: [], imports: true },
+  { id: 'pois', label: 'Shops and places', group: 'OSM', geometry: 'point', style: { colour: '#C99A2E', radius: 3 }, defaultOn: false, legend: 'Shops, offices and amenities (they set a building\'s use)', feeds: [], imports: true, live: true }
+];
+GIS.GROUPS = { City: 'City of Vancouver', OSM: 'OpenStreetMap', TransLink: 'TransLink' };
+GIS.byId = function(id) { return GIS.LAYERS.find(function(l) { return l.id === id; }); };
+// the toggle set: a per-viewer convenience (localStorage), never part of the design
+GIS.on = (function() { var o = {}; GIS.LAYERS.forEach(function(l) { o[l.id] = l.defaultOn; }); try { var s = JSON.parse(localStorage.getItem(GIS.LS) || 'null'); if (s) Object.keys(o).forEach(function(k) { if (typeof s[k] === 'boolean') o[k] = s[k]; }); } catch (e) {} return o; })();
+GIS.saveOn = function() { try { localStorage.setItem(GIS.LS, JSON.stringify(GIS.on)); } catch (e) {} };
+
+// ── The grid (index.json › grid): UTM zone 10N, the build's own projection (build/lib/geo.js) ────────────────────
+GIS.utm = function(lon, lat) {
+  var A = 6378137, F = 1 / 298.257223563, K0 = 0.9996, E2 = F * (2 - F), EP2 = E2 / (1 - E2), L0 = -123 * Math.PI / 180;
+  var p = lat * Math.PI / 180, s = Math.sin(p), c = Math.cos(p), t = Math.tan(p), N = A / Math.sqrt(1 - E2 * s * s), T = t * t, C = EP2 * c * c, a = c * (lon * Math.PI / 180 - L0);
+  var M = A * ((1 - E2 / 4 - 3 * E2 * E2 / 64 - 5 * Math.pow(E2, 3) / 256) * p - (3 * E2 / 8 + 3 * E2 * E2 / 32 + 45 * Math.pow(E2, 3) / 1024) * Math.sin(2 * p) + (15 * E2 * E2 / 256 + 45 * Math.pow(E2, 3) / 1024) * Math.sin(4 * p) - (35 * Math.pow(E2, 3) / 3072) * Math.sin(6 * p));
+  return [K0 * N * (a + (1 - T + C) * Math.pow(a, 3) / 6 + (5 - 18 * T + T * T + 72 * C - 58 * EP2) * Math.pow(a, 5) / 120) + 500000,
+    K0 * (M + N * t * (a * a / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(a, 4) / 24 + (61 - 58 * T + T * T + 600 * C - 330 * EP2) * Math.pow(a, 6) / 720))];
+};
+GIS.cellAt = function(lon, lat) { var g = GIS._idx && GIS._idx.grid; if (!g) return null; var u = GIS.utm(lon, lat); return [Math.floor((u[0] - g.origin[0]) / g.size), Math.floor((u[1] - g.origin[1]) / g.size)]; };
+// the cells a lon / lat box covers, with n neighbours all round
+GIS.cellsIn = function(w, s, e, n, ring) {
+  var cs = [[w, s], [w, n], [e, s], [e, n]].map(function(p) { return GIS.cellAt(p[0], p[1]); }); if (!cs[0]) return [];
+  var x0 = Math.min.apply(null, cs.map(function(c) { return c[0]; })) - ring, x1 = Math.max.apply(null, cs.map(function(c) { return c[0]; })) + ring;
+  var y0 = Math.min.apply(null, cs.map(function(c) { return c[1]; })) - ring, y1 = Math.max.apply(null, cs.map(function(c) { return c[1]; })) + ring, out = [];
+  for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) out.push(x + '_' + y);
+  return out;
+};
+
+// ── IndexedDB 'pkt-gis': cells (cellId|layerId|schemaVersion) and meta (the index) ────────────────────────────────
+GIS._db = function() {
+  if (GIS._dbp) return GIS._dbp;
+  GIS._dbp = new Promise(function(res, rej) {
+    var q = indexedDB.open(GIS.DB, 1);
+    q.onupgradeneeded = function() { q.result.createObjectStore('cells', { keyPath: 'key' }); q.result.createObjectStore('meta', { keyPath: 'key' }); };
+    q.onsuccess = function() { res(q.result); }; q.onerror = function() { rej(q.error); };
+  });
+  return GIS._dbp;
+};
+GIS.idb = async function(store, mode, fn) {
+  try { var db = await GIS._db(); return await new Promise(function(res, rej) { var t = db.transaction(store, mode), r = fn(t.objectStore(store)); t.oncomplete = function() { res(r && r.result); }; t.onerror = function() { rej(t.error); }; t.onabort = function() { rej(t.error); }; }); }
+  catch (e) { return undefined; }
+};
+GIS.idbGet = function(store, key) { return GIS.idb(store, 'readonly', function(s) { return s.get(key); }); };
+GIS.idbPut = function(store, v) { return GIS.idb(store, 'readwrite', function(s) { return s.put(v); }); };
+GIS.idbDel = function(store, key) { return GIS.idb(store, 'readwrite', function(s) { return s.delete(key); }); };
+GIS.idbKeys = function(store) { return GIS.idb(store, 'readonly', function(s) { return s.getAllKeys(); }); };
+
+// ── index.json: once a session, stale-while-revalidate (24 h in IndexedDB) ─────────────────────────────────────────
+GIS.fetchJSON = async function(url, signal) { var r = await fetch(url, { cache: 'no-cache', signal: signal }); if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } return r.json(); };
+GIS.index = async function() {
+  if (GIS._idx) return GIS._idx;
+  if (GIS._idxP) return GIS._idxP;
+  GIS._idxP = (async function() {
+    var key = 'index|' + GIS.BASE, c = await GIS.idbGet('meta', key);
+    var fetchIt = async function() {
+      var j = await GIS.fetchJSON(GIS.BASE + 'index.json');
+      if (!j || !j.grid || !j.layers || !j.cells) throw new Error('not a curbside-data index');
+      GIS.idbPut('meta', { key: key, data: j, storedAt: Date.now() });
+      var old = GIS._idx; GIS._idx = j; GIS.onIndex(j, old); return j;
+    };
+    if (c && c.data) {
+      GIS._idx = c.data;
+      if (Date.now() - c.storedAt > GIS.INDEX_TTL) fetchIt().catch(function() {});   // shown now, refreshed behind
+      return GIS._idx;
+    }
+    try { return await fetchIt(); } catch (e) { GIS._idxErr = e; GIS._idxP = null; throw e; }
+  })();
+  return GIS._idxP;
+};
+// a newer index: a layer whose schemaVersion changed drops its whole cache; a newer layer refetches what is in view
+// (the view is refreshed once the drops are done, so a dropped layer is fetched again under its new version)
+GIS.onIndex = function(j, old) {
+  var drops = [];
+  GIS.LAYERS.forEach(function(L) {
+    var m = j.layers[L.id], o = old && old.layers[L.id]; if (!m) return;
+    if (o && o.schemaVersion !== m.schemaVersion) drops.push(GIS.dropLayer(L.id));
+    else if (o && o.updatedAt !== m.updatedAt) GIS.cs.forEach(function(v, k) { if (k.split('|')[1] === L.id && v.source !== 'osm-live') v.stale = true; });
+  });
+  return Promise.all(drops).then(GIS.refresh);
+};
+GIS.dropLayer = async function(lid) {
+  GIS.cs.forEach(function(v, k) { if (k.split('|')[1] === lid) GIS.cs.delete(k); });   // first: nothing reads the old version meanwhile
+  var keys = (await GIS.idbKeys('cells')) || [];
+  for (var k of keys) if (String(k).split('|')[1] === lid) await GIS.idbDel('cells', k);
+  GIS.dirty(lid);
+};
+
+// ── A cell-layer: idle -> loading -> ready | error ─────────────────────────────────────────────────────────────────
+// why (the Layers tab's text): 'nodata' (the cell is not in the index), 'offline' (no network and nothing cached),
+// 'error' (the file could not be read)
+GIS.key = function(cell, lid) { return cell + '|' + lid; };
+GIS.valid = function(fc) { return fc && fc.type === 'FeatureCollection' && Array.isArray(fc.features) && fc.features.every(function(f) { return f && f.id && f.geometry && f.properties; }); };
+GIS.load = async function(cell, lid, gen, signal, opts) {
+  opts = opts || {};
+  var idx = await GIS.index(), k = GIS.key(cell, lid), cur = GIS.cs.get(k);
+  if (cur && cur.st === 'ready' && !cur.stale && !opts.force) return cur;
+  // a request in flight is joined (it then belongs to the newest generation that wants it), unless a pan aborted it;
+  // an import (no generation) does not join a view's request, which a pan may abort
+  if (cur && cur.st === 'loading' && cur.p && !(cur.signal && cur.signal.aborted) && !(gen == null && cur.signal)) { if (gen == null) cur.keep = true; else if (cur.gen != null && gen > cur.gen) cur.gen = gen; return cur.p; }
+  var entry = idx.cells[cell] && idx.cells[cell][lid], meta = idx.layers[lid];
+  if (!idx.cells[cell]) { var nd = { st: 'error', why: 'nodata', fc: null }; GIS.cs.set(k, nd); return nd; }
+  if (!entry || !meta) { var em = { st: 'ready', fc: { type: 'FeatureCollection', features: [] }, updatedAt: meta && meta.updatedAt }; GIS.cs.set(k, em); GIS.dirty(lid); return em; }
+  var dbKey = k + '|' + meta.schemaVersion, st = { st: 'loading', gen: gen, signal: signal }, mine = function() { return GIS.cs.get(k) === st; };
+  GIS.cs.set(k, st);
+  st.p = (async function() {
+    var c = await GIS.idbGet('cells', dbKey);
+    if (c && !GIS.valid(c.fc)) { await GIS.idbDel('cells', dbKey); c = null; GIS.log('corrupt ' + dbKey + ': dropped, refetched'); }   // corrupt: dropped, refetched silently
+    if (c) {
+      var ready = { st: 'ready', fc: c.fc, updatedAt: c.updatedAt, source: c.source || 'cells', liveAt: c.liveAt || null };
+      // a live refresh is kept until the build is newer than it
+      if ((c.source === 'osm-live' && Date.parse(c.liveAt) > Date.parse(meta.updatedAt)) || c.updatedAt === meta.updatedAt || opts.cacheOnly) { GIS.cs.set(k, ready); GIS.dirty(lid); return ready; }
+      GIS.cs.set(k, Object.assign(ready, { stale: true })); GIS.dirty(lid);   // shown now; the newer file follows
+    }
+    if (opts.cacheOnly) { var nc = { st: 'error', why: 'offline', fc: null }; GIS.cs.set(k, nc); return nc; }
+    try {
+      var n = entry[2] > 1 ? entry[2] : 1, parts = [];
+      for (var i = 1; i <= n; i++) parts.push(GIS.fetchJSON(GIS.BASE + 'cells/' + cell + '/' + lid + (n > 1 ? '.' + i : '') + '.json', signal));
+      var got = await Promise.all(parts), fc = { type: 'FeatureCollection', features: [].concat.apply([], got.map(function(g) { return g.features || []; })) };
+      if (!GIS.valid(fc)) throw new Error('not a cell file');
+      if (!st.keep && st.gen != null && st.gen < GIS.gen) {   // a pan moved on while this was in flight and no newer request wants it: never applied
+        GIS.genLog.push({ key: k, gen: st.gen, current: GIS.gen, t: Date.now() });
+        if (!c && mine()) GIS.cs.delete(k); return null;
+      }
+      GIS.idbPut('cells', { key: dbKey, fc: fc, updatedAt: meta.updatedAt, storedAt: Date.now(), source: 'cells' });
+      var r = { st: 'ready', fc: fc, updatedAt: meta.updatedAt, source: 'cells' }; GIS.cs.set(k, r); GIS.dirty(lid); return r;
+    } catch (e) {
+      if (e && e.name === 'AbortError') { if (!c && mine()) GIS.cs.delete(k); return null; }
+
+      if (c) { var kept = GIS.cs.get(k); if (kept) kept.stale = false; return kept; }   // the cached file stays
+      var er = { st: 'error', why: navigator.onLine === false || (e && /fetch|network/i.test(e.message)) ? 'offline' : 'error', fc: null, err: e && e.message }; GIS.cs.set(k, er); GIS.dirty(lid); return er;
+    }
+  })();
+  return st.p;
+};
+// the layers and cells wanted now: for the view (a new generation, the older one's requests aborted) or for an import
+GIS.ensure = function(lids, cells, opts) {
+  opts = opts || {};
+  return Promise.all([].concat.apply([], cells.map(function(c) { return lids.map(function(l) { return GIS.load(c, l, opts.gen, opts.signal, opts); }); })));
+};
+GIS.setView = function(cells) {
+  GIS.gen++; if (GIS._ctl) GIS._ctl.abort(); GIS._ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  GIS.view = cells; var now = Date.now(); cells.forEach(function(c) { GIS.lru.set(c, now); });
+  var lids = GIS.LAYERS.filter(function(l) { return GIS.on[l.id]; }).map(function(l) { return l.id; });
+  GIS.evict();
+  return GIS.ensure(lids, cells, { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal });
+};
+// at most MAX_CELLS cells resident; the least recently in view go (never one in view, never one an import holds)
+GIS.evict = function() {
+  var res = new Set(); GIS.cs.forEach(function(v, k) { res.add(k.split('|')[0]); });
+  if (res.size <= GIS.MAX_CELLS) return;
+  var keep = new Set(GIS.view.concat(GIS._held || [])), out = [...res].filter(function(c) { return !keep.has(c); }).sort(function(a, b) { return (GIS.lru.get(a) || 0) - (GIS.lru.get(b) || 0); });
+  var n = res.size - GIS.MAX_CELLS, gone = {};
+  out.slice(0, n).forEach(function(c) { GIS.cs.forEach(function(v, k) { if (k.split('|')[0] === c) { GIS.cs.delete(k); gone[k.split('|')[1]] = 1; } }); GIS.lru.delete(c); });
+  Object.keys(gone).forEach(GIS.dirty);
+};
+GIS.refresh = function() { if (GIS.view.length) GIS.setView(GIS.view); };
+GIS.log = function(s) { (GIS._log = GIS._log || []).push(s); if (GIS._log.length > 200) GIS._log.shift(); };
+
+// ── A layer's features across the resident cells, deduplicated by id (a line's pieces in neighbouring cells joined) ─
+GIS.features = function(lid) {
+  var by = new Map();
+  GIS.cs.forEach(function(v, k) {
+    if (k.split('|')[1] !== lid || v.st !== 'ready' || !v.fc) return;
+    v.fc.features.forEach(function(f) {
+      var o = by.get(f.id);
+      if (!o) { by.set(f.id, { type: 'Feature', id: f.id, properties: f.properties, geometry: f.geometry }); return; }
+      var g = f.geometry, h = o.geometry;
+      if ((g.type === 'LineString' || g.type === 'MultiLineString') && (h.type === 'LineString' || h.type === 'MultiLineString')) {
+        var parts = (h.type === 'LineString' ? [h.coordinates] : h.coordinates).concat(g.type === 'LineString' ? [g.coordinates] : g.coordinates);
+        var seen = {}; parts = parts.filter(function(p) { var s = JSON.stringify(p); return seen[s] ? false : (seen[s] = 1); });
+        o.geometry = { type: 'MultiLineString', coordinates: parts };
+      }
+    });
+  });
+  return [...by.values()];
+};
+// a line's pieces chained end to start where they meet (a way clipped at cell edges, whole again)
+GIS.joinParts = function(parts) {
+  var out = parts.map(function(p) { return p.slice(); }), eq = function(a, b) { return Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6; };
+  for (var m = true; m; ) {
+    m = false;
+    for (var i = 0; i < out.length && !m; i++) for (var j = 0; j < out.length && !m; j++) {
+      if (i === j) continue; var A = out[i], B = out[j];
+      if (eq(A[A.length - 1], B[0])) { out[i] = A.concat(B.slice(1)); out.splice(j, 1); m = true; }
+      else if (eq(A[A.length - 1], B[B.length - 1])) { out[i] = A.concat(B.slice(0, -1).reverse()); out.splice(j, 1); m = true; }
+    }
+  }
+  return out;
+};
+// the state of a layer over the cells in view, for its row: loading / the reason nothing is shown / stale / live
+GIS.rowState = function(lid) {
+  var idx = GIS._idx, meta = idx && idx.layers[lid], st = { loading: 0, ready: 0, nodata: 0, offline: 0, error: 0, live: null, stale: !!(meta && meta.stale) };
+  GIS.view.forEach(function(c) { var v = GIS.cs.get(GIS.key(c, lid)); if (!v) return; if (v.st === 'loading') st.loading++; else if (v.st === 'ready') { st.ready++; if (v.source === 'osm-live') st.live = v.liveAt; } else st[v.why || 'error']++; });
+  return st;
+};
+</script>
+<script>
+// ── Changes reach the map once a frame: every layer changed in a frame gets one setData (Brief 24 B3) ─────────────
+// (a hidden page has no animation frames: a timer stands in, so a background tab still settles)
+GIS._dirty = new Set(); GIS._listeners = [];
+GIS.listen = function(fn) { GIS._listeners.push(fn); };
+GIS.dirty = function(lid) {
+  GIS._dirty.add(lid); if (GIS._pend) return;
+  var run = function() { if (!GIS._pend) return; GIS._pend = false; clearTimeout(GIS._pendT); var d = [...GIS._dirty]; GIS._dirty.clear(); GIS.frames = (GIS.frames || 0) + 1; GIS._listeners.forEach(function(fn) { try { fn(d); } catch (e) { console.warn('[gis]', e); } }); };
+  GIS._pend = true; requestAnimationFrame(run); GIS._pendT = setTimeout(run, 150);
+};
+
+// ── The site map's layers: one source and one layer per registry entry, added once, in registry order, under the
+// picked street; a toggle is a visibility change only (Brief 24 B3) ────────────────────────────────────────────────
+GIS.src = function(lid) { return 'gis-' + lid; };
+GIS.mapInit = function(map) {
+  if (GIS.map === map && map.getSource(GIS.src(GIS.LAYERS[0].id))) return;
+  GIS.map = map;
+  var hov = function(a, b) { return ['case', ['boolean', ['feature-state', 'hover'], false], a, b]; };
+  GIS.LAYERS.forEach(function(L) {
+    var id = GIS.src(L.id), S = L.style;
+    map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' });
+    var spec = L.geometry === 'polygon' ? { type: 'fill', paint: { 'fill-color': S.colour, 'fill-opacity': hov(0.62, S.opacity), 'fill-outline-color': '#5A6068' } }
+      : L.geometry === 'line' ? { type: 'line', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': S.colour, 'line-width': hov(S.width + 2.5, S.width), 'line-opacity': 0.9 } }
+      : { type: 'circle', paint: { 'circle-radius': hov(S.radius + 2.5, S.radius), 'circle-color': S.colour, 'circle-stroke-width': 1, 'circle-stroke-color': '#FFFFFF' } };
+    map.addLayer({ id: id, type: spec.type, source: id, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, spec.layout || {}), paint: spec.paint }, map.getLayer('smWay') ? 'smWay' : undefined);
+  });
+  // hover: one feature at a time, through feature-state (no DOM per feature)
+  var hovered = null;
+  map.on('mousemove', function(e) {
+    var f = GIS.hit(e.point, true);
+    if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; }
+    if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); }
+    map.getCanvas().style.cursor = f ? 'pointer' : '';
+  });
+  map.on('moveend', GIS.onMove);
+  GIS.listen(function(lids) {
+    if (!GIS.map) return;
+    lids.forEach(function(l) { var s = GIS.map.getSource(GIS.src(l)); if (s) s.setData({ type: 'FeatureCollection', features: GIS.features(l) }); });
+    GIS.renderRows();
+  });
+  GIS.onMove();
+};
+// the visible layers' feature under a point (points first, then lines, then buildings); all: any geometry
+GIS.hit = function(pt, all) {
+  var map = GIS.map, ls = GIS.LAYERS.filter(function(l) { return GIS.on[l.id] && (all || l.geometry === 'point'); }).map(function(l) { return GIS.src(l.id); }).reverse();
+  if (!ls.length) return null;
+  var fs = map.queryRenderedFeatures([[pt.x - 4, pt.y - 4], [pt.x + 4, pt.y + 4]], { layers: ls });
+  fs.sort(function(a, b) { return ls.indexOf(a.layer.id) - ls.indexOf(b.layer.id); });
+  return fs[0] || null;
+};
+// a click on a point feature opens its popup (the street pick is not run); anything else is the pick's
+GIS.popupAt = function(e, f) {
+  f = f || GIS.hit(e.point, false); if (!f) return false;
+  var p = f.properties || {}, lid = String(f.layer.id).replace(/^gis-/, ''), L = GIS.byId(lid), pr = typeof p.props === 'string' ? JSON.parse(p.props) : (p.props || {});
+  var rows = GIS.describe(lid, pr), meta = GIS._idx && GIS._idx.layers[lid];
+  var html = "<div class='gis-pop'><b>" + SM.esc(L.label.replace(/s$/, '')) + '</b>' + rows.map(function(r) { return '<div>' + SM.esc(r) + '</div>'; }).join('') +
+    "<div class='gis-pop-src'>" + SM.esc(GIS.GROUPS[L.group]) + (meta ? ', data ' + String(meta.updatedAt).slice(0, 10) : '') + '</div></div>';
+  if (GIS._pop) GIS._pop.remove();
+  GIS._pop = new maplibregl.Popup({ closeButton: true, maxWidth: '260px' }).setLngLat(e.lngLat).setHTML(html).addTo(GIS.map);
+  return true;
+};
+GIS.describe = function(lid, p) {
+  var r = [], add = function(s) { if (s) r.push(s); };
+  if (lid === 'buildings') { add(p.name); add(p.address || 'no City address point'); add([p.use, p.kind && p.kind !== 'yes' ? p.kind : null, p.levels ? p.levels + ' storeys' : null].filter(Boolean).join(', ')); }
+  else if (lid === 'bus-stops') { add(p.name); add(p.code ? 'Stop ' + p.code : null); add(p.routes && p.routes.length ? 'Routes ' + p.routes.join(', ') : null); }
+  else if (lid === 'hydrants') add('Hydrant ' + (p.hydrantId || ''));
+  else if (lid === 'trees') { add(p.species); add([p.genus, p.speciesName].filter(Boolean).join(' ')); add([p.dbh ? 'diameter ' + p.dbh + ' cm' : null, p.height ? 'height class ' + p.height : null].filter(Boolean).join(', ')); }
+  else if (lid === 'row-width') { add(p.width + ' m (' + p.widthFt + ' ft) property line to property line'); add('not curb to curb'); }
+  else if (lid === 'transit-stations') add(p.name);
+  else if (lid === 'pois') { add(p.name); add([p.kind, p.use].filter(Boolean).join(', ')); }
+  else if (lid === 'streets') { add(p.name); add([p.highway, p.lanes ? p.lanes + ' lanes' : null, p.oneway === 'no' ? 'two-way' : 'one-way'].filter(Boolean).join(', ')); }
+  else if (lid === 'bikeways') { add(p.name); add([p.type, p.subtype].filter(Boolean).join(', ')); add('side approximate'); }
+  else if (lid === 'one-way') { add(p.name); add(p.use); }
+  else if (lid === 'truck-routes') add(p.name);
+  else if (lid === 'bus-routes') { add('Route ' + p.route); add(p.name); }
+  return r;
+};
+// the view's cells: those in view first, then their neighbours while the resident cap allows; none when the view
+// alone needs more than the cap (zoomed out: the tab says so)
+GIS.onMove = async function() {
+  var map = GIS.map; if (!map) return;
+  try { await GIS.index(); } catch (e) { GIS.renderRows(); return; }
+  var b = map.getBounds(), inView = GIS.cellsIn(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 0);
+  var cells = inView.length > GIS.MAX_CELLS ? [] : inView.slice();
+  if (cells.length) GIS.cellsIn(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 1).forEach(function(c) { if (cells.length < GIS.MAX_CELLS && cells.indexOf(c) < 0) cells.push(c); });
+  GIS.zoomOut = inView.length > GIS.MAX_CELLS;
+  GIS.setView(cells);
+  GIS.renderRows();
+};
+// the features of a layer in view (a point inside, a line or polygon whose box overlaps)
+GIS.countInView = function(lid) {
+  if (!GIS.map) return 0; var b = GIS.map.getBounds(), w = b.getWest(), s = b.getSouth(), e = b.getEast(), n = b.getNorth(), c = 0;
+  GIS.features(lid).forEach(function(f) {
+    var g = f.geometry, pts = g.type === 'Point' ? [g.coordinates] : g.type === 'LineString' ? g.coordinates : g.type === 'MultiLineString' || g.type === 'Polygon' ? [].concat.apply([], g.coordinates) : [];
+    if (g.type === 'Point') { if (pts[0][0] >= w && pts[0][0] <= e && pts[0][1] >= s && pts[0][1] <= n) c++; return; }
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; pts.forEach(function(p) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; });
+    if (x1 >= w && x0 <= e && y1 >= s && y0 <= n) c++;
+  });
+  return c;
+};
+
+// ── The Layers tab (Brief 24 B4) ─────────────────────────────────────────────────────────────────────────────────
+GIS.togglePanel = function(v) {
+  var p = document.getElementById('smLayers'), b = document.getElementById('smLayersBtn'); if (!p) return;
+  var open = v == null ? p.hidden : !!v; p.hidden = !open; if (b) b.setAttribute('aria-pressed', open ? 'true' : 'false');
+  try { localStorage.setItem('pkt_gis_panel', open ? '1' : '0'); } catch (e) {}
+  if (open) GIS.buildRows();
+  if (GIS.map) setTimeout(function() { GIS.map.resize(); }, 0);
+};
+GIS.buildRows = function() {
+  var p = document.getElementById('smLayersList'); if (!p || p.dataset.built) { GIS.renderRows(); return; }
+  p.dataset.built = '1';
+  p.innerHTML = Object.keys(GIS.GROUPS).map(function(g) {
+    return "<div class='gis-grp' role='group' aria-label='" + GIS.GROUPS[g] + "'><div class='gis-grp-h'>" + GIS.GROUPS[g] + '</div>' + GIS.LAYERS.filter(function(l) { return l.group === g; }).map(function(L) {
+      var sw = L.geometry === 'point' ? 'border-radius:50%;width:9px;height:9px;' : L.geometry === 'line' ? 'height:3px;width:16px;' : 'width:14px;height:10px;opacity:.6;';
+      return "<div class='gis-row' data-l='" + L.id + "'><label class='gis-lab' title='" + SM.esc(L.legend) + "'><input type='checkbox' id='gisChk_" + L.id + "' data-l='" + L.id + "'" + (GIS.on[L.id] ? ' checked' : '') + " onchange='GIS.toggle(this.dataset.l, this.checked)'>" +
+        "<span class='gis-sw' style='" + sw + 'background:' + L.style.colour + "'></span><span class='gis-name'>" + SM.esc(L.label) + "</span></label><span class='gis-n' id='gisN_" + L.id + "'></span>" +
+        (L.live ? "<button type='button' class='gis-live' id='gisLive_" + L.id + "' onclick='GIS.live(\"" + L.id + "\")' title='Fetches this layer for the view from OpenStreetMap now (Overpass). The site facts change only when you import again.'>&#8635; live</button>" : '') +
+        "<span class='gis-src' id='gisSrc_" + L.id + "'></span></div>";
+    }).join('') + '</div>';
+  }).join('') + "<button type='button' class='gis-reset txt-btn' onclick='GIS.reset()'>Reset to defaults</button>";
+  // keyboard: space toggles (the checkbox's own), up / down move between rows
+  p.addEventListener('keydown', function(e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    var bs = [].slice.call(p.querySelectorAll("input[type='checkbox']")), i = bs.indexOf(document.activeElement); if (i < 0) return;
+    e.preventDefault(); var n = bs[Math.max(0, Math.min(bs.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]; n.focus();
+  });
+  GIS.renderRows();
+};
+GIS.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
+GIS.renderRows = function() {
+  var p = document.getElementById('smLayersList'); if (!p || !p.dataset.built || document.getElementById('smLayers').hidden) return;
+  var idx = GIS._idx;
+  GIS.LAYERS.forEach(function(L) {
+    var n = document.getElementById('gisN_' + L.id), s = document.getElementById('gisSrc_' + L.id), c = document.getElementById('gisChk_' + L.id); if (!s) return;
+    if (c && c.checked !== !!GIS.on[L.id]) c.checked = !!GIS.on[L.id];
+    var meta = idx && idx.layers[L.id], st = GIS.rowState(L.id), txt;
+    if (!idx) txt = GIS._idxErr ? 'not cached here' : 'loading…';
+    else if (!GIS.on[L.id]) txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
+    else if (GIS.zoomOut) txt = 'zoom in to see this layer';
+    else if (st.live) txt = 'live OSM ' + new Date(st.live).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    else if (st.loading && !st.ready) txt = 'loading…';
+    else if (!st.ready && st.nodata && !st.offline) txt = 'no data for this location';
+    else if (!st.ready && st.offline) txt = 'not cached here';
+    else if (!st.ready && st.error) txt = 'could not be read';
+    else if (meta && meta.stale) txt = GIS.GROUPS[L.group].replace('City of Vancouver', 'City') + ' data from ' + GIS.day(meta.updatedAt) + ', refresh failed upstream';
+    else txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
+    s.textContent = txt;
+    if (n) n.textContent = GIS.on[L.id] && st.ready && !GIS.zoomOut ? String(GIS.countInView(L.id)) : '';
+  });
+};
+GIS.toggle = function(lid, v) {
+  GIS.on[lid] = !!v; GIS.saveOn();
+  if (GIS.map && GIS.map.getLayer(GIS.src(lid))) GIS.map.setLayoutProperty(GIS.src(lid), 'visibility', v ? 'visible' : 'none');
+  if (v && GIS.view.length) GIS.ensure([lid], GIS.view, { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal });
+  GIS.renderRows();
+};
+// (GIS.live, the live refresh, is in the next script: Brief 24 B6)
+GIS.reset = function() { GIS.LAYERS.forEach(function(l) { GIS.toggle(l.id, l.defaultOn); }); };
+</script>
+<script>
+// ── The import reads the cells (Brief 24 B7) ─────────────────────────────────────────────────────────────────────────
+// GIS.importData loads every layer the import needs (a layer with feeds or imports, on or off in the Layers tab; the
+// tab is not changed) for the cells within the import radius, and hands SMP.importContext the shapes the Overpass
+// query and the six City requests gave it: OSM ways and nodes with their tags, City rows. The street, the buildings,
+// the addresses and the objects then go through the same apply code as before. Overpass is never asked.
+GIS.wayTags = function(p) {
+  var t = { highway: p.highway }, s = function(k, v) { if (v !== null && v !== undefined && v !== '') t[k] = String(v); };
+  s('name', p.name); s('oneway', p.oneway === 'yes' ? 'yes' : p.oneway === 'reverse' ? '-1' : 'no');
+  s('lanes', p.lanes); s('lanes:forward', p.lanesForward); s('lanes:backward', p.lanesBackward); s('width', p.width); s('maxspeed', p.maxspeed);
+  if (p.cycleway) { s('cycleway:left', p.cycleway.left); s('cycleway:right', p.cycleway.right); }
+  if (p.parking) { s('parking:left', p.parking.left); s('parking:right', p.parking.right); }
+  return t;
+};
+GIS.linesOf = function(g) { return g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : g.type === 'Polygon' ? [g.coordinates[0]] : []; };
+// the streets layer as OSM ways ({id, tags, geometry [{lat, lon}]}), a way's pieces from neighbouring cells joined
+// (a way broken at the data's edge stays in parts, each a way with the same id)
+GIS.ways = function() {
+  var out = [];
+  GIS.features('streets').forEach(function(f) {
+    var p = f.properties.props || {};
+    GIS.joinParts(GIS.linesOf(f.geometry)).forEach(function(pt) { out.push({ type: 'way', id: p.wayId, tags: GIS.wayTags(p), geometry: pt.map(function(q) { return { lat: q[1], lon: q[0] }; }) }); });
+  });
+  return out;
+};
+// metres from the frame's origin to a geometry, and the axis (0-179) of the nearest segment (null for a point)
+GIS.near = function(T, g) {
+  var best = { d: Infinity, b: null };
+  if (g.type === 'Point') { var v = T.to(g.coordinates[1], g.coordinates[0]); return { d: Math.hypot(v.e, v.n), b: null }; }
+  GIS.linesOf(g).forEach(function(l) {
+    var P = l.map(function(q) { var w = T.to(q[1], q[0]); return [w.e, w.n]; });
+    for (var i = 1; i < P.length; i++) {
+      var a = P[i - 1], c = P[i], dx = c[0] - a[0], dy = c[1] - a[1], L2 = dx * dx + dy * dy; if (L2 < 1e-9) continue;
+      var t = Math.max(0, Math.min(1, -(a[0] * dx + a[1] * dy) / L2)), d = Math.hypot(a[0] + t * dx, a[1] + t * dy);
+      if (d < best.d) best = { d: d, b: ((Math.atan2(dx, dy) * 180 / Math.PI) % 180 + 180) % 180 };
+    }
+  });
+  return best;
+};
+GIS.parallel = function(b, axis, tol) { if (b == null || axis == null) return false; var a = Math.abs(b - axis) % 180; return Math.min(a, 180 - a) <= tol; };
+GIS.pt = function(f) { var c = f.geometry.coordinates; return { lon: c[0], lat: c[1] }; };
+GIS.centroid = function(ring) { var x = 0, y = 0, n = ring.length - 1 || 1; for (var i = 0; i < n; i++) { x += ring[i][0]; y += ring[i][1]; } return { lon: x / n, lat: y / n }; };
+GIS.importData = async function(la, lo, sm) {
+  var idx = await GIS.index();   // fails only with no network and no cached index
+  var R = SMP.R, pad = R + 60, dLat = pad / 110574, dLon = pad / (111320 * Math.cos(la * Math.PI / 180));
+  var cells = GIS.cellsIn(lo - dLon, la - dLat, lo + dLon, la + dLat, 0), inIdx = cells.filter(function(c) { return idx.cells[c]; });
+  var lids = GIS.LAYERS.filter(function(l) { return l.feeds.length || l.imports; }).map(function(l) { return l.id; });
+  GIS._held = cells;   // eviction keeps them while the import reads them
+  await GIS.ensure(lids, cells, {});
+  var missing = lids.filter(function(lid) { return cells.some(function(c) { var v = GIS.cs.get(GIS.key(c, lid)); return !v || (v.st === 'error' && v.why !== 'nodata'); }); });
+  if (inIdx.length && missing.length) { var e = new Error('the site data (' + missing.join(', ') + ') is not cached here and could not be fetched'); e.offline = navigator.onLine === false; throw e; }
+  var T = SM.enu(la, lo), within = function(f, r) { return GIS.near(T, f.geometry).d <= r; };
+  var day = function(lid) { return idx.layers[lid] ? idx.layers[lid].updatedAt : null; };
+  var at = { osm: (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || day('streets'), gtfs: day('bus-stops') };
+  var A = { nodata: !inIdx.length, at: at, notes: [], cells: inIdx };
+  if (A.nodata) A.notes.push('no data for this location: the site is outside the site data, so the street is an estimate');
+  // the street: the picked way (its part at the site), else the nearest within 30 m; the other ways within 60 m are the
+  // dual-carriageway candidates (SMP.pairOf keeps a one-way way of the same name within 20 m)
+  var axis = +sm.streetBearing || 0, dist = function(w) { var s = SM.snap([w], la, lo); return s ? s.dist : Infinity; };
+  var ways = GIS.ways().filter(function(w) { return dist(w) <= 60; });
+  var mine = ways.filter(function(w) { return sm.wayId && w.id === sm.wayId; }).sort(function(a, b) { return dist(a) - dist(b); });
+  var sn = mine.length ? null : SM.snap(ways.filter(function(w) { return dist(w) <= 30; }), la, lo);
+  A.way = mine[0] || (sn && sn.way) || null;
+  if (!A.way) {   // no street in the data here: a way along the located axis, with what the pick knew
+    var ax = axis * Math.PI / 180, s0 = T.from(-Math.sin(ax) * 40, -Math.cos(ax) * 40), s1 = T.from(Math.sin(ax) * 40, Math.cos(ax) * 40);
+    A.way = { type: 'way', id: sm.wayId || 0, tags: Object.assign({ highway: sm.highway || 'unclassified' }, sm.name ? { name: sm.name } : {}), geometry: [{ lat: s0.lat, lon: s0.lon }, { lat: s1.lat, lon: s1.lon }] };
+    if (!A.nodata) A.notes.push('the picked street is not in the site data: its lanes and direction are estimates');
+  }
+  A.cands = ways.filter(function(w) { return w.id !== A.way.id; });
+  // bus and truck routes along the street at the site (within 20 m, within 30 degrees of its axis)
+  var along = function(f) { var n = GIS.near(T, f.geometry); return n.d <= 20 && GIS.parallel(n.b, axis, 30); }, seen = {};
+  A.routes = GIS.features('bus-routes').filter(along).map(function(f) { var p = f.properties.props; return { type: 'relation', id: 'route ' + p.routeId, tags: { route: 'bus', ref: String(p.route || '').replace(/^0+(?=\d)/, ''), name: p.name } }; })   // GTFS '005' is the 5 on the sign
+    .filter(function(r) { return seen[r.tags.ref] ? false : (seen[r.tags.ref] = 1); });
+  var tr = GIS.features('truck-routes').filter(along); A.truck = tr.length ? (tr[0].properties.props.name || 'Truck Route') : null;
+  // bus stops (TransLink) within the import radius, as the OSM stop nodes the apply code reads, with their own provenance
+  A.stops = GIS.features('bus-stops').filter(function(f) { return within(f, R); }).map(function(f) {
+    var p = f.properties.props, g = GIS.pt(f);
+    return { type: 'node', id: p.stopId, lat: g.lat, lon: g.lon, tags: { highway: 'bus_stop', name: p.name || '', ref: p.code || '' }, routes: p.routes, prov: { source: 'gtfs', id: 'stop ' + (p.code || p.stopId), fetchedAt: at.gtfs, via: 'cells' } };
+  });
+  // the City's bikeways along the street at the site (centreline data: matched by place, not by the street's name)
+  var bw = GIS.features('bikeways').filter(function(f) { var n = GIS.near(T, f.geometry); return n.d <= 15 && GIS.parallel(n.b, axis, 30); });
+  var rowsOf = function(lid, list) { return { at: day(lid), via: 'cells', rows: list }; };
+  // buildings and the shops / offices in them, as OSM ways and nodes (useHint: the build's use, for tags it does not carry)
+  var num = function(id) { return +String(id).replace(/^.*\//, ''); };
+  A.blds = GIS.features('buildings').filter(function(f) { return within(f, R); }).map(function(f) {
+    var p = f.properties.props, t = { building: p.kind || 'yes' }; if (p.levels != null) t['building:levels'] = String(p.levels); if (p.height != null) t.height = String(p.height); if (p.name) t.name = p.name;
+    return { type: 'way', id: num(p.osmId), tags: t, useHint: p.use || null, address: p.address, geometry: f.geometry.coordinates[0].map(function(q) { return { lat: q[1], lon: q[0] }; }) };
+  });
+  A.pois = GIS.features('pois').filter(function(f) { return within(f, R); }).map(function(f) { var p = f.properties.props, g = GIS.pt(f), t = { name: p.name || '' }; t[p.category] = p.kind; return { type: 'node', id: num(p.osmId), lat: g.lat, lon: g.lon, tags: t }; });
+  // the City's objects, as the rows of its API
+  var pts = function(lid, fn) { return rowsOf(lid, GIS.features(lid).filter(function(f) { return within(f, R); }).map(function(f) { var g = GIS.pt(f); return Object.assign({ geo_point_2d: { lon: g.lon, lat: g.lat } }, fn(f.properties.props, f)); })); };
+  A.cov = {
+    bikeways: rowsOf('bikeways', bw.map(function(f) { var p = f.properties.props; return { near: true, bikeway_type: p.type || '', subtype: p.subtype, bike_route_name: p.name || '', object_id: String(f.id).split(':').pop() }; })),
+    'water-hydrants': pts('hydrants', function(p) { return { id: p.hydrantId }; }),
+    'public-trees': pts('trees', function(p, f) { return { asset_id: String(f.id).split(':').pop(), common_name: p.species, genus_name: p.genus, species_name: p.speciesName, cultivar_name: p.cultivar, height_m: p.height, diameter_cm: p.dbh, local_area: p.area }; }),
+    'rapid-transit-stations': pts('transit-stations', function(p) { return { station: p.name }; }),
+    'right-of-way-widths': pts('row-width', function(p) { return { width: p.widthFt }; }),
+    // the civic addresses the build joined to the buildings, at the footprint's centre
+    'property-addresses': rowsOf('buildings', A.blds.filter(function(b) { return b.address; }).map(function(b) {
+      var m = /^(\S+)\s+(.*)$/.exec(b.address) || [], c = GIS.centroid(b.geometry.map(function(q) { return [q.lon, q.lat]; }));
+      return { civic_number: m[1], std_street: m[2], site_id: 'way/' + b.id, geo_point_2d: { lon: c.lon, lat: c.lat } }; }))
+  };
+  A.build = Object.keys(idx.layers).map(function(k) { return idx.layers[k].updatedAt; }).sort().pop();
+  return A;
+};
+
+// ── The street pick from the cells (Brief 24 B6): the map asks no Overpass server ─────────────────────────────────
+// the streets within about 60 m of a point; null when the point is outside the site data (no data for this location)
+GIS.waysNear = async function(lat, lon) {
+  var idx = await GIS.index(), dLat = 60 / 110574, dLon = 60 / (111320 * Math.cos(lat * Math.PI / 180));
+  var cells = GIS.cellsIn(lon - dLon, lat - dLat, lon + dLon, lat + dLat, 0);
+  if (!cells.some(function(c) { return idx.cells[c]; })) return null;
+  await GIS.ensure(['streets'], cells, {});
+  var bad = cells.filter(function(c) { var v = GIS.cs.get(GIS.key(c, 'streets')); return idx.cells[c] && (!v || v.st !== 'ready'); });
+  if (bad.length) { var e = new Error('the streets here are not cached and could not be fetched'); e.offline = navigator.onLine === false; throw e; }
+  return GIS.ways();
+};
+
+// ── Live refresh of an OpenStreetMap layer (Brief 24 B6): the one use of Overpass left ────────────────────────────
+// One Overpass request for the map's view, normalised as the build does (build/osm.js). In each cell resident in view
+// the live features replace those of the build that fall in the view; the rest of the cell stays. Written to pkt-gis
+// as 'osm-live' (kept until the build is newer than it) and drawn at once ("live OSM hh:mm"). The site facts change
+// only at the next import.
+GIS.LIVE = {
+  streets: function(b) { return 'way[highway~"' + SM.HIGHWAY + '"](' + b + ');out tags geom;'; },
+  buildings: function(b) { return 'way[building][building!=no](' + b + ');out tags geom;'; },
+  pois: function(b) { return 'node[~"^(amenity|shop|office)$"~"."](' + b + ');out body;'; }
+};
+GIS.liveProps = function(lid, e, old) {
+  var t = e.tags || {}, num = function(v) { var m = /^\s*(-?\d+(\.\d+)?)/.exec(v || ''); return m ? +m[1] : null; };
+  if (lid === 'streets') return { wayId: e.id, name: t.name || null, highway: t.highway, oneway: t.oneway === '-1' || t.oneway === 'reverse' ? 'reverse' : (t.oneway === 'yes' || t.oneway === 'true' || t.oneway === '1' || t.junction === 'roundabout') ? 'yes' : 'no',
+    lanes: num(t.lanes), lanesForward: num(t['lanes:forward']), lanesBackward: num(t['lanes:backward']), width: num(t.width),
+    cycleway: { left: t['cycleway:left'] || t['cycleway:both'] || t.cycleway || null, right: t['cycleway:right'] || t['cycleway:both'] || t.cycleway || null },
+    parking: { left: t['parking:left'] || t['parking:lane:left'] || t['parking:both'] || t['parking:lane:both'] || null, right: t['parking:right'] || t['parking:lane:right'] || t['parking:both'] || t['parking:lane:both'] || null }, maxspeed: num(t.maxspeed) };
+  // a building keeps the build's civic address and the use of the shop inside (the live query has neither)
+  if (lid === 'buildings') return { osmId: 'way/' + e.id, address: old ? old.address : null, use: old && old.use ? old.use : SMP.useOf(t), name: t.name || (old ? old.name : null), kind: t.building, levels: num(t['building:levels']), height: num(t.height) };
+  var cat = t.amenity ? 'amenity' : t.shop ? 'shop' : 'office';
+  return { osmId: 'node/' + e.id, name: t.name || null, kind: t[cat], category: cat, use: SMP.useOf(t) };
+};
+GIS.live = async function(lid) {
+  var L = GIS.byId(lid); if (!L || !L.live || !GIS.map || !GIS.view.length || !GIS._idx) return false;
+  var btn = document.getElementById('gisLive_' + lid), src = document.getElementById('gisSrc_' + lid);
+  if (btn) btn.disabled = true; if (src) src.textContent = 'asking OpenStreetMap…';
+  var failed = null;
+  try {
+    var bb = GIS.map.getBounds(), W = bb.getWest(), S = bb.getSouth(), E = bb.getEast(), N = bb.getNorth(), b = [S, W, N, E].map(function(v) { return v.toFixed(5); }).join(',');
+    var j = await SM.overpass('live|' + lid + '|' + b + '|' + Date.now(), '[out:json][timeout:25];' + GIS.LIVE[lid](b));
+    var now = new Date().toISOString(), old = new Map(GIS.features(lid).map(function(f) { return [f.id, f.properties.props]; })), live = new Map();
+    ((j && j.elements) || []).forEach(function(e) {
+      var ll = e.type === 'node' ? [[e.lon, e.lat]] : (e.geometry || []).map(function(q) { return [q.lon, q.lat]; }); if (!ll.length) return;
+      if (lid === 'buildings' && (ll.length < 4 || ll[0][0] !== ll[ll.length - 1][0] || ll[0][1] !== ll[ll.length - 1][1])) return;   // a closed ring, as the build keeps
+      var id = 'osm:' + e.type + ':' + e.id, geom = e.type === 'node' ? { type: 'Point', coordinates: ll[0] } : lid === 'buildings' ? { type: 'Polygon', coordinates: [ll] } : { type: 'LineString', coordinates: ll };
+      live.set(id, { f: { type: 'Feature', id: id, properties: { id: id, layer: lid, source: 'osm-live', fetchedAt: now, props: GIS.liveProps(lid, e, old.get(id)) }, geometry: geom }, ll: ll });
+    });
+    var inView = function(g) { var ll = g.type === 'Point' ? [g.coordinates] : [].concat.apply([], GIS.linesOf(g)); return ll.some(function(q) { return q[0] >= W && q[0] <= E && q[1] >= S && q[1] <= N; }); };
+    var meta = GIS._idx.layers[lid], n = 0;
+    for (var c of GIS.view) {
+      var k = GIS.key(c, lid), cur = GIS.cs.get(k); if (!cur || cur.st !== 'ready' || !cur.fc) continue;
+      // the build's features outside the view stay; those in the view (or live again) give way to the live ones
+      var keep = cur.fc.features.filter(function(f) { return !live.has(f.id) && !inView(f.geometry); });
+      var add = []; live.forEach(function(v) { if (v.ll.some(function(q) { var cc = GIS.cellAt(q[0], q[1]); return cc && cc[0] + '_' + cc[1] === c; })) add.push(v.f); });
+      var fc = { type: 'FeatureCollection', features: keep.concat(add) };
+      await GIS.idbPut('cells', { key: k + '|' + meta.schemaVersion, fc: fc, updatedAt: meta.updatedAt, storedAt: Date.now(), source: 'osm-live', liveAt: now });
+      GIS.cs.set(k, { st: 'ready', fc: fc, updatedAt: meta.updatedAt, source: 'osm-live', liveAt: now }); n++;
+    }
+    GIS.log('live ' + lid + ': ' + live.size + ' features, ' + n + ' cells');
+    GIS.dirty(lid); return true;
+  } catch (e) { failed = 'live refresh failed: ' + (e && e.message ? e.message : e); return false; }
+  finally { if (btn) btn.disabled = false; setTimeout(function() { GIS.renderRows(); if (failed && src) src.textContent = failed; }, 0); }
+};
+</script>
+<style>
+/* -- Brief 24 B4: the site map's Layers tab ------------------------------------------------- */
+.sm-body { position: relative; min-height: 0; display: grid; grid-template-columns: 1fr auto; }
+.sm-body #smMap { min-height: 0; }
+.sm-layers { width: 300px; overflow: auto; border-left: 1px solid var(--c-rule, #2E3338); padding: 8px 10px 12px; font-size: 12px; }
+.sm-layers[hidden] { display: none; }
+.sm-layers h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.sm-layers .gis-note { margin: 0 0 8px; color: var(--c-text-dim, #9AA0A6); line-height: 1.4; }
+.gis-grp { margin: 8px 0 4px; }
+.gis-grp-h { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--c-text-dim, #9AA0A6); margin-bottom: 2px; }
+.gis-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0 6px; padding: 3px 0; border-top: 1px solid rgba(255, 255, 255, .05); }
+.gis-lab { display: flex; align-items: center; gap: 6px; cursor: pointer; min-width: 0; }
+.gis-lab input:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
+.gis-sw { display: inline-block; flex: none; }
+.gis-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gis-n { font-variant-numeric: tabular-nums; color: var(--c-text-dim, #9AA0A6); min-width: 2.5em; text-align: right; }
+.gis-live { grid-column: 3; font: inherit; font-size: 11px; padding: 0 6px; height: 20px; background: transparent; color: var(--accent-ui, #3AA8E4); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; cursor: pointer; }
+.gis-live:disabled { opacity: .5; cursor: progress; }
+.gis-src { grid-column: 1 / -1; padding-left: 22px; font-size: 11px; color: var(--c-text-dim, #9AA0A6); line-height: 1.35; }
+.gis-reset { margin-top: 8px; font-size: 11px; }
+.gis-pop { font: 12px/1.4 var(--font-ui, sans-serif); color: #1A1A1A; }
+.gis-pop b { display: block; margin-bottom: 2px; }
+.gis-pop-src { margin-top: 4px; color: #6B7075; font-size: 11px; }
+</style>
 <style>
 /* -- Site from map (Brief 13) phase 2: provenance tags, imported objects -------------------- */
 .prov-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 7px; font: 600 11px/16px var(--font-ui, sans-serif); letter-spacing: .01em; vertical-align: 1px; cursor: pointer; border: 1px solid currentColor; background: transparent; }
-.prov-tag.osm, .prov-tag.cov { color: var(--accent-ui, #3AA8E4); }
+.prov-tag.osm, .prov-tag.cov, .prov-tag.gtfs { color: var(--accent-ui, #3AA8E4); }
 .prov-tag.estimate { color: #D9A441; border-style: dashed; }
 .prov-tag.user { color: var(--c-text-dim, #9AA0A6); cursor: default; }
 .prov-tag:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 1px; }
@@ -26323,10 +26910,17 @@ var SMP = { COV: 'https://opendata.vancouver.ca/api/explore/v2.1/catalog/dataset
 SMP.INNER_R = 150;
 Object.defineProperty(SMP, 'R', { get: function() { return Math.min(SMP.INNER_R, siteContextZ(SITE_CONTEXT_Z)); } });
 SMP.prov = function() { if (!state.__prov || typeof state.__prov !== 'object') state.__prov = {}; return state.__prov; };
-SMP.set = function(key, source, id, at, note) { if (SMP._touched && SMP._touched.indexOf(key) < 0) SMP._touched.push(key); SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; };
+// SMP._via = 'cells' while an import from the site data's cells applies it (Brief 24): the record carries via
+SMP.set = function(key, source, id, at, note) { if (SMP._touched && SMP._touched.indexOf(key) < 0) SMP._touched.push(key); SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; if (SMP._via) SMP.prov()[key].via = SMP._via; };
 SMP.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
-SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', estimate: 'estimate', user: 'you', survey: 'site survey' };
-SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', estimate: 'Estimate', user: 'You', survey: 'Survey' };   // no abbreviations in labels (Brief 21 §2)
+// "data <day>" for what the cells gave (the date of the data), "fetched <day>" for a request made then
+SMP.when = function(p) { return (p && (p.via === 'cells' || p.source === 'cell') ? 'data ' : 'fetched ') + SMP.day(p && p.fetchedAt); };
+// (cell and osm-live: the brief's names, for a record that carries them; an import from the cells keeps source osm /
+// cov with via: 'cells', since the checks and the report read those sources)
+SMP.SRC = { osm: 'OpenStreetMap', cov: 'City of Vancouver Open Data', cell: 'City of Vancouver Open Data (cell)', gtfs: 'TransLink GTFS', 'osm-live': 'OpenStreetMap (live)', estimate: 'estimate', user: 'you', survey: 'site survey' };
+SMP.TAG = { osm: 'OpenStreetMap', cov: 'City data', cell: 'City data', gtfs: 'TransLink', 'osm-live': 'OpenStreetMap', estimate: 'Estimate', user: 'You', survey: 'Survey' };   // no abbreviations in labels (Brief 21 §2)
+// the source, its dataset and the record: "City of Vancouver Open Data, bikeways, 578" from the cells (Brief 24 B7)
+SMP.srcOf = function(p) { var n = (SMP.SRC[p.source] || p.source || '').replace(/ \(cell\)$/, ''), parts = [p.dataset, p.id].filter(Boolean); return p.via === 'cells' || p.source === 'cell' ? [n].concat(parts).join(', ') : n + parts.map(function(s) { return ' ' + s; }).join(''); };
 // Site-tab fields that carry a tag: key -> the element whose .ff label gets it
 SMP.FIELDS = { sidewalk: 'sidewalkWidth', address: 'streetAddress', lat: 'siteLat', lon: 'siteLon', streetBearing: 'siteBearingSeg', parkletSide: 'siteSideSel',
   roadWidth: 'roadWidth', roadDir: 'roadDirToggle', lanes: 'laneCount', lanesA: 'lanesA', lanesB: 'lanesB', routeType: 'routeToggle', bikeLane: 'csPanel' };
@@ -26334,7 +26928,7 @@ SMP.CRIT_FIELDS = { c2: ['roadWidth', 'roadDir', 'lanes', 'lanesA', 'lanesB', 'r
 
 // ── Provenance tags in the Site tab; editing a field flips it to 'user'; a click confirms ─────
 SMP.tagHtml = function(p) {
-  var t = p.source === 'user' ? (p.from ? 'Confirmed by you (was ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'Entered by you') : SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', fetched ' + SMP.day(p.fetchedAt) + (p.note ? ' - ' + p.note : '') + '. Click to confirm it.';
+  var t = p.source === 'user' ? (p.from ? 'Confirmed by you (was ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'Entered by you') : SMP.srcOf(p) + ', ' + SMP.when(p) + (p.note ? ' - ' + p.note : '') + '. Click to confirm it.';
   return { text: SMP.TAG[p.source] || p.source, title: t };
 };
 SMP.tagEl = function(host, p, onConfirm) {
@@ -26344,7 +26938,7 @@ SMP.tagEl = function(host, p, onConfirm) {
   var h = SMP.tagHtml(p); tag.textContent = h.text; tag.title = h.title; tag.setAttribute('aria-label', h.title); tag.className = 'prov-tag ' + p.source;
   tag.onclick = function(e) { e.preventDefault(); e.stopPropagation(); if (p.source !== 'user') onConfirm(); };
 };
-SMP.userOf = function(p) { return p && p.source !== 'user' ? { source: 'user', from: p.source, id: p.id, fetchedAt: p.fetchedAt, confirmedAt: new Date().toISOString() } : p; };
+SMP.userOf = function(p) { return p && p.source !== 'user' ? { source: 'user', from: p.source, id: p.id, fetchedAt: p.fetchedAt, via: p.via, confirmedAt: new Date().toISOString() } : p; };
 SMP.confirmField = function(key) { var P = SMP.prov(); if (P[key]) P[key] = SMP.userOf(P[key]); SMP.refresh(); };
 SMP.tags = function() {
   var P = SMP.prov();
@@ -26497,6 +27091,10 @@ SMP.zRange = function(L) { var cz = Math.min(SMP.R, siteContextZ(SITE_CONTEXT_Z)
 // are; building fields the user edited and object confirmations carry over (matched on the OSM way / record id).
 SMP.reclip = async function() {
   var sm = state.__siteMap; if (!sm || !sm.importedAt) return null;
+  if (sm.via === 'cells') {   // Brief 24: the site data's cells again (IndexedDB, else fetched); no Overpass request
+    var A; try { A = await GIS.importData(+sm.lat, +sm.lon, sm); } catch (e) { console.warn('[site-map] reclip: the site data could not be read (' + (e && e.message) + '); import again'); return null; }
+    var cov = A.cov, blds = A.blds, pois = A.pois, stops = A.stops, osmAt = A.at.osm;
+  } else {
   var ck = SM.round(sm.lat) + ',' + SM.round(sm.lon), osm = await SM.cacheGet('overpass|ctx3|' + SMP.R + '|' + sm.wayId + '|' + ck), osmAt = SM._hitAt;   // the cache is per radius
   if (!osm) { console.warn('[site-map] reclip: no import within ' + SMP.R + ' m in the cache; import again'); return null; }
   var cov = {};
@@ -26508,10 +27106,12 @@ SMP.reclip = async function() {
   var el = osm.elements || [], blds = el.filter(function(e) { return e.type === 'way' && e.id !== sm.wayId && e.tags && e.tags.building; });
   var pois = el.filter(function(e) { return e.type === 'node' && e.tags && (e.tags.amenity || e.tags.shop || e.tags.office) && e.tags.highway !== 'bus_stop'; });
   var stops = el.filter(function(e) { return e.type === 'node' && e.tags && e.tags.highway === 'bus_stop'; });
+  }
   var wayOf = function(b) { var p = b.__prov && (b.__prov.length || b.__prov.zOffset); return p && p.id; };
   var old = { L: (BLDG_L.buildings || []).slice(), R: (BLDG_R.buildings || []).slice() }, conf = {};
   ['curb_features', 'street_trees', 'transit_stops'].forEach(function(k) { (state[k] || []).forEach(function(o) { if (o.confirmed) conf[k + '|' + o.id] = o.confirmedAt || true; }); });
   var rep = { street: {}, buildings: { L: 0, R: 0, skipped: 0 }, hydrants: 0, trees: 0, transit: 0, notes: [], errors: [] };
+  SMP._via = sm.via === 'cells' ? 'cells' : null;
   SMP.applyBuildings(blds, pois, osmAt, rep, { keepSidewalk: true });
   ['L', 'R'].forEach(function(side) {   // the user's edits to a building survive the re-clip
     ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).forEach(function(b) {
@@ -26521,7 +27121,7 @@ SMP.reclip = async function() {
     });
   });
   if (cov['property-addresses'] && cov['property-addresses'].rows.length) SMP.applyAddresses(cov['property-addresses'].rows, cov['property-addresses'].at, rep);
-  SMP.applyObjects(cov, stops, osmAt, rep);
+  SMP.applyObjects(cov, stops, osmAt, rep); SMP._via = null;
   ['curb_features', 'street_trees', 'transit_stops'].forEach(function(k) { (state[k] || []).forEach(function(o) { var c = conf[k + '|' + o.id]; if (c) { o.confirmed = true; if (c !== true) o.confirmedAt = c; } }); });
   try { renderBldgControls(); } catch (e) {}
   SMP.refresh();
@@ -26639,6 +27239,7 @@ SMP.waterRings = function(chains, lakes, S) {
 SMP.importOuter = async function(opts) {
   opts = opts || {};
   var sm = state.__siteMap; if (!sm || !sm.lat) return null;
+  var noOv = !!opts.noOverpass || sm.via === 'cells';   // Brief 24: after an import from the cells no Overpass server is asked (the water from the cache only)
   var R = siteContextZ(SITE_CONTEXT_Z), la = +sm.lat, lo = +sm.lon, T = SM.enu(la, lo), t0 = Date.now(), co = !!opts.cacheOnly;
   var o = { R: R, lat: la, lon: lo, at: new Date().toISOString(), source: {}, counts: {}, bldg: [], streets: [], parks: [], water: [], notes: [] };
   // footprints: the City's, else Overpass tiles
@@ -26649,6 +27250,7 @@ SMP.importOuter = async function(opts) {
     o.source.bldg = 'City of Vancouver ' + SMP.OUTER_DS.bldg;
   } catch (e) {
     if (co) return null;
+    if (noOv) { o.notes.push('City footprints failed (' + e.message + '): none (Overpass is not asked)'); o.source.bldg = 'none'; } else {
     o.notes.push('City footprints failed (' + e.message + '): OpenStreetMap tiles');
     var n0 = Math.ceil(R / 300);
     for (var i = -n0; i < n0; i++) for (var j = -n0; j < n0; j++) {
@@ -26657,6 +27259,7 @@ SMP.importOuter = async function(opts) {
       ((jt && jt.elements) || []).forEach(function(w) { if (w.geometry && w.geometry.length > 3) o.bldg.push(w.geometry.map(function(p) { var v = T.to(p.lat, p.lon); return [Math.round(v.e * 10) / 10, Math.round(v.n * 10) / 10]; })); });
     }
     o.source.bldg = 'OpenStreetMap building=* (Overpass, 300 m tiles)';
+    }
   }
   try {
     var fs = await SMP.covExport(SMP.OUTER_DS.streets, la, lo, R, null, co);
@@ -26672,7 +27275,7 @@ SMP.importOuter = async function(opts) {
   try {
     var a2 = T.from(-R, -R), b2 = T.from(R, R), bb = a2.lat + ',' + a2.lon + ',' + b2.lat + ',' + b2.lon, key = 'ctxwater|' + R + '|' + SM.round(la) + ',' + SM.round(lo), jw;
     var tw = Date.now();
-    if (co) jw = await SM.cacheGet('overpass|' + key);
+    if (co || noOv) { jw = await SM.cacheGet('overpass|' + key); if (!jw && noOv) o.notes.push('water: not in the site data, and Overpass is not asked: none drawn'); }
     else for (var tri = 0; tri < 3 && !jw; tri++) {   // a busy Overpass server hands over to the next
       try { jw = await SM.overpass(key, '[out:json][timeout:40];(way["natural"="coastline"](' + bb + ');way["natural"="water"](' + bb + ');relation["natural"="water"](' + bb + '););out geom;'); }
       catch (e2) { if (e2 && e2.offline) throw e2; o.notes.push('water: ' + SM.overpassHost() + ' ' + e2.message); SM.nextOverpass(); if (tri === 2) throw e2; }
@@ -26721,7 +27324,8 @@ SMP.msg = function(html) { var el = document.getElementById('smpMsg'); if (el) e
 // next Overpass server). The line always ends in a result or an error, never in a spinner.
 SMP.TIMEOUT = 20000;      // CoV steps
 SMP.OV_TIMEOUT = 50000;   // the Overpass step: longer than the relay's 45 s, so the relay answers (504) before the page gives up
-SMP.STEPS = [['street', 'OSM street'], ['buildings', 'OSM buildings'], ['hydrants', 'CoV hydrants'], ['trees', 'CoV trees'], ['transit', 'transit'], ['addresses', 'CoV addresses']];
+// Brief 24 B7: the import reads the site data's cells (the index, then every layer it needs at once): two steps
+SMP.STEPS = [['index', 'site data'], ['street', 'street and site objects']];
 // A step: its work gets an AbortSignal; at the limit the signal is aborted with {limitS} as the reason,
 // and the request fails through SM.classify ('no answer within N s'). Work that ignores the abort is
 // cut off 1.5 s later with the same classification.
@@ -26751,8 +27355,8 @@ SMP.applyAddresses = function(rows, at, rep) {
       var d = function(p) { return Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(f.z0 - p.z, 0, p.z - f.z1)); };
       var c = pts.map(function(p) { return { p: p, d: d(p), m: Math.hypot(p.x - f.faceX, p.z - fz) }; }).filter(function(q) { return q.d <= 15; }).sort(function(a, q) { return a.d - q.d || a.m - q.m; })[0];
       b.__prov = b.__prov || {};
-      if (c) { b.address = c.p.t; b.addressNote = null; b.__prov.address = { source: 'cov', id: 'property-addresses ' + c.p.id + (c.d > 0 ? ' (' + c.d.toFixed(1) + ' m off the footprint)' : ''), fetchedAt: at }; matched++; }
-      else { b.address = null; b.addressNote = 'no address point'; b.__prov.address = { source: 'cov', id: 'property-addresses: none within 15 m', fetchedAt: at }; none++; }
+      if (c) { b.address = c.p.t; b.addressNote = null; b.__prov.address = { source: 'cov', via: SMP._via || undefined, id: 'property-addresses ' + c.p.id + (c.d > 0 ? ' (' + c.d.toFixed(1) + ' m off the footprint)' : ''), fetchedAt: at }; matched++; }
+      else { b.address = null; b.addressNote = 'no address point'; b.__prov.address = { source: 'cov', via: SMP._via || undefined, id: 'property-addresses: none within 15 m', fetchedAt: at }; none++; }
     });
   });
   if (rep) rep.addresses = { matched: matched, none: none, points: pts.length };
@@ -26773,7 +27377,7 @@ SMP.syncButton = function() {
   var ok = !!state.__siteMap;
   if (!SMP._busy) { b.disabled = !ok; b.textContent = 'Import street context'; }
   b.title = ok ? 'Import the street context within ' + SMP.R + ' m of the picked point' : 'Locate on map first';
-  if (h) h.textContent = ok ? 'Lanes, bike lane, route type and buildings from OpenStreetMap; hydrants, trees and transit from the City of Vancouver. Within ' + SMP.R + ' m; nothing imported is authoritative.' : 'Locate on map first: the import needs the street the parklet is on.';
+  if (h) h.textContent = ok ? 'Lanes, bike lane, route type and buildings from OpenStreetMap; hydrants, trees and bikeways from the City of Vancouver; bus stops and routes from TransLink (the site data, rebuilt weekly). Within ' + SMP.R + ' m; nothing imported is authoritative.' : 'Locate on map first: the import needs the street the parklet is on.';
 };
 SMP.importContext = async function() {
   var sm = state.__siteMap;
@@ -26786,37 +27390,15 @@ SMP.importContext = async function() {
   var la = sm.lat, lo = sm.lon;
   var runStep = async function(key, fn, ms) { cur = key; st[key] = 'run'; show(); var v = await SMP.step(fn, ms); st[key] = 'ok'; show(); return v; };
   try {
-    // fetch (nothing changes yet)
-    data.osm = await runStep('street', async function(sig) {
-      var q = '[out:json][timeout:' + SMP.ovQueryTimeout(SMP.OV_TIMEOUT) + '];way(' + sm.wayId + ')->.s;.s out tags geom;rel(bw.s)[route~"^(bus|trolleybus)$"];out tags;' +
-        'way(around:' + SMP.R + ',' + la + ',' + lo + ')[building];out tags geom;node(around:' + SMP.R + ',' + la + ',' + lo + ')[~"^(amenity|shop|office)$"~"."];out body;' +
-        'node(around:' + SMP.R + ',' + la + ',' + lo + ')[highway=bus_stop];out body;' +
-        (sm.name ? 'way(around:25,' + la + ',' + lo + ')[highway][oneway][name="' + sm.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"];out tags geom;' : '');
-      var j = await SM.overpass('ctx3|' + SMP.R + '|' + sm.wayId + '|' + SM.round(la) + ',' + SM.round(lo), q, sig), at = SM.lastAt;
-      var el = (j && j.elements) || [];
-      if (!el.some(function(e) { return e.type === 'way' && e.id === sm.wayId; })) throw new Error('the picked street (way ' + sm.wayId + ') was not returned');
-      return { el: el, at: at };
-    }, SMP.OV_TIMEOUT);
-    SMP._ovTimedOut = false;
-    var el = data.osm.el;
-    data.parts = await runStep('buildings', async function() {
-      return { way: el.find(function(e) { return e.type === 'way' && e.id === sm.wayId; }), routes: el.filter(function(e) { return e.type === 'relation'; }),
-        blds: el.filter(function(e) { return e.type === 'way' && e.id !== sm.wayId && e.tags && e.tags.building; }),
-        cands: el.filter(function(e) { return e.type === 'way' && e.id !== sm.wayId && e.tags && e.tags.highway && !e.tags.building; }),
-        pois: el.filter(function(e) { return e.type === 'node' && e.tags && (e.tags.amenity || e.tags.shop || e.tags.office) && e.tags.highway !== 'bus_stop'; }),
-        stops: el.filter(function(e) { return e.type === 'node' && e.tags && e.tags.highway === 'bus_stop'; }) };
-    });
-    var cov = {};
-    await runStep('hydrants', async function(sig) { cov['water-hydrants'] = await SMP.cov('water-hydrants', 'geo_point_2d', la, lo, sig); cov.bikeways = await SMP.cov('bikeways', 'geom', la, lo, sig); });
-    cov['public-trees'] = await runStep('trees', function(sig) { return SMP.cov('public-trees', 'geo_point_2d', la, lo, sig); });
-    cov['rapid-transit-stations'] = await runStep('transit', function(sig) { return SMP.cov('rapid-transit-stations', 'geo_point_2d', la, lo, sig); });
-    cov['property-addresses'] = await runStep('addresses', async function(sig) {
-      // the City's right-of-way widths (Brief 22 item 3) with the addresses: a failure leaves the width unknown, not the import failed
-      try { cov['right-of-way-widths'] = await SMP.cov('right-of-way-widths', 'geom', la, lo, sig); } catch (e) { if (sig && sig.aborted) throw e; cov['right-of-way-widths'] = { rows: [], at: null, err: e && e.message ? e.message : String(e) }; }
-      return SMP.cov('property-addresses', 'geo_point_2d', la, lo, sig);
-    });
+    // fetch (nothing changes yet): the site data's cells (Brief 24 B7); no Overpass request, no City request
+    await runStep('index', function() { return GIS.index(); });
+    var A = await runStep('street', function() { return GIS.importData(+la, +lo, sm); }, 45000);
+    data.osm = { at: A.at.osm };
+    data.parts = { way: A.way, routes: A.routes, blds: A.blds, cands: A.cands, pois: A.pois, stops: A.stops };
+    var cov = A.cov;
     // apply (every fetch succeeded)
-    cur = 'apply'; SMP._touched = [];
+    cur = 'apply'; SMP._touched = []; SMP._via = 'cells'; SMP._truck = A.truck;
+    A.notes.forEach(function(n) { rep.notes.push(n); });
     var P = data.parts, before = SMP.snapshot();
     SMP.applyStreet(P.way, P.routes, P.stops, cov.bikeways, data.osm.at, rep, P.cands);
     SMP.applyBuildings(P.blds, P.pois, data.osm.at, rep);
@@ -26824,10 +27406,11 @@ SMP.importContext = async function() {
     SMP.applyObjects(cov, P.stops, data.osm.at, rep);
     if (PK_NOSTREET && typeof SEED !== 'undefined') SEED.parklet(rep);   // stage 0 -> 1: the deck at the host frontage (Brief 22 item 5)
     SITEF.fromImport(P.way, cov['right-of-way-widths'], data.osm.at, rep);   // the existing street, before any design change
-    SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString();
+    SMP._via = null; SMP._truck = null;
+    SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString(); state.__siteMap.via = 'cells'; state.__siteMap.cellsBuild = A.build;
     // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import
     cur = 'city'; st.city = 'run'; show();
-    try { var oc = await SMP.importOuter(); st.city = 'ok'; if (oc) rep.notes.push('city context to ' + oc.R + ' m: ' + oc.counts.bldg + ' footprints, ' + oc.counts.streets + ' streets, ' + oc.counts.parks + ' parks, ' + oc.counts.waterRings + ' water rings (' + (oc.ms / 1000).toFixed(1) + ' s)'); }
+    try { var oc = await SMP.importOuter({ noOverpass: true }); st.city = 'ok'; if (oc) rep.notes.push('city context to ' + oc.R + ' m: ' + oc.counts.bldg + ' footprints, ' + oc.counts.streets + ' streets, ' + oc.counts.parks + ' parks, ' + oc.counts.waterRings + ' water rings (' + (oc.ms / 1000).toFixed(1) + ' s)'); }
     catch (e) { st.city = 'fail'; rep.notes.push('the city context failed: ' + (e && e.message ? e.message : e)); }
     cur = 'apply';
     SMP.refresh();
@@ -26846,15 +27429,12 @@ SMP.importContext = async function() {
     // the step (or, for a CoV request, its dataset) and SM.classify's reason: one string for the UI and the console
     var what = e && e.dataset ? (SMP.COVLABEL[e.dataset] || 'CoV ' + e.dataset) : cur === 'apply' ? 'Applying the data' : (SMP.STEPS.find(function(q) { return q[0] === cur; }) || [0, cur])[1];
     var line = what + ' failed: ' + (e && e.message ? e.message : String(e)) + '. Nothing was changed.', next = '';
-    if (cur === 'street' && !(e && e.offline) && !(e && e.dataset)) {   // an Overpass failure: Retry goes to the next server
-      if (e && e.timeout) SMP._ovTimedOut = true;
-      SM.nextOverpass(); next = ' (next try: ' + SM.overpassHost() + ')';
-    }
+    // (no Overpass server is asked: Retry reads the cells again)
     SMP.msg(SMP.progress(st) + "<br><span class='smp-err'>" + SM.esc(line) + "</span> <button type='button' class='ctx-btn smp-retry' id='smpRetry' onclick='SMP.importContext()'>Retry" + SM.esc(next) + '</button>');
     console.warn('[site-map] import failed at ' + line + (next ? ' Retry' + next + '.' : ''));
     return null;
   } finally {
-    SMP._busy = false; SMP.syncButton();
+    SMP._busy = false; SMP._via = null; SMP._truck = null; SMP.syncButton();
   }
 };
 // What an import is judged against for 'nothing changed' (the provenance dates are left out)
@@ -26931,7 +27511,8 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
       bike: SMP.bikeOf(t, right), farBike: ow ? { v: null } : SMP.bikeOf(t, !right), farPark: SMP.parkOf(t, !right), ids: id };
   }
   // a CoV bikeway on this street name when OSM says nothing (or 'separate')
-  var cb = (bikeways.rows || []).find(function(r) { return SMP.normName(r.street_name) === SMP.normName(t.name) && /Painted|Protected/i.test(r.bikeway_type || ''); }), bsrc = 'osm';
+  // (from the cells, r.near: a bikeway along the street at the site, matched by place: Brief 24)
+  var cb = (bikeways.rows || []).find(function(r) { return (r.near || SMP.normName(r.street_name) === SMP.normName(t.name)) && /Painted|Protected/i.test(r.bikeway_type || ''); }), bsrc = 'osm';
   if ((!plan.bike.v || plan.bike.raw === 'separate') && cb) { plan.bike = { v: /Protected/i.test(cb.bikeway_type) ? 'protected' : 'painted', note: 'bikeways: ' + cb.bikeway_type + ' (' + (cb.bike_route_name || '') + ')' }; bsrc = 'cov'; }
   var bikeW = function(v) { return v === 'protected' ? 2.0 : v === 'painted' ? 1.5 : 0; };
   var nearBike = plan.bike.v && plan.bike.v !== 'none' ? plan.bike.v : null, farBike = nearBike && plan.farBike.v && plan.farBike.v !== 'none' ? plan.farBike.v : null;   // a far bike lane is drawn beside a near one only
@@ -26961,10 +27542,10 @@ SMP.applyStreet = function(way, routes, stops, bikeways, at, rep, cands) {
     ['lanesA', 'lanesB'].forEach(function(k) { SMP.set(k, src, plan.ids, at, lnote); }); s.lanes = (near + far) + ' lanes (two-way, ' + near + '+' + far + ')';   // the total first: '6 lanes (two-way, 3+3)'
   }
   setBikeLane(nearBike || 'none'); if (plan.bike.v) SMP.set('bikeLane', bsrc, bsrc === 'cov' ? 'bikeways ' + (cb.object_id || '') : plan.ids, bsrc === 'cov' ? bikeways.at : at, plan.bike.note); s.bike = nearBike || 'none';
-  s.bikeSrc = { source: 'osm', id: plan.ids, fetchedAt: at, note: plan.bike.v ? plan.bike.note : 'no cycleway tag on the way, no City bikeway on the street' };   // the existing record's source when OSM says nothing
-  var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), rt = /^(trunk|primary|secondary)$/.test(hw) || bus.length ? 'bus_truck' : 'standard';
+  s.bikeSrc = { source: 'osm', via: SMP._via || undefined, id: plan.ids, fetchedAt: at, note: plan.bike.v ? plan.bike.note : 'no cycleway tag on the way, no City bikeway on the street' };   // the existing record's source when OSM says nothing
+  var bus = routes.filter(function(r) { return r.tags && /bus/.test(r.tags.route || ''); }), rt = /^(trunk|primary|secondary)$/.test(hw) || bus.length || SMP._truck ? 'bus_truck' : 'standard';   // SMP._truck: a City truck route along it (Brief 24)
   onRouteTypeToggle(rt);
-  SMP.set('routeType', 'osm', plan.ids, at, 'suggested: highway=' + (t.highway || '?') + (bus.length ? '; bus route' + (bus.length > 1 ? 's ' : ' ') + bus.map(function(r) { return String(r.tags.ref || r.tags.name || r.id); }).filter(function(v, i, a) { return a.indexOf(v) === i; }).join(', ') : '; no bus route on the way') + (stops.length ? '; ' + stops.length + ' bus stop' + (stops.length > 1 ? 's' : '') + ' within 80 m' : ''));
+  SMP.set('routeType', 'osm', plan.ids, at, 'suggested: highway=' + (t.highway || '?') + (bus.length ? '; bus route' + (bus.length > 1 ? 's ' : ' ') + bus.map(function(r) { return String(r.tags.ref || r.tags.name || r.id); }).filter(function(v, i, a) { return a.indexOf(v) === i; }).join(', ') : '; no bus route on the way') + (SMP._truck ? '; truck route (' + SMP._truck + ')' : '') + (stops.length ? '; ' + stops.length + ' bus stop' + (stops.length > 1 ? 's' : '') + ' within 80 m' : ''));
   s.route = rt;
   // 2. the far side as segments (after the last travel lane): a bike lane, then the parking lane at the curb
   SMP.applyFar(farBike, farPark ? 2.4 : 0, plan, at, rep);
@@ -27035,7 +27616,7 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
   // 3. the programme entries, setbacks from that frontage (the nearest near-side building: 0 by construction)
   var clamped = 0; rep.buildingList = [];
   ['L', 'R'].forEach(function(side) {
-    var frontage = side === 'L' ? LM.bufferL.x0 : LM.bufferR.x1, src = { source: 'osm', fetchedAt: at };
+    var frontage = side === 'L' ? LM.bufferL.x0 : LM.bufferR.x1, src = Object.assign({ source: 'osm', fetchedAt: at }, SMP._via ? { via: SMP._via } : {});
     var out = keptBy[side].map(function(c) {
       var t = c.b.tags || {}, id = 'way ' + c.b.id, P = function(extra) { return Object.assign({}, src, { id: id }, extra || {}); };
       var sbRaw = side === 'L' ? frontage - c.face : c.face - frontage; if (sbRaw > 8) clamped++;
@@ -27043,7 +27624,8 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
       rep.buildingList.push({ side: side, way: c.b.id, curbDist: +c.curbDist.toFixed(2), setback: Math.round(setback * 10) / 10 });
       var lv = SMP.num(t['building:levels']), ht = SMP.num(t.height), storeys = lv ? Math.max(1, Math.min(6, Math.round(lv))) : null;
       var height = ht || (storeys ? bldgHeightFromStoreys(storeys) : 8);
-      var poiUse = c.poi ? SMP.useOf(c.poi.tags) : null, bUse = SMP.useOf(t), use = poiUse || bUse;
+      // useHint: the use the cells give a building with no shop inside (the tags they keep are fewer: Brief 24)
+      var poiUse = c.poi ? SMP.useOf(c.poi.tags) : null, bUse = SMP.useOf(t) || (!c.poi && c.b.useHint) || null, use = poiUse || bUse;
       if (poiUse && bUse === 'residential' && poiUse !== 'residential') use = poiUse;   // a shop in a residential building: the frontage is the shop
       var name = (c.poi && c.poi.tags.name) || t.name || '';
       var e = { height: Math.round(Math.max(2, Math.min(60, height)) * 10) / 10, depth: Math.round(Math.max(2, Math.min(30, c.depth)) * 10) / 10, length: Math.round((c.z1 - c.z0) * 10) / 10,
@@ -27073,7 +27655,7 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   var cf = keep('curb_features'), hy = cov['water-hydrants'];
   (hy.rows || []).forEach(function(r) {
     var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return;
-    cf.push({ id: 'cov-' + (SMP.rowId(r) || (g.lat + ',' + g.lon)), type: 'H', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'cov', dataset: 'water-hydrants', id: SMP.rowId(r), fetchedAt: hy.at }, confirmed: false });
+    cf.push({ id: 'cov-' + (SMP.rowId(r) || (g.lat + ',' + g.lon)), type: 'H', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'cov', dataset: 'water-hydrants', id: SMP.rowId(r), fetchedAt: hy.at, via: hy.via }, confirmed: false });
     rep.hydrants++;
   });
   state.curb_features = cf;
@@ -27086,7 +27668,7 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
     tr.push({ id: 'cov-' + (SMP.rowId(r) || (g.lat + ',' + g.lon)), xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, species: r.common_name || '',
       genus: r.genus_name || '', speciesName: r.species_name || '', cultivar: r.cultivar_name || '', common: r.common_name || '',
       height: r.height_m != null && r.height_m !== '' ? +r.height_m : null, dbhCm: r.diameter_cm != null && r.diameter_cm !== '' ? +r.diameter_cm : null,
-      prov: { source: 'cov', dataset: 'public-trees', id: SMP.rowId(r), fetchedAt: cov['public-trees'].at }, confirmed: false });
+      prov: { source: 'cov', dataset: 'public-trees', id: SMP.rowId(r), fetchedAt: cov['public-trees'].at, via: cov['public-trees'].via }, confirmed: false });
   });
   if (notTree) rep.notes.push(notTree + ' stump' + (notTree > 1 ? 's' : '') + ' or vacant planting site' + (notTree > 1 ? 's' : '') + ' in the City tree inventory left out');
   state.street_trees = tr; rep.trees = tr.length;
@@ -27098,8 +27680,9 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   if (outT) rep.notes.push(outT + ' street tree' + (outT > 1 ? 's fall' : ' falls') + ' outside the sidewalk (curb to frontage) as imported: not moved'); 
   // transit stops: OSM bus stops, CoV rapid transit stations (C01: a bus zone)
   var ts = [];
-  stops.forEach(function(s) { var w = F.w(s.lat, s.lon); if (!near(w)) return; ts.push({ id: 'osm-' + s.id, kind: 'bus', name: (s.tags && (s.tags.name || s.tags.ref)) || '', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'osm', id: 'node ' + s.id, fetchedAt: osmAt }, confirmed: false }); });
-  (cov['rapid-transit-stations'].rows || []).forEach(function(r) { var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return; ts.push({ id: 'cov-' + (SMP.rowId(r) || r.station || ''), kind: 'rapid', name: r.station || '', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'cov', dataset: 'rapid-transit-stations', id: SMP.rowId(r), fetchedAt: cov['rapid-transit-stations'].at }, confirmed: false }); });
+  // (a stop from the cells is TransLink's and carries its own provenance: Brief 24)
+  stops.forEach(function(s) { var w = F.w(s.lat, s.lon); if (!near(w)) return; ts.push({ id: (s.prov ? 'gtfs-' : 'osm-') + s.id, kind: 'bus', name: (s.tags && (s.tags.name || s.tags.ref)) || '', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: s.prov ? Object.assign({}, s.prov) : { source: 'osm', id: 'node ' + s.id, fetchedAt: osmAt }, confirmed: false }); });
+  (cov['rapid-transit-stations'].rows || []).forEach(function(r) { var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return; ts.push({ id: 'cov-' + (SMP.rowId(r) || r.station || ''), kind: 'rapid', name: r.station || '', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'cov', dataset: 'rapid-transit-stations', id: SMP.rowId(r), fetchedAt: cov['rapid-transit-stations'].at, via: cov['rapid-transit-stations'].via }, confirmed: false }); });
   state.transit_stops = ts; rep.transit = ts.length;
   if (dropT || dropS) rep.notes.push((dropT ? dropT + ' tree' + (dropT > 1 ? 's' : '') : '') + (dropT && dropS ? ' and ' : '') + (dropS ? dropS + ' stop' + (dropS > 1 ? 's' : '') : '') + ' beyond the context extent (' + siteContextZ(SITE_CONTEXT_Z) + ' m each way) left out');
   // C01: a parklet-side bus stop within 15 m of the deck suggests a bus zone
@@ -27107,7 +27690,7 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   if (inZone.length) {
     var sel = document.getElementById('parking_restrictions'); if (sel) sel.value = 'bus_zone';
     handleInput('c1', 'parking_restrictions', 'bus_zone');
-    SMP.set('parkingRestrictions', 'osm', inZone[0].prov.id, osmAt, 'bus stop' + (inZone[0].name ? ' ' + inZone[0].name : '') + ' at z ' + inZone[0].xM.toFixed(1) + ' m: a bus zone');
+    SMP.set('parkingRestrictions', inZone[0].prov.source, inZone[0].prov.id, inZone[0].prov.fetchedAt, 'bus stop' + (inZone[0].name ? ' ' + inZone[0].name : '') + ' at z ' + inZone[0].xM.toFixed(1) + ' m: a bus zone');
     rep.notes.push('C01 set to a bus zone from a bus stop beside the deck');
   }
 };
@@ -27117,9 +27700,9 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
 // ── Report: the imported items with their source and date (sources sheet) ────────────────────
 SMP.sourcesList = function() {
   var P = SMP.prov(), out = [], lab = { sidewalk: 'Sidewalk width', address: 'Street address', lat: 'Latitude', lon: 'Longitude', streetBearing: 'Street bearing', parkletSide: 'Parklet side', roadWidth: 'Curb-to-curb width', roadDir: 'Road direction', lanes: 'Travel lanes', lanesA: 'Near lanes', lanesB: 'Far lanes', routeType: 'Route type', bikeLane: 'Bike lane', farParking: 'Far-side parking lane (Section segment)', farBike: 'Far-side bike lane (Section segment)', parkingRestrictions: 'Parking restrictions' };
-  Object.keys(P).forEach(function(k) { var p = P[k], s = p.source === 'user' ? (p.from ? 'confirmed or edited by you (imported from ' + SMP.SRC[p.from] + ', ' + SMP.day(p.fetchedAt) + ')' : 'entered by you') : SMP.SRC[p.source] + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (p.note ? ' (' + p.note + ')' : ''); out.push((lab[k] || k) + ': ' + s); });
-  ['L', 'R'].forEach(function(side) { ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).forEach(function(b, i) { if (!b.__prov) return; var ks = Object.keys(b.__prov), src = {}; ks.forEach(function(k) { var s = b.__prov[k].source; (src[s] = src[s] || []).push(k); }); out.push((side === 'L' ? 'Near-side' : 'Far-side') + ' building ' + (i + 1) + (b.name ? ' (' + b.name + ')' : '') + ': ' + Object.keys(src).map(function(s) { return src[s].join(', ') + ' from ' + SMP.SRC[s]; }).join('; ') + ((b.__prov.length || b.__prov.zOffset || {}).id ? ', ' + (b.__prov.length || b.__prov.zOffset).id + ', ' + SMP.day((b.__prov.length || b.__prov.zOffset).fetchedAt) : '')); }); });
-  SMP.objects().forEach(function(o) { var p = o.obj.prov || {}; out.push(o.label + ' at ' + SMP.where(o.obj) + ': ' + (SMP.SRC[p.source] || '') + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + ', ' + SMP.day(p.fetchedAt) + (o.obj.confirmed ? ', confirmed ' + SMP.day(o.obj.confirmedAt) : ', not yet verified on site')); });
+  Object.keys(P).forEach(function(k) { var p = P[k], s = p.source === 'user' ? (p.from ? 'confirmed or edited by you (imported from ' + SMP.SRC[p.from] + ', ' + SMP.when(p) + ')' : 'entered by you') : SMP.srcOf(p) + ', ' + SMP.when(p) + (p.note ? ' (' + p.note + ')' : ''); out.push((lab[k] || k) + ': ' + s); });
+  ['L', 'R'].forEach(function(side) { ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).forEach(function(b, i) { if (!b.__prov) return; var ks = Object.keys(b.__prov), src = {}; ks.forEach(function(k) { var s = b.__prov[k].source; (src[s] = src[s] || []).push(k); }); out.push((side === 'L' ? 'Near-side' : 'Far-side') + ' building ' + (i + 1) + (b.name ? ' (' + b.name + ')' : '') + ': ' + Object.keys(src).map(function(s) { return src[s].join(', ') + ' from ' + SMP.SRC[s]; }).join('; ') + ((b.__prov.length || b.__prov.zOffset || {}).id ? ', ' + (b.__prov.length || b.__prov.zOffset).id + ', ' + SMP.when(b.__prov.length || b.__prov.zOffset) : '')); }); });
+  SMP.objects().forEach(function(o) { var p = o.obj.prov || {}; out.push(o.label + ' at ' + SMP.where(o.obj) + ': ' + SMP.srcOf(p) + ', ' + SMP.when(p) + (o.obj.confirmed ? ', confirmed ' + SMP.day(o.obj.confirmedAt) : ', not yet verified on site')); });
   return out;
 };
 
@@ -27142,8 +27725,13 @@ SMP.sourcesList = function() {
   }
   // the map pick records its provenance (lat, lon, bearing, side, address)
   SM.onUse = function(p) {
-    ['lat', 'lon', 'streetBearing', 'parkletSide'].forEach(function(k) { SMP.set(k, 'osm', 'way ' + p.wayId, p.fetchedAt, k === 'streetBearing' ? 'the way\'s segment at the point' : k === 'parkletSide' ? 'your second click' : 'snapped to the way'); });
-    if (p.address) SMP.set('address', 'osm', SM._addr ? 'Nominatim search' : 'way ' + p.wayId, p.fetchedAt);
+    // a pick from the cells records the data's date; outside the data (via 'none') the point is an estimate (Brief 24)
+    var nd = p.via === 'none'; SMP._via = p.via === 'cells' ? 'cells' : null;
+    ['lat', 'lon', 'streetBearing', 'parkletSide'].forEach(function(k) { SMP.set(k, nd ? (k === 'parkletSide' ? 'user' : 'estimate') : 'osm', nd ? 'no data for this location' : 'way ' + p.wayId, p.fetchedAt, k === 'parkletSide' ? 'your second click' : nd ? (k === 'streetBearing' ? 'north-south until you set it' : 'as clicked') : k === 'streetBearing' ? 'the way\'s segment at the point' : 'snapped to the way'); });
+    if (SM._addr) SMP._via = null;
+    if (p.address) SMP.set('address', 'osm', SM._addr ? 'Nominatim search' : nd ? 'no data for this location' : 'way ' + p.wayId, SM._addr ? new Date().toISOString() : p.fetchedAt);
+    SMP._via = null;
+
     SMP.tags(); SMP.syncButton();
     SMP.msg('Site set on <b>' + SM.esc(p.name || 'the street') + '</b>. Import the street context to fill the lanes, buildings and site objects.');
   };
@@ -27190,6 +27778,14 @@ SMP.sourcesList = function() {
 .pk-s0-done b { color: var(--c-text, #F2F2F0); font-weight: 600; }
 .pk-s0-msg { min-height: 1.4em; font-size: 12px; }
 .pk-s0-msg:empty { display: none; }
+/* -- Brief 24 B5: the Plan's Context toggles ------------------------------------------------ */
+.pv-ctx { position: relative; display: inline-block; }
+.pv-ctx > summary { list-style: none; }
+.pv-ctx > summary::-webkit-details-marker { display: none; }
+.pv-ctx[open] > summary { border-color: var(--accent-ui, #3AA8E4); }
+.pv-ctx-menu { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; display: grid; gap: 4px; padding: 8px 10px; background: var(--card, #fff); color: var(--ink, #2B2B2B); border: 1px solid var(--rule, #D8D7D3); border-radius: 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); font-size: 12px; white-space: nowrap; }
+.pv-ctx-menu label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+#planView.ctx-hide-trees [data-ctx='trees'], #planView.ctx-hide-objects [data-ctx='objects'], #planView.ctx-hide-buildings [data-ctx='buildings'], #planView.ctx-hide-stops [data-ctx='stops'] { display: none; }
 body.pk-stage0 .canvas-toolbar, body.pk-stage0 #cadTools { display: none !important; }   /* nothing to fit or draw before a site */
 </style>
 <script>
@@ -27222,7 +27818,7 @@ SMP.rowOf = function(res) {
     if (dx > 8 || dz > 80) return;   // off this street's centreline (a cross street's label), or past the block
     if (!best || dz + dx < best.dz + best.dx) best = { v: v, dx: dx, dz: dz, id: SMP.rowId(r) };
   });
-  return best ? { width: Math.round(best.v * 0.3048 * 100) / 100, ft: best.v, src: { source: 'cov', dataset: 'right-of-way-widths', id: best.id, fetchedAt: res.at, note: best.v + ' ft; label ' + best.dx.toFixed(1) + ' m off the centreline, ' + (best.dz ? best.dz.toFixed(0) + ' m past the deck' : 'beside the deck') } } : null;
+  return best ? { width: Math.round(best.v * 0.3048 * 100) / 100, ft: best.v, src: { source: 'cov', via: res.via, dataset: 'right-of-way-widths', id: best.id, fetchedAt: res.at, note: best.v + ' ft; label ' + best.dx.toFixed(1) + ' m off the centreline, ' + (best.dz ? best.dz.toFixed(0) + ' m past the deck' : 'beside the deck') } } : null;
 };
 SITEF.fromImport = function(way, rowRes, at, rep) {
   var P = SMP.prov(), rw = SMP.rowOf(rowRes);
@@ -27247,7 +27843,7 @@ SITEF.fmt = function(k, ex) {
   if (k === 'row') return ex && ex.row ? (+ex.row.width).toFixed(2) + ' m' + (ex.row.ft ? ' (' + ex.row.ft + ' ft)' : '') : 'Not known';
   return '';
 };
-SITEF.srcLine = function(p) { return p ? (SMP.SRC[p.source] || p.source) + (p.dataset ? ' ' + p.dataset : '') + (p.id ? ' ' + p.id : '') + (p.fetchedAt ? ', fetched ' + SMP.day(p.fetchedAt) : '') + (p.note ? ' (' + p.note + ')' : '') : ''; };
+SITEF.srcLine = function(p) { return p ? SMP.srcOf(p) + (p.fetchedAt ? ', ' + SMP.when(p) : '') + (p.note ? ' (' + p.note + ')' : '') : ''; };
 SITEF.srcText = function(k) {
   var ex = SITEF.ex(), o = ex && ex.over && ex.over[k];
   if (o) return 'Overridden by you, ' + SMP.day(o.at) + ': overrides ' + o.from + ', which gave ' + o.was + '.';
@@ -27275,7 +27871,8 @@ SITEF.render = function() {
 SITEF.roadHints = function() {
   var P = SMP.prov(), ex = SITEF.ex(), row = roadRowCeil(), p = P.roadWidth, r = document.getElementById('roadWidthRow'), el = document.getElementById('roadWidth');
   var src = !p ? 'the default, not measured' : p.source === 'user' ? (p.from ? 'entered by you (was ' + (SMP.SRC[p.from] === 'estimate' ? 'an estimate' : SMP.SRC[p.from]) + ', ' + SMP.day(p.fetchedAt) + ')' : 'entered by you')
-    : p.source === 'survey' ? 'the site survey' : (p.source === 'estimate' ? 'an estimate' : SMP.SRC[p.source]) + ', ' + SMP.day(p.fetchedAt) + (p.note ? ': ' + p.note : '');
+    : p.source === 'survey' ? 'the site survey' : (p.source === 'estimate' ? 'an estimate' : SMP.SRC[p.source]) + ', ' + (p.via === 'cells' ? SMP.when(p) : SMP.day(p.fetchedAt)) + (p.note ? ': ' + p.note : '');
+
   if (r) r.textContent = (row ? 'ROW ' + row.toFixed(2) + ' m' + (ex.row.ft ? ' (' + ex.row.ft + ' ft)' : '') + '; curb-to-curb must be less. ' : 'ROW not known, so no ceiling. ') + 'Current value: ' + src + '.';
   if (el) el.max = row ? (Math.ceil(row * 100) / 100 - 0.01).toFixed(2) : '40';
   var ls = document.getElementById('laneSrc'); if (!ls) return;
@@ -27371,6 +27968,34 @@ SITEF.xBlocks = function() {
   var r0 = SMP.refresh; SMP.refresh = function() { var r = r0.apply(this, arguments); try { SITEF.render(); } catch (e) {} return r; };
   setTimeout(function() { try { SITEF.render(); } catch (e) {} }, 1700);
 })();
+
+// ── The Plan's Context toggles (Brief 24 B5) ──────────────────────────────────────────────────────────────────
+// Trees, street objects, buildings, stops & hydrants: each hides or shows its group, nothing is re-rendered. Plan: a
+// class on #planView and one CSS rule per group (data-ctx on the drawn elements). 3D: the tagged objects
+// (userData.ctx) are left out of the 3D viewport's own frames only, so the report's axonometric, the renders and the
+// exports (each with its own renderer) are never affected. A per-viewer convenience: localStorage, not the design.
+var PVCTX = { KINDS: ['trees', 'objects', 'buildings', 'stops'], LS: 'pkt_pv_ctx' };
+PVCTX.on = (function() { var o = { trees: true, objects: true, buildings: true, stops: true }; try { var s = JSON.parse(localStorage.getItem(PVCTX.LS) || 'null'); if (s) Object.keys(o).forEach(function(k) { if (typeof s[k] === 'boolean') o[k] = s[k]; }); } catch (e) {} return o; })();
+PVCTX.apply = function() {
+  var svg = document.getElementById('planView'); if (svg) PVCTX.KINDS.forEach(function(k) { svg.classList.toggle('ctx-hide-' + k, !PVCTX.on[k]); });
+  PVCTX.KINDS.forEach(function(k) { var c = document.getElementById('pvCtx_' + k); if (c) c.checked = !!PVCTX.on[k]; });
+  PVCTX.install();
+  try { if (typeof _3d !== 'undefined' && _3d && _3d.renderer && _3d.scene && _3d.camera) _3d.renderer.render(_3d.scene, _3d.camera); } catch (e) {}
+};
+PVCTX.set = function(k, v) { PVCTX.on[k] = !!v; try { localStorage.setItem(PVCTX.LS, JSON.stringify(PVCTX.on)); } catch (e) {} PVCTX.apply(); };
+// the 3D viewport's renderer: tagged objects of a hidden group are made invisible for the frame, then restored
+PVCTX.install = function() {
+  if (typeof _3d === 'undefined' || !_3d || !_3d.renderer || _3d.renderer._pvctx) return;
+  var R = _3d.renderer, r0 = R.render.bind(R);
+  R.render = function(scene, cam) {
+    var hid = [];
+    if (_3d.group && scene === _3d.scene && PVCTX.KINDS.some(function(k) { return !PVCTX.on[k]; })) _3d.group.children.forEach(function(o) { var c = o.userData && o.userData.ctx; if (c && !PVCTX.on[c] && o.visible) { o.visible = false; hid.push(o); } });
+    try { return r0(scene, cam); } finally { hid.forEach(function(o) { o.visible = true; }); }
+  };
+  R._pvctx = true;
+};
+(function() { var m0 = window.renderMassView; if (typeof m0 === 'function' && !m0._pvctx) { window.renderMassView = function() { var r = m0.apply(this, arguments); try { PVCTX.install(); } catch (e) {} return r; }; window.renderMassView._pvctx = true; } setTimeout(function() { try { PVCTX.apply(); } catch (e) {} }, 1900); })();
+
 
 // ════════════════════════════════════════════════════════════════════════════════════════════
 // THE THREE STAGES (Brief 22 item 5)
