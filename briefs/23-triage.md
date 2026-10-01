@@ -397,3 +397,37 @@ pass.
 - **README / landing wrong:** step 5 "place furniture from the Library" does not say it is drag and drop while each card
   has a "Place" button.
 - Evidence: `<scratchpad>\b23\full\p3-run1\` (001–100.png, the PDF).
+
+### Run: Persona 7 (tablet, touch, 1024 × 768), run 1, Opus
+
+- **Site:** W 4th Av at Yew St, south side (host Mejuri, 2170 W 4th Av). **Time:** about 20 minutes to the PDF (14
+  pages). The agent could not write its `report.md`; condensed here.
+- **Broke**
+  - **The header's right end is off-screen and cannot be reached:** the design name shows as "Untitle…", and "+ New",
+    "?" and "Sign in ▼" (with Settings) are past the right edge. **Confirmed, and wider than tablets:** the header does
+    not shrink below about 1360 px. At 1280 × 800, a common laptop width, "?" (1280–1297 px) and "Sign in" (1305–1356 px)
+    are off-screen and the page cannot scroll sideways, so **nobody on a 1280 px screen can sign in**; at 1366 px they
+    fit. At 1024 px "+ New" is gone too.
+  - The Check table's Result column is cut off ("Fail prov…", "Awaiti… measure…") and Source is not visible; a sideways
+    swipe scrolls the page instead.
+  - **Furniture cannot be placed by tapping:** a tap outlines a card, and tapping the deck afterwards does nothing; only
+    a drag places a piece (the driver's drag is a mouse drag; a real finger may not start HTML drag and drop). The cards
+    are not buttons in the accessibility tree. (Persona 3 and Parent met the same "Place" gap with a mouse.)
+  - The C01 row's "Unknown …" above "Bus zone present"; "Nothing imported to confirm" above "92 imported items still to
+    confirm" (as Parent).
+  - After dragging a bench on the Plan the Selection panel kept "Along 13.000" until it was reselected ("8.036", off the
+    0.25 m snap grid shown below it).
+  - Bearing "91.2900000000002"; "Over 0.002 m"; "imported 2026-10-01"; landing footer "v0.11-gis" against v0.12.
+  - PDF A-103: the A–A line through "19.80"; "2.65" over the end symbol; "1.10 clear" over tag 2. PDF S-002: "Nearest
+    hydrant to the deck (C05) 31.21 m entered" although nothing was entered (X-001: "measured from placed site objects").
+  - `GEN is not defined` twice.
+- **Confused:** dimensions on furniture cards show only on hover; tap targets too small (import check boxes ~13 px,
+  colour swatches ~12 px, selection handles ~8 px, zoom buttons ~22 px); a hover tooltip on a number field covers the
+  fields below and describes the parklet's centre, not the selected piece; the Plan key covers half the Plan in the All
+  view at this size; the Plan draws "6.00 (≥6.00 C03)" and "1.50 (≥1.50 C13)" as if met while both are "Not entered";
+  the counts' words differ between the sidebar, the groups and the PDF ("12 not confirmed (provisional …)" for checks
+  with no value at all); the deck was put beside a bus stop automatically and nothing suggested another frontage.
+- **README / landing wrong:** landing "eighteen checks" (no C16) and "three working tabs"; README step 5 does not say
+  furniture is placed by dragging; README says Settings is in the account menu, which is off-screen at this width;
+  S-002 says "Site > Survey", which the agent did not find (it did not scroll the whole Site panel).
+- Evidence: `<scratchpad>\b23\full\p7-run1\` (001–040.png, `pdfpageN.png`, the PDF).
