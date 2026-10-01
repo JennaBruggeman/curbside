@@ -22126,7 +22126,8 @@ RPT.sheetAttach = function(d, s) {
     P.text(RPT.tw(s.id, TX.head, true) + 4, RPT.HEAD + 5.2, s.title.toUpperCase(), TX.head, { bold: true });
     P.line(0, RPT.HEAD + 7.2, RPT.SW, RPT.HEAD + 7.2, { w: RPT.LW.obj });
     P.text(0, RPT.HEAD + 13, a.tag + ' ' + a.name + ': ' + a.file + (a.n > 1 ? ', page ' + (a.i + 1) + ' of ' + a.n + (a.page.of > a.n ? ' (of ' + a.page.of + ' in the file)' : '') : '') + '. Supplied by the applicant with the spec card (S-001); not verified.', TX.body, { c: RPT.MID });
-    var x0 = 0, y0 = RPT.HEAD + 18, x1 = RPT.SW - RPT.TB.w - 6, y1 = RPT.SH - 2, q = a.page || {};
+    var x0 = 0, y0 = RPT.HEAD + 18, x1 = RPT.SW - 6, y1 = RPT.SH - RPT.LBL.h - 4, q = a.page || {};
+
     if (!q.url) { P.text(x0, y0 + 8, a.missing ? 'The attachment is not in this browser or the account: open the piece\'s spec card where it was attached.' : 'The attachment could not be read.', TX.body); return; }
     var sc = Math.min((x1 - x0) / q.w, (y1 - y0) / q.h), w = q.w * sc, h = q.h * sc;
     P.rect(x0, y0, w, h, { cls: 'fine', fill: 'none' });
@@ -22142,7 +22143,7 @@ RPT.encBlocks = function(d) {
     return [{ t: ENC.SIDE_LABEL[r.side], b: true }, r.name + (r.id === 'bench-back' ? ' (' + (r.bench ? RPT.fx(r.bench.len, 2) + ' m bench, ' : '') + 'elsewhere ' + ENCLOSURE_ARCHETYPES[r.params.fallback].name.toLowerCase() + ')' : ''), RPT.fx(r.top, 2) + ' m', RPT.fx(r.len, 2) + ' x ' + RPT.fx(r.depth, 3), mats, Math.round(r.transparency * 100) + ' %'];
   });
   return [{ h2: 'Enclosure' }, { table: { cols: [{ t: 'Side', w: 0.12 }, { t: 'Archetype', w: 0.28 }, { t: 'Height', w: 0.09, num: true }, { t: 'Run x depth', w: 0.14, num: true }, { t: 'Materials', w: 0.25 }, { t: 'See-through', w: 0.12, num: true }], rows: rows } },
-    { p: 'Buffer ' + RPT.fx(E.bufferDepth, 2) + ' m inside the deck\'s traffic-side edge (unusable: planting or void); usable width ' + RPT.fx(E.usableW, 2) + ' m of ' + RPT.fx(d.DM.parklet.width, 2) + ' m. Heights above the deck; a planter\'s is the top of its planting (E2, Parklet Manual p. 64). Details A-301.' + (E.flags.length ? ' ' + E.flags.map(function(f) { return f.t; }).join(' ') : '') }];
+    { p: 'Buffer ' + RPT.fx(E.bufferDepth, 2) + ' m inside the deck\'s traffic-side edge (unusable: planting or void); usable width ' + RPT.fx(E.usableW, 2) + ' m of ' + RPT.fx(d.DM.parklet.width, 2) + ' m. Heights above the deck; a planter\'s is the top of its planting (E2, Parklet Manual p. 64). In section on A-202.' + (E.flags.length ? ' ' + E.flags.map(function(f) { return f.t; }).join(' ') : '') }];
 };
 // ── C-001 Compliance: one row per check, failures first; "not entered" where the value is a default ─────────
 RPT.compRows = function(d) { var o = { fail: 0, await: 1, unclear: 2, pass: 3 }; return d.rows.slice().sort(function(a, b) { return (o[a.status] - o[b.status]) || (a.num - b.num); }); };
@@ -22568,16 +22569,16 @@ RPT.tblock = function(P, id, title, scaleTxt, d, ext) {
 RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   var P = RPT.pen(), DA = RPT.DA, AC = RPT.AC, bb = D.bbox(), dx = 0, dy = DA.y, TX = RPT.TX;
   // ext.notesStrip (Brief 19 E): the notes in a strip of three columns under the drawing instead of the column
-  var strip = ext && ext.notesStrip, SC3 = 3, scw = (DA.w - 8) / SC3, sRows = [], stripH = 0;
+  // a sheet with its notes in a strip under the drawing has the sheet's whole width (Brief 25 item 22d)
+  var strip = ext && ext.notesStrip, DAw = strip ? RPT.SW : DA.w, SC3 = 3, scw = (DAw - 8) / SC3, sRows = [], stripH = 0;
   if (strip) {
     var cells = (keys || []).map(function(q) { return { q: q, lines: RPT.wrap(q.t, scw - 10, TX.body) }; });
     for (var ri = 0; ri < cells.length; ri += SC3) { var row = cells.slice(ri, ri + SC3); sRows.push({ cells: row, h: Math.max.apply(null, row.map(function(c) { return c.lines.length; })) * TX.body * RPT.GRID.lh + 2.4 }); }
     stripH = 10 + sRows.reduce(function(a, r) { return a + r.h; }, 0);
   }
   if (isFinite(bb[0])) {
-    dx = DA.x + (DA.w - (bb[2] - bb[0])) / 2 - bb[0]; dy = DA.y + (DA.h - stripH - (bb[3] - bb[1])) / 2 - bb[1];
-    var tbx = RPT.SW - RPT.TB.w - 3, tby = RPT.SH - RPT.TB.h - 3;   // clear of the title block: up as far as the area allows
-    if (bb[2] + dx > tbx && bb[3] + dy > tby) dy -= Math.min(bb[3] + dy - tby, Math.max(0, bb[1] + dy - DA.y));
+    dx = DA.x + (DAw - (bb[2] - bb[0])) / 2 - bb[0]; dy = DA.y + (DA.h - stripH - (bb[3] - bb[1])) / 2 - bb[1];
+    // (no title block to clear: Brief 25 item 22c)
   }
   P.merge(D, dy, dx);
   // hex keys on the drawing (at their place, or the nearest step aside that clears the drawing's text and the other
@@ -22585,7 +22586,7 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   var n = 0, ky = AC.y + 5, w = AC.w - 8, used = [];
   var clear = function(x, y) {
     var b = [x - 3, y - 3, x + 3, y + 3];
-    if (b[0] < DA.x || b[1] < DA.y || b[2] > DA.x + DA.w || b[3] > DA.y + DA.h) return false;   // inside the drawing area
+    if (b[0] < DA.x || b[1] < DA.y || b[2] > DA.x + DAw || b[3] > DA.y + DA.h) return false;   // inside the drawing area
     return !P.boxes.concat(used).some(function(q) { return b[0] < q.x1 && q.x0 < b[2] && b[1] < q.y1 && q.y0 < b[3]; });
   };
   var place = function(at) {
@@ -22595,7 +22596,8 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   };
   if (strip) {
     var sy = Math.min(DA.y + DA.h - stripH, (isFinite(bb[3]) ? bb[3] + dy : DA.y) + 6) + 4;
-    P.text(DA.x, sy, 'Notes', TX.body, { bold: true }); P.line(DA.x, sy + 1.6, DA.x + DA.w, sy + 1.6, { cls: 'general' }); sy += 7;
+    P.text(DA.x, sy, 'Notes', TX.body, { bold: true }); P.line(DA.x, sy + 1.6, DA.x + DAw, sy + 1.6, { cls: 'general' }); sy += 7;
+
     sRows.forEach(function(r) {
       r.cells.forEach(function(c, ci) {
         var x = DA.x + ci * (scw + 4), num = c.q.at ? ++n : null;
@@ -22618,11 +22620,11 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   // an inset (ext.inset {h, draw(P, x, y, w, h)}: A-101's locator) at the foot of the column, clear of the notes and
   // the title block; left out when they leave it no room
   if (ext && ext.inset) {
-    var ih = ext.inset.h, ib = RPT.SH - RPT.TB.h - 6, iy = ib - ih;
+    var ih = ext.inset.h, ib = RPT.SH - 10, iy = ib - ih;   // above the footer
     if (iy >= ky + 4) ext.inset.draw(P, AC.x, iy, AC.w, ih);
   }
   // the band: north on a plan, the scale bar and the scale
-  var by = RPT.SH - 13;
+  var by = RPT.SH - 24;   // above the drawing label (Brief 25 item 22c)
   if (ext && ext.north) RPT.northSym(P, 10, by + 1.5, 4.5);
   if (scale) RPT.bar(P, ext && ext.north ? 26 : 0, by - 2, scale);
   return { id: id, title: title, scale: scale, ext: ext || null, dims: D.dims || [], draw: function(Q) { Q.merge(P); } };
@@ -22820,7 +22822,7 @@ RPT.sheetSite = function(d) {
   var gl = {}, tree = null; G.trees.forEach(function(v) { if (v.genus && v.z >= zA && v.z <= zB) { gl[v.genus.slice(0, 2).toUpperCase()] = v.genus; if (!tree) tree = [F.sx(v.z), F.sy(v.x)]; } });
   var keys = [
     { t: 'Parklet, ' + G.L.toFixed(2) + ' m: layout A-102, deck A-103.', at: [pc[0], pc[1] - 4] },
-    { t: 'Section A-A: sheet A-201.', at: [F.sx(G.sec.z) + 5, F.sy(LM.sidewalkL.x0) - 6] },
+    { t: 'Section A-A: the street on A-201, the parklet on A-202.', at: [F.sx(G.sec.z) + 5, F.sy(LM.sidewalkL.x0) - 6] },
     { t: Object.keys(gl).length ? (near ? 'Street trees by genus: ' + Object.keys(gl).sort().map(function(t) { return t + ' ' + gl[t]; }).join(', ') + '.' : 'Street trees (' + Object.keys(gl).sort().map(function(t) { return gl[t]; }).join(', ') + '): genus tags on A-102.') : 'No street trees in this stretch.', at: tree ? [tree[0] + 4, tree[1] - 4] : null },
     { t: 'Buildings from OpenStreetMap, cut at the sheet\'s extent (' + RPT.fmt(zB - zA) + ' x ' + RPT.fmt(xBot - xTop) + ' m); name and use where known.', at: hostAt },
     { t: 'Site objects from City of Vancouver open data: indicative, confirm on site.', at: null }
@@ -22939,18 +22941,31 @@ RPT.sheetLayout = function(d) {
     { t: 'Clearance zones dashed, with their rule (C03 crosswalk, C05 hydrant, C07 pole, C08 signal, C09 chamber, C13 parking); red: the check fails.', at: zoneAt },
     { t: RPT.tagNote(d), at: null },
     { t: RPT.CITY_NOTE, at: cityAt },
-    { t: 'Section A-A: sheet A-201; deck plan A-103.', at: [F.sx(G.sec.z) + 10, F.sy(LM.sidewalkL.x0) - 6] }
+    { t: 'Section A-A: the street on A-201, the parklet on A-202; deck plan A-103.', at: [F.sx(G.sec.z) + 10, F.sy(LM.sidewalkL.x0) - 6] }
   ];
   return RPT.dsheet(d, 'A-102', 'Layout plan', sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: xBot, north: true });
 };
 
-// ── A-103 Deck plan, 1:50: the sheet's crop (the deck and 3 m around it by default), split into equal parts with match
-// lines when it does not fit the drawing area at 1:50 (with 30 mm for the dimension rows): never shrunk
-RPT.deckParts = function(cr) {
-  var W = cr.z1 - cr.z0, n = Math.max(1, Math.ceil((W * 20 + 30) / RPT.DA.w)), out = [];
-  for (var i = 0; i < n; i++) out.push([cr.z0 + W * i / n, cr.z0 + W * (i + 1) / n]);
-  return out;
+// ── A-103 Deck plan: the sheet's crop (the deck and 3 m around it by default) at 1:50, 1:75 or 1:100 (RPT.deckScale), split
+// only when it does not fit at 1:100
+
+// Brief 25 item 22b: the largest standard scale (1:50, 1:75, 1:100) at which the whole crop (with its dimension rows) fits
+// one sheet; 1:100 is the floor. Only a crop too long even at 1:100 is split, at the enclosure grid line nearest each
+// equal division, with a match line on both sheets.
+RPT.DECK_SCALES = [50, 75, 100];
+RPT.deckScale = function(d) {
+  var cr = d.DM.site.sheets.A103.crop, fits = function(s) { return (cr.z1 - cr.z0) * 1000 / s + 30 <= RPT.DA.w && (cr.x1 - cr.x0) * 1000 / s + 90 <= RPT.DA.y + RPT.DA.h; };
+  for (var i = 0; i < RPT.DECK_SCALES.length; i++) if (fits(RPT.DECK_SCALES[i])) return RPT.DECK_SCALES[i];
+  return 100;
 };
+RPT.deckParts = function(cr, sc, posts) {
+  sc = sc || 100; posts = posts || [];
+  var W = cr.z1 - cr.z0, n = Math.max(1, Math.ceil((W * 1000 / sc + 30) / RPT.DA.w)), cuts = [cr.z0];
+  for (var i = 1; i < n; i++) { var z = cr.z0 + W * i / n, g = posts.filter(function(p) { return p > cuts[cuts.length - 1] + 1 && p < cr.z1 - 1; }).sort(function(a, b) { return Math.abs(a - z) - Math.abs(b - z); })[0]; cuts.push(g != null && Math.abs(g - z) < W / n / 3 ? g : z); }
+  cuts.push(cr.z1);
+  return cuts.slice(1).map(function(z, i) { return [cuts[i], z]; });
+};
+RPT.deckPosts = function(DM) { var r = DM.enclosure && DM.enclosure.runs && DM.enclosure.runs[0]; return r ? r.parts.filter(function(q) { return q.role === 'post'; }).map(function(q) { return (q.u0 + q.u1) / 2; }) : []; };
 RPT.sheetDeck = function(d, part, idx, nParts) {
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), sc = RPT.SCALE_OF.deck(d), k = 1000 / sc, FI = RPT.fills(d.mode), L = G.L, cr = G.DM.site.sheets.A103.crop;
   var za = part[0], zb = part[1], zA = za, zB = zb;   // this part of the sheet's crop
@@ -23010,7 +23025,7 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   RPT.planTags(P, [xa + 0.5, ya + 0.5, xb - 0.5, yb - 0.5], nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103');   // Brief 22 item 6: after the dimension rows
   var keys = [
     { t: 'Grid lines 1, 2, 3 ... at the enclosure posts on the traffic side' + (posts.length > 1 ? ', ' + (posts[1] - posts[0]).toFixed(2) + ' m apart, the first at ' + posts[0].toFixed(2) + ' m' : '') + '.', at: null },
-    { t: 'Enclosure: ' + ENC.describe(G.DM) + ': details A-301.', at: encAt.traffic || null },
+    { t: 'Enclosure: ' + ENC.describe(G.DM) + ': in section on A-202.', at: encAt.traffic || null },
     { t: 'Hatched: the accessible route, clear width ' + (typeof GEN !== 'undefined' ? GEN.ROUTE_W : 0.92) + ' m or more from the entries.', at: routeAt },
     { t: 'Entry turning space, ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(2) + ' m square.', at: entryAt },
     { t: 'End enclosure: ' + EN.runs[1].name.toLowerCase() + ', ' + EN.runs[1].depth.toFixed(2) + ' m deep, ' + EN.runs[1].top.toFixed(2) + ' m high' + (EN.runs[2].id !== EN.runs[1].id ? '; far end ' + EN.runs[2].name.toLowerCase() : '') + '.', at: plAt },
@@ -23035,9 +23050,21 @@ RPT.sectionScale = function(d) {
 RPT.SCALE_OF = {
   site: function(d) { return RPT.fitScale(d.DM.site.sheets.A101.crop, 250, 24, 6); },
   layout: function(d) { return RPT.fitScale(d.DM.site.sheets.A102.crop, 100, 30, 45); },
-  deck: function() { return 50; }, section: function(d) { return RPT.sectionScale(d); }, details: function() { return 10; }
+  // Brief 25 item 22d: the street section at 1:100 always (never smaller); the parklet section at 1:25 when it fits, else 1:50
+  deck: function(d) { return RPT.deckScale(d); }, section: function() { return 100; }, parklet: function(d) { return RPT.parkletScale(d); }, details: function() { return 10; }
 };
-RPT.sheetSection = function(d) {
+// the parklet section's extent across (Brief 25 item 22d): the host building's face less 0.8 m (else the sidewalk less 0.4 m)
+// to the end of the first travel lane past the deck, and its height (the deck, the enclosure, a person: 2.8 m over it)
+RPT.parkletRange = function(DM) {
+  var LM = DM.landmarks, cb = sectionCutBuildingL(DM), cbf = cb ? cb.footprint : null, lv = DM.parklet.levels;
+  var lane = DM.crossSection.find(function(s) { return s.type === 'travel-lane' && s.x0 >= LM.deckX1 - 0.01; }) || DM.crossSection.find(function(s) { return s.type === 'travel-lane'; }) || null;
+  return { xL: cbf ? Math.min(cbf.faceX - 0.8, LM.sidewalkL.x0) : LM.sidewalkL.x0 - 0.4, xR: lane ? lane.x1 : LM.deckX1 + 3.5, lane: lane, top: Math.max(4.2, lv.deckTop + (DM.enclosure ? DM.enclosure.height : 1) + 2.8) };
+};
+RPT.parkletScale = function(d) { var R = RPT.parkletRange(d.DM), fits = function(s) { var k = 1000 / s; return (R.xR - R.xL) * k + 70 <= RPT.SW && (R.top + 0.9) * k + 86 <= RPT.DA.h; }; return fits(25) ? 25 : 50; };
+// opt.kind: 'street' (A-201: building to building, 1:100) or 'parklet' (A-202: the parklet and what touches it, 1:25 / 1:50);
+// one cut, one look direction (the section box), the same trees, in both
+RPT.sheetSection = function(d, opt) {
+  opt = opt || { kind: 'street' }; var PARK = opt.kind === 'parklet';
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), FI = RPT.fills(d.mode), lv = G.lv, EN = G.enc, tech = d.mode === 'technical', T = DRAW_STYLE.t(d.mode);
   // across: from 1 m into the building the cut passes through (else the sidewalk less 0.4 m) to the end of the first lane
   var cb = sectionCutBuildingL(G.DM), cbf = cb ? cb.footprint : null;
@@ -23046,8 +23073,14 @@ RPT.sheetSection = function(d) {
   // up (Brief 18): the Section's extent (sectionExtentM, as on screen); 1:50, or the next scale out when the drawing and
   // its rows do not fit the drawing area, never shrunk
   // (Brief 19b: 1:50 when it fits, else 1:100, never smaller; what is taller than the drawing area is clipped at its top)
-  var ext = sectionExtentM(G.DM), sc = RPT.sectionScale(d), k = 1000 / sc;
-  var mir = G.sec.dir === 1, W = (xR - xL) * k, X0 = (RPT.DA.w - W) / 2, ROAD = 8 + Math.min(ext * k, RPT.DA.h - 86 - 0.95 * k - 8);
+  // Brief 25 item 22d: the street building to building (1.5 m into each), the parklet from the host face to the first lane
+  if (PARK) { var PR = RPT.parkletRange(G.DM); xL = PR.xL; xR = PR.xR; xRd = xR; lane = PR.lane; }
+  else { var cbR0 = sectionCutBuildingR(G.DM), fb0 = cbR0 && cbR0.footprint; xL = cbf ? Math.min(cbf.faceX - 1.5, LM.sidewalkL.x0) : LM.sidewalkL.x0 - 0.5; xR = fb0 ? fb0.faceX + 1.5 : Math.max(xR, LM.roadRight + (+SIDEWALK_W || 2) + 0.5); xRd = Math.min(xR, Math.max(LM.roadRight, LM.allocatedRight)); }
+  var ext = sectionExtentM(G.DM), sc = PARK ? RPT.SCALE_OF.parklet(d) : RPT.SCALE_OF.section(d), k = 1000 / sc;
+  if (PARK) ext = Math.min(ext, PR.top);
+  // the notes are a strip under the drawing, so the drawing has the sheet's whole width; a street wider than it at 1:100
+  // keeps the scale and loses its far side at the sheet edge
+  var DW = RPT.SW, mir = G.sec.dir === 1, W = (xR - xL) * k, X0 = W <= DW - 70 ? (DW - W) / 2 : (mir ? DW - 35 - W : 35), ROAD = 8 + Math.min(ext * k, RPT.DA.h - 86 - 0.95 * k - 8);
   var X = function(x) { return mir ? X0 + W - (x - xL) * k : X0 + (x - xL) * k; }, Y = function(y) { return ROAD - y * k; };
   var box = function(x0, x1, y0, y1) { var a = X(x0), b = X(x1); return [Math.min(a, b), Y(y1), Math.abs(b - a), (y1 - y0) * k]; };
   var rectXY = function(x0, x1, y0, y1, o) { var q = box(x0, x1, y0, y1); P.rect(q[0], q[1], q[2], q[3], o); return q; };
@@ -23056,7 +23089,7 @@ RPT.sheetSection = function(d) {
   // a cut building's poche (no black fields): a 45 degree hatch 4 mm apart (technical) or a 25 % warm grey (schematic)
   var poche = function(x0, x1, y0, y1) { var q = rectXY(x0, x1, y0, y1, { fill: '#FFFFFF', w: 0 }); if (tech) hat(q, 'poche', { band: false }); else rectXY(x0, x1, y0, y1, { fill: T.mid, fop: 0.25, w: 0 }); return q; };
   // clipped at the drawing area, not the section's extent (a crown may cross the frontage line); the built things stop at it themselves
-  P.clipOpen("<rect x='0' y='8' width='" + RPT.DA.w + "' height='" + (ROAD + 0.95 * k - 8) + "'/>");
+  P.clipOpen("<rect x='0' y='8' width='" + DW + "' height='" + (ROAD + 0.95 * k - 8) + "'/>");
   // Beyond the cut first (Brief 18), far to near (getSectionScene's order): silhouettes at 'context' with an opaque paper
   // fill, so a nearer one hides a farther one; furniture as its outline only (flSectionArchetype's silhouette); a tree as
   // its trunk and its crown outline (no fill / 35 %). The cut is drawn over them.
@@ -23172,10 +23205,17 @@ RPT.sheetSection = function(d) {
   RPT.chain(P, { side: 'bottom', edge: gb, row: 1, at: [xs[0], xs[xs.length - 1]], vals: [RPT.fmt(stops[stops.length - 1] - stops[0])] });
   // the keyed notes (Brief 19 E): generated from the model and the archetypes (sectionNotes, as the screen's Section), in a
   // strip under the section; the section's own note first, how the beyond reads last
-  var keys = [{ t: 'Section A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ', ' + G.sec.depth.toFixed(1) + ' m beyond in elevation; details A-301.', at: null }]
-    .concat(sectionNotes(scn, G.DM).map(function(q) { return { t: q.t + '.', at: [X(q.at[0]), Y(q.at[1]) - 3] }; }))
-    .concat([{ t: tech ? 'Beyond the cut: silhouettes, the nearer in front; trees as their outline.' : 'Trees by depth: the cut 100 %, to 8 m 80 %, to 20 m 50 %, farther 25 %.', at: null }]);
-  return RPT.dsheet(d, 'A-201', 'Section A-A', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: xL, xBot: xR, notesStrip: true });
+  var cutTxt = 'A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ', ' + G.sec.depth.toFixed(1) + ' m beyond in elevation';
+  var keys = [{ t: PARK ? 'Parklet section ' + cutTxt + ': the cut and the direction of the street section A-201.' : 'Street section ' + cutTxt + '; the parklet in detail on A-202.', at: null }]
+    .concat(sectionNotes(scn, G.DM).filter(function(q) { return !(PARK && /^Enclosure/.test(q.t)); }).map(function(q) { return { t: q.t + '.', at: [X(q.at[0]), Y(q.at[1]) - 3] }; }));   // (A-202: the enclosure's full note below)
+  if (PARK && EN && EN.runs && EN.runs[0]) {   // Brief 25 item 22e: what A-301 said, here, keyed to the enclosure and the deck edge
+    var EA = ENCLOSURE_ARCHETYPES[EN.runs[0].id], ep = EN.runs[0].params || {};
+    var par = EA && EA.params ? Object.keys(EA.params).map(function(key) { var v = ep[key]; return EA.params[key].label.toLowerCase() + ' ' + (typeof v === 'number' ? (key === 'open' ? Math.round(v * 100) + ' %' : Math.round(v * 1000) + ' mm') : (ENCLOSURE_ARCHETYPES[v] ? ENCLOSURE_ARCHETYPES[v].name.toLowerCase() : v)); }).join(', ') : '';
+    keys.push({ t: 'Enclosure: ' + (EA ? EA.name.toLowerCase() : 'traffic side') + (par ? ' (' + par + ')' : '') + ', ' + EN.height.toFixed(2) + ' m above the deck, set ' + EN.bufferDepth.toFixed(2) + ' m in from the traffic-side edge (the buffer); C17.', at: [X(LM.deckX1 - EN.bufferDepth), Y(lv.deckTop + EN.height) - 3] });
+    keys.push({ t: 'Deck edge at the sidewalk: gap 12 mm max; a larger gap takes a connector plate 13 mm max (C14, Parklet Manual p. 62).', at: [X(LM.deckX0), Y(lv.deckTop) - 3] });
+  }
+  keys.push({ t: tech ? 'Beyond the cut: silhouettes, the nearer in front; trees as their outline.' : 'Trees by depth: the cut 100 %, to 8 m 80 %, to 20 m 50 %, farther 25 %.', at: null });
+  return RPT.dsheet(d, PARK ? 'A-202' : 'A-201', PARK ? 'Parklet section' : 'Street section', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: xL, xBot: xR, notesStrip: true });
 };
 
 // A-301 Details: RPT.sheetDetails, drawn from the enclosure (Brief 21 §12), follows the enclosure's other sheet helpers
@@ -23186,8 +23226,9 @@ RPT.sheetSection = function(d) {
 // Brief 21 §8: renders first, in both modes: the cover (the hero render full-bleed), one full-bleed sheet per ticked
 // render, then the drawing sheets, schedules, compliance and sources; the modes differ only in drawing style
 RPT.SHEETS = {
-  schematic: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'survey', 'sources'],
-  technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'details', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
+  // (Brief 25 items 22d, 22e: two sections, A-201 the street and A-202 the parklet; A-301 Details is no longer printed)
+  schematic: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources'],
+  technical: ['cover', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'compliance', 'lanes', 'survey', 'sources']
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 // Report options (Brief 22 item 7): the Export tab's Include boxes; a sheet left out is not in the list, so the drawing
@@ -23209,9 +23250,9 @@ RPT.sheetList = function(d) {
     if (off.indexOf(k) >= 0) return;
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     // (Brief 19b: each drawing's scale from RPT.SCALE_OF, the value its sheet draws at and its title block prints)
-    if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
+    if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop, RPT.SCALE_OF.deck(d), RPT.deckPosts(d.DM)); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
     var M = { cover: ['V-000', 'Cover', 'NTS'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
-      section: ['A-201', 'Section A-A', '1:' + RPT.SCALE_OF.section(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
+      section: ['A-201', 'Street section', '1:' + RPT.SCALE_OF.section(d)], section2: ['A-202', 'Parklet section', '1:' + RPT.SCALE_OF.parklet(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
       compliance: ['C-001', 'Compliance', '-'], lanes: ['C-002', 'Lane envelope (EDM Table 8-10)', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
   });
@@ -23226,7 +23267,8 @@ RPT.BUILDERS = {
   site: function(d) { return RPT.sheetSite(d); },
   layout: function(d) { return RPT.sheetLayout(d); },
   deck: function(d, drw, s) { return RPT.sheetDeck(d, s.part, s.i, s.n); },
-  section: function(d) { return RPT.sheetSection(d); },
+  section: function(d) { return RPT.sheetSection(d, { kind: 'street' }); },
+  section2: function(d) { return RPT.sheetSection(d, { kind: 'parklet' }); },
   details: function(d) { return RPT.sheetDetails(d); },
 
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
@@ -23486,13 +23528,14 @@ RPT.glyphSafe = function(html) { return html.replace(/[←-⏿■-➿]/g, functi
 RPT.PG = { W: 431.8, H: 279.4, ml: 12, mt: 12, mr: 12, mb: 10 };
 RPT.SW = RPT.PG.W - RPT.PG.ml - RPT.PG.mr;   // 407.8: the content box, in which every sheet builder draws
 RPT.SH = RPT.PG.H - RPT.PG.mt - RPT.PG.mb;   // 257.4
-RPT.TB = { w: 85, h: 45 };                    // the title block, bottom right of the content box
+RPT.TB = { w: 0, h: 0 };                      // (the boxed title block is gone: Brief 25 item 22c; RPT.label)
+RPT.LBL = { h: 12 };                          // the drawing label, bottom left: sheet number and title, then scale · date · status
 RPT.HEAD = 9;                                 // the header strip (project, sample band, Curbside) at the top
 RPT.BAND = RPT.TB.h;                          // the bottom band of a drawing sheet: scale bar and caption left of the title block
 // the drawing sheets (Brief 17): the annotation column (60 mm, right, above the title block), the drawing area left of
 // it (a drawing is centred there), the band under the drawing area (north, the scale bar)
-RPT.AC = { w: 60, x: RPT.SW - 60, y: RPT.HEAD + 2, h: RPT.SH - RPT.TB.h - 4 - RPT.HEAD - 2 };
-RPT.DA = { x: 0, y: RPT.HEAD + 2, w: RPT.SW - RPT.AC.w - 8, h: RPT.SH - RPT.HEAD - 2 - 18 };
+RPT.AC = { w: 60, x: RPT.SW - 60, y: RPT.HEAD + 2, h: RPT.SH - 8 - RPT.HEAD - 2 };   // the notes column, down to the footer
+RPT.DA = { x: 0, y: RPT.HEAD + 2, w: RPT.SW - RPT.AC.w - 8, h: RPT.SH - RPT.HEAD - 2 - 30 };   // above the scale bar and the label
 RPT.VENDOR = { jspdf: 'tools/vendor/jspdf-2.5.2.umd.min.js', svg2pdf: 'tools/vendor/svg2pdf-2.2.4.umd.min.js', regular: 'tools/vendor/DMSans-Regular.ttf', semibold: 'tools/vendor/DMSans-SemiBold.ttf' };
 RPT.FONT = 'DM Sans'; RPT.FONT_B = 'DM Sans SemiBold';   // two faces, two names: the PDF lists both
 RPT._script = function(src) { return new Promise(function(res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function() { rej(new Error('could not load ' + src)); }; document.head.appendChild(s); }); };
@@ -23544,8 +23587,18 @@ RPT.page = function(d, meta, P) {
   P.text(S, 4.8, 'Curbside ' + RPT.VERSION, TX.tag, { anchor: 'end', c: RPT.MID });
   P.line(0, 7, S, 7, { w: RPT.LW.ctx });
   // footer: left of the title block, on the last line of the content box
-  P.text(0, RPT.SH - 0.8, RPT.DISCLAIMER + '  ·  ' + d.date + '  ·  page ' + meta.n + '/' + meta.N, TX.tag, { c: RPT.MID, data: " data-footer='1'" });
-  RPT.tblock(P, meta.id, meta.title, meta.scale ? '1:' + meta.scale : 'NTS', d, meta.ext);
+  // footer, bottom right: the disclaimer, the report's style, the page (Brief 25 item 22c: the label has the left corner)
+  P.text(S, RPT.SH - 0.8, RPT.DISCLAIMER + '  ·  ' + d.mode.charAt(0).toUpperCase() + d.mode.slice(1) + '  ·  page ' + meta.n + '/' + meta.N, TX.tag, { anchor: 'end', c: RPT.MID, data: " data-footer='1'" });
+  RPT.label(P, meta.id, meta.title, meta.scale ? '1:' + meta.scale : 'NTS', d);
+};
+// The drawing label (Brief 25 item 22c), bottom left, no box: "A-103  Deck plan", then scale · date · status in the
+// sheet's small text, on the left margin the notes, keys and scale bar above it share. The project and the address are
+// the header line's.
+RPT.label = function(P, id, title, scaleTxt, d) {
+  var TX = RPT.TX, y = RPT.SH - 5.6;
+  P.text(0, y, id, TX.head, { bold: true, data: " data-sheet-id='1'" });
+  P.text(RPT.tw(id, TX.head, true) + 4, y, title, TX.head, { bold: true });
+  P.text(0, y + 4.4, [scaleTxt, d.date, d.sample ? 'Sample' : 'Preliminary', 'dimensions in metres'].join('  ·  '), TX.tag, { c: RPT.MID });
 };
 // the full page svg: the content box offset by the margins
 RPT.pageSVG = function(P, bleed) {   // bleed (Brief 21 §8): the page draws on the whole sheet, margins and all
@@ -23560,8 +23613,9 @@ RPT.pageSVG = function(P, bleed) {   // bleed (Brief 21 §8): the page draws on 
 // shorter by the title block. A heading keeps with its first line; a table continues with its head repeated.
 RPT.GRID = { top: RPT.HEAD + 11, gap: 10, lh: 1.42 };
 RPT.cols = function(wide) {
-  var W = RPT.SW, top = RPT.GRID.top, bot1 = RPT.SH - 5, bot2 = RPT.SH - RPT.TB.h - 5;
-  if (wide) return [{ x: 0, w: W, top: top, bot: bot2 }];
+  var W = RPT.SW, top = RPT.GRID.top, bot1 = RPT.SH - RPT.LBL.h - 4, bot2 = RPT.SH - 6;   // the label bottom left, the footer bottom right
+  if (wide) return [{ x: 0, w: W, top: top, bot: bot1 }];
+  // (a wide sheet: one column, clear of the label)
   var cw = (W - RPT.GRID.gap) / 2;
   return [{ x: 0, w: cw, top: top, bot: bot1 }, { x: cw + RPT.GRID.gap, w: cw, top: top, bot: bot2 }];
 };
