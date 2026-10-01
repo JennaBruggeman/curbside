@@ -983,7 +983,7 @@ Decisions for every item are in the session's decisions log; the essentials:
 - **Out of scope (later):** the hosted photoreal relay; persona 6 (accounts) and the full Brief 23 pass, after this merges.
 
 ## Brief 27: Friday fixes (branch `fixes-3` from master, 2026-10-01; one commit per item, triage rows cited)
-§1 done; §2–§3 after Jenna's check. Jenna's decisions (in the brief): C16 at the Manual's 1.5 m; deck default 2.5 m with
+§1–§3 done (§1 approved by Jenna); merged to master as v0.13. Jenna's decisions (in the brief): C16 at the Manual's 1.5 m; deck default 2.5 m with
 an advisory above it, no cap; deck flush with the curb. They are done with §2.
 - **Item 0, the signed-in save (Jenna's addition, above everything).** Root cause: signing in opens no design, and the first
   site import creates the design's row. When the account refused that insert, `pkCreateDesign` logged it and returned
@@ -1041,6 +1041,25 @@ an advisory above it, no cap; deck flush with the curb. They are done with §2.
     Section), "Place on deck" by keyboard, an immediate reload, Generate and Open, and "+ New". All pass.
   - The header at 1024–1920 in each save state.
   - The save states against fake backends: refused, no row, unreachable, accepted, signed out.
+
+- **§2 (PDF honesty) and Jenna's decisions** (commit faf08d0):
+  - **Rule zones:** a C03 or C13 distance drawn from the rule reads "6.00 req. (C03)" on a dashed line (Plan, A-102, legend).
+  - **Red:** only a failing check is red; passing zones are ink.
+  - **C01's bus stop:** its note is rewritten from the stop's current position, so it matches S-002.
+  - **C-001:** "value entered, not drawn" where no sheet draws the subject.
+  - **Citations:** C06 is on p. 62; all other check pages were read against the Manual and hold.
+  - **C16:** 1.5 m (G19, p. 60), with BCBC's 1.1 m noted and not used.
+  - **Deck width:** default 2.5 m, no cap, an advisory above 2.5 m.
+  - **Deck level:** flush with the top of the curb (`PARKLET_LEVELS.deckTop` 0.15); C14 judges the model (the 12 mm gap,
+    the deck top against the curb).
+  - The live 3D view keeps its schematic levels: its sidewalk is a flat plane at the road.
+  - **VERIFY:** reports built and read at rb (schematic and technical), dn, cd, W 4th and Main; the cd technical
+    A-102, A-202 and C-001 looked at; §1 re-run after §2.
+- **§3:**
+  - **Item 13 (the redirect URL):** Jenna's; the Supabase wildcard covers it.
+  - **Item 14 (C04 "0.1 %"):** item 1's keystroke loss. The slope field lost focus after the first character and the rest
+    went elsewhere (reproduced before the fix: "2.5" became 0.1); fixed there.
+- **Seen in passing, not in this brief (triage row 30):** on A-102 the painted lane line still crosses the C03 labels.
 
 ## Later brief: 3D full city (Brief 25 item 24, deferred by Jenna 2026-10-01)
 The 3D view shows the city everywhere, with no cut-off at the import radius. Building cells load around the camera as it moves: far cells as simple extruded blocks, near cells in full detail, and the same for streets and trees. The import radius only decides what gets sections and checks. It needs a streaming loader for the 3D scene (the site map's cell loader, `GIS.load` / `GIS.ensure`, is the starting point) and a level-of-detail rule. Brief 25 keeps the current 3D extent.
