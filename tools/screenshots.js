@@ -1,6 +1,6 @@
 // Curbside: the landing page's "How it works" images (Brief 22 item 10).
 //
-//   node tools/screenshots.js            replay: the four stage images and the report cover thumbnail, from the fixtures
+//   node tools/screenshots.js            replay: the six stage images and the report cover thumbnail, from the fixtures
 //   node tools/screenshots.js --record   the same, recording the network data into the fixtures first
 //
 // One site (Commercial Drive & E 1st Avenue), a fixed 1200 x 750 viewport at 2x, a fixed clock and a seeded
@@ -8,8 +8,9 @@
 // tiles) answered from tools/fixtures/commercial/ -- so two runs write identical files. Libraries and fonts from
 // the CDNs load as usual (they are pinned versions). Anything else is refused in replay and listed.
 // Needs the local server (tools/start.cmd, http://localhost:8766) and Playwright's Chromium (see the README).
-// Writes landing/how-1-site.png, how-2-seed.png, how-3-design.png, how-4-report.png and report-cover.png, and
-// prints each file's SHA-256.
+// Writes landing/how-1-site.png, how-2-seed.png, how-3-design.png, how-5-access.png, how-6-visualize.png,
+// how-4-report.png and report-cover.png (the landing page and the first-sign-in walkthrough), and prints each
+// file's SHA-256.
 'use strict';
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const { chromium } = require('playwright');
@@ -73,12 +74,12 @@ async function main() {
 
   const page = await context.newPage();
   page.on('pageerror', (e) => console.warn('[page error]', e.message));
-  await page.goto(BASE + '/parklet-checker.html?noauth', { waitUntil: 'load' });
+  await page.goto(BASE + '/parklet-checker.html?noauth&gis=fixtures', { waitUntil: 'load' });   // the site data: the vendored cells (test/gis-fixtures)
   await page.waitForFunction(() => typeof pkStage === 'function' && typeof SMP !== 'undefined');
   await sleep(2500);   // the first-visit blank design (stage 0) and the stage UI
   await page.addStyleTag({ content: '#pkToast, .ui-tip, #uiTip { display: none !important; } * { caret-color: transparent !important; }' });
   const shots = [];
-  const shot = async (name) => { await sleep(600); const f = path.join(OUT, name); await page.screenshot({ path: f, animations: 'disabled', caret: 'hide' }); shots.push(f); };
+  const shot = async (name) => { await sleep(600); const f = path.join(OUT, name); await page.screenshot({ path: f, animations: 'disabled', caret: 'hide', timeout: 120000 }); shots.push(f); console.log('  ' + name); };
 
   // 1. Choose a site: the map, the street and the parklet's side picked
   await page.evaluate(async (S) => {
@@ -107,6 +108,9 @@ async function main() {
     appSetMode('design'); setCanvasView('all'); await W(600); _pvFit('design'); fitAllViewports(); await W(1500);
   });
   if (await page.evaluate(() => pkStage()) !== 1) throw new Error('not at stage 1 after the import');
+  // the Plan's key folded (it is open by default and covers the Plan at this panel size)
+  const foldKey = () => page.evaluate(() => { const k = document.getElementById('pvKey'); if (k) k.open = false; });
+  await foldKey();
   await shot('how-2-seed.png');
 
   // 3. Design and check: the test design's furniture on the deck, the checks beside it
@@ -125,6 +129,22 @@ async function main() {
     appSetMode('check'); await W(1200);
   });
   await shot('how-3-design.png');
+
+  // 5. Accessibility (Brief 28 item 4: the landing step and the walkthrough's card): the route over the deck plan
+  await page.evaluate(async () => { appSetMode('accessibility'); await new Promise((r) => setTimeout(r, 2500)); });
+  await foldKey();
+  await page.mouse.move(5, 740);
+  await shot('how-5-access.png');
+
+  // 6. Visualize (the walkthrough's card): the 3D view at its Cover camera
+  await page.evaluate(async () => {
+    const W = (ms) => new Promise((r) => setTimeout(r, ms));
+    appSetMode('visualize'); await W(6000);
+    const b = [...document.querySelectorAll('button')].find((x) => /^Cover$/.test(x.textContent.trim()) && x.getClientRects().length);
+    if (b) b.click(); await W(8000);
+  });
+  await page.mouse.move(5, 740);
+  await shot('how-6-visualize.png');
 
   // 4. The report: the Export tab, then the cover itself as the thumbnail
   const cover = await page.evaluate(async () => {
