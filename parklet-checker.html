@@ -9328,7 +9328,7 @@ function resize3DViewport() {
   _3d.camera.updateProjectionMatrix();
   // still at home (not orbited since): the home is the Cover framing, so it is framed again for the new shape (Brief 25 23b)
   if (_3d._home && _3d.controls && typeof AXE !== 'undefined' && AXE.coverView && _3d.camera.position.distanceTo(_3d._home.pos) < 1e-3 && _3d.controls.target.distanceTo(_3d._home.target) < 1e-3) {
-    var cv = AXE.coverView(_3d.camera, w / h); _3d.camera.position.copy(cv.pos); _3d.controls.target.copy(cv.target); _3d.controls.update();
+    var cv = AXE.homePose ? AXE.homePose(_3d.camera, w / h, _3d.group) : AXE.coverView(_3d.camera, w / h); _3d.camera.position.copy(cv.pos); _3d.controls.target.copy(cv.target); _3d.controls.update();
     _3d._home = { pos: _3d.camera.position.clone(), target: _3d.controls.target.clone() };
   }
   _3d.renderer.setSize(w, h, false);
@@ -9862,21 +9862,10 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     // stands over the far curb, before the deck's start, looking back across the road at the deck: no building between;
     // it is lifted clear of any canopy in its view.)
     // Brief 25 item 23b: the home view is the Cover preset's direction and framing (the deck a third of the width)
-    const _cvw = typeof AXE !== 'undefined' && AXE.coverView ? AXE.coverView(_3d.camera, container && container.clientWidth > 40 && container.clientHeight > 40 ? container.clientWidth / container.clientHeight : 16 / 9) : null;
-    if (_cvw) _3d.controls.target.copy(_cvw.target);
-    const camX = _cvw ? _cvw.pos.x : XCR;
-    const camZ = _cvw ? _cvw.pos.z : -Math.max(L * 0.5, 6);
-    let camH = _cvw ? _cvw.pos.y : Math.max(L * 0.6, 10);
-    _3d.camera.position.set(camX, camH, camZ);
-    const _tgt = _3d.controls.target, _rc = new THREE.Raycaster();
-    g.updateMatrixWorld(true);
-    for (let _k = 0; _k < 6; _k++) {
-      const _d = _3d.camera.position.clone().sub(_tgt), _len = _d.length();
-      _rc.set(_tgt, _d.normalize()); _rc.far = _len;
-      const _blk = _rc.intersectObjects(g.children, true).some(function(h) { for (let o = h.object; o; o = o.parent) if (o.userData && o.userData.veg != null) return true; return false; });
-      if (!_blk) break;
-      camH += 6; _3d.camera.position.set(camX, camH, camZ);
-    }
+    const _asp = container && container.clientWidth > 40 && container.clientHeight > 40 ? container.clientWidth / container.clientHeight : 16 / 9;
+    const _hp = typeof AXE !== 'undefined' && AXE.homePose ? AXE.homePose(_3d.camera, _asp, g) : null;   // Brief 29 item 1b
+    if (_hp) { _3d.controls.target.copy(_hp.target); _3d.camera.position.copy(_hp.pos); window._3dCoverLift = _hp.lift; }
+    else _3d.camera.position.set(XCR, Math.max(L * 0.6, 10), -Math.max(L * 0.5, 6));
   }
   const slopePct = parseFloat(state['slope']) || 0;
   _3d.group.rotation.x = -Math.atan(slopePct / 100);
@@ -21206,6 +21195,25 @@ AXE.coverView = function(cam, aspect) {
   var wD = Math.abs(db.z1 - db.z0) * Math.SQRT1_2 + Math.abs(db.x1 - db.x0) * Math.SQRT1_2, hf = 2 * Math.atan(Math.tan(cam.fov * Math.PI / 360) * (aspect || cam.aspect || 16 / 9));
   var dist = (wD / AXE.COVER_SHARE / 2) / Math.tan(hf / 2);
   return { pos: t.clone().add(d.multiplyScalar(dist)), target: t };
+};
+// the 3D view's home pose (Brief 29 item 1b): the Cover's direction and framing (coverView), the camera kept over the road:
+// its x capped at the far curb and its height raised to keep the Cover's distance to the deck. From past the curb (where
+// the Cover direction puts it on a narrow street) the far side's buildings stood between it and the deck; over the road
+// nothing across the street is nearer than the far curb. Then raised 4 m at a time while a street tree is on its line to
+// the deck. cam is moved to the pose; grp: the scene's group. -> { pos, target, lift, capped }
+AXE.homePose = function(cam, aspect, grp) {
+  var cv = AXE.coverView(cam, aspect), t = cv.target, pos = cv.pos.clone(), LM = DESIGN_MODEL.landmarks, xc = LM.roadRight - 0.5, capped = pos.x > xc;
+  if (capped) { var dist = cv.pos.distanceTo(t), dx = xc - t.x, dz = pos.z - t.z; pos.set(xc, t.y + Math.sqrt(Math.max(1, dist * dist - dx * dx - dz * dz)), pos.z); }
+  var y0 = pos.y, rc = new THREE.Raycaster(), kids = grp ? grp.children : [];
+  var tree = function(o) { for (; o; o = o.parent) if (o.userData && o.userData.veg != null) return true; return false; };
+  if (grp) grp.updateMatrixWorld(true);
+  for (var k = 0; k < 6; k++) {
+    var d = pos.clone().sub(t), len = d.length(); rc.set(t, d.normalize()); rc.far = len;
+    if (!rc.intersectObjects(kids, true).some(function(h) { return tree(h.object); })) break;
+    pos.y += 4;
+  }
+  cam.position.copy(pos); cam.lookAt(t);
+  return { pos: pos, target: t.clone(), lift: +(pos.y - y0).toFixed(1), capped: capped };
 };
 AXE.cutaway = function() {
   var LM = DESIGN_MODEL.landmarks, farX = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, out = [], b = new THREE.Box3();
