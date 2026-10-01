@@ -144,3 +144,34 @@ The landing page's invite-code line will also be reported by every persona that 
 
 Harness, before the full pass (not app issues): the driver should prefer visible matches for text and name clicks;
 persona 6 needs accounts made by Jenna.
+
+## Full pass
+
+Site under test: https://jennabruggeman.github.io/curbside/ at v0.12-fixes (master `316d637`, published 2026-10-01
+04:50 UTC; Pages built 36 s after the push). Started 2026-09-30 22:00 Vancouver time. Nothing was fixed during the
+pass.
+
+### How it was run (read this before the runs)
+
+- **Personas and models:** 1–6 on Claude Sonnet, Parent, 7 and 8 on Claude Opus; two runs each, a third where run two
+  found something run one did not; at most three agents at a time.
+- **Driver:** the smoke pass's HTTP driver with four changes (`<scratchpad>\b23\driver2.js`): a click, fill or hover by
+  text, role, label or placeholder takes the first visible match (the smoke pass's harness artefact); a touch mode with
+  a `tap` command (persona 7: 1024 × 768, `hasTouch`); a page zoom (persona 5: 150 %, the CSS viewport 933 × 600); a
+  `newbrowser` command (persona 6: a fresh context, no storage). No script evaluation: an agent sees what a visitor
+  sees. The agents had the landing page and README.md (the v0.12 copy), nothing else.
+- **No accounts, again.** Agents opened the sign-up and sign-in forms and recorded them, did not submit them, and
+  continued signed out at `parklet-checker.html?noauth`. No password was typed anywhere. **Persona 6** therefore ran
+  what a returning user can do signed out (save in this browser, come back in a new browser) and lists the
+  signed-in round trip (sign up, save, sign out, sign in on a new browser) as steps for Jenna to run.
+- **Persona 8** got a finished technical PDF made on the live site (E 10th Av at Main St, the 7-piece test design,
+  14 pages: `<scratchpad>\b23\p8-input\curbside-main-street-technical.pdf`) and the Parklet Manual, and did not use
+  the app.
+- **Seen before the runs (harness check):** the first load logs a console warning `[route] ReferenceError: GEN is not
+  defined at ACC.planSVG` (the Plan's route drawing runs before the layout model is defined; caught, nothing breaks).
+  Agents that read the console will report it; it is one issue.
+- **Screenshots and driver logs:** `<scratchpad>\b23\full\<persona>-run<n>\` (numbered PNGs, `driver-log.jsonl`, the
+  agent's `report.md`). `<scratchpad>` is
+  `C:\Users\bangp\AppData\Local\Temp\claude\C--Users-bangp-Desktop-UBC-Fall-2026-ARCH-540-AI-New-folder\53c36af6-f1db-4db4-82b7-a08691d53a6f\scratchpad`.
+- **Checked against the evidence.** Each run block below is the agent's report, condensed; an item I could not
+  confirm from the log or the screenshots says so.
