@@ -8893,6 +8893,13 @@ function planMD(e) {
   if (pkOnDeck(pos.x, pos.y)) { _pvDeckDragging = { cx: e.clientX, applied: 0 }; _pvDeckMoved = false; e.preventDefault(); }
 }
 
+// (Brief 29b S4) the 3D view is drawn only while it is on screen. Its loop drew every frame whatever the tab (and the
+// shadow map with every still frame), so with Plan, Section, Generate, Check or Export showing, any read of a WebGL
+// canvas (Generate's thumbnails, the report's drawings) waited behind frames nobody saw: 5 s here, 48 s on a slow machine
+function _3dShown() {
+  var el = typeof _3d !== 'undefined' && _3d && _3d.renderer && _3d.renderer.domElement;
+  return !!(el && el.isConnected && el.offsetWidth > 0 && el.offsetHeight > 0 && document.visibilityState !== 'hidden');
+}
 function planMM(e) {
   const svg = document.getElementById(`planView`);
   const ctm = svg.getScreenCTM();
@@ -9533,6 +9540,7 @@ if (false) { // dead block â€” see ensure3DReady() above
     _3d.hasPositioned = false;
     (function loop() {
       requestAnimationFrame(loop);
+      if (!_3dShown()) return;   // (Brief 29b S4: nothing drawn while the 3D view is hidden)
       _3d.controls.update();
       _3d.renderer.render(_3d.scene, _3d.camera);
     
@@ -11439,6 +11447,7 @@ function ensure3DReady() {
     }
     (function _e3loop() {
       requestAnimationFrame(_e3loop);
+      if (!_3dShown()) return;   // (Brief 29b S4: nothing drawn while the 3D view is hidden)
       // (the axon preview draws on its own offscreen renderer into the Export panel: never here)
       var _moved = !!(_3d && _3d.controls && _3d.controls.update());
       // Brief 25 item 25: the sun is fixed, so the shadow map does not change with the view: while the camera moves
@@ -21959,7 +21968,18 @@ GEN.renderResults = function() {
   }
   if (typeof GEN.renderCards === 'function') GEN.renderCards();
 };
-GEN.run = function() { if (typeof GEN.generate === 'function') GEN.generate(); };
+// (Brief 29b S4) the click shows at once that it is working; the generator runs after the browser has painted that, and
+// the cards come before their axon thumbnails (GEN.renderCards)
+GEN.run = function() {
+  if (typeof GEN.generate !== 'function' || GEN._running) return;
+  GEN._running = true;
+  var grid = document.getElementById('genGrid'), btns = document.querySelectorAll('#genOut .gen-primary, #genOut .gen-secondary');
+  btns.forEach(function(b) { b.disabled = true; });
+  if (grid) grid.innerHTML = "<div class='gen-empty gen-working' role='status' aria-live='polite'><p>Generating schemes: laying out candidates and checking each against every rule…</p></div>";
+  setTimeout(function() {
+    try { GEN.generate(); } finally { GEN._running = false; btns.forEach(function(b) { b.disabled = false; }); }
+  }, 60);
+};
 GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.savePrefs(); GEN.renderDock(); GEN.run(); };
 </script>
 <style>
@@ -23045,8 +23065,8 @@ GEN.shapePath = function(sh) {
 };
 // Axon thumbnail: an offscreen scene built from the scheme (ground bands, the deck, the end
 // planters, every piece through fl3DArchetype), an isometric orthographic camera, one renderer.
-GEN.axonThumb = function(c, W0, H0) {
-  if (typeof THREE === 'undefined') return '';
+GEN.axonThumb = function(c, W0, H0) {   // -> a Promise of the picture (an ImageBitmap)
+  if (typeof THREE === 'undefined') return Promise.resolve(null);
   W0 = W0 || 480; H0 = H0 || 270;
   if (!GEN._r) {
     var cv = document.createElement('canvas');
@@ -23099,7 +23119,9 @@ GEN.axonThumb = function(c, W0, H0) {
   if (w / h < asp) w = h * asp; else h = w / asp;
   cam.left = cx - w / 2; cam.right = cx + w / 2; cam.top = cy + h / 2; cam.bottom = cy - h / 2; cam.updateProjectionMatrix();
   r.render(sc, cam);
-  var url = r.domElement.toDataURL('image/png');
+  // the picture, read back asynchronously (Brief 29b S4): a synchronous read (toDataURL, drawImage) waits for every WebGL
+  // context's queued work, the 3D view's included, and held the page for seconds
+  var url = typeof createImageBitmap === 'function' ? createImageBitmap(r.domElement) : Promise.resolve(r.domElement);
   geoms.forEach(function(g) { g.dispose(); }); mats.forEach(function(m) { m.dispose(); });
   groups.forEach(function(g) { g.traverse(function(o) { if (o.geometry) o.geometry.dispose(); }); });   // flMat materials are shared: kept
   return url;
@@ -23115,7 +23137,7 @@ GEN.renderCards = function() {
   grid.innerHTML = R.schemes.map(function(c, i) {
     var m = c.m, locked = !!GEN.locked[c.key];
     return "<article class='gen-card" + (locked ? ' locked' : '') + "' data-key='" + GEN.esc(c.key) + "'>" +
-      "<div class='gen-thumbs'>" + GEN.planThumb(c) + "<img class='gen-axon' alt='Axonometric of " + GEN.esc(GEN.title(c)) + "' data-i='" + i + "'></div>" +
+      "<div class='gen-thumbs'>" + GEN.planThumb(c) + "<canvas class='gen-axon' width='630' height='270' role='img' aria-label='Axonometric of " + GEN.esc(GEN.title(c)) + "' data-i='" + i + "'></canvas></div>" +
       "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
       "<div class='gen-metrics'>" +
         "<span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.bike + '</b>bike spaces</span>' +
@@ -23126,11 +23148,19 @@ GEN.renderCards = function() {
         "<button class='gen-lock' aria-pressed='" + locked + "' onclick='GEN.toggleLock(" + i + ")'>" + (locked ? 'Locked' : 'Lock') + '</button>' +
         "<span class='gen-fp'>" + GEN.esc(c.pal.label) + ' · ' + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
   }).join('');
-  // axon thumbnails after the cards are in (one offscreen renderer, sequential)
-  R.schemes.forEach(function(c, i) {
-    if (!c.axon) try { c.axon = GEN.axonThumb(c, 630, 270); } catch (e) { c.axon = ''; console.warn('[generate] axon thumbnail failed', e); }
-    var img = grid.querySelector("img.gen-axon[data-i='" + i + "']"); if (img && c.axon) img.src = c.axon;
-  });
+  // axon thumbnails after the cards are painted: one per turn of the event loop (one offscreen renderer), each copied
+  // straight onto its card's canvas (Brief 29b S4: a PNG encode of each held the page for seconds); a newer render of the
+  // cards stops the queue
+  var tok = GEN._thumbTok = (GEN._thumbTok || 0) + 1, list = R.schemes.slice();
+  var next = function(i) {
+    if (tok !== GEN._thumbTok || i >= list.length) return;
+    var c = list[i];
+    var draw = function() { var cv = grid.querySelector("canvas.gen-axon[data-i='" + i + "']"); if (cv && c.axon) cv.getContext('2d').drawImage(c.axon, 0, 0, cv.width, cv.height); setTimeout(function() { next(i + 1); }, 16); };
+    if (c.axon) return draw();
+    var pr; try { pr = GEN.axonThumb(c, 630, 270); } catch (e) { pr = Promise.reject(e); }
+    pr.then(function(bmp) { c.axon = bmp; }, function(e) { c.axon = null; console.warn('[generate] axon thumbnail failed', e); }).then(draw);
+  };
+  setTimeout(function() { next(0); }, 16);
   GEN.writeRationales();
 };
 // Optional: the Assistant rewrites the one-line rationale from the metrics (text only - the
