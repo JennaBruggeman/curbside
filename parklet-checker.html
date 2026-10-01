@@ -22050,7 +22050,75 @@ RPT.treeFetched = function(list) {
 // {table: {cols, rows}}, {p}. Every list is a table; nothing is a wrapped sentence of items.
 RPT.RES = { pass: ['PASS', '#1A1A1A'], fail: ['FAIL', '#C62828'], unclear: ['NOT CONFIRMED', '#6E6E6E'], await: ['AWAITING MEASUREMENT', '#6E6E6E'] };
 RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear; return { t: a[0] + (r.provisional ? ' (provisional)' : ''), c: a[1], b: true, s: RPT.TX.tag }; };
+// ── Brief 25 item 22f: the sheets list only what the drawings use ───────────────────────────────────────────────
+// Listed by name: the street trees beside the deck (the tree advisory's reach), the nearest hydrant each side and any
+// beside the deck, the nearest bus stop each side and any within 15 m of it (the bus-zone rule). The rest of each kind
+// is one line; the full inventory stays in the design file.
+RPT.listed = function(DM) {
+  var L = DM.parklet.length, gap = function(z) { return z < 0 ? -z : z > L ? z - L : 0; }, keep = new Set(), objs = typeof SMP !== 'undefined' ? SMP.objects() : [];
+  objs.forEach(function(o) { if (o.kind === 'tree' && gap(+o.obj.xM) <= SMP.TREE_ADVISORY_M) keep.add(o.obj); });
+  ['hydrant', 'transit'].forEach(function(k) {
+    var l = objs.filter(function(o) { return o.kind === k; }), z = function(o) { return +o.obj.xM; };
+    var bef = l.filter(function(o) { return z(o) < 0; }).sort(function(a, b) { return z(b) - z(a); })[0], aft = l.filter(function(o) { return z(o) > L; }).sort(function(a, b) { return z(a) - z(b); })[0];
+    [bef, aft].forEach(function(o) { if (o) keep.add(o.obj); });
+    l.forEach(function(o) { if (gap(z(o)) <= (k === 'transit' ? 15 : 0)) keep.add(o.obj); });
+  });
+  return { objs: objs, keep: keep };
+};
+RPT.KIND_LBL = { tree: 'street trees', hydrant: 'fire hydrants', transit: 'bus stops and stations' };
+// "38 more street trees" | "within 150 m; City of Vancouver Open Data, public-trees, data 2026-09-30; not listed"
+RPT.notListed = function(DM, Ls) {
+  var R = typeof SMP !== 'undefined' ? SMP.R : 0, rows = [];
+  ['tree', 'hydrant', 'transit'].forEach(function(k) {
+    var rest = Ls.objs.filter(function(o) { return o.kind === k && !Ls.keep.has(o.obj); }); if (!rest.length) return;
+    var p = rest[0].obj.prov || {}, nm = (SMP.SRC[p.source] || p.source || 'imported') + (p.dataset ? ', ' + p.dataset : '');
+    rows.push([rest.length + ' more ' + RPT.KIND_LBL[k], 'within ' + R + ' m; ' + nm + ', ' + SMP.when(p) + '; not listed (kept in the design file)']);
+  });
+  return rows;
+};
+// X-001's imported data: the street facts as recorded, the buildings one row per side, the listed objects, the rest summed
+RPT.impRows = function(d) {
+  if (typeof SMP === 'undefined') return [];
+  // identical rows collapse: fields that share one source are one row (latitude, longitude, bearing ... from one way); the
+  // facts the Existing street table gives with their sources are not repeated here
+  var P = SMP.prov(), lines = SMP.sourcesList(), skip = state.__existing ? ['Road direction', 'Route type', 'Bike lane', 'Curb-to-curb width'] : [], groups = [];
+  lines.slice(0, Object.keys(P).length).forEach(function(s) {
+    var i = s.indexOf(': '), lab = i > 0 ? s.slice(0, i) : s, rest = i > 0 ? s.slice(i + 2) : '', j = rest.indexOf(' ('), key = j > 0 ? rest.slice(0, j) : rest, note = j > 0 ? rest.slice(j + 2, -1) : '';
+    if (skip.indexOf(lab) >= 0) return;
+    var g = groups.find(function(x) { return x.key === key; }); if (!g) groups.push(g = { key: key, labs: [], notes: [] });
+    g.labs.push(lab); if (note && g.notes.indexOf(note) < 0) g.notes.push(note);
+  });
+  var rows = groups.map(function(g) { return [g.labs[0] + (g.labs.length > 1 ? ', ' + g.labs.slice(1).map(function(l) { return l.charAt(0).toLowerCase() + l.slice(1); }).join(', ') : ''), g.key + (g.notes.length ? ' (' + g.notes.join('; ') + ')' : '')]; });
+
+  ['L', 'R'].forEach(function(side) {
+    var bl = ((side === 'L' ? BLDG_L : BLDG_R).buildings || []).filter(function(b) { return b.__prov; }); if (!bl.length) return;
+    var at = bl[0].__prov.length || bl[0].__prov.zOffset || {}, src = SMP.SRC[at.source] || 'OpenStreetMap';
+    rows.push([bl.length + (side === 'L' ? ' near-side' : ' far-side') + ' building' + (bl.length > 1 ? 's' : ''), 'name, use, height, storeys from ' + src + (at.fetchedAt ? ' (' + SMP.when(at) + ')' : '') + '; frontage estimated; addresses from City open data; ways listed in the design file']);
+  });
+  var Ls = RPT.listed(d.DM);
+  Ls.objs.filter(function(o) { return Ls.keep.has(o.obj); }).forEach(function(o) { var p = o.obj.prov || {}; rows.push([o.label + ' at ' + SMP.where(o.obj), SMP.srcOf(p) + ', ' + SMP.when(p) + (o.obj.confirmed ? ', confirmed ' + SMP.day(o.obj.confirmedAt) : ', not yet verified on site')]); });
+  return rows.concat(RPT.notListed(d.DM, Ls));
+};
+// S-002's rows: identical rows collapse ("travel lane widths: 2 x 3.08 m"); the listed objects only, a drawn tree with
+// its genus, height and DBH; the rest summed
+RPT.surveyRows = function(d) {
+  var Ls = RPT.listed(d.DM), byObj = {}, rows = [], segs = {};
+  Ls.objs.forEach(function(o) { byObj['obj_' + o.list + '_' + o.obj.id] = o; });
+  SURV.items().forEach(function(r) {
+    if (/^seg_/.test(r.key)) { var k = r.item + '|' + r.now; if (segs[k]) { segs[k].n++; return; } segs[k] = { r: r, n: 1 }; rows.push(segs[k]); return; }
+    if (/^obj_/.test(r.key)) {
+      var o = byObj[r.key]; if (!o || !Ls.keep.has(o.obj)) return;
+      var t = o.obj, ex = o.kind === 'tree' ? [t.genus ? (t.genus + (t.speciesName ? ' ' + t.speciesName : '')).toLowerCase().replace(/\s+/g, ' ').trim() : null, t.height != null ? 'h ' + (+t.height).toFixed(1) + ' m' : null, t.dbhCm != null ? 'DBH ' + Math.round(t.dbhCm) + ' cm' : null].filter(Boolean).join(', ') : '';
+      rows.push({ r: Object.assign({}, r, { item: r.item + (ex ? ' (' + ex + ')' : '') }), n: 1 }); return;
+    }
+    rows.push({ r: r, n: 1 });
+  });
+  return rows.map(function(q) { var r = q.r; return [q.n > 1 ? r.item.replace(/ width$/, ' widths') + ': ' + q.n + ' x ' + r.now + ' ' + r.unit : r.item, r.now ? r.now + ' ' + r.unit : '-', r.src || '-', '']; })
+    .concat(RPT.notListed(d.DM, Ls).map(function(q) { return [q[0] + ' ' + q[1].replace(/; not listed.*$/, ''), '-', 'not listed', '']; }));
+
+};
 RPT.treeBlocks = function(DM) {
+
   var list = RPT.cityTrees(DM); if (!list.length) return [];
   return [{ h2: 'Street trees (City inventory)' }, { table: { cols: [{ t: '#', w: 0.05, num: true }, { t: 'Genus / species', w: 0.2 }, { t: 'Common name', w: 0.17 }, { t: 'Height band', w: 0.16 }, { t: 'DBH', w: 0.08, num: true }, { t: 'Form', w: 0.12 }, { t: 'Source', w: 0.22 }],
     rows: list.map(function(v, i) { var p = v.prov || {};
@@ -22158,7 +22226,7 @@ RPT.compBlocks = function(d) {
   var ne = Object.keys(d.DM.inputs).map(function(k) { return d.DM.inputs[k]; }).filter(function(i) { return !i.entered; });
   var out = [{ h2: 'Checks, failures first' }, { table: tbl }];
   if (typeof SMP !== 'undefined' && SMP.treeAdvisory()) out.push({ h2: 'Advisory (no numbered check)' }, { table: { cols: [{ t: 'Advisory', w: 0.4 }, { t: 'Detail', w: 0.6 }], rows: [[SMP.treeAdvisory().text, SMP.treeAdvisory().detail]] } });
-  out.push({ h2: 'Inputs not entered' }, ne.length ? { table: { cols: [{ t: 'Input', w: 0.7 }, { t: 'Check', w: 0.12 }, { t: 'Value', w: 0.18 }], rows: ne.map(function(i) { return [i.label, 'C' + criteria.find(function(c) { return c.id === i.crit; }).num, { t: 'not entered', c: RPT.MID }]; }) } } : { p: 'Every input is entered.' });
+  // (Brief 25 item 22f: an input not entered is named in its check's Measured value; no second list of them)
   return out;
 };
 RPT.compliance = function(d) {
@@ -22235,7 +22303,7 @@ RPT.sources = function(d) {
   if (typeof SITEF !== 'undefined') entered = entered.concat(SITEF.overRows());   // Brief 22 item 3: the overridden facts of the existing street
   var hr = RPT.hostRaw(DM), hImp = hr && hr.b.__prov && ['use', 'name'].some(function(k) { return hr.b.__prov[k] && hr.b.__prov[k].source !== 'user'; });
   if (hr && hr.entered) entered.push(['Host building (' + (hImp ? 'imported, verify on site' : 'user input') + ')', RPT.hostLine(DM) + ', ' + hr.b.frontage + ' frontage, ' + hr.b.storeys + ' storey' + (hr.b.storeys > 1 ? 's' : '')]);
-  var imp = typeof SMP !== 'undefined' ? SMP.sourcesList().map(function(s) { var i = s.indexOf(': '); return i > 0 ? [s.slice(0, i), s.slice(i + 2)] : [s, '']; }) : [];
+  var imp = RPT.impRows(d);   // Brief 25 item 22f: what the drawings use; the rest summed per kind
   var model = [['Travel lane widths', 'the Section editor\'s travel-lane segments against EDM Table 8-10 (' + DM.lanes.map(function(a) { return RPT.fx(a.width, 2) + ' m'; }).join(', ') + ')'],
     ['Deck area', 'the ' + DM.parklet.shape + ' footprint, ' + RPT.fx(DM.parklet.area, 2) + ' m2'], ['Compliance', 'each check\'s own result for the inputs above; an input not entered leaves its check not confirmed'],
     ['Seats, route, entries', 'the generator\'s metrics of the current layout (access model)'], ['Enclosure, deck levels', 'DESIGN_MODEL.enclosure (' + ENC.describe(DM) + ') and PARKLET_LEVELS, the numbers the 3D, the render and these drawings share']];
@@ -22250,8 +22318,8 @@ RPT.sources = function(d) {
   if (imp.length) blocks.push({ h2: 'Imported site data (verify on site)' }, { table: { cols: two('Item', 'Source'), rows: imp } }, { p: 'Nothing imported is authoritative: each imported value is a starting point to verify on site, and the checks that depend on one stay provisional until it is confirmed.' });
   if (typeof SITEF !== 'undefined') blocks = blocks.concat(SITEF.xBlocks());   // the existing street (Brief 22 item 3)
 
-  blocks = blocks.concat(RPT.treeBlocks(DM), [{ h2: 'From the design model' }, { table: { cols: two('Value', 'Derived from'), rows: model } }, { h2: 'Assumptions' }, { table: { cols: two('Topic', 'Assumption'), rows: assume } }]);
-  return RPT.textSheet('X-001', 'Sources', '', blocks.concat([{ h2: 'Site' }], RPT.siteBlocks(d).slice(1)), false);
+  blocks = blocks.concat([{ h2: 'From the design model' }, { table: { cols: two('Value', 'Derived from'), rows: model } }, { h2: 'Assumptions' }, { table: { cols: two('Topic', 'Assumption'), rows: assume } }]);
+  return RPT.textSheet('X-001', 'Sources', '', blocks, false);   // (Brief 25 item 22f: the site's figures are on A-000 and the drawings, not repeated here)
 };
 
 
@@ -22590,7 +22658,9 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
     return !P.boxes.concat(used).some(function(q) { return b[0] < q.x1 && q.x0 < b[2] && b[1] < q.y1 && q.y0 < b[3]; });
   };
   var place = function(at) {
-    var x = at[0] + dx, y = at[1] + dy, st = [[0, 0], [0, -6], [0, 6], [6, 0], [-6, 0], [6, -6], [-6, -6], [6, 6], [-6, 6], [0, -12], [0, 12], [12, 0], [-12, 0]];
+    // (Brief 25 item 22: the anchor is brought into the drawing area first, so a key never falls outside the sheet)
+    var x = Math.max(DA.x + 3, Math.min(DA.x + DAw - 3, at[0] + dx)), y = Math.max(DA.y + 3, Math.min(DA.y + DA.h - 3, at[1] + dy)), st = 
+[[0, 0], [0, -6], [0, 6], [6, 0], [-6, 0], [6, -6], [-6, -6], [6, 6], [-6, 6], [0, -12], [0, 12], [12, 0], [-12, 0]];
     for (var i = 0; i < st.length; i++) if (clear(x + st[i][0], y + st[i][1])) return [x + st[i][0], y + st[i][1]];
     return [x, y];
   };
@@ -23080,7 +23150,9 @@ RPT.sheetSection = function(d, opt) {
   if (PARK) ext = Math.min(ext, PR.top);
   // the notes are a strip under the drawing, so the drawing has the sheet's whole width; a street wider than it at 1:100
   // keeps the scale and loses its far side at the sheet edge
-  var DW = RPT.SW, mir = G.sec.dir === 1, W = (xR - xL) * k, X0 = W <= DW - 70 ? (DW - W) / 2 : (mir ? DW - 35 - W : 35), ROAD = 8 + Math.min(ext * k, RPT.DA.h - 86 - 0.95 * k - 8);
+  // (Brief 25 item 22: a street wider than the sheet keeps 48 mm each side for the level labels; the drawing is clipped inside)
+  var DW = RPT.SW, mir = G.sec.dir === 1, W = (xR - xL) * k, wideS = W > DW - 70, mL = wideS ? 48 : 0, mR = wideS ? 48 : 0;
+  var X0 = !wideS ? (DW - W) / 2 : (mir ? DW - mR - W : mL), ROAD = 8 + Math.min(ext * k, RPT.DA.h - 86 - 0.95 * k - 8);
   var X = function(x) { return mir ? X0 + W - (x - xL) * k : X0 + (x - xL) * k; }, Y = function(y) { return ROAD - y * k; };
   var box = function(x0, x1, y0, y1) { var a = X(x0), b = X(x1); return [Math.min(a, b), Y(y1), Math.abs(b - a), (y1 - y0) * k]; };
   var rectXY = function(x0, x1, y0, y1, o) { var q = box(x0, x1, y0, y1); P.rect(q[0], q[1], q[2], q[3], o); return q; };
@@ -23089,7 +23161,7 @@ RPT.sheetSection = function(d, opt) {
   // a cut building's poche (no black fields): a 45 degree hatch 4 mm apart (technical) or a 25 % warm grey (schematic)
   var poche = function(x0, x1, y0, y1) { var q = rectXY(x0, x1, y0, y1, { fill: '#FFFFFF', w: 0 }); if (tech) hat(q, 'poche', { band: false }); else rectXY(x0, x1, y0, y1, { fill: T.mid, fop: 0.25, w: 0 }); return q; };
   // clipped at the drawing area, not the section's extent (a crown may cross the frontage line); the built things stop at it themselves
-  P.clipOpen("<rect x='0' y='8' width='" + DW + "' height='" + (ROAD + 0.95 * k - 8) + "'/>");
+  P.clipOpen("<rect x='" + mL + "' y='8' width='" + (DW - mL - mR) + "' height='" + (ROAD + 0.95 * k - 8) + "'/>");
   // Beyond the cut first (Brief 18), far to near (getSectionScene's order): silhouettes at 'context' with an opaque paper
   // fill, so a nearer one hides a farther one; furniture as its outline only (flSectionArchetype's silhouette); a tree as
   // its trunk and its crown outline (no fill / 35 %). The cut is drawn over them.
@@ -23184,10 +23256,10 @@ RPT.sheetSection = function(d, opt) {
   });
   P.clipClose();
   // datum (top of curb) and levels
-  P.line(X0 - 4, Y(lv.curbTop), X0 + W + 4, Y(lv.curbTop), { cls: 'context', dash: 'centre' });
+  P.line(Math.max(mL, X0 - 4), Y(lv.curbTop), Math.min(DW - mR, X0 + W + 4), Y(lv.curbTop), { cls: 'context', dash: 'centre' });
   // levels from the datum, the top of the curb 0.00: on the sidewalk side the datum, on the road side the deck, the
   // planter and the railing tops, and the road
-  var lxS = mir ? X0 + W + 8 : X0 - 8, lxR = mir ? X0 - 8 : X0 + W + 8, sgn = function(v) { return (v > 0.004 ? '+' : v < -0.004 ? '' : '±') + RPT.fmt(v); };
+  var lxS = Math.max(mL - 8 + (mir ? 0 : 0), Math.min(DW - mR + 8, mir ? X0 + W + 8 : X0 - 8)), lxR = Math.max(mL - 8, Math.min(DW - mR + 8, mir ? X0 - 8 : X0 + W + 8)), sgn = function(v) { return (v > 0.004 ? '+' : v < -0.004 ? '' : '±') + RPT.fmt(v); };
   RPT.sym.level(P, lxS, Y(lv.curbTop), '±0.00 top of curb (datum)', mir);
   // the road side's levels, their labels at least 3 mm apart (at 1:250 the deck and the road are under 1 mm apart)
   var lvR = [[Y(lv.deckTop), sgn(lv.deckTop - lv.curbTop) + ' deck'], [Y(lv.deckTop + EN.height), sgn(lv.deckTop + EN.height - lv.curbTop) + ' enclosure'], [Y(0), sgn(0 - lv.curbTop) + ' road']].sort(function(a, b) { return a[0] - b[0]; });
@@ -29770,7 +29842,7 @@ SURV.applyTemplate = function(text, name) {
 };
 // the report's S-002 sheet (a text sheet: the items, their values now, a blank column to measure into)
 RPT.surveySheet = function(d) {
-  var S = state.__survey, rows = SURV.items().map(function(r) { return [r.item, r.now ? r.now + ' ' + r.unit : '-', r.src || '-', '']; });
+  var S = state.__survey, rows = RPT.surveyRows(d);   // Brief 25 item 22f (the downloadable template keeps every item)
   var blocks = [{ h2: 'Confirm on site' }, { p: 'Measure each item on site and write the value in the last column; enter them in Curbside with the survey template (Site > Survey), or import a survey point file.' },
     { table: { cols: [{ t: 'Item', w: 0.46 }, { t: 'Value now', w: 0.18, num: true }, { t: 'Source', w: 0.16 }, { t: 'Measured', w: 0.2 }], rows: rows } }];
   if (S) blocks.push({ h2: 'Survey applied' }, { kv: [['File', S.file], ['Date', S.date + (S.surveyor ? ', ' + S.surveyor : '')], ['Frame', S.frame + (S.placement ? ': ' + S.placement : '')], ['Points', String(S.points)], ['Inputs surveyed', S.inputs.length + ' of ' + S.inputsM]] });
