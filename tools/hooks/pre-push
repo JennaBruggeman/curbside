@@ -1,7 +1,8 @@
 #!/bin/sh
 # Curbside pre-push check: refuses a push whose commits carry a PDF, DWG or ZIP file, or any file over 5 MB. The one
 # exception: the two sample reports Curbside builds itself (demo/sample-schematic.pdf and demo/sample-technical.pdf,
-# tools/build-sample-pdfs.js, Brief 28 item 12), still held to the 5 MB limit.
+# tools/build-sample-pdfs.js, Brief 28 item 12), still held to the 5 MB limit. The README's walkthrough clip
+# (demo/walkthrough.gif and demo/walkthrough.mp4) may be up to 10 MB.
 # Third-party documents stay local (see .gitignore). Enable once per clone:  git config core.hooksPath tools/hooks
 z=0000000000000000000000000000000000000000
 limit=5242880
@@ -14,8 +15,9 @@ while read -r lref lsha rref rsha; do
   hits=$(printf '%s\n' "$objs" | git cat-file --batch-check='%(objecttype) %(objectsize) %(rest)' | awk -v L="$limit" '
     $1 == "blob" { s = $2; p = $0; sub(/^blob [0-9]+ /, "", p); lp = tolower(p)
       own = (p == "demo/sample-schematic.pdf" || p == "demo/sample-technical.pdf")
+      clip = (p == "demo/walkthrough.gif" || p == "demo/walkthrough.mp4"); lim = clip ? 2 * L : L
       if (lp ~ /\.(pdf|dwg|zip)$/ && !own) print "  " p "  (PDF / DWG / ZIP)"
-      else if (s > L) printf "  %s  (%.1f MB, over 5 MB)\n", p, s / 1048576 }')
+      else if (s > lim) printf "  %s  (%.1f MB, over %d MB)\n", p, s / 1048576, lim / 1048576 }')
   [ -n "$hits" ] && found="$found$lref:
 $hits
 "

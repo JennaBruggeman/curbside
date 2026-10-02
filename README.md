@@ -118,17 +118,16 @@ of its data.
 
 ## One example
 
-Commercial Drive at East 1st Avenue, east side (the images are made by `tools/screenshots.js`; the landing page
-shows them too).
+![A 90-second walkthrough of Curbside on the live site, with captions](demo/walkthrough.gif)
 
-| | |
-|---|---|
-| ![Choosing the site on the map](docs/landing/how-1-site.png) | ![The seeded parklet in plan, section and 3D](docs/landing/how-2-seed.png) |
-| **Choose a site:** the parklet on the east side of Commercial Drive, between Graveley Street and East 1st Avenue. | **Seed the parklet:** a 19.8 × 2.65 m deck at the host frontage (Liberty Wine Merchants), with its enclosure. |
-| ![The checks](docs/landing/how-3-design.png) | ![The Export tab](docs/landing/how-4-report.png) |
-| **Design and check:** with seven pieces placed, the preliminary verdict is *does not pass*: C01 fails (a bus stop beside the deck makes it a bus zone) and C02 fails (three lanes of 3.12 m on a bus route, where 3.2 m is required); 12 checks await site measurements. | **Report:** the drawing set, with the options to include or leave out the schedule, the sources, the compliance detail and the renders. |
+Ninety seconds on the live site, captions and no sound ([MP4](demo/walkthrough.mp4)): Main Street at East 26th Avenue
+located and imported, the curb-to-curb estimate, Generate refusing until the site facts are set; a saved design (West
+Georgia Street) opened from My designs, generated and opened in Design; one Check value saved; the technical report
+downloaded and paged through: cover, What to do next, layout plan, deck plan, both sections, C-001 and sources.
 
-A recorded walkthrough of the whole journey is planned (Brief 26).
+[![A-102 Layout plan, a sheet of the technical report in the clip](demo/walkthrough-sheet.png)](demo/walkthrough-sheet.png)
+
+*A-102 Layout plan, from the report in the clip (for viewers that do not play the GIF).*
 
 ## Skill and limits
 
@@ -159,7 +158,8 @@ A recorded walkthrough of the whole journey is planned (Brief 26).
    Any static web server also works for everything except photoreal renders, which go through the relay in
    `tools/serve.ps1`.
 3. Enable the repository's pre-push check once: `git config core.hooksPath tools/hooks` (it refuses PDF, DWG
-   and ZIP files and anything over 5 MB; the one exception is the two sample reports below).
+   and ZIP files and anything over 5 MB; the exceptions are the two sample reports below and the README's walkthrough clip,
+   `demo/walkthrough.gif` and `.mp4`, which may be up to 10 MB).
 
 ## Developer prerequisites
 
