@@ -1241,13 +1241,16 @@ Ten items from the v0.16 full pass (`briefs/23-triage.md`, branch `triage-0.16`)
     - C-001's lane table reads FAIL (provisional) for all four lanes, as C02 does (4 × 3.17 m on a bus route).
     - Locate 110 m along, then Replace, then import: 47 confirmations to 0; deck 19.8 m and 2 pieces kept.
   - Blank street: the same drags, Section reload, header "Generic street -- not a real location", C-001 lanes PASS as C02.
-- **Found during VERIFY, for Brief 30 (not fixed; also in v0.16.1):**
-  - The import keeps 12 buildings per side, the 12 with the lowest along-street position (`keptBy`, `slice(0, 12)`
-    after a sort by `z0`), not the 12 nearest the pick.
-  - On a long block the buildings at the deck can be dropped. 110 m along Main St from the demo pick, the 12 kept
-    lie 34–154 m behind the pick. The design then has no host at the deck: the address reads "Main Street, east
-    side (no City address at the deck)".
-  - A fresh import there seeds the deck at the nearest kept frontage (4142 Main St, 38 m back).
+- **Added on approval (v0.17):**
+  - **The import keeps the 12 buildings per side nearest the pick.** It kept the 12 with the lowest along-street
+    position (`keptBy`, sorted by `z0`), so on a long block the buildings at the deck were dropped. 110 m along
+    Main St from the demo pick, the deck was seeded 38 m back at 4142 Main St; now it stays at the pick, host Windsor
+    Quality Meats, 4110 Main St. At the five sites and Main & 26th the host and address are unchanged (b29c/tb.js).
+  - **"how?" beside the photoreal Render button opens a note** (`SBX.how`): renders and the assistant use your own
+    keys (Replicate, Anthropic), added under Settings › Connections; on the hosted copy renders need the local server
+    (tools/start.cmd). It toggled an inline line about the relay only, easy to miss and silent on the keys.
+  - **The sample report link is the technical sample** (`demo/sample-technical.pdf`): the README's link and the
+    landing page's "Try the sample report"; the schematic sample stays as a secondary link in the landing footer.
 
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
