@@ -97,6 +97,8 @@ A recorded walkthrough of the whole journey is planned (Brief 26).
   confirmed on site.
 - **Checks need inputs.** A check whose value is neither imported nor entered reports *not entered*, never a pass.
 - **Vancouver only**, and a desktop browser with WebGL.
+- **Open a design in one tab at a time; the last save wins.** Two tabs on the same design do not merge: whichever
+  saves last replaces the other's edits.
 - **Photoreal renders and the Design Assistant use the visitor's own keys** (Replicate, Anthropic), entered in
   Settings › Connections and kept only in that browser. The site ships with none.
 - **The render relay is absent on the Pages build.** Photoreal renders go through the relay in `tools/serve.ps1`,
