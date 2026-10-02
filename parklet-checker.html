@@ -8621,7 +8621,20 @@ const manholes = state['manholes'] || [];
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
   if (!paper && window._pvHoverId != null) { const _fh = svg.querySelector(".pv-furn[data-inst='" + window._pvHoverId + "']"); if (_fh) _fh.classList.add('pv-hover'); }   // (Brief 29c item 1)
-  if (!paper && window._pvEdgeFlash && window._pvEdgeFlash.until > Date.now()) { const _fe = svg.querySelector(".pv-furn[data-inst='" + window._pvEdgeFlash.id + "']"); if (_fe) _fe.classList.add('pv-edge'); }   // (Brief 29b: held at the deck's edge)
+  if (!paper && window._pvEdgeFlash && window._pvEdgeFlash.until > Date.now()) {
+    const _fe = svg.querySelector(".pv-furn[data-inst='" + window._pvEdgeFlash.id + "']"); if (_fe) _fe.classList.add('pv-edge');   // (Brief 29b: held at the deck's edge)
+    // (Brief 29c item 4) the deck edge it met, drawn solid and flashing: the ends of the usable run, the sidewalk or road side
+    const _E = window._pvEdgeFlash.edges, _fp = ENC.fpLive(), _zA = _fp.zA != null ? _fp.zA : 0, _zB = _fp.L - (_fp.zBd != null ? _fp.zBd : 0), _X1 = _fp.W - (_fp.inset || 0);
+    if (_E) {
+      const _ln = [];
+      if (_E.z0) _ln.push([[0, _zA], [_X1, _zA]]); if (_E.z1) _ln.push([[0, _zB], [_X1, _zB]]);
+      if (_E.x0) _ln.push([[0, _zA], [0, _zB]]); if (_E.x1) _ln.push([[_X1, _zA], [_X1, _zB]]);
+      const _ns = 'http://www.w3.org/2000/svg', _g = document.createElementNS(_ns, 'g'); _g.setAttribute('class', 'pv-edge-flash'); _g.setAttribute('pointer-events', 'none');
+      _ln.forEach(function(q) { const a = worldToPlan(q[0][0], q[0][1]), c = worldToPlan(q[1][0], q[1][1]), l = document.createElementNS(_ns, 'line');
+        l.setAttribute('x1', a.px); l.setAttribute('y1', a.py); l.setAttribute('x2', c.px); l.setAttribute('y2', c.py); l.setAttribute('data-edge-flash', '1'); _g.appendChild(l); });
+      if (_ln.length) svg.appendChild(_g);
+    }
+  }
   if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
   if (!paper) { try { ACC.planKey(svg); } catch (e) { console.warn('[plan key]', e); } }
   if (!paper && window.APP_MODE === 'accessibility' && typeof ACCTAB !== 'undefined') { try { ACCTAB.render(); } catch (e) { console.warn('[accessibility]', e); } }   // Brief 25 items 21, 21b
@@ -9018,8 +9031,10 @@ function planMM(e) {
     // deck, and shows it has met the edge; it never leaves the deck
     var _dr = flDeckRange(window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }));
     if (_dr && (_fnz < _dr.z[0] - 1e-6 || _fnz > _dr.z[1] + 1e-6 || _fnx < _dr.x[0] - 1e-6 || _fnx > _dr.x[1] + 1e-6)) {
+      // (Brief 29c item 4) which edge it met: that edge of the deck flashes solid while the piece holds its last place inside
+      var _ed = { z0: _fnz < _dr.z[0] - 1e-6, z1: _fnz > _dr.z[1] + 1e-6, x0: _fnx < _dr.x[0] - 1e-6, x1: _fnx > _dr.x[1] + 1e-6 };
       _fnz = Math.max(_dr.z[0], Math.min(_fnz, _dr.z[1])); _fnx = Math.max(_dr.x[0], Math.min(_fnx, _dr.x[1]));
-      _pvFurnDragging.hitEdge = true; window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700 };
+      _pvFurnDragging.hitEdge = true; window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700, edges: _ed };
     }
     // Live distances
     _pvDragDistances = {left:_fnx, right:_pW2-_fnx, front:_fnz, back:_pL2-_fnz};
@@ -9121,8 +9136,8 @@ function planMM(e) {
 
 function planMU() {
   if (typeof _pvDeckDragging !== 'undefined' && _pvDeckDragging) { _pvDeckDragging = null; setTimeout(function() { _pvDeckMoved = false; }, 0); }
-  if (_pvFurnDragging && _pvFurnDragging.hitEdge) {   // dropped against the edge: the halo a moment longer, then gone
-    window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700 };
+  if (_pvFurnDragging && _pvFurnDragging.hitEdge) {   // dropped against the edge: the halo and the edge a moment longer, then gone
+    window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700, edges: (window._pvEdgeFlash || {}).edges };
     setTimeout(function() { if (typeof renderPlanView === 'function') renderPlanView(); }, 750);
   }
   if (_pvFurnDragging || _pvFurnCornerDragging) {
@@ -31218,6 +31233,9 @@ document.addEventListener('keydown', function(e) {
 
 /* Brief 29b: a piece dragged against the deck's edge */
 #planView .pv-furn.pv-hover { filter: drop-shadow(0 0 1.5px #3AA8E4) drop-shadow(0 0 1.5px #3AA8E4); }
+#planView .pv-edge-flash line { stroke: #E8A317; stroke-width: 5px; vector-effect: non-scaling-stroke; stroke-linecap: square; animation: pvEdgeFlash 0.35s ease-in-out 2; }
+@keyframes pvEdgeFlash { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #planView .pv-edge-flash line { animation: none; } }
 #planView .pv-furn.pv-edge { filter: drop-shadow(0 0 2px #E8A317) drop-shadow(0 0 4px #E8A317); }
 .chk-prov { font: 600 11px var(--font-ui); color: #8A5A00; background: #FEF7E4; border-radius: 3px; padding: 1px 5px; }
 /* Brief 29 item 7: a provisional row's own Confirm; the Confirm drawer */
