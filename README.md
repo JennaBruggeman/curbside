@@ -1,6 +1,6 @@
 # Curbside
 
-**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/sample.html?m=schematic) (no account needed)
+**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/demo/sample-technical.pdf) (the technical set, PDF; no account needed)
 
 Schematic parklet design for Vancouver streets. Draw a parklet on a real street, check it live against the
 Vancouver Parklet Manual and the Engineering Design Manual, furnish it, see it in plan, section and 3D, and
@@ -12,8 +12,8 @@ Curbside is a schematic design and compliance tool that helps turn an idea for a
 
 ## How to use it
 
-1. **Open the site** at the link above. The landing page shows the four stages and the checks; *See a sample
-   report* opens a finished report of a reference design without an account.
+1. **Open the site** at the link above. The landing page shows the four stages and the checks; *Try the sample
+   report* opens the finished technical report of a reference design (`demo/sample-technical.pdf`) without an account.
 2. **Sign in, or create an account.** During the class review (until 9 October 2026) sign-up is open and asks for no
    code; after it, sign-up asks for an invite code. The landing page and the form follow the same setting, so they
    always agree. Signing in lists your designs and opens none. A strip under the tabs shows the four steps,
