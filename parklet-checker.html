@@ -1391,6 +1391,17 @@ CHK.inputs = function(c) {
     out.push({ key: kind, label: kind === 'transit' ? 'Imported transit stops' : 'Imported fire hydrants', cls: un ? 'imported' : 'confirmed', src: un ? un + ' of ' + all.length + ' not yet confirmed on site' : 'all ' + all.length + ' confirmed' });
   });
   F.design.forEach(function(l) { out.push({ key: l, label: l, cls: 'design', src: 'the design' }); });
+  // (Brief 29c item 2, triage F11) a value you type is measured. Once the curb-to-curb width is yours (typed, surveyed,
+  // confirmed or overridden), or every travel lane's width was typed in the Section, the street as drawn is yours: the
+  // tool's assumptions about how it divides (lane count, far-side parking or bike lane) no longer make C02 wait
+  if (c.id === 'c2') {
+    var MEAS = { entered: 1, confirmed: 1, survey: 1, override: 1 }, rw = out.find(function(i) { return i.key === 'roadWidth'; });
+    var lanes = (DM.crossSection || []).filter(function(sg) { return sg.type === 'travel-lane'; });
+    var typed = lanes.length > 0 && lanes.every(function(sg) { return sg.typed; });
+    if ((rw && MEAS[rw.cls]) || typed) out.forEach(function(i) {
+      if (i.cls === 'estimate') { i.cls = 'entered'; i.src = i.key === 'roadWidth' ? 'the lanes you typed in the Section' : 'as drawn in the Section, on your measured width'; }
+    });
+  }
   return out;
 };
 // the result: base 'pass' | 'fail' | 'await' | 'unclear', provisional, the inputs, and (await) what to measure
@@ -3598,6 +3609,7 @@ function buildDesignModel() {
       segs = raw.filter(function(s){ return s.type !== 'building'; }).map(function(s) {
         var seg = { id: s.id, type: s.type, width: s.width };
         if (s.variant !== undefined) seg.variant = s.variant;
+        if (s.typed) seg.typed = true;   // a width typed in the Section (Brief 29c item 2)
         if (s.type === 'sidewalk') { seg.x0 = -s.width; seg.x1 = 0; }
         else { seg.x0 = cx; seg.x1 = cx + s.width; cx += s.width; }
         if (s.type === 'travel-lane') {
@@ -5437,6 +5449,7 @@ document.addEventListener('mouseup', function() {
       if (done) return; done = true;
       var v = parseFloat(inp.value);
       if (commit && !isNaN(v) && Math.abs(v - start) > 0.001) {
+        s.typed = true;   // (Brief 29c item 2: a width you typed is measured)
         _seResize(id, v); _trigger();
       }
       _seRender();
@@ -5552,6 +5565,7 @@ document.addEventListener('mouseup', function() {
           if(ss) ss.width=_propFocusW;
           _hist.push(JSON.stringify(snap)); if(_hist.length>60) _hist.shift(); _fut=[]; _updateHistBtns();
         }
+        s.typed = true;   // (Brief 29c item 2: a width you typed is measured)
         _seResize(s.id,v,true); _seToGlobals(); _trigger();
         var nw = document.getElementById('sePropW'); if (nw) { nw.focus({ preventScroll: true }); nw.select(); }
       };
@@ -5830,7 +5844,7 @@ document.addEventListener('mouseup', function() {
   // DESIGN_STATE). The building column is implicit; ids are fresh; widths are kept as given.
   window.seSetSegs = function(list) {
     _segs = [{ id: 'building', type: 'building', width: 0 }].concat((list || []).filter(function(s) { return s && s.type !== 'building' && SE_TYPES[s.type]; })
-      .map(function(s) { var o = { id: _nid(), type: s.type, width: Math.round((+s.width || 0) * 1000) / 1000 }; if (s.variant !== undefined) o.variant = s.variant; return o; }));
+      .map(function(s) { var o = { id: _nid(), type: s.type, width: Math.round((+s.width || 0) * 1000) / 1000 }; if (s.variant !== undefined) o.variant = s.variant; if (s.typed) o.typed = true; return o; }));
     _hist = []; _fut = []; _selId = null; _updateHistBtns();
     _seToGlobals(); _recomputeScale(); _seRender();
   };
@@ -18337,7 +18351,7 @@ function pkSerialize() {
     // global carries (planting, parking, turn / transit lanes, curbs, edited lane widths)
     // survive a load. The building column is implicit.
     crossSection: (typeof window.seGetSegs === 'function') ? window.seGetSegs().filter(function(s) { return s.type !== 'building'; })
-      .map(function(s) { var o = { type: s.type, width: s.width }; if (s.variant !== undefined) o.variant = s.variant; return o; }) : null,
+      .map(function(s) { var o = { type: s.type, width: s.width }; if (s.variant !== undefined) o.variant = s.variant; if (s.typed) o.typed = true; return o; }) : null,
     // the enclosure (Brief 21 §12): archetype per side, height, buffer, the archetypes' parameters and materials
     enclosure: (typeof ENCLOSURE !== 'undefined') ? JSON.parse(JSON.stringify(ENC.norm(ENCLOSURE))) : null,
     compliance: (function() {
@@ -22061,6 +22075,8 @@ GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.sav
 .gen-title { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--d-ink); }
 .gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); padding: var(--sp-4); align-content: start; }
 .gen-empty { grid-column: 1 / -1; padding: var(--sp-6) 0; }
+.gen-err-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }   /* Brief 29c item 3 */
+.gen-err.gen-ready p { color: var(--text-hi, inherit); }
 </style>
 <script>
 // ── GENERATE (Brief 09 Phase 2): the generator ──────────────────────────────────────────────
@@ -22979,8 +22995,8 @@ GEN.generate = function() {
   GEN._base = base;
   var facts = GEN.facts(), missing = facts.filter(function(f) { return !f.ok; }), blocked = facts.filter(function(f) { return f.blocks; });
   var res = { seed: P.seed, n: P.n, bias: GEN.biasText(), prog: Object.assign({}, P.prog), schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0, why: {} }, notes: [] };
-  if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; return GEN.finish(res, t0); }
-  if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; return GEN.finish(res, t0); }
+  if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; res.first = { crit: blocked[0].crit, label: blocked[0].label }; return GEN.finish(res, t0); }
+  if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; res.first = { crit: missing[0].crit, label: missing[0].label }; res.missing = true; return GEN.finish(res, t0); }
   var env = GEN.envelope(S, base);
   res.envelope = env;
   if (!env.ok) { res.error = 'No compliant envelope. ' + env.why.join(' '); return GEN.finish(res, t0); }
@@ -23180,7 +23196,15 @@ GEN.renderCards = function() {
     "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed every check · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.effectivePrefs()) === 'density' ? 'seat density' : 'utilisation') + (R.bias ? ' · ' + GEN.esc(R.bias) : '') + '</span>' +
     (R.envelope && R.envelope.ok ? "<span class='gen-stat'>envelope " + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) + '</span>' : '') +
     (GEN.undoSnap ? "<button class='gen-link' onclick='GEN.undoOpen()'>Restore the design you had before opening a scheme</button>" : '');
-  if (R.error) { grid.innerHTML = "<div class='gen-empty gen-err'>" + GEN.esc(R.error) + '</div>'; return; }
+  // a refusal (Brief 29c item 3, triage F18): the Generate button stays, the reason beside it, and a link to the first fact to
+  // set; once the facts are all set, the old reason gives way to that news
+  if (R.error) {
+    var now = R.missing ? GEN.facts() : null, ready = now && !now.some(function(f) { return !f.ok || f.blocks; });
+    grid.innerHTML = "<div class='gen-empty gen-err" + (ready ? ' gen-ready' : '') + "' role='status'><p>" + (ready ? 'The site facts are set now. Generate again to see the schemes.' : GEN.esc(R.error)) + '</p>' +
+      "<div class='gen-err-acts'><button type='button' class='ui-empty-btn' onclick='GEN.run()'>Generate</button>" +
+      (!ready && R.first ? " <button type='button' class='txt-btn' onclick=\"VERDICT.row('" + R.first.crit + "')\">Set " + GEN.esc(R.first.label) + ' in Check &rsaquo;</button>' : '') + '</div></div>';
+    return;
+  }
   grid.innerHTML = R.schemes.map(function(c, i) {
     var m = c.m, locked = !!GEN.locked[c.key];
     return "<article class='gen-card" + (locked ? ' locked' : '') + "' data-key='" + GEN.esc(c.key) + "'>" +
