@@ -29162,9 +29162,32 @@ SBX.relay = function() {
   var note = document.getElementById('rvzpProxy'), P = typeof RVZP !== 'undefined' ? RVZP.proxy : null, go = document.getElementById('rvzpGo'); if (!note || !go) return;
   var why = P && !P.proxy ? (P.why || 'down') : null;
   if (why && SBX.WHY1[why]) {
-    note.innerHTML = SM.esc(SBX.WHY1[why]) + " <a href='#' class='sbx-how' onclick='var d=this.nextElementSibling; d.hidden=!d.hidden; this.setAttribute(\"aria-expanded\", String(!d.hidden)); return false;' aria-expanded='false'>how?</a><span class='sbx-how-d' hidden> " + SM.esc(RVZP.WHY[why]) + '</span>';
+    note.innerHTML = SM.esc(SBX.WHY1[why]) + " <button type='button' class='txt-btn sbx-how' aria-haspopup='dialog' onclick='SBX.how()'>how?</button>";
     go.disabled = true; go.classList.add('sbx-off'); go.title = SBX.WHY1[why];
   } else { go.classList.remove('sbx-off'); go.title = ''; }
+};
+
+// the "how?" (v0.17): a short note on what renders and the assistant need. It opened an inline line about the relay
+// only, easy to miss and silent on the keys; now a note that says both
+SBX.how = function() {
+  var why = (typeof RVZP !== 'undefined' && RVZP.proxy && !RVZP.proxy.proxy) ? (RVZP.proxy.why || 'down') : null;
+  var where = why === 'hosted' ? 'On this hosted copy, photoreal renders also need the local server: clone the repository, run tools/start.cmd and open http://localhost:8766/.'
+    : why === 'file' ? 'You opened the file directly: photoreal renders also need the local server. Run tools/start.cmd and open http://localhost:8766/parklet-checker.html.'
+    : why === 'down' ? "Photoreal renders also need the local server, which isn't running: run tools/start.cmd."
+    : 'Photoreal renders go through the local server (tools/start.cmd); the hosted copy has none.';
+  var old = document.getElementById('sbxHowDlg'); if (old) old.remove();
+  var back = document.activeElement;
+  document.body.insertAdjacentHTML('beforeend', "<div class='pk-modal-overlay active' id='sbxHowDlg' role='dialog' aria-modal='true' aria-labelledby='sbxHowT' style='z-index:10000'><div class='pk-dialog-box'>" +
+    "<div class='pk-dialog-title' id='sbxHowT'>Photoreal renders and the assistant</div>" +
+    "<div class='pk-dialog-body'><p style='margin:0 0 8px'>Photoreal renders and the Design Assistant use your own keys: Replicate for renders, Anthropic for the assistant. Add them under Settings › Connections; they stay in this browser only.</p><p style='margin:0'>" + SM.esc(where) + "</p></div>" +
+    "<div class='pk-dialog-btns' style='flex-wrap:wrap;gap:6px;'><button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' id='sbxHowConn'>Open Connections</button>" +
+    "<button type='button' class='pk-btn-primary' style='width:auto;margin:0;' id='sbxHowOk'>Close</button></div></div></div>");
+  var dlg = document.getElementById('sbxHowDlg'), close = function() { dlg.remove(); if (back && back.focus) try { back.focus(); } catch (e) {} };
+  document.getElementById('sbxHowOk').onclick = close;
+  document.getElementById('sbxHowConn').onclick = function() { dlg.remove(); if (typeof CONN !== 'undefined') CONN.open('replicate'); };
+  dlg.addEventListener('click', function(e) { if (e.target === dlg) close(); });
+  dlg.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } });
+  document.getElementById('sbxHowOk').focus();
 };
 
 // ── Item 15: Confirm on site: "Confirm all visible" and a confirm per section; the per-item path stays. Estimates are
@@ -30333,7 +30356,6 @@ SMP.sourcesList = function() {
 .sbx-fold[open] { padding-bottom: 10px; }
 #rvzpGo.sbx-off, #rvzpGo:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(1); }
 .sbx-how { margin-left: 4px; }
-.sbx-how-d { display: block; margin-top: 4px; }
 .fl-import-btn { margin-left: 12px; font: 600 11px var(--font-ui); padding: 3px 10px; border: 1px solid var(--accent-ui, #3AA8E4); border-radius: 3px; background: transparent; color: var(--accent-ui, #3AA8E4); cursor: pointer; white-space: nowrap; }
 .fl-import-btn:hover { background: rgba(58,168,228,.1); }
 .smp-all { margin: 4px 0 8px; }
