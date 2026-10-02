@@ -8606,6 +8606,7 @@ const manholes = state['manholes'] || [];
   svg.style.cursor = (_pvUserMod || _pvInFS) ? 'grab' : 'default';
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
+  if (!paper && window._pvHoverId != null) { const _fh = svg.querySelector(".pv-furn[data-inst='" + window._pvHoverId + "']"); if (_fh) _fh.classList.add('pv-hover'); }   // (Brief 29c item 1)
   if (!paper && window._pvEdgeFlash && window._pvEdgeFlash.until > Date.now()) { const _fe = svg.querySelector(".pv-furn[data-inst='" + window._pvEdgeFlash.id + "']"); if (_fe) _fe.classList.add('pv-edge'); }   // (Brief 29b: held at the deck's edge)
   if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
   if (!paper) { try { ACC.planKey(svg); } catch (e) { console.warn('[plan key]', e); } }
@@ -8788,6 +8789,8 @@ function initPlanInteraction() {
     if (_planDragging >= 0 || _curbDragging >= 0 || _drivewayDragging >= 0) return;
     if (_c13Dragging || _c03Dragging) return;
     const pos = planSVGCoords(e);
+    if (!_pvFurnDragging && !_pvFurnCornerDragging) { try { pvFurnHover(pos.x, pos.y); } catch (_he) {} }   // (Brief 29c item 1)
+    if (window._pvHoverId != null && !_pvFurnDragging) { svg.style.cursor = 'grab'; return; }
     if (nearZoneHandle(pos.x, pos.y)) svg.style.cursor = `ew-resize`;
     else if (nearMH(pos.x, pos.y) >= 0 || nearCF(pos.x, pos.y) >= 0 || nearDriveway(pos.x, pos.y) >= 0) svg.style.cursor = `grab`;
     else svg.style.cursor = ``;
@@ -8796,6 +8799,30 @@ function initPlanInteraction() {
   document.addEventListener('mouseup', planMU);
 }
 
+// the placed piece under a Plan point (Brief 29c item 1): its drawn footprint, the rotated rectangle of its size, with a
+// 3-screen-pixel margin; where footprints overlap, the most recently selected wins, else the most recently placed
+function pvFurnAt(px, py) {
+  if (!window.FL3D || !FL3D.placed || !FL3D.placed.length) return null;
+  var svg = document.getElementById('planView'), ctm = svg && svg.getScreenCTM ? svg.getScreenCTM() : null, m = planMetrics();
+  var tol = 3 / Math.max(1e-6, (ctm ? ctm.a : 1) * m.HS), w = planToWorld(px, py), hits = [];
+  FL3D.placed.forEach(function(inst, i) {
+    var d = flInstDims(inst), th = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
+    var dx = w.x - (+inst.x || 0), dz = w.z - (+inst.z || 0), s = Math.sin(th), c = Math.cos(th);
+    var lc = dx * s + dz * c, dc = dx * c - dz * s;   // the inverse of getFurnitureCorners' frame
+    if (Math.abs(lc) <= d.l / 2 + tol && Math.abs(dc) <= d.d / 2 + tol) hits.push({ inst: inst, i: i, sel: (FL3D._selAt || {})[inst.id] || 0 });
+  });
+  if (!hits.length) return null;
+  hits.sort(function(a, b) { return (b.sel - a.sel) || (b.i - a.i); });
+  return hits[0].inst;
+}
+// the piece a drag would take, outlined as the pointer moves over the Plan (Brief 29c item 1)
+function pvFurnHover(px, py) {
+  var h = pvFurnAt(px, py), id = h ? h.id : null;
+  if (id === window._pvHoverId) return;
+  window._pvHoverId = id;
+  document.querySelectorAll('#planView .pv-furn.pv-hover').forEach(function(g) { g.classList.remove('pv-hover'); });
+  if (id != null) { var g = document.querySelector("#planView .pv-furn[data-inst='" + id + "']"); if (g) g.classList.add('pv-hover'); }
+}
 function planMD(e) {
   _planMoved = false;
   const pos = planSVGCoords(e);
@@ -8825,26 +8852,22 @@ function planMD(e) {
     }
   }
   // ── Furniture drag ────────────────────────────────────────────────────
-  if (window.FL3D && window.FL3D.placed && window.FL3D.placed.length) {
-    const {HS, pvSC} = planMetrics();
-    const _grabW = planToWorld(pos.x, pos.y);
-    for (var _fi = window.FL3D.placed.length - 1; _fi >= 0; _fi--) {
-      const _fInst = window.FL3D.placed[_fi];
+  // (Brief 29c item 1, triage F6) the piece whose drawn footprint is under the pointer, not the first whose inflated circle
+  // reaches it: a long pergola's circle used to take a planter beside it
+  {
+    const _fInst = pvFurnAt(pos.x, pos.y);
+    if (_fInst) {
+      const _grabW = planToWorld(pos.x, pos.y);
       const _fwx = typeof _fInst.x === 'number' ? _fInst.x : 0;
       const _fwz = typeof _fInst.z === 'number' ? _fInst.z : 0;
-      const _fcP = worldToPlan(_fwx, _fwz), _fcx = _fcP.px, _fcy = _fcP.py;
-      const _fdims = flInstDims(_fInst);
-      const _fhr = Math.sqrt(Math.pow(_fdims.l * HS / 2, 2) + Math.pow(_fdims.d * pvSC / 2, 2)) + 5;
-      if (Math.hypot(pos.x - _fcx, pos.y - _fcy) < _fhr) {
-        _pvFurnDragging = {instId: _fInst.id, startWx: _fwx, startWz: _fwz,
-          grabOffX: _grabW.x - _fwx, grabOffZ: _grabW.z - _fwz,
-          startClientX: e.clientX, startClientY: e.clientY};
-        if (typeof fl3DSelect === 'function') fl3DSelect(_fInst.id);
-        e.preventDefault();
-        const _fsvg = document.getElementById('planView');
-        if (_fsvg) _fsvg.style.cursor = 'grabbing';
-        return;
-      }
+      _pvFurnDragging = {instId: _fInst.id, startWx: _fwx, startWz: _fwz,
+        grabOffX: _grabW.x - _fwx, grabOffZ: _grabW.z - _fwz,
+        startClientX: e.clientX, startClientY: e.clientY};
+      if (typeof fl3DSelect === 'function') fl3DSelect(_fInst.id);
+      e.preventDefault();
+      const _fsvg = document.getElementById('planView');
+      if (_fsvg) _fsvg.style.cursor = 'grabbing';
+      return;
     }
   }
   const idx = nearMH(pos.x, pos.y);
@@ -13595,6 +13618,7 @@ function fl3DPlaceAt(objId, wx, wz, over) {
 function fl3DSelect(id) {
   FL3D.placed.forEach(inst=>fl3DHighlight(inst.mesh, false));
   FL3D.selId = id;
+  if (id !== null) (FL3D._selAt = FL3D._selAt || {})[id] = Date.now();   // (Brief 29c item 1: the most recently selected wins an overlap)
   if (id !== null) {
     const inst = FL3D.placed.find(i=>i.id===id);
     if (inst) fl3DHighlight(inst.mesh, true);
@@ -31169,6 +31193,7 @@ document.addEventListener('keydown', function(e) {
 .chk-res .badge-await, #ctxCheck .badge-await { color: var(--accent-ui, #3AA8E4); border-color: currentColor; white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }   /* Brief 25 §1: an estimate awaits a measurement (wraps in the Result column) */
 
 /* Brief 29b: a piece dragged against the deck's edge */
+#planView .pv-furn.pv-hover { filter: drop-shadow(0 0 1.5px #3AA8E4) drop-shadow(0 0 1.5px #3AA8E4); }
 #planView .pv-furn.pv-edge { filter: drop-shadow(0 0 2px #E8A317) drop-shadow(0 0 4px #E8A317); }
 .chk-prov { font: 600 11px var(--font-ui); color: #8A5A00; background: #FEF7E4; border-radius: 3px; padding: 1px 5px; }
 /* Brief 29 item 7: a provisional row's own Confirm; the Confirm drawer */
