@@ -8,7 +8,7 @@
 // tiles) answered from tools/fixtures/commercial/ -- so two runs write identical files. Libraries and fonts from
 // the CDNs load as usual (they are pinned versions). Anything else is refused in replay and listed.
 // Needs the local server (tools/start.cmd, http://localhost:8766) and Playwright's Chromium (see the README).
-// Writes landing/how-1-site.png, how-2-seed.png, how-3-design.png, how-5-access.png, how-6-visualize.png,
+// Writes docs/landing/how-1-site.png, how-2-seed.png, how-3-design.png, how-5-access.png, how-6-visualize.png,
 // how-4-report.png and report-cover.png (the landing page and the first-sign-in walkthrough), and prints each
 // file's SHA-256.
 'use strict';
@@ -19,7 +19,7 @@ const ROOT = path.resolve(__dirname, '..');
 const BASE = process.env.CURBSIDE_URL || 'http://localhost:8766';
 const RECORD = process.argv.includes('--record');
 const FIX = path.join(__dirname, 'fixtures', 'commercial');
-const OUT = path.join(ROOT, 'landing');
+const OUT = path.join(ROOT, 'docs', 'landing');
 const SITE = { lat: 49.27010, lon: -123.06942, context: 150 };   // the Commercial & 1st test site; a 150 m context keeps the fixtures small
 const CLOCK = '2026-10-01T17:00:00Z';                              // the date every image shows
 const LIVE = /^https:\/\/(cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
@@ -74,7 +74,7 @@ async function main() {
 
   const page = await context.newPage();
   page.on('pageerror', (e) => console.warn('[page error]', e.message));
-  await page.goto(BASE + '/parklet-checker.html?noauth&gis=fixtures', { waitUntil: 'load' });   // the site data: the vendored cells (test/gis-fixtures)
+  await page.goto(BASE + '/parklet-checker.html?noauth&gis=fixtures', { waitUntil: 'load' });   // the site data: the vendored cells (tools/test/gis-fixtures)
   await page.waitForFunction(() => typeof pkStage === 'function' && typeof SMP !== 'undefined');
   await sleep(2500);   // the first-visit blank design (stage 0) and the stage UI
   await page.addStyleTag({ content: '#pkToast, .ui-tip, #uiTip { display: none !important; } * { caret-color: transparent !important; }' });

@@ -3,7 +3,7 @@
 Branch `gis`, from `master` after Brief 22 has merged (v0.10-fixes). Supersedes the
 earlier 24-gis-cells.md: same goal (pre-built cells replace Overpass at runtime), now
 with the Layers tab and the site/plan split decided. Run without pausing; log
-decisions in HANDOFF.md; three sites for every VERIFY. Merge on Jenna's approval,
+decisions in docs/process/HANDOFF.md; three sites for every VERIFY. Merge on Jenna's approval,
 tag v0.11-gis.
 
 ## Root cause
@@ -145,7 +145,7 @@ layer with `feeds` that is off, without turning it on in the tab). Add
 `'osm-live': 'OpenStreetMap (live)'` to `SMP.SRC`; provenance lines read
 "City of Vancouver Open Data, bikeways, data 2026-09-28". `curb-to-curb` stays a
 field measurement; `laneCount` prefilled from `streets.lanes`, still user-
-confirmed. Vendor `fixtures/` into the app repo under `test/gis-fixtures/`; when
+confirmed. Vendor `fixtures/` into the app repo under `tools/test/gis-fixtures/` (moved from `test/` 2026-10-01); when
 `location.hostname` is a dev host and `?gis=fixtures` is set, `GIS.BASE` points
 there so every VERIFY runs offline.
 
@@ -179,6 +179,6 @@ override, and both are logged as today.
 One per part: A (repo + workflow), B1–B2, B3–B4, B5, B6–B7, VERIFY report. Text
 report in chat, not screenshots.
 
-## Out of scope (note in HANDOFF.md)
+## Out of scope (note in docs/process/HANDOFF.md)
 Parking regulations, zoning, existing-parklet layers; imagery underlay on the
 Plan; 3D context from cells. Candidate Brief 26.

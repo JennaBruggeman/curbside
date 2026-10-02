@@ -123,9 +123,9 @@ shows them too).
 
 | | |
 |---|---|
-| ![Choosing the site on the map](landing/how-1-site.png) | ![The seeded parklet in plan, section and 3D](landing/how-2-seed.png) |
+| ![Choosing the site on the map](docs/landing/how-1-site.png) | ![The seeded parklet in plan, section and 3D](docs/landing/how-2-seed.png) |
 | **Choose a site:** the parklet on the east side of Commercial Drive, between Graveley Street and East 1st Avenue. | **Seed the parklet:** a 19.8 × 2.65 m deck at the host frontage (Liberty Wine Merchants), with its enclosure. |
-| ![The checks](landing/how-3-design.png) | ![The Export tab](landing/how-4-report.png) |
+| ![The checks](docs/landing/how-3-design.png) | ![The Export tab](docs/landing/how-4-report.png) |
 | **Design and check:** with seven pieces placed, the preliminary verdict is *does not pass*: C01 fails (a bus stop beside the deck makes it a bus zone) and C02 fails (three lanes of 3.12 m on a bus route, where 3.2 m is required); 12 checks await site measurements. | **Report:** the drawing set, with the options to include or leave out the schedule, the sources, the compliance detail and the renders. |
 
 A recorded walkthrough of the whole journey is planned (Brief 26).
@@ -253,12 +253,15 @@ toggle above is all it takes. `CONFIG.INVITE_ONLY` is only the form's fallback w
   pre-push check (`tools/hooks`), and the Node developer scripts (`tools/package.json`).
 - `supabase/` — the database and its security policies; the invite codes.
 - `demo/` — the sample design and its renders (rendered with the author's Replicate account).
-- `landing/` — the landing page's images; `tools/fixtures/` — the site data they are drawn from.
-- `briefs/` — the design briefs.
+- `docs/landing/` — the landing page's images; `tools/fixtures/` — the site data they are drawn from;
+  `tools/test/gis-fixtures/` — the site data cells for offline checks (`?gis=fixtures`).
+- `briefs/` — the design briefs. `docs/process/` — the handoff notes and the stranger-test triage.
+- `docs/` — also `THIRD_PARTY.md`, the furniture library page and reference images; `tools/rhino-web-control/` — a
+  Rhino web-control experiment.
 
 Third-party reference documents (the City's manuals and drawings, manufacturer catalogues, precedent images)
 are not in this repository: keep local copies in `reference/`, which is git-ignored.
 
 ## Licence
 
-MIT (see [`LICENSE`](LICENSE)). Third-party components and data: [`THIRD_PARTY.md`](THIRD_PARTY.md).
+MIT (see [`LICENSE`](LICENSE)). Third-party components and data: [`docs/THIRD_PARTY.md`](docs/THIRD_PARTY.md).

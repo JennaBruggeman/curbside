@@ -1,7 +1,7 @@
 # Brief 25 — Fixes round (Jenna's walkthrough + Brief 23 smoke pass)
 
 Branch `fixes-2` from master (v0.11-gis). Sources: Jenna's own pass on the live
-site, 2026-09-30, and `briefs/23-triage.md` (smoke pass). Where the triage table
+site, 2026-09-30, and `docs/process/23-triage.md` (smoke pass). Where the triage table
 has a row for the same issue, cite its row number in the commit. Run without
 pausing; log decisions; three sites plus West 4th at Yew and Main St 2000/2500
 (the smoke-pass sites) for every VERIFY. Merge on Jenna's approval, tag
@@ -241,7 +241,7 @@ measurement exists anywhere in that chain.
     knows what to do.
 
 ## README fixes (triage rows marked `readme`)
-Apply the three README rows from 23-triage.md; re-run the How-to-use steps on
+Apply the three README rows from docs/process/23-triage.md; re-run the How-to-use steps on
 Pages after merge.
 
 ## VERIFY (five sites)
@@ -252,6 +252,6 @@ back to the whole city at ≥ 30 fps on real hardware (Jenna confirms) · PDF
 export under 20 s with a moving progress bar · zero live requests during
 import · Pages updates within 2 minutes of a push.
 
-## Out of scope (log in HANDOFF.md)
+## Out of scope (log in docs/process/HANDOFF.md)
 Hosted photoreal relay; persona 6 (accounts) and the full Brief 23 pass, which
 run after this merges.

@@ -823,7 +823,7 @@ Follow-up to R12. After fixing the data-layer bug, I verified the geometry rebui
     - The sign-up form's `#pkSUInvite` field; `pkSignUp` sends `options.data.invite_code`.
     - `supabase/schema.sql` checks the code in a trigger on `auth.users` against `app_settings.invite_code`. The code is set with SQL, never in the client; `invite_only` is the one-line toggle.
   - **Schema:** `supabase/schema.sql` covers `profiles`, `designs` (RLS, owner-only for select, insert, update and delete), `app_settings`, and the `user-furniture` bucket with owner-folder policies.
-  - **Docs:** `README.md` (setup, keys, own backend, invite), `LICENSE` (MIT), `THIRD_PARTY.md`.
+  - **Docs:** `README.md` (setup, keys, own backend, invite), `LICENSE` (MIT), `docs/THIRD_PARTY.md`.
 - **§8 Report: renders first (commit 10):**
   - **Sheet order:** `RPT.SHEETS` (both modes) is cover, renders, title, then the drawings, schedules, compliance and sources.
   - **Bleed pages (`page.bleed`):** they draw on the whole sheet, with no margins, header or title block. `RPT.pageSVG(P, bleed)`, `checkPages` and `RPT.render` (`draw(P, {n, N})`) handle them.
@@ -955,7 +955,7 @@ Decisions for every item are in the session's decisions log; the essentials:
 - **Next fixes round, also (Jenna, 2026-10-01):**
   - **Pages does not rebuild on push** (curbside after the v0.11-gis merge, and curbside-data in Part A): the build stayed on the previous commit until a `POST repos/{owner}/{repo}/pages/builds` request. Find out why (the Pages source setting, branch-build vs Actions, a missing `.nojekyll` trigger, the token used to push) and fix it so a push to master publishes on its own.
   - **The last live requests of an import** are the three City exports for the outer ring (`SMP.OUTER_DS`: building-footprints-2015, public-streets, parks-polygon-representation; `SMP.covExport`), seen on Pages as "City exports (outer ring) 3". Move them into the cells (new curbside-data layers, read by `SMP.importOuter` like the inner import) or into a cached file, so an import makes no live request at all.
-- **Test hooks:** `?gis=fixtures` on a dev host reads `test/gis-fixtures/` (the curbside-data fixtures; regenerate with `node build/build.js` there and copy `fixtures/`).
+- **Test hooks:** `?gis=fixtures` on a dev host reads `tools/test/gis-fixtures/` (the curbside-data fixtures; regenerate with `node build/build.js` there and copy `fixtures/`).
 - **Out of scope (candidates for a later brief):** parking regulations, zoning, existing-parklet layers, an imagery underlay on the Plan, 3D context from cells. Also open: the outer ring's water from the cells; a site with no buildings keeps the previous site's buildings (`applyBuildings` replaces a side only when it finds one; older than Brief 24).
 ## Brief 25: fixes round 2 (branch `fixes-2` from master, 2026-10-01; one commit per item or pair)
 - **§1 provenance drives the result.** `CHK` (after `getCriterionStatus`): `CHK.state(c)` -> {raw, base: pass | fail | await | unclear, provisional, inputs, hint}; a check passes only on measured or confirmed values; imported data makes a result provisional; an estimate awaits a measurement (C02 "Awaiting measurement"). The verdict, the summary, the report (`RPT.RES.await`) and the counts read it. `SMP.blockLanes` reads a short way's block; a one-way way with a same-name pair is a road to the median.
@@ -1163,11 +1163,11 @@ The 3D view shows the city everywhere, with no cut-off at the import radius. Bui
   - The account write runs 2 s after the last change.
   - "Saving…" appears, in the status itself, only past 500 ms.
   - The status has a fixed width per breakpoint (324 / 156 / 130 px), so the tabs never move.
-- **Triage:** `briefs/23-triage.md` "## v0.14 smoke" (S1–S19). Nothing there is fixed except where a Brief 29 item
+- **Triage:** `docs/process/23-triage.md` "## v0.14 smoke" (S1–S19). Nothing there is fixed except where a Brief 29 item
   covers it (S12–S14).
 
 ## Brief 29b: fixes after the v0.14 smoke (branch `fixes-4` from v0.15, 2026-10-01; merged as v0.16, then v0.16.1)
-Four items from `briefs/23-triage.md` "## v0.14 smoke", nothing else.
+Four items from `docs/process/23-triage.md` "## v0.14 smoke", nothing else.
 - **S1, a long drag empties the deck: a load race, not the drag.**
   - Signed out, a reload restores `pkt-design-state` 1.3 s after load.
   - A click or drag in that window called `saveSettings`. The local save then wrote the half-built page over the stored
@@ -1200,7 +1200,7 @@ Four items from `briefs/23-triage.md` "## v0.14 smoke", nothing else.
   - Vehicles and people may still stand off the deck.
 
 ## Brief 29c: the last round before Friday (branch `fixes-5` from v0.16.1, 2026-10-01; one commit per item)
-Ten items from the v0.16 full pass (`briefs/23-triage.md`, branch `triage-0.16`); everything else is Brief 30.
+Ten items from the v0.16 full pass (`docs/process/23-triage.md`, branch `triage-0.16`); everything else is Brief 30.
 - **1 (F6) Drag hit-test.** A press on the Plan picks the piece whose drawn (rotated) footprint is under the pointer,
   3 screen px of margin (`pvFurnAt`). On overlap the most recently selected piece wins (`FL3D._selAt`), else the
   most recently placed. The piece under the pointer has a blue hover halo (`.pv-hover`).
@@ -1277,7 +1277,7 @@ Ten items from the v0.16 full pass (`briefs/23-triage.md`, branch `triage-0.16`)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
 
 ## Briefs that exist only in chat
-Briefs 22 and 23, and Brief 24 until 2026-10-01, were written in chat and never saved in `briefs/`, although the chat handoff (session 6) lists them there. Brief 24 v2 is now `briefs/24-gis-cells.md`, and Brief 23 (v2, file edition, 2026-10-01) is `briefs/23-stranger-test.md`; only 22 is still in chat. Brief 23's smoke pass is in `briefs/23-triage.md` (branch `stranger-test`); its full pass waits for Jenna.
+Briefs 22 and 23, and Brief 24 until 2026-10-01, were written in chat and never saved in `briefs/`, although the chat handoff (session 6) lists them there. Brief 24 v2 is now `briefs/24-gis-cells.md`, and Brief 23 (v2, file edition, 2026-10-01) is `briefs/23-stranger-test.md`; only 22 is still in chat. Brief 23's smoke pass is in `docs/process/23-triage.md` (branch `stranger-test`); its full pass waits for Jenna.
 
 ## Repository and publishing (2026-10-01)
 - GitHub: `JennaBruggeman/curbside` (the app), `JennaBruggeman/curbside-data` (Brief 24's cells).

@@ -1,6 +1,6 @@
 # Brief 27 — Friday fixes (from the Brief 23 full pass)
 
-Branch `fixes-3` from master (v0.12-fixes). Source: `briefs/23-triage.md`, 44
+Branch `fixes-3` from master (v0.12-fixes). Source: `docs/process/23-triage.md`, 44
 rows. Only what a classmate would hit on Friday is here; everything else is
 Brief 28 (after Oct 9) and is listed at the end so it is not lost. Cite the
 triage row in each commit. Five sites plus the blank street for VERIFY. Merge

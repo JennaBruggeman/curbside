@@ -3,13 +3,13 @@
 Runs against the hosted site, https://jennabruggeman.github.io/curbside/, after
 v0.11-gis. Reconstructed from the session-6 chat decisions; where the original
 text had detail this file lacks, the decisions below win. Nothing is fixed during
-this brief: the output is `briefs/23-triage.md`, and the fixes are Brief 25.
+this brief: the output is `docs/process/23-triage.md`, and the fixes are Brief 25.
 
 ## Two modes
 
 - **Smoke pass** (run first, now): parent persona and persona 1, one run each,
   Sonnet. Purpose: catch anything that would make every later run report the
-  same thing. Output `23-triage.md` with a `## Smoke pass` section.
+  same thing. Output `docs/process/23-triage.md` with a `## Smoke pass` section.
 - **Full pass** (run when Jenna says): personas 1–6 on Sonnet, parent and 7–8
   on Opus; two runs per persona; a third run only if run two found something
   run one did not. Append to the same triage file under `## Full pass`.
@@ -23,7 +23,7 @@ assistant features are expected to be unavailable and that is not a defect.
 ## The rule for every agent
 
 The agent knows only what is on the landing page and in README.md. It has not
-read the code, the briefs, or HANDOFF.md, and it does not get hints. It works
+read the code, the briefs, or docs/process/HANDOFF.md, and it does not get hints. It works
 from its persona's goal, picks its own site (not Robson & Burrard, Commercial &
 1st, or W 41st & Dunbar — those are the VERIFY sites and are already known to
 work), and stops when it has either a printed sheet or has been stuck for ten
@@ -53,7 +53,7 @@ what it did next. Confusion is data; it does not retry a step more than twice.
 - **8** — City staff reviewer: opens a finished PDF and tries to verify three
   dimensions on the sheets against the Manual without using the app.
 
-## What each run records (`23-triage.md`)
+## What each run records (`docs/process/23-triage.md`)
 
 One block per run: persona, run number, model, site chosen, minutes to first
 sheet or point of abandonment. Then three lists:
