@@ -18917,6 +18917,10 @@ async function pkSaveDesign(immediate) {
     var thumb = immediate ? null : pkGetThumbnail();
     var payload = { state: data, updated_at: new Date().toISOString(), name: data.project.name || 'Untitled Parklet', description: data.project.streetAddress || '' };   // (the list's address: Brief 29c item 9)
     if (thumb) payload.thumbnail_data = thumb;
+    // nothing changed since the last write (v0.17.2): a save serialises, which calls saveSettings, which scheduled the next
+    // save, so an open design was written every 2 s with no edit. The same design, name and state: no write
+    var fp = pkCurrentDesignId + '|' + payload.name + '|' + JSON.stringify(Object.assign({}, data, { savedAt: 0 }));
+    if (fp === pkSaveDesign._fp) { SAVE.idle(); pkSaving = false; if (pkSaveAgain) { pkSaveAgain = false; pkSaveDesign(true); } return; }
 
     // Always write local cache first
     pkSaveLocal(data);
@@ -18928,6 +18932,7 @@ async function pkSaveDesign(immediate) {
     if (res.error) throw res.error;
     if (!res.data || !res.data.length) throw { noRow: true };
     SAVE.saved(res.data[0].updated_at || payload.updated_at);
+    pkSaveDesign._fp = fp;
     // Update in-memory list
     var idx = pkAllDesigns.findIndex(function(d) { return d.id === pkCurrentDesignId; });
     if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, description: payload.description, updated_at: payload.updated_at });
@@ -23810,7 +23815,7 @@ RPT.drawings = async function(d) {
 // no rotate transform. Technical: grey levels, plus one red for a failed check's zone. Schematic: the same
 // drawing (scales, dims) with fills. Lineweights (mm): 0.13 hatch, 0.18 context, 0.25 general, 0.35 objects,
 // 0.5 cut, 0.7 section cut of deck / curb. Text (mm): 2.5 body, 3.5 headings, 1.8 tags (never smaller).
-RPT.VERSION = 'v0.17.1';
+RPT.VERSION = 'v0.17.2';
 // weights, type and colours are DRAW_STYLE's: the report's names for its classes
 RPT.LW = { hatch: DRAW_STYLE.W.fine, ctx: DRAW_STYLE.W.context, gen: DRAW_STYLE.W.general, obj: DRAW_STYLE.W.edge, cut: DRAW_STYLE.W.object, cutH: DRAW_STYLE.W.cut };
 RPT.TX = DRAW_STYLE.TYPE.sheet;

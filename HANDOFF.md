@@ -1268,7 +1268,8 @@ Ten items from the v0.16 full pass (`briefs/23-triage.md`, branch `triage-0.16`)
     opens the old designs.
 - **For Brief 30 (found here, not fixed):**
   - Duplicate in My designs copies an empty design: it reads the list row, which carries no `state`.
-  - An open design is saved to the account about every 2 s with no edit (also in v0.16.1).
+  - (Fixed in v0.17.2: an open design was saved to the account about every 2 s with no edit; the write is now skipped
+    when the design is what was last written.)
   - The Section's Undo straight after an import rolls the street back to before it (the sidewalk 4.60 → 1.80 m,
     the parking lane gone).
 
