@@ -1272,6 +1272,8 @@ Ten items from the v0.16 full pass (`docs/process/23-triage.md`, branch `triage-
     when the design is what was last written.)
   - The Section's Undo straight after an import rolls the street back to before it (the sidewalk 4.60 → 1.80 m,
     the parking lane gone).
+  - The README's How to use it (step 7) says *Site › Survey*; the Site step on screen reads *Survey (optional)*.
+- **Code freeze (Jenna, 2026-10-01):** no code changes until after 9 October; anything new is logged here for Brief 30.
 
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
