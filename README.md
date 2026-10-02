@@ -125,10 +125,6 @@ located and imported, the curb-to-curb estimate, Generate refusing until the sit
 Georgia Street) opened from My designs, generated and opened in Design; one Check value saved; the technical report
 downloaded and paged through: cover, What to do next, layout plan, deck plan, both sections, C-001 and sources.
 
-[![A-102 Layout plan, a sheet of the technical report in the clip](demo/walkthrough-sheet.png)](demo/walkthrough-sheet.png)
-
-*A-102 Layout plan, from the report in the clip (for viewers that do not play the GIF).*
-
 ## Skill and limits
 
 - **Schematic, not construction.** The drawings are for the Parklet Manual pre-application; no structural or
