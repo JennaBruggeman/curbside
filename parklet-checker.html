@@ -18917,6 +18917,10 @@ async function pkSaveDesign(immediate) {
     var thumb = immediate ? null : pkGetThumbnail();
     var payload = { state: data, updated_at: new Date().toISOString(), name: data.project.name || 'Untitled Parklet', description: data.project.streetAddress || '' };   // (the list's address: Brief 29c item 9)
     if (thumb) payload.thumbnail_data = thumb;
+    // nothing changed since the last write (v0.17.2): a save serialises, which calls saveSettings, which scheduled the next
+    // save, so an open design was written every 2 s with no edit. The same design, name and state: no write
+    var fp = pkCurrentDesignId + '|' + payload.name + '|' + JSON.stringify(Object.assign({}, data, { savedAt: 0 }));
+    if (fp === pkSaveDesign._fp) { SAVE.idle(); pkSaving = false; if (pkSaveAgain) { pkSaveAgain = false; pkSaveDesign(true); } return; }
 
     // Always write local cache first
     pkSaveLocal(data);
@@ -18928,6 +18932,7 @@ async function pkSaveDesign(immediate) {
     if (res.error) throw res.error;
     if (!res.data || !res.data.length) throw { noRow: true };
     SAVE.saved(res.data[0].updated_at || payload.updated_at);
+    pkSaveDesign._fp = fp;
     // Update in-memory list
     var idx = pkAllDesigns.findIndex(function(d) { return d.id === pkCurrentDesignId; });
     if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, description: payload.description, updated_at: payload.updated_at });
