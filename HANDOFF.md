@@ -1199,6 +1199,59 @@ Four items from `briefs/23-triage.md` "## v0.14 smoke", nothing else.
   - Against an edge it is held there, with an amber halo (`.pv-edge`).
   - Vehicles and people may still stand off the deck.
 
+## Brief 29c: the last round before Friday (branch `fixes-5` from v0.16.1, 2026-10-01; one commit per item)
+Ten items from the v0.16 full pass (`briefs/23-triage.md`, branch `triage-0.16`); everything else is Brief 30.
+- **1 (F6) Drag hit-test.** A press on the Plan picks the piece whose drawn (rotated) footprint is under the pointer,
+  3 screen px of margin (`pvFurnAt`). On overlap the most recently selected piece wins (`FL3D._selAt`), else the
+  most recently placed. The piece under the pointer has a blue hover halo (`.pv-hover`).
+- **2 (F11) Typed values are measured.** A width typed in the Section (`seg.typed`, saved) or in the road fields
+  counts as entered: with the road width measured, or every travel lane typed, C02's structure estimates (far-side
+  parking, lane count) become entered, and C02 leaves "awaiting".
+- **3 (F18) Generate keeps its button.** A refusal shows the reason, the Generate button and "Set <fact> in Check ›"
+  to the first missing fact (`res.first`).
+- **4 (F51) The deck edge a drag meets flashes solid** (amber, 5 px, twice; none with reduced motion), and the piece
+  holds its last valid position.
+- **5 (F9) C-001's lane table reads C02's own result** (`RPT.lanes` from the c2 row): awaiting, or pass/fail with
+  provisional, never a second verdict.
+- **6 (F22) Bump with `node tools/bump-version.js vX.Y`** (server up): it sets `RPT.VERSION` and the landing
+  page's version and rebuilds the two sample reports. The pre-push hook refuses a push whose sample JSONs say another
+  version than the app.
+- **7 (F5) A new site replaces the site data, after one confirm** ("Replace the site data?", focus on Cancel):
+  Locate on another street, the other side or more than 25 m along; the side dropdown; typed coordinates more than
+  25 m away; an import of an imported site. `SITER.reset` clears the imported objects and buildings, the city
+  context, every provenance and confirmation, the survey, the site facts typed in Check and Generate's results, and
+  puts the Site steps back to "import". The deck, the furniture and the enclosure stay.
+- **8 (F58) A Section edit saves like a furniture edit.** PK_EDIT's comparison includes the segments, and every
+  Section edit schedules it; before, only the reload's pagehide wrote a Section edit.
+- **9 (F16) One address: `pkSiteAddress()`.** Located, the host building's City address (the frontage the deck is
+  on), else the street and side; never the search text or a neighbour (the 50 m fallback is gone). Not located, the
+  typed address. Located, the Street address field shows it read-only, and the report, the sheet and Export headers,
+  the saved design and the account's design list (the row's description, updated on every save) read it.
+- **10 Note:** open a design in one tab at a time; the last save wins (README "Skill and limits", Known limitations).
+- **v0.17:** `node tools/bump-version.js v0.17`; both sample reports say Curbside v0.17 on every sheet.
+- **VERIFY on v0.17** (b29c/tv.js, through the UI, real mouse, 1920 px, software GL):
+  - Demo address (Locate's search "Main St & E 26th Ave", import), 10/10:
+    - Generate refuses on the fresh import and keeps its button, with "Set 01 Parking restrictions in Check ›".
+    - The S-002 survey template, downloaded, filled and imported: "8 values applied as surveyed", 0 awaiting.
+      Generate then gives 6 cards.
+    - A bench grabbed at its end beside a planter moves; the planter stays (hover halo on the bench).
+    - The bench dragged 1400 px past the deck end is held on the deck, and the end flashes.
+    - Lane 1's edge dragged to 3.00 m: stored before any reload, there after one.
+    - The schematic's header reads "212 E 26th Av, Vancouver, BC", the host's address (search text nowhere).
+    - C-001's lane table reads FAIL (provisional) for all four lanes, as C02 does (4 × 3.17 m on a bus route).
+    - Locate 110 m along, then Replace, then import: 47 confirmations to 0; deck 19.8 m and 2 pieces kept.
+  - Blank street: the same drags, Section reload, header "Generic street -- not a real location", C-001 lanes PASS as C02.
+- **Added on approval (v0.17):**
+  - **The import keeps the 12 buildings per side nearest the pick.** It kept the 12 with the lowest along-street
+    position (`keptBy`, sorted by `z0`), so on a long block the buildings at the deck were dropped. 110 m along
+    Main St from the demo pick, the deck was seeded 38 m back at 4142 Main St; now it stays at the pick, host Windsor
+    Quality Meats, 4110 Main St. At the five sites and Main & 26th the host and address are unchanged (b29c/tb.js).
+  - **"how?" beside the photoreal Render button opens a note** (`SBX.how`): renders and the assistant use your own
+    keys (Replicate, Anthropic), added under Settings › Connections; on the hosted copy renders need the local server
+    (tools/start.cmd). It toggled an inline line about the relay only, easy to miss and silent on the keys.
+  - **The sample report link is the technical sample** (`demo/sample-technical.pdf`): the README's link and the
+    landing page's "Try the sample report"; the schematic sample stays as a secondary link in the landing footer.
+
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
 
@@ -1227,7 +1280,8 @@ $html = $html.Replace($old, $new)
 - No OAuth (email/password only)
 - No thumbnail generation (stub returns null)
 - No offline save queue (last cloud save is restored on reload)
-- Single-tab only (no conflict detection if same design open in two tabs)
+- Open a design in one tab at a time; the last save wins. Two tabs on the same design are not merged or detected
+  (two-tab merge is Brief 30).
 
 ## Known dead code
 

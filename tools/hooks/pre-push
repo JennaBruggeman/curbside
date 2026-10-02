@@ -6,6 +6,7 @@
 z=0000000000000000000000000000000000000000
 limit=5242880
 found=""
+stale=""
 while read -r lref lsha rref rsha; do
   [ "$lsha" = "$z" ] && continue                                   # a branch or tag being deleted
   if [ "$rsha" = "$z" ]; then set -- "$lsha" --not --remotes; else set -- "$rsha..$lsha"; fi   # new ref: all it adds
@@ -18,11 +19,28 @@ while read -r lref lsha rref rsha; do
   [ -n "$hits" ] && found="$found$lref:
 $hits
 "
+  # the sample reports must carry the version the app carries (Brief 29c item 6: bump with tools/bump-version.js)
+  c="$lsha^{commit}"
+  av=$(git show "$c:parklet-checker.html" 2>/dev/null | sed -n "s/^RPT\.VERSION = '\(v[0-9.]*\)';\$/\1/p" | head -n 1)
+  for m in schematic technical; do
+    sv=$(git show "$c:demo/sample-$m.json" 2>/dev/null | sed -n 's/.*"version": *"\(v[0-9.]*\)".*/\1/p' | head -n 1)
+    if [ -n "$av" ] && [ -n "$sv" ] && [ "$av" != "$sv" ]; then
+      stale="$stale$lref:
+  demo/sample-$m.json says $sv, the app says $av
+"
+    fi
+  done
 done
 if [ -n "$found" ]; then
   echo "pre-push: refused. These files are not allowed in the repository:" >&2
   printf '%s' "$found" >&2
   echo "Remove them from the commits (keep local copies in reference/, which is git-ignored) and push again." >&2
+  exit 1
+fi
+if [ -n "$stale" ]; then
+  echo "pre-push: refused. The sample reports are not at the app's version:" >&2
+  printf '%s' "$stale" >&2
+  echo "Run node tools/bump-version.js <version> (or node tools/build-sample-pdfs.js) with the local server up, commit, and push again." >&2
   exit 1
 fi
 exit 0

@@ -1391,6 +1391,17 @@ CHK.inputs = function(c) {
     out.push({ key: kind, label: kind === 'transit' ? 'Imported transit stops' : 'Imported fire hydrants', cls: un ? 'imported' : 'confirmed', src: un ? un + ' of ' + all.length + ' not yet confirmed on site' : 'all ' + all.length + ' confirmed' });
   });
   F.design.forEach(function(l) { out.push({ key: l, label: l, cls: 'design', src: 'the design' }); });
+  // (Brief 29c item 2, triage F11) a value you type is measured. Once the curb-to-curb width is yours (typed, surveyed,
+  // confirmed or overridden), or every travel lane's width was typed in the Section, the street as drawn is yours: the
+  // tool's assumptions about how it divides (lane count, far-side parking or bike lane) no longer make C02 wait
+  if (c.id === 'c2') {
+    var MEAS = { entered: 1, confirmed: 1, survey: 1, override: 1 }, rw = out.find(function(i) { return i.key === 'roadWidth'; });
+    var lanes = (DM.crossSection || []).filter(function(sg) { return sg.type === 'travel-lane'; });
+    var typed = lanes.length > 0 && lanes.every(function(sg) { return sg.typed; });
+    if ((rw && MEAS[rw.cls]) || typed) out.forEach(function(i) {
+      if (i.cls === 'estimate') { i.cls = 'entered'; i.src = i.key === 'roadWidth' ? 'the lanes you typed in the Section' : 'as drawn in the Section, on your measured width'; }
+    });
+  }
   return out;
 };
 // the result: base 'pass' | 'fail' | 'await' | 'unclear', provisional, the inputs, and (await) what to measure
@@ -3598,6 +3609,7 @@ function buildDesignModel() {
       segs = raw.filter(function(s){ return s.type !== 'building'; }).map(function(s) {
         var seg = { id: s.id, type: s.type, width: s.width };
         if (s.variant !== undefined) seg.variant = s.variant;
+        if (s.typed) seg.typed = true;   // a width typed in the Section (Brief 29c item 2)
         if (s.type === 'sidewalk') { seg.x0 = -s.width; seg.x1 = 0; }
         else { seg.x0 = cx; seg.x1 = cx + s.width; cx += s.width; }
         if (s.type === 'travel-lane') {
@@ -3862,7 +3874,7 @@ function buildDesignModel() {
   (function() {
     var DM = DESIGN_MODEL;
     function field(id) { var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
-    DM.project = { name: field('projectName') || 'Untitled parklet', address: field('streetAddress') };
+    DM.project = { name: field('projectName') || 'Untitled parklet', address: typeof pkSiteAddress === 'function' ? pkSiteAddress() : field('streetAddress') };
     DM.lanes = typeof assessLanes === 'function' ? assessLanes(segs).map(function(a) {
       var s = segs.find(function(q) { return q.id === a.id; }) || {};
       return Object.assign(a, { x0: s.x0, x1: s.x1, direction: s.direction });
@@ -4215,6 +4227,7 @@ function clampParkletWidth() {
 }
 function saveSettings() {
   try {
+    if (typeof pkAddrSync === 'function') pkAddrSync();   // (Brief 29c item 9)
     state['__roadWidth'] = document.getElementById('roadWidth').value;
     state['__sidewalkWidth'] = document.getElementById('sidewalkWidth').value;
     state['__numLanes'] = String(NUM_LANES);
@@ -5070,6 +5083,8 @@ document.addEventListener('mouseup', function() {
   }
 
   function _trigger() {
+    // a Section edit is saved like a furniture edit (Brief 29c item 8): the comparison below runs a short while after it
+    if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon();
     if (typeof syncDesignModel === 'function') {
       syncDesignModel('section-edit');
     } else {
@@ -5437,6 +5452,7 @@ document.addEventListener('mouseup', function() {
       if (done) return; done = true;
       var v = parseFloat(inp.value);
       if (commit && !isNaN(v) && Math.abs(v - start) > 0.001) {
+        s.typed = true;   // (Brief 29c item 2: a width you typed is measured)
         _seResize(id, v); _trigger();
       }
       _seRender();
@@ -5552,6 +5568,7 @@ document.addEventListener('mouseup', function() {
           if(ss) ss.width=_propFocusW;
           _hist.push(JSON.stringify(snap)); if(_hist.length>60) _hist.shift(); _fut=[]; _updateHistBtns();
         }
+        s.typed = true;   // (Brief 29c item 2: a width you typed is measured)
         _seResize(s.id,v,true); _seToGlobals(); _trigger();
         var nw = document.getElementById('sePropW'); if (nw) { nw.focus({ preventScroll: true }); nw.select(); }
       };
@@ -5830,7 +5847,7 @@ document.addEventListener('mouseup', function() {
   // DESIGN_STATE). The building column is implicit; ids are fresh; widths are kept as given.
   window.seSetSegs = function(list) {
     _segs = [{ id: 'building', type: 'building', width: 0 }].concat((list || []).filter(function(s) { return s && s.type !== 'building' && SE_TYPES[s.type]; })
-      .map(function(s) { var o = { id: _nid(), type: s.type, width: Math.round((+s.width || 0) * 1000) / 1000 }; if (s.variant !== undefined) o.variant = s.variant; return o; }));
+      .map(function(s) { var o = { id: _nid(), type: s.type, width: Math.round((+s.width || 0) * 1000) / 1000 }; if (s.variant !== undefined) o.variant = s.variant; if (s.typed) o.typed = true; return o; }));
     _hist = []; _fut = []; _selId = null; _updateHistBtns();
     _seToGlobals(); _recomputeScale(); _seRender();
   };
@@ -8606,7 +8623,21 @@ const manholes = state['manholes'] || [];
   svg.style.cursor = (_pvUserMod || _pvInFS) ? 'grab' : 'default';
   svg.setAttribute('viewBox', VB.x.toFixed(2)+' '+VB.y.toFixed(2)+' '+VB.w.toFixed(2)+' '+VB.h.toFixed(2));
   VB.pxM = HS; _svgAppendSB(svg, VB, 760, 395); _initSVGZoom('planView', VB, 760, 395);
-  if (!paper && window._pvEdgeFlash && window._pvEdgeFlash.until > Date.now()) { const _fe = svg.querySelector(".pv-furn[data-inst='" + window._pvEdgeFlash.id + "']"); if (_fe) _fe.classList.add('pv-edge'); }   // (Brief 29b: held at the deck's edge)
+  if (!paper && window._pvHoverId != null) { const _fh = svg.querySelector(".pv-furn[data-inst='" + window._pvHoverId + "']"); if (_fh) _fh.classList.add('pv-hover'); }   // (Brief 29c item 1)
+  if (!paper && window._pvEdgeFlash && window._pvEdgeFlash.until > Date.now()) {
+    const _fe = svg.querySelector(".pv-furn[data-inst='" + window._pvEdgeFlash.id + "']"); if (_fe) _fe.classList.add('pv-edge');   // (Brief 29b: held at the deck's edge)
+    // (Brief 29c item 4) the deck edge it met, drawn solid and flashing: the ends of the usable run, the sidewalk or road side
+    const _E = window._pvEdgeFlash.edges, _fp = ENC.fpLive(), _zA = _fp.zA != null ? _fp.zA : 0, _zB = _fp.L - (_fp.zBd != null ? _fp.zBd : 0), _X1 = _fp.W - (_fp.inset || 0);
+    if (_E) {
+      const _ln = [];
+      if (_E.z0) _ln.push([[0, _zA], [_X1, _zA]]); if (_E.z1) _ln.push([[0, _zB], [_X1, _zB]]);
+      if (_E.x0) _ln.push([[0, _zA], [0, _zB]]); if (_E.x1) _ln.push([[_X1, _zA], [_X1, _zB]]);
+      const _ns = 'http://www.w3.org/2000/svg', _g = document.createElementNS(_ns, 'g'); _g.setAttribute('class', 'pv-edge-flash'); _g.setAttribute('pointer-events', 'none');
+      _ln.forEach(function(q) { const a = worldToPlan(q[0][0], q[0][1]), c = worldToPlan(q[1][0], q[1][1]), l = document.createElementNS(_ns, 'line');
+        l.setAttribute('x1', a.px); l.setAttribute('y1', a.py); l.setAttribute('x2', c.px); l.setAttribute('y2', c.py); l.setAttribute('data-edge-flash', '1'); _g.appendChild(l); });
+      if (_ln.length) svg.appendChild(_g);
+    }
+  }
   if (typeof FTAG !== 'undefined') { try { FTAG.screen(svg, VB, LODn >= 1); } catch (e) { console.warn('[tags]', e); } }   // Brief 22 item 6: after every other text is drawn
   if (!paper) { try { ACC.planKey(svg); } catch (e) { console.warn('[plan key]', e); } }
   if (!paper && window.APP_MODE === 'accessibility' && typeof ACCTAB !== 'undefined') { try { ACCTAB.render(); } catch (e) { console.warn('[accessibility]', e); } }   // Brief 25 items 21, 21b
@@ -8788,6 +8819,8 @@ function initPlanInteraction() {
     if (_planDragging >= 0 || _curbDragging >= 0 || _drivewayDragging >= 0) return;
     if (_c13Dragging || _c03Dragging) return;
     const pos = planSVGCoords(e);
+    if (!_pvFurnDragging && !_pvFurnCornerDragging) { try { pvFurnHover(pos.x, pos.y); } catch (_he) {} }   // (Brief 29c item 1)
+    if (window._pvHoverId != null && !_pvFurnDragging) { svg.style.cursor = 'grab'; return; }
     if (nearZoneHandle(pos.x, pos.y)) svg.style.cursor = `ew-resize`;
     else if (nearMH(pos.x, pos.y) >= 0 || nearCF(pos.x, pos.y) >= 0 || nearDriveway(pos.x, pos.y) >= 0) svg.style.cursor = `grab`;
     else svg.style.cursor = ``;
@@ -8796,6 +8829,30 @@ function initPlanInteraction() {
   document.addEventListener('mouseup', planMU);
 }
 
+// the placed piece under a Plan point (Brief 29c item 1): its drawn footprint, the rotated rectangle of its size, with a
+// 3-screen-pixel margin; where footprints overlap, the most recently selected wins, else the most recently placed
+function pvFurnAt(px, py) {
+  if (!window.FL3D || !FL3D.placed || !FL3D.placed.length) return null;
+  var svg = document.getElementById('planView'), ctm = svg && svg.getScreenCTM ? svg.getScreenCTM() : null, m = planMetrics();
+  var tol = 3 / Math.max(1e-6, (ctm ? ctm.a : 1) * m.HS), w = planToWorld(px, py), hits = [];
+  FL3D.placed.forEach(function(inst, i) {
+    var d = flInstDims(inst), th = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
+    var dx = w.x - (+inst.x || 0), dz = w.z - (+inst.z || 0), s = Math.sin(th), c = Math.cos(th);
+    var lc = dx * s + dz * c, dc = dx * c - dz * s;   // the inverse of getFurnitureCorners' frame
+    if (Math.abs(lc) <= d.l / 2 + tol && Math.abs(dc) <= d.d / 2 + tol) hits.push({ inst: inst, i: i, sel: (FL3D._selAt || {})[inst.id] || 0 });
+  });
+  if (!hits.length) return null;
+  hits.sort(function(a, b) { return (b.sel - a.sel) || (b.i - a.i); });
+  return hits[0].inst;
+}
+// the piece a drag would take, outlined as the pointer moves over the Plan (Brief 29c item 1)
+function pvFurnHover(px, py) {
+  var h = pvFurnAt(px, py), id = h ? h.id : null;
+  if (id === window._pvHoverId) return;
+  window._pvHoverId = id;
+  document.querySelectorAll('#planView .pv-furn.pv-hover').forEach(function(g) { g.classList.remove('pv-hover'); });
+  if (id != null) { var g = document.querySelector("#planView .pv-furn[data-inst='" + id + "']"); if (g) g.classList.add('pv-hover'); }
+}
 function planMD(e) {
   _planMoved = false;
   const pos = planSVGCoords(e);
@@ -8825,26 +8882,22 @@ function planMD(e) {
     }
   }
   // ── Furniture drag ────────────────────────────────────────────────────
-  if (window.FL3D && window.FL3D.placed && window.FL3D.placed.length) {
-    const {HS, pvSC} = planMetrics();
-    const _grabW = planToWorld(pos.x, pos.y);
-    for (var _fi = window.FL3D.placed.length - 1; _fi >= 0; _fi--) {
-      const _fInst = window.FL3D.placed[_fi];
+  // (Brief 29c item 1, triage F6) the piece whose drawn footprint is under the pointer, not the first whose inflated circle
+  // reaches it: a long pergola's circle used to take a planter beside it
+  {
+    const _fInst = pvFurnAt(pos.x, pos.y);
+    if (_fInst) {
+      const _grabW = planToWorld(pos.x, pos.y);
       const _fwx = typeof _fInst.x === 'number' ? _fInst.x : 0;
       const _fwz = typeof _fInst.z === 'number' ? _fInst.z : 0;
-      const _fcP = worldToPlan(_fwx, _fwz), _fcx = _fcP.px, _fcy = _fcP.py;
-      const _fdims = flInstDims(_fInst);
-      const _fhr = Math.sqrt(Math.pow(_fdims.l * HS / 2, 2) + Math.pow(_fdims.d * pvSC / 2, 2)) + 5;
-      if (Math.hypot(pos.x - _fcx, pos.y - _fcy) < _fhr) {
-        _pvFurnDragging = {instId: _fInst.id, startWx: _fwx, startWz: _fwz,
-          grabOffX: _grabW.x - _fwx, grabOffZ: _grabW.z - _fwz,
-          startClientX: e.clientX, startClientY: e.clientY};
-        if (typeof fl3DSelect === 'function') fl3DSelect(_fInst.id);
-        e.preventDefault();
-        const _fsvg = document.getElementById('planView');
-        if (_fsvg) _fsvg.style.cursor = 'grabbing';
-        return;
-      }
+      _pvFurnDragging = {instId: _fInst.id, startWx: _fwx, startWz: _fwz,
+        grabOffX: _grabW.x - _fwx, grabOffZ: _grabW.z - _fwz,
+        startClientX: e.clientX, startClientY: e.clientY};
+      if (typeof fl3DSelect === 'function') fl3DSelect(_fInst.id);
+      e.preventDefault();
+      const _fsvg = document.getElementById('planView');
+      if (_fsvg) _fsvg.style.cursor = 'grabbing';
+      return;
     }
   }
   const idx = nearMH(pos.x, pos.y);
@@ -8981,8 +9034,10 @@ function planMM(e) {
     // deck, and shows it has met the edge; it never leaves the deck
     var _dr = flDeckRange(window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }));
     if (_dr && (_fnz < _dr.z[0] - 1e-6 || _fnz > _dr.z[1] + 1e-6 || _fnx < _dr.x[0] - 1e-6 || _fnx > _dr.x[1] + 1e-6)) {
+      // (Brief 29c item 4) which edge it met: that edge of the deck flashes solid while the piece holds its last place inside
+      var _ed = { z0: _fnz < _dr.z[0] - 1e-6, z1: _fnz > _dr.z[1] + 1e-6, x0: _fnx < _dr.x[0] - 1e-6, x1: _fnx > _dr.x[1] + 1e-6 };
       _fnz = Math.max(_dr.z[0], Math.min(_fnz, _dr.z[1])); _fnx = Math.max(_dr.x[0], Math.min(_fnx, _dr.x[1]));
-      _pvFurnDragging.hitEdge = true; window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700 };
+      _pvFurnDragging.hitEdge = true; window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700, edges: _ed };
     }
     // Live distances
     _pvDragDistances = {left:_fnx, right:_pW2-_fnx, front:_fnz, back:_pL2-_fnz};
@@ -9084,8 +9139,8 @@ function planMM(e) {
 
 function planMU() {
   if (typeof _pvDeckDragging !== 'undefined' && _pvDeckDragging) { _pvDeckDragging = null; setTimeout(function() { _pvDeckMoved = false; }, 0); }
-  if (_pvFurnDragging && _pvFurnDragging.hitEdge) {   // dropped against the edge: the halo a moment longer, then gone
-    window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700 };
+  if (_pvFurnDragging && _pvFurnDragging.hitEdge) {   // dropped against the edge: the halo and the edge a moment longer, then gone
+    window._pvEdgeFlash = { id: _pvFurnDragging.instId, until: Date.now() + 700, edges: (window._pvEdgeFlash || {}).edges };
     setTimeout(function() { if (typeof renderPlanView === 'function') renderPlanView(); }, 750);
   }
   if (_pvFurnDragging || _pvFurnCornerDragging) {
@@ -13595,6 +13650,7 @@ function fl3DPlaceAt(objId, wx, wz, over) {
 function fl3DSelect(id) {
   FL3D.placed.forEach(inst=>fl3DHighlight(inst.mesh, false));
   FL3D.selId = id;
+  if (id !== null) (FL3D._selAt = FL3D._selAt || {})[id] = Date.now();   // (Brief 29c item 1: the most recently selected wins an overlap)
   if (id !== null) {
     const inst = FL3D.placed.find(i=>i.id===id);
     if (inst) fl3DHighlight(inst.mesh, true);
@@ -15551,12 +15607,22 @@ function siteChooseBearing(k) {
   if (k === 'c' || k < 0) { siteUI.custom = true; siteUI(); var f = document.getElementById('siteBearingDeg'); if (f) f.focus(); return; }
   siteUI.custom = false; siteSetBearing(k);
 }
-function siteSetSide(name) { siteSet({ parkletSide: name }); }
+function siteSetSide(name) {
+  // the other side of the street is another site (Brief 29c item 7)
+  var cur = (typeof SITE_ORIENT !== 'undefined' && SITE_ORIENT.parkletSide) || '';
+  if (name !== cur && typeof SITER !== 'undefined' && SITER.has()) {
+    var sel = document.getElementById('siteSideSel');
+    SITER.ask(function() { SITER.reset(); siteSet({ parkletSide: name }); }, function() { if (sel) sel.value = cur; });
+    return;
+  }
+  siteSet({ parkletSide: name });
+}
 function siteSetLatLon() {
   var la = parseFloat((document.getElementById('siteLat') || {}).value), lo = parseFloat((document.getElementById('siteLon') || {}).value);
   var msg = document.getElementById('sitePasteMsg');
   if (!(la >= -90 && la <= 90) || !(lo >= -180 && lo <= 180)) { if (msg) msg.textContent = 'Latitude is -90 to 90 and longitude -180 to 180 (decimal degrees).'; return; }
   if (msg) msg.textContent = '';
+  if (typeof SITER !== 'undefined' && SITER.has() && SITER.far(la, lo)) { SITER.ask(function() { SITER.reset(); siteSet({ lat: la, lon: lo }, 'site-latlon'); }); return; }   // (Brief 29c item 7)
   siteSet({ lat: la, lon: lo }, 'site-latlon');
 }
 // "lat, lon" pasted from a map (decimal degrees). No geocoding: an address is not looked up.
@@ -15657,6 +15723,7 @@ function siteLocSync() {
   var h = g('siteMapHint'); if (h) h.hidden = located;   // the instruction only before locating
   var name = sm ? (sm.name || 'The located street') : gen ? 'Blank street' : '';
   g('siteLocTxt').textContent = name + ' \u00b7 ' + d.side.name + ' side \u00b7 runs ' + siteFmtB(d.streetBearing) + '\u00b0';
+  if (typeof pkAddrSync === 'function') pkAddrSync();
 }
 function siteUI() {
   siteLocSync();
@@ -18237,12 +18304,15 @@ function _dsScheduleLocal() {
 // duplicated or deleted, and every Check entry, were lost on reload. Rather than a call in each of their handlers, a
 // short while after any user input the furniture and the Check values are compared with what was last saved, and a
 // change saves. Opening a design resets the comparison (a design just opened is not an edit).
+// Brief 29c item 8 (triage F58): the Section's segments are compared too. A lane width dragged or typed in the Section
+// was written only by the reload's pagehide, so a tab closed or killed without one lost it.
 var PK_EDIT = {
   fp: null, t: null,
   print: function() {
     var f = (window.FL3D && FL3D.placed || []).map(function(i) { return [i.objId, +(+i.x || 0).toFixed(3), +(+i.z || 0).toFixed(3), i.userRotation || 0, i.params ? JSON.stringify(i.params) : '', i.materials ? JSON.stringify(i.materials) : '']; });
     var c = typeof criteria === 'undefined' ? [] : criteria.map(function(q) { return [state[q.inputId], q.inputId2 ? state[q.inputId2] : null]; });
-    return JSON.stringify([f, c]);
+    var g = (typeof window.seGetSegs === 'function' ? window.seGetSegs() : []).map(function(x) { return x.type + ':' + (+x.width || 0).toFixed(3) + ':' + (x.variant || '') + (x.typed ? ':t' : ''); });
+    return JSON.stringify([f, c, g]);
   },
   baseline: function() { PK_EDIT.fp = PK_EDIT.print(); },
   check: function() {
@@ -18313,7 +18383,7 @@ function pkSerialize() {
     // global carries (planting, parking, turn / transit lanes, curbs, edited lane widths)
     // survive a load. The building column is implicit.
     crossSection: (typeof window.seGetSegs === 'function') ? window.seGetSegs().filter(function(s) { return s.type !== 'building'; })
-      .map(function(s) { var o = { type: s.type, width: s.width }; if (s.variant !== undefined) o.variant = s.variant; return o; }) : null,
+      .map(function(s) { var o = { type: s.type, width: s.width }; if (s.variant !== undefined) o.variant = s.variant; if (s.typed) o.typed = true; return o; }) : null,
     // the enclosure (Brief 21 §12): archetype per side, height, buffer, the archetypes' parameters and materials
     enclosure: (typeof ENCLOSURE !== 'undefined') ? JSON.parse(JSON.stringify(ENC.norm(ENCLOSURE))) : null,
     compliance: (function() {
@@ -18831,7 +18901,7 @@ async function pkSaveDesign(immediate) {
   try {
     data = pkSerialize();
     var thumb = immediate ? null : pkGetThumbnail();
-    var payload = { state: data, updated_at: new Date().toISOString(), name: data.project.name || 'Untitled Parklet' };
+    var payload = { state: data, updated_at: new Date().toISOString(), name: data.project.name || 'Untitled Parklet', description: data.project.streetAddress || '' };   // (the list's address: Brief 29c item 9)
     if (thumb) payload.thumbnail_data = thumb;
 
     // Always write local cache first
@@ -18846,7 +18916,7 @@ async function pkSaveDesign(immediate) {
     SAVE.saved(res.data[0].updated_at || payload.updated_at);
     // Update in-memory list
     var idx = pkAllDesigns.findIndex(function(d) { return d.id === pkCurrentDesignId; });
-    if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, updated_at: payload.updated_at });
+    if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, description: payload.description, updated_at: payload.updated_at });
     pkCurrentDesignMeta && (pkCurrentDesignMeta.name = data.project.name);
   } catch(e_) {
     SAVE.keepHere(data);
@@ -18951,7 +19021,7 @@ function pkScheduleSave() {
 var pkNewTicket = null;
 function pkSaveSnapshot(id, data) {
   if (!pkSB || !pkCurrentUser || !id || !data) return Promise.resolve(false);
-  return pkSB.from('designs').update({ state: data, updated_at: new Date().toISOString(), name: (data.project && data.project.name) || 'Untitled Parklet' }).eq('id', id).eq('user_id', pkCurrentUser.id).select('id')
+  return pkSB.from('designs').update({ state: data, updated_at: new Date().toISOString(), name: (data.project && data.project.name) || 'Untitled Parklet', description: (data.project && data.project.streetAddress) || '' }).eq('id', id).eq('user_id', pkCurrentUser.id).select('id')
     .then(function(r) { if (r.error) throw r.error; if (!r.data || !r.data.length) throw { noRow: true }; return true; }).catch(function(e) { console.error('[pk] save of the previous design failed:', e, SAVE.reason(e)); pkToast('The previous design could not be saved to your account: ' + SAVE.reason(e) + ' A copy is in this browser.', 'error'); return false; });
 }
 async function pkNewDesign(name, address) {
@@ -22037,6 +22107,8 @@ GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.sav
 .gen-title { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--d-ink); }
 .gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); padding: var(--sp-4); align-content: start; }
 .gen-empty { grid-column: 1 / -1; padding: var(--sp-6) 0; }
+.gen-err-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }   /* Brief 29c item 3 */
+.gen-err.gen-ready p { color: var(--text-hi, inherit); }
 </style>
 <script>
 // ── GENERATE (Brief 09 Phase 2): the generator ──────────────────────────────────────────────
@@ -22955,8 +23027,8 @@ GEN.generate = function() {
   GEN._base = base;
   var facts = GEN.facts(), missing = facts.filter(function(f) { return !f.ok; }), blocked = facts.filter(function(f) { return f.blocks; });
   var res = { seed: P.seed, n: P.n, bias: GEN.biasText(), prog: Object.assign({}, P.prog), schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0, why: {} }, notes: [] };
-  if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; return GEN.finish(res, t0); }
-  if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; return GEN.finish(res, t0); }
+  if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; res.first = { crit: blocked[0].crit, label: blocked[0].label }; return GEN.finish(res, t0); }
+  if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; res.first = { crit: missing[0].crit, label: missing[0].label }; res.missing = true; return GEN.finish(res, t0); }
   var env = GEN.envelope(S, base);
   res.envelope = env;
   if (!env.ok) { res.error = 'No compliant envelope. ' + env.why.join(' '); return GEN.finish(res, t0); }
@@ -23156,7 +23228,15 @@ GEN.renderCards = function() {
     "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed every check · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.effectivePrefs()) === 'density' ? 'seat density' : 'utilisation') + (R.bias ? ' · ' + GEN.esc(R.bias) : '') + '</span>' +
     (R.envelope && R.envelope.ok ? "<span class='gen-stat'>envelope " + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) + '</span>' : '') +
     (GEN.undoSnap ? "<button class='gen-link' onclick='GEN.undoOpen()'>Restore the design you had before opening a scheme</button>" : '');
-  if (R.error) { grid.innerHTML = "<div class='gen-empty gen-err'>" + GEN.esc(R.error) + '</div>'; return; }
+  // a refusal (Brief 29c item 3, triage F18): the Generate button stays, the reason beside it, and a link to the first fact to
+  // set; once the facts are all set, the old reason gives way to that news
+  if (R.error) {
+    var now = R.missing ? GEN.facts() : null, ready = now && !now.some(function(f) { return !f.ok || f.blocks; });
+    grid.innerHTML = "<div class='gen-empty gen-err" + (ready ? ' gen-ready' : '') + "' role='status'><p>" + (ready ? 'The site facts are set now. Generate again to see the schemes.' : GEN.esc(R.error)) + '</p>' +
+      "<div class='gen-err-acts'><button type='button' class='ui-empty-btn' onclick='GEN.run()'>Generate</button>" +
+      (!ready && R.first ? " <button type='button' class='txt-btn' onclick=\"VERDICT.row('" + R.first.crit + "')\">Set " + GEN.esc(R.first.label) + ' in Check &rsaquo;</button>' : '') + '</div></div>';
+    return;
+  }
   grid.innerHTML = R.schemes.map(function(c, i) {
     var m = c.m, locked = !!GEN.locked[c.key];
     return "<article class='gen-card" + (locked ? ' locked' : '') + "' data-key='" + GEN.esc(c.key) + "'>" +
@@ -23311,7 +23391,7 @@ RPT.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;')
 RPT.fx = function(v, d) { return (+v).toFixed(d == null ? 3 : d); };
 // the address as printed: ', Vancouver, BC' added only when the address does not already name the city
 // the site address line (Brief 19 C): the host frontage's civic address (the City's), else the project's address field
-RPT.addr = function(DM) { if (typeof state !== 'undefined' && state.__generic) return BLANK.NOTE; var h = typeof pkHostAddress === 'function' ? pkHostAddress() : null, a = h || DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
+RPT.addr = function(DM) { if (typeof state !== 'undefined' && state.__generic) return BLANK.NOTE; var h = typeof pkSiteAddress === 'function' ? pkSiteAddress() : null, a = h || DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
 RPT.DISCLAIMER = 'Preliminary assessment — not a substitute for City of Vancouver review';
 
 // ── Data: one snapshot of the model for every sheet ───────────────────────────────────────────
@@ -23585,7 +23665,10 @@ RPT.lanes = function(d) {
   ['standard', 'bus_truck'].forEach(function(rk) { ['rightmost', 'other', 'single'].forEach(function(role) { var e = LANE_ENVELOPE[rk][role], on = rk === route;
     env.push([{ t: rk === 'standard' ? 'Standard' : 'Bus / truck', b: on }, { t: role, b: on }, { t: RPT.fx(e.absMin, 2), b: on }, { t: RPT.fx(e.preferred, 2), b: on }, { t: RPT.fx(e.max, 2), b: on }]); }); });
   var BAND = { 'below-abs-min': 'below absolute minimum', 'abs-min': 'absolute minimum (City Engineer approval, note 4)', ok: 'within preferred - maximum', exception: 'above maximum (exception, note 8)', 'over-max': 'beyond ' + LANE_EXCEPTION_MAX + ' m' };
-  var lanes = DM.lanes.map(function(a, i) { return [String(i + 1), a.direction === 'far' ? 'far side' : a.direction === 'near' ? 'near side' : 'one-way', a.role, RPT.fx(a.width, 2), RPT.fx(a.env.absMin, 2), RPT.fx(a.env.preferred, 2), RPT.fx(a.env.max, 2), BAND[a.band], RPT.fx(a.req, 2), RPT.res({ status: a.c02 ? 'pass' : 'fail' })]; });
+  // each lane's C02 from C02's own row (Brief 29c item 5, triage F9): awaiting there is awaiting here, provisional stays provisional;
+  // the rule's raw pass / fail per lane only once the row itself has a result
+  var c2row = (d.rows || []).find(function(r) { return r.id === 'c2'; }), c2aw = c2row && (c2row.status === 'await' || c2row.status === 'unclear');
+  var lanes = DM.lanes.map(function(a, i) { return [String(i + 1), a.direction === 'far' ? 'far side' : a.direction === 'near' ? 'near side' : 'one-way', a.role, RPT.fx(a.width, 2), RPT.fx(a.env.absMin, 2), RPT.fx(a.env.preferred, 2), RPT.fx(a.env.max, 2), BAND[a.band], RPT.fx(a.req, 2), RPT.res(c2aw ? { status: c2row.status } : { status: a.c02 ? 'pass' : 'fail', provisional: !!(c2row && c2row.provisional) })]; });
   return [   // (Brief 25 decision 1: these blocks close C-001; C-002 is no longer a sheet of its own)
     { h2: 'Lane envelope, EDM Table 8-10: travel lane widths (m); this design\'s route in bold' }, { table: { cols: [{ t: 'Route', w: 0.25 }, { t: 'Lane role', w: 0.25 }, { t: 'Absolute min.', w: 0.17, num: true }, { t: 'Preferred', w: 0.17, num: true }, { t: 'Max.', w: 0.16, num: true }], rows: env } },
     { p: 'Route of this design: ' + (route === 'bus_truck' ? 'bus / truck' : 'standard') + (DM.inputs.route_type && DM.inputs.route_type.entered ? '' : ' (route type not entered; standard assumed)') + '. Rightmost = the lane next to the parklet (or its bike lane / buffer); single = a lone travel lane. Below preferred needs City Engineer approval (note 4); above maximum is an exception only (note 8), never beyond ' + LANE_EXCEPTION_MAX + ' m.' },
@@ -23705,7 +23788,7 @@ RPT.drawings = async function(d) {
 // no rotate transform. Technical: grey levels, plus one red for a failed check's zone. Schematic: the same
 // drawing (scales, dims) with fills. Lineweights (mm): 0.13 hatch, 0.18 context, 0.25 general, 0.35 objects,
 // 0.5 cut, 0.7 section cut of deck / curb. Text (mm): 2.5 body, 3.5 headings, 1.8 tags (never smaller).
-RPT.VERSION = 'v0.16.1';
+RPT.VERSION = 'v0.17';
 // weights, type and colours are DRAW_STYLE's: the report's names for its classes
 RPT.LW = { hatch: DRAW_STYLE.W.fine, ctx: DRAW_STYLE.W.context, gen: DRAW_STYLE.W.general, obj: DRAW_STYLE.W.edge, cut: DRAW_STYLE.W.object, cutH: DRAW_STYLE.W.cut };
 RPT.TX = DRAW_STYLE.TYPE.sheet;
@@ -28150,11 +28233,13 @@ SM.setSide = function(lat, lon) {
 };
 // Writes the site: lat / lon of the snapped point, the way's axis there, the side; the address
 // (the search result, else the street name). SM.lastPick keeps the way for the context import.
-SM.use = function() {
+SM.use = function(opt) {
   var p = SM.pick; if (!p || !p.side) return;
+  // another street, the other side, or a point well along: the old site's data goes, after one confirm (Brief 29c item 7)
+  if (!(opt && opt.ok) && typeof SITER !== 'undefined' && SITER.moved(p)) { SITER.ask(function() { SITER.reset(); SM.use({ ok: true }); }); return; }
   if (typeof siteLocEdit === 'function') siteLocEdit.open = false;   // a new location: the Locate card folds again (Brief 28 item 2)
   var sn = p.snap, addr = SM._addr || (p.name ? p.name + ' (near ' + sn.lat.toFixed(5) + ', ' + sn.lon.toFixed(5) + ')' : '');
-  var ad = document.getElementById('streetAddress'); if (ad && addr) ad.value = addr;
+  // (Brief 29c item 9: the search text is not the address; pkAddrSync writes the host's below)
   siteUI.custom = [0, 45, 90, 135].indexOf(Math.round(sn.bearing * 100) / 100) < 0;   // show the bearing field for an oblique street
   state.__siteMap = { wayId: p.wayId, name: p.name, highway: p.highway, lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name, sideBearing: p.side.bearing, address: addr, fetchedAt: p.fetchedAt, via: p.via || null };
   state.__place = { pkZ: 0, corners: [] };   // a new site: the parklet at the located point, its corners not yet found
@@ -28164,6 +28249,71 @@ SM.use = function() {
   SM.close();
 };
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('smModal').classList.contains('open')) SM.close(); });
+
+// ── Site reset (Brief 29c item 7, triage F5) ─────────────────────────────────────────────────────────────────────────
+// A design moved to another street, the other side or another point, or imported afresh, kept the old site's data: its
+// trees, buildings and stops, "all confirmed", and the facts typed in Check, which then passed or failed checks at the new
+// site. Now the site-derived data goes, after one confirm: the imported objects and buildings, the city context, every
+// provenance and confirmation, the survey records, the site facts typed in Check and Generate's results. The deck, the
+// furniture, the enclosure and the design commitments (C12, C14, C15) stay.
+var SITER = {
+  FACTS: ['parking_restrictions', 'intersection_dist', 'slope', 'hydrant_dist', 'driveway_dist', 'pole_dist', 'pole_trolley', 'signal_box_dist', 'manhole_dist', 'fire_exit_block', 'drainage_clear', 'parking_setback', 'route_type'],
+  OBJECTS: ['curb_features', 'street_trees', 'transit_stops', 'manholes', 'driveways'],
+  LOC: { lat: 1, lon: 1, streetBearing: 1, parkletSide: 1, address: 1 },
+  // the design holds data from a site: an import, provenance beyond the location, site objects, or a site fact typed
+  has: function() {
+    var sm = state.__siteMap, P = state.__prov || {};
+    return !!((sm && sm.importedAt) || Object.keys(P).some(function(k) { return !SITER.LOC[k]; }) ||
+      SITER.OBJECTS.some(function(k) { return (state[k] || []).length; }) || SITER.FACTS.some(function(k) { return state[k] !== undefined && state[k] !== null && state[k] !== ''; }));
+  },
+  // more than 25 m from the located point
+  far: function(lat, lon) {
+    var sm = state.__siteMap; if (!sm || !isFinite(+sm.lat)) return true;
+    var dy = (lat - sm.lat) * 111320, dx = (lon - sm.lon) * 111320 * Math.cos(sm.lat * Math.PI / 180);
+    return Math.hypot(dx, dy) > 25;
+  },
+  // the map's pick against the site the design holds: another street, the other side, or a point well along
+  moved: function(p) {
+    var sm = state.__siteMap; if (!sm || !SITER.has()) return false;
+    return String(p.wayId) !== String(sm.wayId) || (p.side && p.side.name !== sm.parkletSide) || SITER.far(p.snap.lat, p.snap.lon);
+  },
+  ask: function(onOk, onCancel) {
+    var old = document.getElementById('siterDlg'); if (old) old.remove();
+    var html = "<div class='pk-modal-overlay active' id='siterDlg' role='dialog' aria-modal='true' aria-labelledby='siterT' style='z-index:10000'><div class='pk-dialog-box'>" +
+      "<div class='pk-dialog-title' id='siterT'>Replace the site data?</div><div class='pk-dialog-body'>This replaces the site data for this design: the imported street, buildings, trees, hydrants and stops, their confirmations, the survey, and the site facts entered in Check (parking, distances, slope and the rest). The deck and the furniture stay.</div>" +
+      "<div class='pk-dialog-btns' style='flex-wrap:wrap;gap:6px;'><button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' id='siterCancel'>Cancel</button>" +
+      "<button type='button' class='pk-btn-danger' style='width:auto;margin:0;' id='siterOk'>Replace the site data</button></div></div></div>";
+    document.body.insertAdjacentHTML('beforeend', html);
+    var dlg = document.getElementById('siterDlg'), close = function() { dlg.remove(); };
+    document.getElementById('siterCancel').onclick = function() { close(); if (onCancel) onCancel(); };
+    document.getElementById('siterOk').onclick = function() { close(); onOk(); };
+    dlg.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); if (onCancel) onCancel(); } });
+    document.getElementById('siterCancel').focus();   // the safe choice first
+  },
+  reset: function() {
+    SITER.FACTS.forEach(function(k) {
+      var c = criteria.find(function(q) { return q.inputId === k || q.inputId2 === k; });
+      if (c && typeof handleInput === 'function') { try { handleInput(c.id, k, ''); } catch (e) {} }
+      delete state[k];
+      var el = document.getElementById(k); if (el && 'value' in el) el.value = '';
+    });
+    SITER.OBJECTS.forEach(function(k) { state[k] = []; });
+    state.__prov = {}; state.__survey = null; state.__surveyMap = null; state.__existing = null;
+    if (state.__siteMap) { delete state.__siteMap.importedAt; delete state.__siteMap.importItems; delete state.__siteMap.via; }
+    if (typeof BLDG_L !== 'undefined') BLDG_L.buildings = []; if (typeof BLDG_R !== 'undefined') BLDG_R.buildings = [];
+    if (typeof CTX_OUTER !== 'undefined') CTX_OUTER = null; state.__outer = null;   // the old city context ring too
+    if (typeof GEN !== 'undefined') { GEN.result = null; GEN.site = null; GEN.siteEdited = false; }
+    if (typeof SMP !== 'undefined') SMP.lastReport = null;
+    try { if (typeof renderBldgControls === 'function') renderBldgControls(); } catch (e) {}
+    try { if (typeof SMP !== 'undefined') SMP.refresh(); } catch (e) {}
+    try { syncDesignModel('site-reset'); } catch (e) {}
+    try { if (typeof render === 'function') render(); } catch (e) {}
+    if (typeof siteStepEdit === 'function') siteStepEdit.open = {};
+    try { if (typeof uiSiteStepStatus === 'function') uiSiteStepStatus(); } catch (e) {}   // step 2 (import) is to do again
+    try { saveSettings(); } catch (e) {}
+    console.log('[site] the site data was replaced: imported objects, buildings, confirmations, survey and site facts cleared; the deck and furniture kept');
+  }
+};
 </script>
 <script>
 // ════════════════════════════════════════════════════════════════════════════════════════════
@@ -29012,9 +29162,32 @@ SBX.relay = function() {
   var note = document.getElementById('rvzpProxy'), P = typeof RVZP !== 'undefined' ? RVZP.proxy : null, go = document.getElementById('rvzpGo'); if (!note || !go) return;
   var why = P && !P.proxy ? (P.why || 'down') : null;
   if (why && SBX.WHY1[why]) {
-    note.innerHTML = SM.esc(SBX.WHY1[why]) + " <a href='#' class='sbx-how' onclick='var d=this.nextElementSibling; d.hidden=!d.hidden; this.setAttribute(\"aria-expanded\", String(!d.hidden)); return false;' aria-expanded='false'>how?</a><span class='sbx-how-d' hidden> " + SM.esc(RVZP.WHY[why]) + '</span>';
+    note.innerHTML = SM.esc(SBX.WHY1[why]) + " <button type='button' class='txt-btn sbx-how' aria-haspopup='dialog' onclick='SBX.how()'>how?</button>";
     go.disabled = true; go.classList.add('sbx-off'); go.title = SBX.WHY1[why];
   } else { go.classList.remove('sbx-off'); go.title = ''; }
+};
+
+// the "how?" (v0.17): a short note on what renders and the assistant need. It opened an inline line about the relay
+// only, easy to miss and silent on the keys; now a note that says both
+SBX.how = function() {
+  var why = (typeof RVZP !== 'undefined' && RVZP.proxy && !RVZP.proxy.proxy) ? (RVZP.proxy.why || 'down') : null;
+  var where = why === 'hosted' ? 'On this hosted copy, photoreal renders also need the local server: clone the repository, run tools/start.cmd and open http://localhost:8766/.'
+    : why === 'file' ? 'You opened the file directly: photoreal renders also need the local server. Run tools/start.cmd and open http://localhost:8766/parklet-checker.html.'
+    : why === 'down' ? "Photoreal renders also need the local server, which isn't running: run tools/start.cmd."
+    : 'Photoreal renders go through the local server (tools/start.cmd); the hosted copy has none.';
+  var old = document.getElementById('sbxHowDlg'); if (old) old.remove();
+  var back = document.activeElement;
+  document.body.insertAdjacentHTML('beforeend', "<div class='pk-modal-overlay active' id='sbxHowDlg' role='dialog' aria-modal='true' aria-labelledby='sbxHowT' style='z-index:10000'><div class='pk-dialog-box'>" +
+    "<div class='pk-dialog-title' id='sbxHowT'>Photoreal renders and the assistant</div>" +
+    "<div class='pk-dialog-body'><p style='margin:0 0 8px'>Photoreal renders and the Design Assistant use your own keys: Replicate for renders, Anthropic for the assistant. Add them under Settings › Connections; they stay in this browser only.</p><p style='margin:0'>" + SM.esc(where) + "</p></div>" +
+    "<div class='pk-dialog-btns' style='flex-wrap:wrap;gap:6px;'><button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' id='sbxHowConn'>Open Connections</button>" +
+    "<button type='button' class='pk-btn-primary' style='width:auto;margin:0;' id='sbxHowOk'>Close</button></div></div></div>");
+  var dlg = document.getElementById('sbxHowDlg'), close = function() { dlg.remove(); if (back && back.focus) try { back.focus(); } catch (e) {} };
+  document.getElementById('sbxHowOk').onclick = close;
+  document.getElementById('sbxHowConn').onclick = function() { dlg.remove(); if (typeof CONN !== 'undefined') CONN.open('replicate'); };
+  dlg.addEventListener('click', function(e) { if (e.target === dlg) close(); });
+  dlg.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } });
+  document.getElementById('sbxHowOk').focus();
 };
 
 // ── Item 15: Confirm on site: "Confirm all visible" and a confirm per section; the per-item path stays. Estimates are
@@ -29697,12 +29870,35 @@ SMP.applyAddresses = function(rows, at, rep) {
   if (rep) rep.addresses = { matched: matched, none: none, points: pts.length };
   return { matched: matched, none: none, points: pts.length };
 };
-// the parklet's host frontage's address (Brief 19 C): the report's site address line
-// (a parklet in front of a gap: the nearest frontage within 50 m)
+// the parklet's host frontage's address (Brief 19 C). Brief 29c item 9: the host's only. A parklet in front of a gap
+// took the nearest frontage's within 50 m, a neighbour's address ("1190 Hornby St" for a cafe on Davie).
 function pkHostAddress() {
   var i = typeof pkHostIdx === 'function' ? pkHostIdx() : -1;
-  if (i < 0 && typeof pkFrontages === 'function') { var c = pkZNow(), n = pkFrontages().map(function(q) { return { i: q.i, d: Math.min(Math.abs(c - q.s0), Math.abs(c - q.s1)) }; }).filter(function(q) { return q.d <= 50 && (BLDG_L.buildings[q.i] || {}).address; }).sort(function(a, b) { return a.d - b.d; })[0]; if (n) i = n.i; }
   var b = i >= 0 ? (BLDG_L.buildings || [])[i] : null; return b && b.address ? b.address : null;
+}
+// The design's address (Brief 29c item 9, triage F16): one field that the report, the sheet header, the Export header
+// and the design list all read. Located, it is the host building's City address (the frontage the deck is on), never
+// the search text (a café's name, an intersection) or a neighbour's address; with no address at the deck, the street
+// and the side. Not located, it is the address typed in the Site panel.
+function pkSiteAddress() {
+  if (typeof state === 'undefined') return '';
+  if (state.__generic) return typeof BLANK !== 'undefined' ? BLANK.NOTE : '';
+  var sm = state.__siteMap, f = document.getElementById('streetAddress');
+  if (!sm) return f ? f.value.trim() : '';
+  var h = pkHostAddress(); if (h) return h;
+  var side = (typeof SITE_ORIENT !== 'undefined' && SITE_ORIENT.parkletSide) || sm.parkletSide || '';
+  return (sm.name || 'The located street') + (side ? ', ' + side + ' side' : '') + (sm.importedAt ? ' (no City address at the deck)' : '');
+}
+// located, the field shows that address and is not typed into (the deck's position sets it)
+function pkAddrSync() {
+  var f = document.getElementById('streetAddress'); if (!f || typeof state === 'undefined') return;
+  var located = !!(state.__siteMap && !state.__generic);
+  f.readOnly = located;
+  f.title = located ? "The host building's City address, from the frontage the deck is on. Move the deck or locate again to change it." : '';
+  if (!located) return;
+  var a = pkSiteAddress(); if (f.value !== a) f.value = a;
+  state['__streetAddress'] = a;
+  var e = document.getElementById('expSheetAddr'); if (e && a) e.textContent = a;
 }
 SMP.progress = function(st, tail) {
   return SMP.STEPS.map(function(s) { var v = st[s[0]] || 'wait'; return "<span class='smp-st " + v + "'>" + s[1] + (v === 'ok' ? '...' : v === 'run' ? '...' : v === 'fail' ? ' - failed' : '') + '</span>'; }).join(' ') + (tail ? ' ' + tail : '');
@@ -29715,10 +29911,12 @@ SMP.syncButton = function() {
   // (Brief 29 item 3: once located, the paragraph on what is imported sits behind an (i))
   if (h) { if (ok) { var tx = 'Lanes, bike lane, route type and buildings from OpenStreetMap; hydrants, trees and bikeways from the City of Vancouver; bus stops and routes from TransLink (the site data, rebuilt weekly). Within ' + SMP.R + ' m; nothing imported is authoritative.'; if (h.dataset.tx !== tx) { h.dataset.tx = tx; h.innerHTML = "<button type='button' class='site-info' aria-expanded='false' aria-label='What the import brings in' onclick='var t=this.nextElementSibling;t.hidden=!t.hidden;this.setAttribute(\"aria-expanded\",String(!t.hidden))'>ⓘ</button><span class='site-info-t' hidden></span>"; h.querySelector('.site-info-t').textContent = tx; } } else { h.dataset.tx = ''; h.textContent = 'Locate on map first: the import needs the street the parklet is on.'; } }
 };
-SMP.importContext = async function() {
+SMP.importContext = async function(opt) {
   var sm = state.__siteMap;
   if (!sm) { SMP.syncButton(); SMP.msg('Locate on map first.'); return null; }
   if (SMP._busy) return null;
+  // importing again replaces the site data, the confirmations and the facts you entered as well (Brief 29c item 7)
+  if (sm.importedAt && !(opt && opt.fresh) && typeof SITER !== 'undefined') { SITER.ask(function() { SITER.reset(); SMP.importContext({ fresh: true }); }); return null; }
   var btn = document.getElementById('smpImportBtn');
   SMP._busy = true; if (btn) { btn.disabled = true; btn.textContent = 'Importing...'; }
   var st = {}, data = {}, cur = null, rep = { street: {}, buildings: { L: 0, R: 0, skipped: 0 }, hydrants: 0, trees: 0, transit: 0, notes: [], errors: [] };
@@ -29946,7 +30144,10 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
       var cov = 0; kept.forEach(function(k) { cov += Math.max(0, Math.min(c.z1, k.z1) - Math.max(c.z0, k.z0)); });
       if (cov >= 0.8 * (c.z1 - c.z0)) { rep.buildings.skipped++; return; } kept.push(c);
     });
-    keptBy[side] = kept.sort(function(a, b) { return a.z0 - b.z0; }).slice(0, 12);
+    // the 12 nearest the pick (the frame's origin, world z L/2 - pkZ), then in order along the street. The 12 with the
+    // lowest z were kept: on a long block the buildings at the deck were dropped, and with them the host and its address
+    var pz = zc - (typeof pkZNow === 'function' ? pkZNow() : 0), gap = function(c) { return Math.max(0, c.z0 - pz, pz - c.z1); };
+    keptBy[side] = kept.sort(function(a, b) { return gap(a) - gap(b) || a.z0 - b.z0; }).slice(0, 12).sort(function(a, b) { return a.z0 - b.z0; });
   });
   // 2. the near-side sidewalk from the frontage: the nearest kept near-side face is the building line, so the
   //    sidewalk (+ the vegetated buffer, when on) runs from the curb to it. One edge, one source: the
@@ -30088,7 +30289,7 @@ SMP.sourcesList = function() {
     var nd = p.via === 'none'; SMP._via = p.via === 'cells' ? 'cells' : null;
     ['lat', 'lon', 'streetBearing', 'parkletSide'].forEach(function(k) { SMP.set(k, nd ? (k === 'parkletSide' ? 'user' : 'estimate') : 'osm', nd ? 'no data for this location' : 'way ' + p.wayId, p.fetchedAt, k === 'parkletSide' ? 'your second click' : nd ? (k === 'streetBearing' ? 'north-south until you set it' : 'as clicked') : k === 'streetBearing' ? 'the way\'s segment at the point' : 'snapped to the way'); });
     if (SM._addr) SMP._via = null;
-    if (p.address) SMP.set('address', 'osm', SM._addr ? 'Nominatim search' : nd ? 'no data for this location' : 'way ' + p.wayId, SM._addr ? new Date().toISOString() : p.fetchedAt);
+    SMP.set('address', nd ? 'estimate' : 'osm', nd ? 'no data for this location' : 'way ' + p.wayId + " (the street; the host building's address comes with the import)", p.fetchedAt);
     SMP._via = null;
 
     SMP.tags(); SMP.syncButton();
@@ -30155,7 +30356,6 @@ SMP.sourcesList = function() {
 .sbx-fold[open] { padding-bottom: 10px; }
 #rvzpGo.sbx-off, #rvzpGo:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(1); }
 .sbx-how { margin-left: 4px; }
-.sbx-how-d { display: block; margin-top: 4px; }
 .fl-import-btn { margin-left: 12px; font: 600 11px var(--font-ui); padding: 3px 10px; border: 1px solid var(--accent-ui, #3AA8E4); border-radius: 3px; background: transparent; color: var(--accent-ui, #3AA8E4); cursor: pointer; white-space: nowrap; }
 .fl-import-btn:hover { background: rgba(58,168,228,.1); }
 .smp-all { margin: 4px 0 8px; }
@@ -31169,6 +31369,10 @@ document.addEventListener('keydown', function(e) {
 .chk-res .badge-await, #ctxCheck .badge-await { color: var(--accent-ui, #3AA8E4); border-color: currentColor; white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }   /* Brief 25 §1: an estimate awaits a measurement (wraps in the Result column) */
 
 /* Brief 29b: a piece dragged against the deck's edge */
+#planView .pv-furn.pv-hover { filter: drop-shadow(0 0 1.5px #3AA8E4) drop-shadow(0 0 1.5px #3AA8E4); }
+#planView .pv-edge-flash line { stroke: #E8A317; stroke-width: 5px; vector-effect: non-scaling-stroke; stroke-linecap: square; animation: pvEdgeFlash 0.35s ease-in-out 2; }
+@keyframes pvEdgeFlash { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #planView .pv-edge-flash line { animation: none; } }
 #planView .pv-furn.pv-edge { filter: drop-shadow(0 0 2px #E8A317) drop-shadow(0 0 4px #E8A317); }
 .chk-prov { font: 600 11px var(--font-ui); color: #8A5A00; background: #FEF7E4; border-radius: 3px; padding: 1px 5px; }
 /* Brief 29 item 7: a provisional row's own Confirm; the Confirm drawer */

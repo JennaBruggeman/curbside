@@ -1,6 +1,6 @@
 # Curbside
 
-**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/sample.html?m=schematic) (no account needed)
+**Use it: <https://jennabruggeman.github.io/curbside/>** · [a sample report](https://jennabruggeman.github.io/curbside/demo/sample-technical.pdf) (the technical set, PDF; no account needed)
 
 Schematic parklet design for Vancouver streets. Draw a parklet on a real street, check it live against the
 Vancouver Parklet Manual and the Engineering Design Manual, furnish it, see it in plan, section and 3D, and
@@ -12,8 +12,8 @@ Curbside is a schematic design and compliance tool that helps turn an idea for a
 
 ## How to use it
 
-1. **Open the site** at the link above. The landing page shows the four stages and the checks; *See a sample
-   report* opens a finished report of a reference design without an account.
+1. **Open the site** at the link above. The landing page shows the four stages and the checks; *Try the sample
+   report* opens the finished technical report of a reference design (`demo/sample-technical.pdf`) without an account.
 2. **Sign in, or create an account.** During the class review (until 9 October 2026) sign-up is open and asks for no
    code; after it, sign-up asks for an invite code. The landing page and the form follow the same setting, so they
    always agree. Signing in lists your designs and opens none. A strip under the tabs shows the four steps,
@@ -97,6 +97,8 @@ A recorded walkthrough of the whole journey is planned (Brief 26).
   confirmed on site.
 - **Checks need inputs.** A check whose value is neither imported nor entered reports *not entered*, never a pass.
 - **Vancouver only**, and a desktop browser with WebGL.
+- **Open a design in one tab at a time; the last save wins.** Two tabs on the same design do not merge: whichever
+  saves last replaces the other's edits.
 - **Photoreal renders and the Design Assistant use the visitor's own keys** (Replicate, Anthropic), entered in
   Settings › Connections and kept only in that browser. The site ships with none.
 - **The render relay is absent on the Pages build.** Photoreal renders go through the relay in `tools/serve.ps1`,
@@ -142,6 +144,10 @@ data build) need:
 `demo/sample-technical.pdf`, with their counts in the matching `.json`) from `demo/sample-design.json`, with the
 local server running. Run it after any change to the report or to the sample design: `sample.html` shows these files
 as they are (without them it builds the sample in the browser, which takes several seconds).
+
+`node tools/bump-version.js v0.17` bumps the version in one step, with the local server running. It sets the
+sheets' stamp in `parklet-checker.html` and the landing page's version, then rebuilds both sample reports at that
+version. The pre-push hook refuses a push whose sample reports carry a different version from the app.
 
 ## Add your keys (optional)
 
