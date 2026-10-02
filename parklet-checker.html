@@ -18802,14 +18802,28 @@ async function pkEnsureProfile(user) {
 }
 
 // ─── Design CRUD ──────────────────────────────────────────────────
+// The account's designs for My designs (v0.17.1): the list's columns only. It also fetched every design's Plan
+// thumbnail (thumbnail_data, about 170 KB each, never shown), and an error was dropped: an account with many designs, or
+// a slow answer, read "No designs yet", and a sign-in then made "My First Parklet". Now one retry, and a failure is kept
+// (pkDesignsError) and shown in My designs with Retry; the designs are never taken to be none.
+var pkDesignsError = null;
 async function pkLoadDesigns() {
   if (!pkSB || !pkCurrentUser) return [];
-  var res = await pkSB.from('designs')
-    .select('id, user_id, name, description, created_at, updated_at, thumbnail_data, version')
-    .eq('user_id', pkCurrentUser.id)
-    .order('updated_at', { ascending: false });
-  pkAllDesigns = res.data || [];
+  var q = function() { return pkSB.from('designs').select('id, user_id, name, description, created_at, updated_at, version').eq('user_id', pkCurrentUser.id).order('updated_at', { ascending: false }); };
+  var res; try { res = await q(); } catch (e) { res = { error: e }; }
+  if (res.error) { console.warn('[pk] loading the designs failed, retrying:', res.error); try { res = await q(); } catch (e) { res = { error: e }; } }
+  if (res.error || !res.data) {
+    pkDesignsError = (res.error && (res.error.message || res.error.code)) || 'no answer from the account';
+    console.error('[pk] loading the designs failed:', res.error);
+    return null;   // unknown, not none: pkAllDesigns keeps what it had
+  }
+  pkDesignsError = null;
+  pkAllDesigns = res.data;
   return pkAllDesigns;
+}
+async function pkRetryDesigns() {
+  var body = document.getElementById('pkDBBody'); if (body) body.innerHTML = '<div class="pkdb-empty"><div class="pkdb-empty-title">Loading your designs…</div></div>';
+  await pkLoadDesigns(); pkRenderDesignBrowser();
 }
 
 // ─── The blank design (Brief 21 §4) ───────────────────────────────────
@@ -19117,7 +19131,7 @@ async function pkInitApp() {
         // Brief 22 item 5: signing in lists the designs and opens none (stage 0); the first site import makes a design
         window.pkOpenNone = true; pkCurrentDesignId = null; pkCurrentDesignMeta = null;
         pkApplyBlank(pkDefaultState());
-        if (pkAllDesigns.length > 0) pkOpenDesignBrowser();
+        if (pkAllDesigns.length > 0 || pkDesignsError) pkOpenDesignBrowser();
       }
 
       // Listen for auth state changes
@@ -19365,7 +19379,7 @@ function pkHideAuthModal() {
 
 function pkOpenDesignBrowser() {
   pkHideAccountMenu();
-  pkRenderDesignBrowser();
+  if (pkDesignsError && pkCurrentUser) pkRetryDesigns(); else pkRenderDesignBrowser();
   var db = document.getElementById('pkDesignBrowser');
   if (db) db.classList.add('active');
 }
@@ -19481,6 +19495,12 @@ function pkRenderDesignBrowser() {
   if (!body) return;
   if (!pkCurrentUser) {
     body.innerHTML = '<div class="pkdb-empty"><div class="pkdb-empty-title">Sign in to view your designs</div></div>';
+    return;
+  }
+  if (pkDesignsError && pkAllDesigns.length === 0) {   // (v0.17.1) a failed load is said, never shown as "No designs yet"
+    body.innerHTML = '<div class="pkdb-empty"><div class="pkdb-empty-title">Your designs could not be loaded</div>' +
+      '<div style="font-size:11px;color:var(--text-mu);margin-bottom:20px;">The account answered: ' + pkEsc(pkDesignsError) + '. Your designs are still in your account.</div>' +
+      '<button class="pk-btn-primary" style="width:auto;display:inline-block;padding:9px 20px;" onclick="pkRetryDesigns()">Retry</button></div>';
     return;
   }
   if (pkAllDesigns.length === 0) {
@@ -19706,6 +19726,8 @@ async function pkDoSignIn() {
   if (!migrated) {
     if (pkAllDesigns.length > 0) {
       await pkLoadDesign(pkAllDesigns[0].id);
+    } else if (pkDesignsError) {
+      pkOpenDesignBrowser();   // (v0.17.1) the designs could not be read: say so, make nothing
     } else {
       await pkNewDesign('My First Parklet', '');
     }
