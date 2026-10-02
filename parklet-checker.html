@@ -3874,7 +3874,7 @@ function buildDesignModel() {
   (function() {
     var DM = DESIGN_MODEL;
     function field(id) { var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
-    DM.project = { name: field('projectName') || 'Untitled parklet', address: field('streetAddress') };
+    DM.project = { name: field('projectName') || 'Untitled parklet', address: typeof pkSiteAddress === 'function' ? pkSiteAddress() : field('streetAddress') };
     DM.lanes = typeof assessLanes === 'function' ? assessLanes(segs).map(function(a) {
       var s = segs.find(function(q) { return q.id === a.id; }) || {};
       return Object.assign(a, { x0: s.x0, x1: s.x1, direction: s.direction });
@@ -4227,6 +4227,7 @@ function clampParkletWidth() {
 }
 function saveSettings() {
   try {
+    if (typeof pkAddrSync === 'function') pkAddrSync();   // (Brief 29c item 9)
     state['__roadWidth'] = document.getElementById('roadWidth').value;
     state['__sidewalkWidth'] = document.getElementById('sidewalkWidth').value;
     state['__numLanes'] = String(NUM_LANES);
@@ -15722,6 +15723,7 @@ function siteLocSync() {
   var h = g('siteMapHint'); if (h) h.hidden = located;   // the instruction only before locating
   var name = sm ? (sm.name || 'The located street') : gen ? 'Blank street' : '';
   g('siteLocTxt').textContent = name + ' \u00b7 ' + d.side.name + ' side \u00b7 runs ' + siteFmtB(d.streetBearing) + '\u00b0';
+  if (typeof pkAddrSync === 'function') pkAddrSync();
 }
 function siteUI() {
   siteLocSync();
@@ -18899,7 +18901,7 @@ async function pkSaveDesign(immediate) {
   try {
     data = pkSerialize();
     var thumb = immediate ? null : pkGetThumbnail();
-    var payload = { state: data, updated_at: new Date().toISOString(), name: data.project.name || 'Untitled Parklet' };
+    var payload = { state: data, updated_at: new Date().toISOString(), name: data.project.name || 'Untitled Parklet', description: data.project.streetAddress || '' };   // (the list's address: Brief 29c item 9)
     if (thumb) payload.thumbnail_data = thumb;
 
     // Always write local cache first
@@ -18914,7 +18916,7 @@ async function pkSaveDesign(immediate) {
     SAVE.saved(res.data[0].updated_at || payload.updated_at);
     // Update in-memory list
     var idx = pkAllDesigns.findIndex(function(d) { return d.id === pkCurrentDesignId; });
-    if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, updated_at: payload.updated_at });
+    if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, description: payload.description, updated_at: payload.updated_at });
     pkCurrentDesignMeta && (pkCurrentDesignMeta.name = data.project.name);
   } catch(e_) {
     SAVE.keepHere(data);
@@ -19019,7 +19021,7 @@ function pkScheduleSave() {
 var pkNewTicket = null;
 function pkSaveSnapshot(id, data) {
   if (!pkSB || !pkCurrentUser || !id || !data) return Promise.resolve(false);
-  return pkSB.from('designs').update({ state: data, updated_at: new Date().toISOString(), name: (data.project && data.project.name) || 'Untitled Parklet' }).eq('id', id).eq('user_id', pkCurrentUser.id).select('id')
+  return pkSB.from('designs').update({ state: data, updated_at: new Date().toISOString(), name: (data.project && data.project.name) || 'Untitled Parklet', description: (data.project && data.project.streetAddress) || '' }).eq('id', id).eq('user_id', pkCurrentUser.id).select('id')
     .then(function(r) { if (r.error) throw r.error; if (!r.data || !r.data.length) throw { noRow: true }; return true; }).catch(function(e) { console.error('[pk] save of the previous design failed:', e, SAVE.reason(e)); pkToast('The previous design could not be saved to your account: ' + SAVE.reason(e) + ' A copy is in this browser.', 'error'); return false; });
 }
 async function pkNewDesign(name, address) {
@@ -23389,7 +23391,7 @@ RPT.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;')
 RPT.fx = function(v, d) { return (+v).toFixed(d == null ? 3 : d); };
 // the address as printed: ', Vancouver, BC' added only when the address does not already name the city
 // the site address line (Brief 19 C): the host frontage's civic address (the City's), else the project's address field
-RPT.addr = function(DM) { if (typeof state !== 'undefined' && state.__generic) return BLANK.NOTE; var h = typeof pkHostAddress === 'function' ? pkHostAddress() : null, a = h || DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
+RPT.addr = function(DM) { if (typeof state !== 'undefined' && state.__generic) return BLANK.NOTE; var h = typeof pkSiteAddress === 'function' ? pkSiteAddress() : null, a = h || DM.project.address || 'Address not entered'; return /vancouver/i.test(a) ? a : a + ', Vancouver, BC'; };
 RPT.DISCLAIMER = 'Preliminary assessment — not a substitute for City of Vancouver review';
 
 // ── Data: one snapshot of the model for every sheet ───────────────────────────────────────────
@@ -28237,7 +28239,7 @@ SM.use = function(opt) {
   if (!(opt && opt.ok) && typeof SITER !== 'undefined' && SITER.moved(p)) { SITER.ask(function() { SITER.reset(); SM.use({ ok: true }); }); return; }
   if (typeof siteLocEdit === 'function') siteLocEdit.open = false;   // a new location: the Locate card folds again (Brief 28 item 2)
   var sn = p.snap, addr = SM._addr || (p.name ? p.name + ' (near ' + sn.lat.toFixed(5) + ', ' + sn.lon.toFixed(5) + ')' : '');
-  var ad = document.getElementById('streetAddress'); if (ad && addr) ad.value = addr;
+  // (Brief 29c item 9: the search text is not the address; pkAddrSync writes the host's below)
   siteUI.custom = [0, 45, 90, 135].indexOf(Math.round(sn.bearing * 100) / 100) < 0;   // show the bearing field for an oblique street
   state.__siteMap = { wayId: p.wayId, name: p.name, highway: p.highway, lat: +sn.lat.toFixed(6), lon: +sn.lon.toFixed(6), streetBearing: +sn.bearing.toFixed(2), parkletSide: p.side.name, sideBearing: p.side.bearing, address: addr, fetchedAt: p.fetchedAt, via: p.via || null };
   state.__place = { pkZ: 0, corners: [] };   // a new site: the parklet at the located point, its corners not yet found
@@ -29845,12 +29847,35 @@ SMP.applyAddresses = function(rows, at, rep) {
   if (rep) rep.addresses = { matched: matched, none: none, points: pts.length };
   return { matched: matched, none: none, points: pts.length };
 };
-// the parklet's host frontage's address (Brief 19 C): the report's site address line
-// (a parklet in front of a gap: the nearest frontage within 50 m)
+// the parklet's host frontage's address (Brief 19 C). Brief 29c item 9: the host's only. A parklet in front of a gap
+// took the nearest frontage's within 50 m, a neighbour's address ("1190 Hornby St" for a cafe on Davie).
 function pkHostAddress() {
   var i = typeof pkHostIdx === 'function' ? pkHostIdx() : -1;
-  if (i < 0 && typeof pkFrontages === 'function') { var c = pkZNow(), n = pkFrontages().map(function(q) { return { i: q.i, d: Math.min(Math.abs(c - q.s0), Math.abs(c - q.s1)) }; }).filter(function(q) { return q.d <= 50 && (BLDG_L.buildings[q.i] || {}).address; }).sort(function(a, b) { return a.d - b.d; })[0]; if (n) i = n.i; }
   var b = i >= 0 ? (BLDG_L.buildings || [])[i] : null; return b && b.address ? b.address : null;
+}
+// The design's address (Brief 29c item 9, triage F16): one field that the report, the sheet header, the Export header
+// and the design list all read. Located, it is the host building's City address (the frontage the deck is on), never
+// the search text (a café's name, an intersection) or a neighbour's address; with no address at the deck, the street
+// and the side. Not located, it is the address typed in the Site panel.
+function pkSiteAddress() {
+  if (typeof state === 'undefined') return '';
+  if (state.__generic) return typeof BLANK !== 'undefined' ? BLANK.NOTE : '';
+  var sm = state.__siteMap, f = document.getElementById('streetAddress');
+  if (!sm) return f ? f.value.trim() : '';
+  var h = pkHostAddress(); if (h) return h;
+  var side = (typeof SITE_ORIENT !== 'undefined' && SITE_ORIENT.parkletSide) || sm.parkletSide || '';
+  return (sm.name || 'The located street') + (side ? ', ' + side + ' side' : '') + (sm.importedAt ? ' (no City address at the deck)' : '');
+}
+// located, the field shows that address and is not typed into (the deck's position sets it)
+function pkAddrSync() {
+  var f = document.getElementById('streetAddress'); if (!f || typeof state === 'undefined') return;
+  var located = !!(state.__siteMap && !state.__generic);
+  f.readOnly = located;
+  f.title = located ? "The host building's City address, from the frontage the deck is on. Move the deck or locate again to change it." : '';
+  if (!located) return;
+  var a = pkSiteAddress(); if (f.value !== a) f.value = a;
+  state['__streetAddress'] = a;
+  var e = document.getElementById('expSheetAddr'); if (e && a) e.textContent = a;
 }
 SMP.progress = function(st, tail) {
   return SMP.STEPS.map(function(s) { var v = st[s[0]] || 'wait'; return "<span class='smp-st " + v + "'>" + s[1] + (v === 'ok' ? '...' : v === 'run' ? '...' : v === 'fail' ? ' - failed' : '') + '</span>'; }).join(' ') + (tail ? ' ' + tail : '');
@@ -30238,7 +30263,7 @@ SMP.sourcesList = function() {
     var nd = p.via === 'none'; SMP._via = p.via === 'cells' ? 'cells' : null;
     ['lat', 'lon', 'streetBearing', 'parkletSide'].forEach(function(k) { SMP.set(k, nd ? (k === 'parkletSide' ? 'user' : 'estimate') : 'osm', nd ? 'no data for this location' : 'way ' + p.wayId, p.fetchedAt, k === 'parkletSide' ? 'your second click' : nd ? (k === 'streetBearing' ? 'north-south until you set it' : 'as clicked') : k === 'streetBearing' ? 'the way\'s segment at the point' : 'snapped to the way'); });
     if (SM._addr) SMP._via = null;
-    if (p.address) SMP.set('address', 'osm', SM._addr ? 'Nominatim search' : nd ? 'no data for this location' : 'way ' + p.wayId, SM._addr ? new Date().toISOString() : p.fetchedAt);
+    SMP.set('address', nd ? 'estimate' : 'osm', nd ? 'no data for this location' : 'way ' + p.wayId + " (the street; the host building's address comes with the import)", p.fetchedAt);
     SMP._via = null;
 
     SMP.tags(); SMP.syncButton();
