@@ -30121,7 +30121,10 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
       var cov = 0; kept.forEach(function(k) { cov += Math.max(0, Math.min(c.z1, k.z1) - Math.max(c.z0, k.z0)); });
       if (cov >= 0.8 * (c.z1 - c.z0)) { rep.buildings.skipped++; return; } kept.push(c);
     });
-    keptBy[side] = kept.sort(function(a, b) { return a.z0 - b.z0; }).slice(0, 12);
+    // the 12 nearest the pick (the frame's origin, world z L/2 - pkZ), then in order along the street. The 12 with the
+    // lowest z were kept: on a long block the buildings at the deck were dropped, and with them the host and its address
+    var pz = zc - (typeof pkZNow === 'function' ? pkZNow() : 0), gap = function(c) { return Math.max(0, c.z0 - pz, pz - c.z1); };
+    keptBy[side] = kept.sort(function(a, b) { return gap(a) - gap(b) || a.z0 - b.z0; }).slice(0, 12).sort(function(a, b) { return a.z0 - b.z0; });
   });
   // 2. the near-side sidewalk from the frontage: the nearest kept near-side face is the building line, so the
   //    sidewalk (+ the vegetated buffer, when on) runs from the curb to it. One edge, one source: the
