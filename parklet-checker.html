@@ -15604,12 +15604,22 @@ function siteChooseBearing(k) {
   if (k === 'c' || k < 0) { siteUI.custom = true; siteUI(); var f = document.getElementById('siteBearingDeg'); if (f) f.focus(); return; }
   siteUI.custom = false; siteSetBearing(k);
 }
-function siteSetSide(name) { siteSet({ parkletSide: name }); }
+function siteSetSide(name) {
+  // the other side of the street is another site (Brief 29c item 7)
+  var cur = (typeof SITE_ORIENT !== 'undefined' && SITE_ORIENT.parkletSide) || '';
+  if (name !== cur && typeof SITER !== 'undefined' && SITER.has()) {
+    var sel = document.getElementById('siteSideSel');
+    SITER.ask(function() { SITER.reset(); siteSet({ parkletSide: name }); }, function() { if (sel) sel.value = cur; });
+    return;
+  }
+  siteSet({ parkletSide: name });
+}
 function siteSetLatLon() {
   var la = parseFloat((document.getElementById('siteLat') || {}).value), lo = parseFloat((document.getElementById('siteLon') || {}).value);
   var msg = document.getElementById('sitePasteMsg');
   if (!(la >= -90 && la <= 90) || !(lo >= -180 && lo <= 180)) { if (msg) msg.textContent = 'Latitude is -90 to 90 and longitude -180 to 180 (decimal degrees).'; return; }
   if (msg) msg.textContent = '';
+  if (typeof SITER !== 'undefined' && SITER.has() && SITER.far(la, lo)) { SITER.ask(function() { SITER.reset(); siteSet({ lat: la, lon: lo }, 'site-latlon'); }); return; }   // (Brief 29c item 7)
   siteSet({ lat: la, lon: lo }, 'site-latlon');
 }
 // "lat, lon" pasted from a map (decimal degrees). No geocoding: an address is not looked up.
@@ -28216,8 +28226,10 @@ SM.setSide = function(lat, lon) {
 };
 // Writes the site: lat / lon of the snapped point, the way's axis there, the side; the address
 // (the search result, else the street name). SM.lastPick keeps the way for the context import.
-SM.use = function() {
+SM.use = function(opt) {
   var p = SM.pick; if (!p || !p.side) return;
+  // another street, the other side, or a point well along: the old site's data goes, after one confirm (Brief 29c item 7)
+  if (!(opt && opt.ok) && typeof SITER !== 'undefined' && SITER.moved(p)) { SITER.ask(function() { SITER.reset(); SM.use({ ok: true }); }); return; }
   if (typeof siteLocEdit === 'function') siteLocEdit.open = false;   // a new location: the Locate card folds again (Brief 28 item 2)
   var sn = p.snap, addr = SM._addr || (p.name ? p.name + ' (near ' + sn.lat.toFixed(5) + ', ' + sn.lon.toFixed(5) + ')' : '');
   var ad = document.getElementById('streetAddress'); if (ad && addr) ad.value = addr;
@@ -28230,6 +28242,71 @@ SM.use = function() {
   SM.close();
 };
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && document.getElementById('smModal').classList.contains('open')) SM.close(); });
+
+// ── Site reset (Brief 29c item 7, triage F5) ─────────────────────────────────────────────────────────────────────────
+// A design moved to another street, the other side or another point, or imported afresh, kept the old site's data: its
+// trees, buildings and stops, "all confirmed", and the facts typed in Check, which then passed or failed checks at the new
+// site. Now the site-derived data goes, after one confirm: the imported objects and buildings, the city context, every
+// provenance and confirmation, the survey records, the site facts typed in Check and Generate's results. The deck, the
+// furniture, the enclosure and the design commitments (C12, C14, C15) stay.
+var SITER = {
+  FACTS: ['parking_restrictions', 'intersection_dist', 'slope', 'hydrant_dist', 'driveway_dist', 'pole_dist', 'pole_trolley', 'signal_box_dist', 'manhole_dist', 'fire_exit_block', 'drainage_clear', 'parking_setback', 'route_type'],
+  OBJECTS: ['curb_features', 'street_trees', 'transit_stops', 'manholes', 'driveways'],
+  LOC: { lat: 1, lon: 1, streetBearing: 1, parkletSide: 1, address: 1 },
+  // the design holds data from a site: an import, provenance beyond the location, site objects, or a site fact typed
+  has: function() {
+    var sm = state.__siteMap, P = state.__prov || {};
+    return !!((sm && sm.importedAt) || Object.keys(P).some(function(k) { return !SITER.LOC[k]; }) ||
+      SITER.OBJECTS.some(function(k) { return (state[k] || []).length; }) || SITER.FACTS.some(function(k) { return state[k] !== undefined && state[k] !== null && state[k] !== ''; }));
+  },
+  // more than 25 m from the located point
+  far: function(lat, lon) {
+    var sm = state.__siteMap; if (!sm || !isFinite(+sm.lat)) return true;
+    var dy = (lat - sm.lat) * 111320, dx = (lon - sm.lon) * 111320 * Math.cos(sm.lat * Math.PI / 180);
+    return Math.hypot(dx, dy) > 25;
+  },
+  // the map's pick against the site the design holds: another street, the other side, or a point well along
+  moved: function(p) {
+    var sm = state.__siteMap; if (!sm || !SITER.has()) return false;
+    return String(p.wayId) !== String(sm.wayId) || (p.side && p.side.name !== sm.parkletSide) || SITER.far(p.snap.lat, p.snap.lon);
+  },
+  ask: function(onOk, onCancel) {
+    var old = document.getElementById('siterDlg'); if (old) old.remove();
+    var html = "<div class='pk-modal-overlay active' id='siterDlg' role='dialog' aria-modal='true' aria-labelledby='siterT' style='z-index:10000'><div class='pk-dialog-box'>" +
+      "<div class='pk-dialog-title' id='siterT'>Replace the site data?</div><div class='pk-dialog-body'>This replaces the site data for this design: the imported street, buildings, trees, hydrants and stops, their confirmations, the survey, and the site facts entered in Check (parking, distances, slope and the rest). The deck and the furniture stay.</div>" +
+      "<div class='pk-dialog-btns' style='flex-wrap:wrap;gap:6px;'><button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' id='siterCancel'>Cancel</button>" +
+      "<button type='button' class='pk-btn-danger' style='width:auto;margin:0;' id='siterOk'>Replace the site data</button></div></div></div>";
+    document.body.insertAdjacentHTML('beforeend', html);
+    var dlg = document.getElementById('siterDlg'), close = function() { dlg.remove(); };
+    document.getElementById('siterCancel').onclick = function() { close(); if (onCancel) onCancel(); };
+    document.getElementById('siterOk').onclick = function() { close(); onOk(); };
+    dlg.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); if (onCancel) onCancel(); } });
+    document.getElementById('siterCancel').focus();   // the safe choice first
+  },
+  reset: function() {
+    SITER.FACTS.forEach(function(k) {
+      var c = criteria.find(function(q) { return q.inputId === k || q.inputId2 === k; });
+      if (c && typeof handleInput === 'function') { try { handleInput(c.id, k, ''); } catch (e) {} }
+      delete state[k];
+      var el = document.getElementById(k); if (el && 'value' in el) el.value = '';
+    });
+    SITER.OBJECTS.forEach(function(k) { state[k] = []; });
+    state.__prov = {}; state.__survey = null; state.__surveyMap = null; state.__existing = null;
+    if (state.__siteMap) { delete state.__siteMap.importedAt; delete state.__siteMap.importItems; delete state.__siteMap.via; }
+    if (typeof BLDG_L !== 'undefined') BLDG_L.buildings = []; if (typeof BLDG_R !== 'undefined') BLDG_R.buildings = [];
+    if (typeof CTX_OUTER !== 'undefined') CTX_OUTER = null; state.__outer = null;   // the old city context ring too
+    if (typeof GEN !== 'undefined') { GEN.result = null; GEN.site = null; GEN.siteEdited = false; }
+    if (typeof SMP !== 'undefined') SMP.lastReport = null;
+    try { if (typeof renderBldgControls === 'function') renderBldgControls(); } catch (e) {}
+    try { if (typeof SMP !== 'undefined') SMP.refresh(); } catch (e) {}
+    try { syncDesignModel('site-reset'); } catch (e) {}
+    try { if (typeof render === 'function') render(); } catch (e) {}
+    if (typeof siteStepEdit === 'function') siteStepEdit.open = {};
+    try { if (typeof uiSiteStepStatus === 'function') uiSiteStepStatus(); } catch (e) {}   // step 2 (import) is to do again
+    try { saveSettings(); } catch (e) {}
+    console.log('[site] the site data was replaced: imported objects, buildings, confirmations, survey and site facts cleared; the deck and furniture kept');
+  }
+};
 </script>
 <script>
 // ════════════════════════════════════════════════════════════════════════════════════════════
@@ -29781,10 +29858,12 @@ SMP.syncButton = function() {
   // (Brief 29 item 3: once located, the paragraph on what is imported sits behind an (i))
   if (h) { if (ok) { var tx = 'Lanes, bike lane, route type and buildings from OpenStreetMap; hydrants, trees and bikeways from the City of Vancouver; bus stops and routes from TransLink (the site data, rebuilt weekly). Within ' + SMP.R + ' m; nothing imported is authoritative.'; if (h.dataset.tx !== tx) { h.dataset.tx = tx; h.innerHTML = "<button type='button' class='site-info' aria-expanded='false' aria-label='What the import brings in' onclick='var t=this.nextElementSibling;t.hidden=!t.hidden;this.setAttribute(\"aria-expanded\",String(!t.hidden))'>ⓘ</button><span class='site-info-t' hidden></span>"; h.querySelector('.site-info-t').textContent = tx; } } else { h.dataset.tx = ''; h.textContent = 'Locate on map first: the import needs the street the parklet is on.'; } }
 };
-SMP.importContext = async function() {
+SMP.importContext = async function(opt) {
   var sm = state.__siteMap;
   if (!sm) { SMP.syncButton(); SMP.msg('Locate on map first.'); return null; }
   if (SMP._busy) return null;
+  // importing again replaces the site data, the confirmations and the facts you entered as well (Brief 29c item 7)
+  if (sm.importedAt && !(opt && opt.fresh) && typeof SITER !== 'undefined') { SITER.ask(function() { SITER.reset(); SMP.importContext({ fresh: true }); }); return null; }
   var btn = document.getElementById('smpImportBtn');
   SMP._busy = true; if (btn) { btn.disabled = true; btn.textContent = 'Importing...'; }
   var st = {}, data = {}, cur = null, rep = { street: {}, buildings: { L: 0, R: 0, skipped: 0 }, hydrants: 0, trees: 0, transit: 0, notes: [], errors: [] };
