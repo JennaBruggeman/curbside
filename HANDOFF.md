@@ -1252,6 +1252,26 @@ Ten items from the v0.16 full pass (`briefs/23-triage.md`, branch `triage-0.16`)
   - **The sample report link is the technical sample** (`demo/sample-technical.pdf`): the README's link and the
     landing page's "Try the sample report"; the schematic sample stays as a secondary link in the landing footer.
 
+## v0.17.1: My designs (freeze exception, 2026-10-01; branch `fix-mydesigns`)
+- **The symptom:** the test account's My designs was empty on v0.17, with its rows still in the designs table.
+- **The list query (`pkLoadDesigns`) no longer fetches `thumbnail_data`.** That is every design's Plan SVG, about
+  170 KB each, and the list never shows it.
+- **A failed load is no longer dropped.** It read "No designs yet", and a sign-in from the form then made
+  "My First Parklet". Now:
+  - The query retries once.
+  - My designs says "Your designs could not be loaded", gives the account's answer and a Retry button, and makes
+    nothing (`pkDesignsError`).
+- **VERIFY:** a stand-in Supabase client (`window.supabase` replaced in the test) serving the real page code; no
+  account was signed in, so the real account's answer was not seen.
+  - With normal answers, a design saved by v0.16.1 lists and opens with its site, furniture and Check values.
+  - With a thumbnail-carrying list query timing out, v0.17 showed only a new "My First Parklet" and v0.17.1 lists and
+    opens the old designs.
+- **For Brief 30 (found here, not fixed):**
+  - Duplicate in My designs copies an empty design: it reads the list row, which carries no `state`.
+  - An open design is saved to the account about every 2 s with no edit (also in v0.16.1).
+  - The Section's Undo straight after an import rolls the street back to before it (the sidewalk 4.60 → 1.80 m,
+    the parking lane gone).
+
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
 
