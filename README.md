@@ -12,33 +12,60 @@ Curbside is a schematic design and compliance tool that helps turn an idea for a
 
 ## How to use it
 
-1. **Open the site** at the link above. The landing page shows the four stages and the checks; *Try the sample
-   report* opens the finished technical report of a reference design (`demo/sample-technical.pdf`) without an account.
-2. **Sign in, or create an account.** During the class review (until 9 October 2026) sign-up is open and asks for no
-   code; after it, sign-up asks for an invite code. The landing page and the form follow the same setting, so they
-   always agree. Signing in lists your designs and opens none. A strip under the tabs shows the four steps,
-   Site → Design → Check → Export, until your first export.
-3. **Choose a site.** With no site, the drawings show *Choose a site*. Click **Locate on map** and search an address
-   *with its house number* (`2000 Main St`) or an intersection (`Main St & E 20th Ave`), or pan to it; click the street,
-   then click again on the parklet's side, and **Use this location**. **Layers** on the map shows the site data around
-   it: streets, buildings, bikeways, bus stops, hydrants, trees and more. Without a real site, **Start a blank street**
-   gives a generic two-way street (one lane each way, parking both sides) to sketch on; its report says it is not a
-   real location.
-4. **Import street context** (the button in the same panel). It reads the existing street (lanes, direction, route type, bike lane,
-   right-of-way width), the buildings and the site objects (hydrants, trees, bus stops) from the site data. Each value
-   shows its source and the date of the data; **Override** corrects one. A deck of the default length is then placed at the host frontage.
-5. **Design.** In **Design**, shape the deck, set the enclosure on each side (Edge), edit the street in the Section
-   (*Add segment*), and place furniture from the Library. Or let **Generate** propose layouts that pass every
-   check and **Open in Design** the one you like; where the site itself fails a check no design can fix (a bus zone,
-   say), Generate says so and places nothing.
-6. **Check.** The **Check** tab gives the verdict in one sentence with one next step (open the failing check, get the
-   survey sheet, confirm the imported objects), then every check grouped as Fails · Awaiting measurement · Not entered ·
-   Provisional pass · Pass. A check passes only on measured or confirmed values; imported data gives a provisional
-   result, and estimates don't count. Imported site objects wait for *Confirm*; values the import cannot know (slope,
-   driveways, poles …) are entered here.
-7. **Export.** In **Export**, choose Schematic or Technical, tick what to include, and **Download report (PDF)**:
-   17 × 11 in sheets, drawings at true scale, the second page *What to do next*. It takes a few seconds (under 20);
-   the button fills as it works, sheet by sheet. The 3D model exports as Rhino (.3dm) and other formats.
+1. **Open** the site at the link above. *Try the sample report* opens a finished technical report without an account.
+2. **Sign in** with *Sign in*, or *Create account* (no invite code during the class review, until 9 October 2026).
+   Your most recent design opens.
+   - *My designs* in the account menu (your name ▼) lists the others: *Open*, *Rename*, *Delete*.
+   - Every change saves itself; *Save* saves at once. The bar says *Saved ·* and the time, or signed out,
+     *Browser only*.
+3. **Choose a site.** *Locate on map*, search an address with its house number or an intersection, pick a result,
+   click the street, then click the parklet's side, and *Use this location*. Or *Start a blank street*.
+   - *Layers* on the map shows what the import will read.
+   - Locating another street, side or block later asks *Replace the site data?*; the deck and furniture stay.
+4. **Import.** *Import street context* reads the street, buildings, hydrants, trees and stops within 150 m and
+   places a 19.8 m deck at the host's frontage (*Place parklet*). Each value shows its source (*imported*,
+   *estimate*); *Edit* on a step changes it.
+5. **Design** in the *Design* tab, in *Plan*, *Section* or *3D*.
+   - *Add a piece:* in the *Furniture* tab, *Place on deck* on a card, then click a spot on the deck (Enter places it
+     at the centre; Esc cancels).
+   - *Move a piece:* drag it on the Plan; it never leaves the deck, and the edge it meets flashes. Or use the
+     *Move* arrows (0.25 m steps), the arrow keys, or *Across* / *Along* and *Apply*. *Duplicate* and *Delete* are
+     under *Actions*.
+   - *Import 3D model…* (Furniture tab or library) → *Choose a file…* (GLB, glTF or OBJ) → *Add to My furniture*:
+     it joins the library, in this browser.
+   - *Parklet shape editor* → *Edit the deck's shape*: *Rectangle*, *Polygon*, *Edit*, *Notch* or *Reset to
+     rectangle*, then *Apply* (*Cancel* discards).
+   - *Edge*: choose *Traffic side*, *Start end* or *Far end*, then an enclosure (*Steel picket*, *Planter wall* …),
+     its *Height*, *Buffer* and *Material*.
+   - *Section*: drag a chip from *Add segment* (*Bike Lane*, *Planting* …) into the section; it is refused, with the
+     reason, when the roadway has no room. Click a width to type it: a typed width counts as
+     measured.
+   - *Undo* (Ctrl+Z) works in the Section and in the shape editor. A furniture move has no undo: move it back.
+   - *Generate* proposes layouts from *Site constraints*, *Programme* (each use weighted 0–3), *Character and
+     materials* and *Output* (*Schemes*, *Seed*). If a site fact is missing it says *Set these site facts first*,
+     with a link to the first one; the button stays. *Lock* keeps a scheme through *Regenerate*; *Open in Design*
+     takes it.
+6. **Accessibility.** The *Access* tab checks a 1.5 m clear route from each entry to an accessible seat (a bench end,
+   or a table 0.70–0.80 m high); drag a piece on the Plan and the route follows.
+7. **Check.** The *Check* tab gives the verdict and its next step, then every check under *Fails*, *Awaiting
+   measurement*, *Not entered*, *Provisional pass* and *Pass*. A check passes only on measured or confirmed values;
+   imported data gives a provisional result, and estimates never pass.
+   - *Enter a value:* open a group, open the row, type it (*Not saved yet: Save (or Enter) keeps it, Esc discards
+     it*) and *Save*; the row moves.
+   - *Confirm imported items* opens a list: *Confirm* per group, or *Confirm all visible*.
+   - *Show me in the Plan ›* in an open row shows where the check applies.
+   - Site › *Survey (optional)* › *Survey template (CSV)*: fill its measured column, then *Import filled template…*.
+8. **Export.** In *Report*, choose *Schematic* (colour, renders on the title sheet) or *Technical* (line and hatch,
+   no images), tick what to *Include*, and *Download report (PDF)*: a few seconds.
+   - *3D Model*: *Rhino (.3dm)* (or glTF, IFC, Collada, STL, OBJ, DXF), then *Export 3D Model*.
+9. **Settings**, from the account menu (*Sign in ▼* or your name ▼) → *Settings*.
+   - *Connections*: your own Replicate key for photoreal renders, Anthropic key for the Design Assistant, Mapillary
+     token for street context photos. Paste it and press Enter; *Test* checks it, *Remove* deletes it. Keys are stored only
+     in this browser, never sent to Curbside's servers or saved with your design. On the hosted copy renders also
+     need the local server (`tools/start.cmd`); *how?* beside *Render (photoreal, 4 presets)* says so.
+   - *General* (name, email, organization, in this browser), *Units* (*Metric* / *Imperial*), *Grid & Snap*,
+     *Project North* (*Set in Site*), *Data* (*Clear all saved data*).
+   - *Sign out* is in the account menu; it saves the open design first.
 
 ## Source
 
