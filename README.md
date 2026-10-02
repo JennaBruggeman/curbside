@@ -143,6 +143,10 @@ data build) need:
 local server running. Run it after any change to the report or to the sample design: `sample.html` shows these files
 as they are (without them it builds the sample in the browser, which takes several seconds).
 
+`node tools/bump-version.js v0.17` bumps the version in one step, with the local server running. It sets the
+sheets' stamp in `parklet-checker.html` and the landing page's version, then rebuilds both sample reports at that
+version. The pre-push hook refuses a push whose sample reports carry a different version from the app.
+
 ## Add your keys (optional)
 
 Settings (account menu) › **Connections**. Each row has a key field, **Test** (one free call that says whether
