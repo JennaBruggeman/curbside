@@ -5082,6 +5082,8 @@ document.addEventListener('mouseup', function() {
   }
 
   function _trigger() {
+    // a Section edit is saved like a furniture edit (Brief 29c item 8): the comparison below runs a short while after it
+    if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon();
     if (typeof syncDesignModel === 'function') {
       syncDesignModel('section-edit');
     } else {
@@ -18300,12 +18302,15 @@ function _dsScheduleLocal() {
 // duplicated or deleted, and every Check entry, were lost on reload. Rather than a call in each of their handlers, a
 // short while after any user input the furniture and the Check values are compared with what was last saved, and a
 // change saves. Opening a design resets the comparison (a design just opened is not an edit).
+// Brief 29c item 8 (triage F58): the Section's segments are compared too. A lane width dragged or typed in the Section
+// was written only by the reload's pagehide, so a tab closed or killed without one lost it.
 var PK_EDIT = {
   fp: null, t: null,
   print: function() {
     var f = (window.FL3D && FL3D.placed || []).map(function(i) { return [i.objId, +(+i.x || 0).toFixed(3), +(+i.z || 0).toFixed(3), i.userRotation || 0, i.params ? JSON.stringify(i.params) : '', i.materials ? JSON.stringify(i.materials) : '']; });
     var c = typeof criteria === 'undefined' ? [] : criteria.map(function(q) { return [state[q.inputId], q.inputId2 ? state[q.inputId2] : null]; });
-    return JSON.stringify([f, c]);
+    var g = (typeof window.seGetSegs === 'function' ? window.seGetSegs() : []).map(function(x) { return x.type + ':' + (+x.width || 0).toFixed(3) + ':' + (x.variant || '') + (x.typed ? ':t' : ''); });
+    return JSON.stringify([f, c, g]);
   },
   baseline: function() { PK_EDIT.fp = PK_EDIT.print(); },
   check: function() {
