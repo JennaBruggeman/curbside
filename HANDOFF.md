@@ -1228,6 +1228,26 @@ Ten items from the v0.16 full pass (`briefs/23-triage.md`, branch `triage-0.16`)
   typed address. Located, the Street address field shows it read-only, and the report, the sheet and Export headers,
   the saved design and the account's design list (the row's description, updated on every save) read it.
 - **10 Note:** open a design in one tab at a time; the last save wins (README "Skill and limits", Known limitations).
+- **v0.17:** `node tools/bump-version.js v0.17`; both sample reports say Curbside v0.17 on every sheet.
+- **VERIFY on v0.17** (b29c/tv.js, through the UI, real mouse, 1920 px, software GL):
+  - Demo address (Locate's search "Main St & E 26th Ave", import), 10/10:
+    - Generate refuses on the fresh import and keeps its button, with "Set 01 Parking restrictions in Check ›".
+    - The S-002 survey template, downloaded, filled and imported: "8 values applied as surveyed", 0 awaiting.
+      Generate then gives 6 cards.
+    - A bench grabbed at its end beside a planter moves; the planter stays (hover halo on the bench).
+    - The bench dragged 1400 px past the deck end is held on the deck, and the end flashes.
+    - Lane 1's edge dragged to 3.00 m: stored before any reload, there after one.
+    - The schematic's header reads "212 E 26th Av, Vancouver, BC", the host's address (search text nowhere).
+    - C-001's lane table reads FAIL (provisional) for all four lanes, as C02 does (4 × 3.17 m on a bus route).
+    - Locate 110 m along, then Replace, then import: 47 confirmations to 0; deck 19.8 m and 2 pieces kept.
+  - Blank street: the same drags, Section reload, header "Generic street -- not a real location", C-001 lanes PASS as C02.
+- **Found during VERIFY, for Brief 30 (not fixed; also in v0.16.1):**
+  - The import keeps 12 buildings per side, the 12 with the lowest along-street position (`keptBy`, `slice(0, 12)`
+    after a sort by `z0`), not the 12 nearest the pick.
+  - On a long block the buildings at the deck can be dropped. 110 m along Main St from the demo pick, the 12 kept
+    lie 34–154 m behind the pick. The design then has no host at the deck: the address reads "Main Street, east
+    side (no City address at the deck)".
+  - A fresh import there seeds the deck at the nearest kept frontage (4142 Main St, 38 m back).
 
 ## Review period (until 2026-10-09)
 Sign-up is open for the class review: `app_settings.invite_only = false` in Supabase. Since Brief 25 the page asks the database (`signup_invite_only()`, `supabase/invite-status.sql`), and the landing page and the sign-up form follow it; `CONFIG.INVITE_ONLY` is only the fallback when the database cannot be asked. **After October 9, set `app_settings.invite_only` back to true** and make codes with `supabase/invite-codes.sql`; the README's step 2 already says what happens after the review.
