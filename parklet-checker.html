@@ -2942,6 +2942,115 @@ ENC.SIDE_LABEL = { traffic: 'Traffic side', endA: 'Start end', endB: 'Far end' }
 ENC.DEFAULT = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0.30, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall' }, params: {}, mats: {} };
 ENC.LEGACY = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall' }, params: {}, mats: {} };
 var ENCLOSURE = JSON.parse(JSON.stringify(ENC.DEFAULT));
+// ── Brief 30 §5: the parklet's own materials, one store ────────────────────────────────────────────────────────────────
+// Root cause: the Generate tab's "Material family" only picked the furniture finishes; the deck, its fascia, the enclosure
+// and the 2D fills read fixed colours (0xD6AE74 in the 3D view and the generator, the drawing token in the Plan, "pine" in
+// the render) and the Edge card held a per-archetype material of its own. Now PKMAT.cur (role -> FL_MATERIALS id) is the one
+// store, saved with the design as parkletMaterials and read as DESIGN_MODEL.parklet.materials. A role with no entry keeps
+// today's look (the drawing token, the archetype's material), so a design from before draws as it did until it is touched.
+var PKMAT = {
+  ROLES: [
+    { k: 'deck', label: 'Deck surface', allow: ['wood', 'other', 'mineral'], today: 'deck_timber' },
+    { k: 'fascia', label: 'Deck edge (fascia)', allow: ['wood', 'metal', 'powder', 'other'], today: 'deck_fascia' },
+    { k: 'posts', label: 'Enclosure posts and rails', allow: ['metal', 'powder', 'wood'], today: null },
+    { k: 'infill', label: 'Enclosure infill (pickets, slats, cables)', allow: ['wood', 'metal', 'powder', 'other'], today: null },
+    { k: 'planter', label: 'Planter boxes', allow: ['wood', 'metal', 'powder', 'mineral', 'other'], today: null },
+    { k: 'screen', label: 'Screens', allow: ['wood', 'metal', 'powder', 'mineral', 'other'], today: null }
+  ],
+  // fam: the furniture palette family the generator dresses a scheme in with this preset (GEN.PALETTES)
+  PRESETS: [
+    { id: 'cedar_galv', label: 'Cedar + galvanised steel', fam: 'warm_wood', m: { deck: 'cedar', fascia: 'cedar', posts: 'galvanized', infill: 'cedar', planter: 'cedar', screen: 'cedar' } },
+    { id: 'composite_black', label: 'Composite + black steel', fam: 'black_steel', m: { deck: 'composite_decking', fascia: 'black_steel', posts: 'black_steel', infill: 'black_steel', planter: 'recycled_black', screen: 'black_steel' } },
+    { id: 'painted_timber', label: 'Painted timber', fam: 'colour', m: { deck: 'pine', fascia: 'ral_6009', posts: 'ral_6009', infill: 'ral_6009', planter: 'ral_6009', screen: 'ral_6009' } },
+    { id: 'thermo_anth', label: 'Thermowood + anthracite', fam: 'warm_wood', m: { deck: 'thermowood', fascia: 'ral_7016', posts: 'ral_7016', infill: 'thermowood', planter: 'ral_7016', screen: 'thermowood' } }
+  ],
+  cur: {}
+};
+PKMAT.role = function(k) { return PKMAT.ROLES.find(function(r) { return r.k === k; }); };
+PKMAT.norm = function(o) {
+  var out = {}; if (!o || typeof o !== 'object') return out;
+  // (an id is checked against the palette once it exists: a design restored while the page loads is read before it)
+  var known = function(v) { return typeof FL_MAT_BY_ID === 'undefined' || !FL_MAT_BY_ID || !Object.keys(FL_MAT_BY_ID).length ? /^[a-z0-9_]+$/.test(v) : !!FL_MAT_BY_ID[v]; };
+  PKMAT.ROLES.forEach(function(r) { var v = o[r.k]; if (typeof v === 'string' && (known(v) || /^#[0-9a-f]{6}$/i.test(v))) out[r.k] = v; });
+  if (typeof o.preset === 'string' && PKMAT.PRESETS.some(function(p) { return p.id === o.preset; })) out.preset = o.preset;
+  return out;
+};
+// the material a role shows: the chosen one, else today's (null: the enclosure archetype's own)
+PKMAT.eff = function(k, M) { M = M || PKMAT.cur; return M[k] || (PKMAT.role(k) || {}).today || null; };
+PKMAT.hex = function(k, fb, M) { var id = (M || PKMAT.cur)[k]; return id ? flMatInfo(id).color : fb; };
+PKMAT.hex3 = function(k, fb, M) { var h = PKMAT.hex(k, null, M); return h ? parseInt(h.slice(1), 16) : fb; };
+// the preset the store matches (every role as the preset sets it), else null
+PKMAT.presetOf = function(M) { M = M || PKMAT.cur; var p = PKMAT.PRESETS.find(function(q) { return PKMAT.ROLES.every(function(r) { return M[r.k] === q.m[r.k]; }); }); return p ? p.id : null; };
+PKMAT.presetState = function(id) { var p = PKMAT.PRESETS.find(function(q) { return q.id === id; }); return p ? Object.assign({ preset: p.id }, p.m) : null; };
+// an enclosure part's role: parts in the archetype's own material take the parklet's (posts and rails, or infill; a
+// planter archetype's walls the planter boxes; a wall the screens); a part with a fixed material (a stainless cable, the
+// planting, a galvanized frame under timber) keeps it; a material the archetype cannot be made of (cedar pickets) is not used
+PKMAT.encRole = function(A, q, m) { if (q.mat !== m) return null; if (A.family === 'planter') return 'planter'; if (A.family === 'wall') return 'screen'; return /^(post|rail|frame)$/.test(q.role) ? 'posts' : 'infill'; };
+PKMAT.encMat = function(A, q, m, M) {
+  var r = PKMAT.encRole(A, q, m), id = r && (M || PKMAT.cur)[r]; if (!id) return q.mat;
+  var g = (flMatInfo(id) || {}).group; return A.mats.some(function(x) { return (FL_MAT_BY_ID[x] || {}).group === g; }) ? id : q.mat;
+};
+// the drawings' deck tint follows the deck material (schematic; the technical set stays ink on white)
+PKMAT.TOKEN0 = null;
+PKMAT.applyTokens = function() {
+  if (typeof FL_MAT_BY_ID === 'undefined' || !FL_MAT_BY_ID || !Object.keys(FL_MAT_BY_ID).length) { setTimeout(PKMAT.applyTokens, 0); return; }   // the palette is not read yet
+  if (PKMAT.TOKEN0 === null) PKMAT.TOKEN0 = DRAW_STYLE.schematic.fill.deck;
+  DRAW_STYLE.schematic.fill.deck = PKMAT.cur.deck ? flMatInfo(PKMAT.cur.deck).tint : PKMAT.TOKEN0;
+};
+// load: a design's block, or (a design from before) the Edge card's per-archetype material as the posts and infill
+PKMAT.load = function(o, E) {
+  PKMAT.cur = PKMAT.norm(o);
+  if (!o && E && E.mats && E.sides) {
+    var m = E.mats[E.sides.traffic]; if (m && /^[a-z0-9_]+$/.test(m)) { PKMAT.cur.posts = m; PKMAT.cur.infill = m; }
+  }
+  if (E && E.mats) E.mats = {};   // the store is PKMAT now
+  if (typeof state !== 'undefined') state.__pkMats = JSON.stringify(PKMAT.cur);
+  PKMAT.applyTokens();
+};
+PKMAT.set = function(patch, o) {
+  o = o || {};
+  Object.keys(patch || {}).forEach(function(k) { if (patch[k] === null || patch[k] === '') delete PKMAT.cur[k]; else PKMAT.cur[k] = patch[k]; });
+  PKMAT.cur = PKMAT.norm(PKMAT.cur); var pid = PKMAT.presetOf(); if (pid) PKMAT.cur.preset = pid; else delete PKMAT.cur.preset;
+  if (typeof state !== 'undefined') state.__pkMats = JSON.stringify(PKMAT.cur);
+  PKMAT.applyTokens();
+  try { syncDesignModel('materials'); } catch (e) {}
+  try { if (typeof renderMassView === 'function') renderMassView(); } catch (e) {}
+  if (!o.quiet) { try { saveSettings(); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon(); }
+  PKMAT.renderPanel(); if (typeof GEN !== 'undefined' && GEN.renderMatPick) GEN.renderMatPick();
+  console.log('[materials] ' + JSON.stringify(PKMAT.cur));
+};
+PKMAT.preset = function(id) { var st = PKMAT.presetState(id); if (st) PKMAT.set(st); };
+PKMAT.reset = function() { PKMAT.cur = {}; PKMAT.set({}); };
+// the Design tab's Materials panel: the presets, then one swatch row per role (as a piece's Finish rows)
+PKMAT.renderPanel = function() {
+  var el = document.getElementById('pkmBody'); if (!el) return;
+  var esc = function(t) { return String(t).replace(/[<>&'"]/g, function(c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&#39;', '"': '&quot;' }[c]; }); };
+  var pid = PKMAT.presetOf(), h = "<div class='pkm-presets' role='group' aria-label='Material presets'>" + PKMAT.PRESETS.map(function(p) {
+    return "<button type='button' class='pkm-preset" + (p.id === pid ? ' on' : '') + "' aria-pressed='" + (p.id === pid) + "' onclick='PKMAT.preset(&quot;" + p.id + "&quot;)' title='Sets every part below: " + esc(PKMAT.ROLES.map(function(r) { return r.label.toLowerCase() + ' ' + flMatInfo(p.m[r.k]).label.toLowerCase(); }).join('; ')) + "'>" + esc(p.label) + '</button>';
+  }).join('') + "<button type='button' class='pkm-preset' onclick='PKMAT.reset()' title='Back to the default look: the drawings&rsquo; deck colour and each enclosure archetype&rsquo;s own material.'>Default</button></div>";
+  PKMAT.ROLES.forEach(function(r) {
+    var cur = PKMAT.cur[r.k], shown = cur ? flMatInfo(cur).label : (r.today ? flMatInfo(r.today).label + ' (default)' : 'the enclosure&rsquo;s own (default)');
+    h += "<div class='pkm-row' data-pkm-role='" + r.k + "'><div class='pkm-lbl'>" + esc(r.label) + " &middot; <span class='pkm-cur'>" + shown + '</span></div><div class="pkm-sw">';
+    FL_MATERIALS.forEach(function(m) {
+      if (m.custom || r.allow.indexOf(m.group) < 0 || /^deck_/.test(m.id)) return;
+      h += "<button type='button' data-pkm='" + r.k + ':' + m.id + "' title='" + esc(m.label) + "' aria-label='" + esc(r.label + ': ' + m.label) + "' aria-pressed='" + (cur === m.id) + "' onclick='PKMAT.set({" + r.k + ": &quot;" + m.id + "&quot;})' style='background:" + m.color + (cur === m.id ? ';outline:2px solid var(--accent-ui,#3AA8E4);outline-offset:1px' : '') + "'></button>";
+    });
+    h += '</div></div>';
+  });
+  el.innerHTML = h;
+};
+PKMAT.mount = function() {
+  if (document.getElementById('pkmSec')) return;
+  var host = document.getElementById('ctxDesign'), after = document.getElementById('encSec') || document.getElementById('designShapeSec'); if (!host || !after) { setTimeout(PKMAT.mount, 300); return; }
+  if (!host._dkInit && typeof _dkWrap === 'function') { setTimeout(PKMAT.mount, 200); return; }
+  var top = after; while (top.parentNode && top.parentNode !== host) top = top.parentNode;
+  var sec = document.createElement('div'); sec.className = 'sb-section'; sec.id = 'pkmSec';
+  sec.innerHTML = "<div class='sb-section-lbl'>Materials</div><div id='pkmBody'></div>";
+  host.insertBefore(sec, top.nextSibling);
+  if (typeof _dkWrap === 'function') { _dkWrap(sec, 'dkcdMat', 'Materials', true); if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate(); }
+  PKMAT.renderPanel();
+};
+window.addEventListener('load', function() { setTimeout(PKMAT.mount, 600); });
 // a material's colour and name, safe before the materials table has loaded (the first 3D build)
 ENC.matInfo = function(id) { try { return (typeof FL_MAT_BY_ID !== 'undefined' && FL_MAT_BY_ID && FL_MAT_BY_ID[id]) || { id: id, label: String(id).replace(/_/g, ' '), color: '#A8B0B2', rough: 0.7 }; } catch (e) { return { id: id, label: String(id), color: '#A8B0B2', rough: 0.7 }; } };
 ENC.panelOpen = function(p) { return p.pattern === 'slot' ? 0.35 : p.pattern === 'custom' ? p.open : 0.40; };
@@ -2982,6 +3091,8 @@ ENC.resolve = function(DM, Eo) {
     var id = E.sides[s], A = AR[id], p = ENC.params(E, id), m = ENC.mat(E, id), len = s === 'traffic' ? L : Math.max(0.1, xI - x0);
     var run = { side: s, id: id, name: A.name, family: A.family, len: len, depth: A.depth(p), params: p, mat: m, top: H, transparency: ENC.transparency(id, p), xO: xO, x0: x0, L: L };
     run.parts = A.parts.call(A, len, H, p, m, s);
+    run.parts.forEach(function(q) { q.mat = PKMAT.encMat(A, q, m); });   // the parklet's materials (Brief 30 §5)
+    run.mat = PKMAT.encMat(A, { role: 'post', mat: m }, m);
     if (id === 'bench-back') { var br = A.benchRun(len, s); run.bench = br ? { u0: br[0], u1: br[1], len: br[1] - br[0] } : null; }
     runs.push(run);
   });
@@ -3903,6 +4014,7 @@ function buildDesignModel() {
     };
     var sh = DM.parklet.outline, L = DM.parklet.length, A = sh ? pkShapeArea(sh) : DM.parklet.width * L;   // exact, arcs included
     DM.parklet.area = +A.toFixed(3);
+    DM.parklet.materials = typeof PKMAT === 'undefined' ? {} : PKMAT.ROLES.reduce(function(o, r) { o[r.k] = PKMAT.cur[r.k] || null; return o; }, { preset: PKMAT.cur.preset || null });   // Brief 30 §5: null = today's look
     DM.parklet.shape = sh ? 'sketched' : 'rectangle';
     var st = (typeof state !== 'undefined') ? state : {}, cf = st.curb_features || [];
     DM.site.neighbourhood = typeof st.__neighbourhood === 'string' ? st.__neighbourhood : '';   // City local area, from the tree import
@@ -4252,6 +4364,7 @@ function saveSettings() {
     state['__sheets'] = JSON.stringify(SITE_SHEETS || {});
     if (typeof SECTION !== 'undefined') state['__section'] = JSON.stringify(SECTION);
     if (typeof ENCLOSURE !== 'undefined') state['__enclosure'] = JSON.stringify(ENCLOSURE);   // Brief 21 §12
+    if (typeof PKMAT !== 'undefined') state['__pkMats'] = JSON.stringify(PKMAT.cur);   // Brief 30 §5
     state['__bldgR'] = JSON.stringify(BLDG_R);
     state['__projectName'] = document.getElementById('projectName').value;
     state['__streetAddress'] = document.getElementById('streetAddress').value;
@@ -9937,11 +10050,11 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
     _eg.rotateX(-Math.PI / 2); // det=+1, preserves winding
 
 
-    const _dm = new THREE.Mesh(_eg, new THREE.MeshStandardMaterial({color:0xD6AE74, roughness:0.85}));
+    const _dm = new THREE.Mesh(_eg, new THREE.MeshStandardMaterial({color:PKMAT.hex3('deck', 0xD6AE74), roughness:0.85}));   // (Brief 30 §5)
     _dm.userData.expLayer = 'Parklet'; _dm.userData.label = 'Parklet deck';
     _dm.castShadow = true; _dm.receiveShadow = true; g.add(_dm);
     // Dark fascia edge lines around shape perimeter
-    const _el = new THREE.LineSegments(new THREE.EdgesGeometry(_eg, 30), new THREE.LineBasicMaterial({color:0x7a5020}));
+    const _el = new THREE.LineSegments(new THREE.EdgesGeometry(_eg, 30), new THREE.LineBasicMaterial({color:PKMAT.hex3('fascia', 0x7a5020)}));
     g.add(_el);
 
 
@@ -9952,10 +10065,10 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   } else {
     const plkW = 0.14, plkGap = 0.04;
     for (let xp = XCL + 0.04; xp < PW - 0.04; xp += plkW + plkGap)
-      mbox(xp, 0, 0, Math.min(xp + plkW, PW - 0.04), DECK_H, L, 0xD6AE74, 0.88);
-    mbox(XCL, -0.01, 0, PW, 0, L, 0x906030, 0.9);
-    mbox(XCL, -0.01, -0.01, PW, DECK_H, 0, 0x906030, 0.9);
-    mbox(XCL, -0.01, L, PW, DECK_H, L + 0.01, 0x906030, 0.9);
+      mbox(xp, 0, 0, Math.min(xp + plkW, PW - 0.04), DECK_H, L, PKMAT.hex3('deck', 0xD6AE74), 0.88);   // (Brief 30 §5)
+    mbox(XCL, -0.01, 0, PW, 0, L, PKMAT.hex3('fascia', 0x906030), 0.9);
+    mbox(XCL, -0.01, -0.01, PW, DECK_H, 0, PKMAT.hex3('fascia', 0x906030), 0.9);
+    mbox(XCL, -0.01, L, PW, DECK_H, L + 0.01, PKMAT.hex3('fascia', 0x906030), 0.9);
   }
 
   // The enclosure (Brief 21 §12): every side's parts from ENC, on the deck surface, in their materials; a part with an
@@ -10162,6 +10275,7 @@ if (s['__roadWidth']) {
     if (s['__section']) { try { Object.assign(SECTION, JSON.parse(s['__section'])); } catch(e) {} }
     // the enclosure (Brief 21 §12); an autosave from before it had the railing at the deck edge
     if (s['__enclosure']) { try { ENCLOSURE = ENC.norm(JSON.parse(s['__enclosure'])); } catch(e) {} }
+    if (typeof PKMAT !== 'undefined') { try { PKMAT.load(s['__pkMats'] ? JSON.parse(s['__pkMats']) : null, ENCLOSURE); } catch(e) {} }   // Brief 30 §5
     else if (s['__roadWidth'] !== undefined) ENCLOSURE = ENC.norm(Object.assign(JSON.parse(JSON.stringify(ENC.LEGACY)), { migrated: 'pre-21-12' }));
     if (s['__bldgR']) { try { BLDG_R = JSON.parse(s['__bldgR']); } catch(e) {} }
     // (Brief 22: the autosave's old __bikeLane keys are not read; the bike lane is in the saved design's segments)
@@ -10782,6 +10896,8 @@ const FL_SEC_TITLE = {seating:'Seating',table:'Tables',combo:'Table + Bench Comb
 // (flTint2D) -- there is no separate 2D colour list. group decides which part roles may use it;
 // 'fixed' materials (soil, foliage...) are never offered to the user.
 const FL_MATERIALS = [
+  {id:'deck_timber',     label:'Light timber (default deck)', group:'wood', color:'#D6AE74', rough:0.85, metal:0},   // Brief 30 §5: today's deck, as a material
+  {id:'deck_fascia',     label:'Dark timber (default fascia)', group:'wood', color:'#906030', rough:0.9, metal:0},
   {id:'pine',            label:'Pine',               group:'wood',    color:'#C9A26B', rough:0.75, metal:0},
   {id:'oak',             label:'Oak',                group:'wood',    color:'#A67C52', rough:0.7,  metal:0},
   {id:'ipe',             label:'Ipe',                group:'wood',    color:'#6B4128', rough:0.6,  metal:0},
@@ -18413,6 +18529,7 @@ function pkSerialize() {
       .map(function(s) { var o = { type: s.type, width: s.width }; if (s.variant !== undefined) o.variant = s.variant; if (s.typed) o.typed = true; return o; }) : null,
     // the enclosure (Brief 21 §12): archetype per side, height, buffer, the archetypes' parameters and materials
     enclosure: (typeof ENCLOSURE !== 'undefined') ? JSON.parse(JSON.stringify(ENC.norm(ENCLOSURE))) : null,
+    parkletMaterials: (typeof PKMAT !== 'undefined') ? JSON.parse(JSON.stringify(PKMAT.cur)) : null,   // Brief 30 §5
     compliance: (function() {
       var keys = ['parking_restrictions','route_type','intersection_dist','slope',
         'hydrant_dist','driveway_dist','pole_dist','pole_trolley','signal_box_dist',
@@ -18594,6 +18711,7 @@ function pkApplyDesignState(raw) {
   // the enclosure (Brief 21 §12): a design saved before it loads with the railing it had, at the deck edge (ENC.LEGACY)
   if (typeof ENCLOSURE !== 'undefined') {
     ENCLOSURE = ENC.norm(JSON.parse(JSON.stringify(data.enclosure || Object.assign({}, ENC.LEGACY, { migrated: 'pre-21-12' }))));
+    if (typeof PKMAT !== 'undefined') { PKMAT.load(data.parkletMaterials || null, ENCLOSURE); setTimeout(PKMAT.renderPanel, 0); }   // Brief 30 §5
     if (typeof state !== 'undefined') state['__enclosure'] = JSON.stringify(ENCLOSURE);
   }
 
@@ -18868,6 +18986,7 @@ var DEFAULT_STATE = Object.freeze({
   section: { z: null, dir: -1, depth: 6, depthBack: 0, x0: null, x1: null, yTop: null },
   crossSection: [],
   enclosure: JSON.parse(JSON.stringify(ENC.DEFAULT)),   // Brief 21 §12
+  parkletMaterials: {},   // Brief 30 §5
   compliance: { parking_restrictions: '', route_type: '', intersection_dist: '', slope: '', hydrant_dist: '', driveway_dist: '', pole_dist: '',
     pole_trolley: '', signal_box_dist: '', manhole_dist: '', fire_exit_block: '', drainage_clear: '', boulevard_clear: '', parking_setback: '',
     platform_gap: '', load_capacity: '' },
@@ -21927,11 +22046,10 @@ GEN.PROG = [
   ['green', 'Planting / green'], ['shade', 'Shade'], ['play', 'Kids / play'], ['open', 'Event / open']
 ];
 GEN.CHARACTER = [['quiet_green', 'Quiet / green'], ['social', 'Social'], ['cafe', 'Cafe'], ['urban', 'Urban / minimal']];
-GEN.MATERIAL = [['warm_wood', 'Warm wood'], ['black_steel', 'Black steel'], ['corten', 'Corten'], ['colour', 'Colour'], ['recycled', 'Recycled']];
 GEN.FOOTPRINT = [['single', 'Single'], ['split', 'Split'], ['free', 'Notches + curves']];
 GEN.defaultPrefs = function() {
   return { prog: { seating: 2, dining: 1, lounging: 1, bike: 1, green: 2, shade: 1, play: 0, open: 1 },
-    character: 'social', material: 'warm_wood', footprint: 'free', access: 2, planting: 2, n: 6, seed: 1 };
+    character: 'social', footprint: 'free', access: 2, planting: 2, n: 6, seed: 1 };
 };
 // The Site tab, as generator constraints (all metres; frontage in world z, default the
 // current deck span, so typed distances measured from the current deck ends stay valid).
@@ -22067,7 +22185,7 @@ GEN.renderDock = function() {
   // character, materials, footprint
   document.getElementById('genChar').innerHTML =
     "<label class='gen-row'><span>Character</span>" + select('data-pref', 'character', P.character, GEN.CHARACTER) + '</label>' +
-    "<label class='gen-row'><span>Material family</span>" + select('data-pref', 'material', P.material, GEN.MATERIAL) + '</label>' +
+    "<label class='gen-row'><span>Materials</span><span id='genMatPick'>" + GEN.matPickHTML() + '</span></label>' +
     "<label class='gen-row'><span>Deck shape</span>" + select('data-pref', 'footprint', P.footprint, GEN.FOOTPRINT) + '</label>';
   // output
   document.getElementById('genOut').innerHTML =
@@ -22433,6 +22551,13 @@ GEN.EDGES = [
   { id: 'glass', label: 'glass screens, planters between' }
 ];
 // Material palettes: the material for each group; part roles take the first group they allow.
+// Generate's Materials control (Brief 30 §5): the same presets as Design > Materials, writing the same store
+GEN.matPickHTML = function() {
+  var pid = typeof PKMAT !== 'undefined' ? PKMAT.presetOf() : null;
+  return "<select id='genMatSel' onchange='PKMAT.preset(this.value)' title='The parklet&rsquo;s materials: the same store as Design &rsaquo; Materials. The furniture finishes follow the preset.'>" + (pid ? '' : "<option value='' selected>" + (Object.keys(PKMAT.cur).length ? 'Custom (Design &rsaquo; Materials)' : 'Default') + '</option>') +
+    PKMAT.PRESETS.map(function(p) { return "<option value='" + p.id + "'" + (p.id === pid ? ' selected' : '') + '>' + p.label + '</option>'; }).join('') + '</select>';
+};
+GEN.renderMatPick = function() { var el = document.getElementById('genMatPick'); if (el) el.innerHTML = GEN.matPickHTML(); };
 GEN.PALETTES = {
   warm_wood: [{ id: 'oak_galv', label: 'oak + galvanized', m: { wood: 'oak', metal: 'galvanized', powder: 'ral_7016', mineral: 'concrete', other: 'composite_decking' }, order: ['wood', 'metal', 'mineral', 'powder', 'other'] },
               { id: 'thermo_anth', label: 'thermowood + anthracite', m: { wood: 'thermowood', metal: 'galvanized', powder: 'ral_7016', mineral: 'precast_grey', other: 'composite_decking' }, order: ['wood', 'powder', 'metal', 'mineral', 'other'] }],
@@ -23088,7 +23213,8 @@ GEN.generate = function() {
   if (!env.ok) { res.error = 'No compliant envelope. ' + env.why.join(' '); return GEN.finish(res, t0); }
   var fps = GEN.footprints(env, P.footprint);
   fps.forEach(function(f) { Object.assign(f, GEN.encFields(f.W, f.L)); });   // the design's enclosure on each (Brief 21 §12)
-  var pals = GEN.PALETTES[P.material] || GEN.PALETTES.warm_wood;
+  // the furniture finishes follow the parklet's materials (Brief 30 §5): the preset's palette family; a custom mix, warm wood
+  var curPreset = PKMAT.presetOf(), pals = GEN.PALETTES[(PKMAT.PRESETS.find(function(q) { return q.id === curPreset; }) || {}).fam] || GEN.PALETTES.warm_wood;
   var r = GEN.rng(P.seed * 7919 + 13);
   var tw = GEN.TEMPLATES.map(function(t) {
     var fit = 0; Object.keys(t.fit).forEach(function(k) { fit += t.fit[k] * (P.prog[k] || 0); });
@@ -23109,6 +23235,7 @@ GEN.generate = function() {
     }
     var pal = Object.assign({ idx: pi }, pals[pi]);
     var ds = GEN.buildState(S, base, env, fp, lay, pal);
+    ds.parkletMaterials = JSON.parse(JSON.stringify(PKMAT.cur));   // the scheme carries the materials it was made with (applied only when opened)
     res.stats.built++;
     var ev = GEN.evaluate(ds);
     if (ev.pass !== criteria.length) { res.stats.checkRejects++; continue; }
@@ -23244,8 +23371,8 @@ GEN.axonThumb = function(c, W0, H0) {   // -> a Promise of the picture (an Image
       if (sg.arc && Math.abs(sg.sag || 0) > 0.001) { var cp = shapeArcCtrl(a, b, sg.sag); shp.quadraticCurveTo(cp.y, -cp.x, b.y, -b.x); } else shp.lineTo(b.y, -b.x);
     }
     var eg = new THREE.ExtrudeGeometry(shp, { depth: PARKLET_LEVELS.deckTop, bevelEnabled: false }); eg.rotateX(-Math.PI / 2);
-    var dm = new THREE.MeshLambertMaterial({ color: 0xD6AE74 }); geoms.push(eg); mats.push(dm); sc.add(new THREE.Mesh(eg, dm));
-  } else box(0, 0, 0, W, PARKLET_LEVELS.deckTop, L, 0xD6AE74);
+    var dm = new THREE.MeshLambertMaterial({ color: PKMAT.hex3('deck', 0xD6AE74, ds.parkletMaterials || {}) }); geoms.push(eg); mats.push(dm); sc.add(new THREE.Mesh(eg, dm));
+  } else box(0, 0, 0, W, PARKLET_LEVELS.deckTop, L, PKMAT.hex3('deck', 0xD6AE74, ds.parkletMaterials || {}));
   // the enclosure (Brief 21 §12) on this scheme's deck
   ENC.worldParts({ enclosure: ENC.resolve({ landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L } }) }, PARKLET_LEVELS.deckTop).forEach(function(q) { if (q.role === 'bar' || q.role === 'cable' || q.role === 'slat') return; box(q.x0, q.y0, q.z0, q.x1, q.y1, q.z1, q.role === 'planting' || q.role === 'body' ? 0xA9C29A : 0x8E8E8A); });
   var groups = [];
@@ -23371,6 +23498,7 @@ GEN.openState = function(c, cur, base) {
   so.pkShape = ds.siteObjects.pkShape ? JSON.parse(JSON.stringify(ds.siteObjects.pkShape)) : null;
   out.section = JSON.parse(JSON.stringify(ds.section));
   out.furniture = JSON.parse(JSON.stringify(ds.furniture));
+  if (ds.parkletMaterials) out.parkletMaterials = JSON.parse(JSON.stringify(ds.parkletMaterials));   // (Brief 30 §5)
   var moved = Math.abs(a) > 1e-6 || Math.abs(L - L0) > 1e-6;
   GEN.COMMIT_KEYS.concat(moved ? GEN.DERIVED_KEYS : []).forEach(function(n) { if (ds.compliance[n] !== undefined) out.compliance[n] = ds.compliance[n]; });
   return out;
@@ -23601,7 +23729,7 @@ RPT.schedule = function(d) {
   if (!rows.length) rows = [['-', 'No furniture placed.', '', '', '0', '']];
   rows.push([{ t: '', b: true }, { t: 'Total', b: true }, '', { t: d.groups.length + ' types', b: true }, { t: String(d.placed.length), b: true }, '']);
   return RPT.textSheet('S-001', 'Furniture schedule', '', [{ table: { cols: [{ t: 'Tag', w: 0.05 }, { t: 'Item', w: 0.2 }, { t: 'Size l x d x h', w: 0.13, num: true }, { t: 'Material', w: 0.3 }, { t: 'Count', w: 0.06, num: true }, { t: 'Source', w: 0.26 }], rows: rows } },
-    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.userNote(d), RPT.cardBlocks(d), RPT.encBlocks(d)), true);
+    { p: 'Tags F1, F2 ... mark each piece on the deck plan A-103 and the layout plan A-102. Sizes in metres from each piece\'s parameters (the numbers the 3D and the plans draw).' }].concat(RPT.userNote(d), RPT.cardBlocks(d), RPT.encBlocks(d), RPT.matBlocks(d)), true);
 };
 // Provenance (Brief 22 item 9): a user piece's tag carries a trailing dot (F3•); S-001 says what its figures rest on
 RPT.USER_DOT = '•';
@@ -23660,6 +23788,12 @@ RPT.sheetAttach = function(d, s) {
   } };
 };
 // S-001's Enclosure block (Brief 21 §12): the archetype per side, height, buffer, materials; the enclosure is not furniture
+// the parklet's own materials (Brief 30 §5), from DESIGN_MODEL.parklet.materials
+RPT.matBlocks = function(d) {
+  var M = d.DM.parklet.materials || {}, pr = M.preset ? (PKMAT.PRESETS.find(function(q) { return q.id === M.preset; }) || {}).label : null;
+  var rows = PKMAT.ROLES.map(function(r) { var id = M[r.k]; return [{ t: r.label, b: true }, id ? flMatInfo(id).label : (r.today ? flMatInfo(r.today).label : 'each enclosure archetype\'s own'), id ? (pr || 'chosen in Design') : 'default'] });
+  return [{ h2: 'Parklet materials' }, { table: { cols: [{ t: 'Part', w: 0.34 }, { t: 'Material', w: 0.4 }, { t: 'Set by', w: 0.26 }], rows: rows } }];
+};
 RPT.encBlocks = function(d) {
   var E = d.DM.enclosure; if (!E) return [];
   var ml = function(id) { return String((flMatInfo(id) || {}).label || id); };
@@ -26353,7 +26487,7 @@ RVZ.build = function(o) {
 
   // The parklet: the deck (sketched shape or rectangle) from the road to the deck top (flush with the curb), the road-side
   // enclosure (DESIGN_MODEL.enclosure) and the City's wheel stops and bollards (DESIGN_MODEL.cityItems) as context
-  var sk = DESIGN_MODEL.parklet.outline, deckMat = R ? RVZ.mat('pine', 'deck') : RVZ.mat(TOK.deck);
+  var sk = DESIGN_MODEL.parklet.outline, deckMat = R ? RVZ.mat(PKMAT.cur.deck || 'pine', 'deck') : RVZ.mat(TOK.deck);   // (Brief 30 §5)
   if (sk) {
     var shp = new THREE.Shape(), vv = sk.verts; shp.moveTo(vv[0].y, -vv[0].x);
     for (var k = 0; k < vv.length; k++) {
@@ -27365,7 +27499,7 @@ RVZP.prompt = function() {
     });
   });
   if (RVZ.o.people) { var seats = typeof AXE !== 'undefined' ? AXE.seats().length : 0; ent.seated += seats ? Math.max(1, Math.round(seats * 0.4)) : 0; ent.walk += 2; if ((DM.paths || []).some(function(p) { return p.kind === 'bike'; })) ent.bike++; if ((DM.paths || []).some(function(p) { return p.kind === 'lane'; })) ent.car++; }
-  var mats = [flMatInfo('pine').label.toLowerCase() + ' timber decking'].concat(Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; }).slice(0, 6));
+  var mats = [PKMAT.cur.deck ? flMatInfo(PKMAT.cur.deck).label.toLowerCase().replace(/^ral \d+ /, '') + ' decking' : flMatInfo('pine').label.toLowerCase() + ' timber decking'].concat(Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; }).slice(0, 6));
   var people = [];
   if (ent.seated) people.push(ent.seated > 1 ? 'people seated at the parklet' : 'a person seated at the parklet');
   if (ent.walk) people.push('pedestrians on the sidewalk');
@@ -30913,6 +31047,7 @@ SEED.parklet = function(rep) {
   PK_NOSTREET = false;
   designParkletLength = SEED.DECK_L; designParkletWidth = SEED.DECK_W; state.pkShape = null;
   ENCLOSURE = ENC.norm(JSON.parse(JSON.stringify(ENC.DEFAULT))); state.__enclosure = JSON.stringify(ENCLOSURE);
+  if (typeof PKMAT !== 'undefined') PKMAT.load({}, ENCLOSURE);   // a new site's deck: the default look (Brief 30 §5)
   pkClearAllFurniture();
   var lr = document.getElementById('lengthReadout'), wr = document.getElementById('widthReadout');
   if (lr) lr.textContent = designParkletLength.toFixed(1) + ' m'; if (wr) wr.textContent = designParkletWidth.toFixed(3) + ' m';
@@ -31643,6 +31778,11 @@ document.addEventListener('keydown', function(e) {
 
 /* Brief 29b: a piece dragged against the deck's edge */
 body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #seStrip { cursor: crosshair !important; }
+.pkm-presets { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px; }
+.pkm-preset { font: 12px var(--font-ui, sans-serif); padding: 3px 8px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; background: transparent; color: var(--c-text, #E8EAED); cursor: pointer; }
+.pkm-preset.on { border-color: var(--accent-ui, #3AA8E4); color: var(--accent-ui, #3AA8E4); }
+.pkm-row { margin-bottom: 6px; } .pkm-lbl { font-size: 12px; color: var(--c-text-dim, #9AA0A6); margin-bottom: 2px; } .pkm-cur { color: var(--c-text, #E8EAED); }
+.pkm-sw { display: flex; flex-wrap: wrap; gap: 3px; } .pkm-sw button { width: 16px; height: 16px; padding: 0; border-radius: 2px; border: 1px solid rgba(0,0,0,.35); cursor: pointer; }
 .place-card-hint { grid-column: 1 / -1; margin: 2px 0 6px; padding: 4px 8px; font-size: 12px; line-height: 1.35; color: var(--c-text, #E8EAED); border-left: 3px solid var(--accent-ui, #3AA8E4); background: rgba(58,168,228,.08); }
 #planView .pv-furn.pv-hover { filter: drop-shadow(0 0 1.5px #3AA8E4) drop-shadow(0 0 1.5px #3AA8E4); }
 #planView .pv-edge-flash line { stroke: #E8A317; stroke-width: 5px; vector-effect: non-scaling-stroke; stroke-linecap: square; animation: pvEdgeFlash 0.35s ease-in-out 2; }
@@ -32611,7 +32751,7 @@ ENC.renderCard = function() {
   h += "<div class='enc-grid' role='group' aria-label='Archetype for the " + ENC.SIDE_LABEL[side].toLowerCase() + "'>" + ENC.IDS.map(function(q) { return ENC.thumb(q, q === id); }).join('') + '</div>';
   h += "<label class='enc-row' title='Height of the enclosure above the deck; a planter reads the top of its planting (Parklet Manual E2: 0.75 to 1.0 m)'><span>Height</span><input type='range' id='encH' min='0.75' max='1' step='0.01' value='" + Math.min(1, Math.max(0.75, E.height)).toFixed(2) + "'><output id='encHo'>" + E.height.toFixed(2) + ' m</output></label>';
   h += "<label class='enc-row' title='Buffer measured inward from the deck&#39;s traffic-side edge: the deck and the travel lane do not move; the buffer is unusable'><span>Buffer</span><input type='range' id='encB' min='0' max='0.6' step='0.01' value='" + E.bufferDepth.toFixed(2) + "'><output id='encBo'>" + E.bufferDepth.toFixed(2) + ' m</output></label>';
-  h += "<label class='enc-row' title='Material of the " + esc(A.name.toLowerCase()) + "'><span>Material</span><select id='encMat'>" + A.mats.map(function(m) { return "<option value='" + m + "'" + (m === ENC.mat(E, id) ? ' selected' : '') + '>' + esc((flMatInfo(m) || {}).label || m) + '</option>'; }).join('') + '</select></label>';
+  h += "<label class='enc-row' title='Material of the " + esc(A.name.toLowerCase()) + "'><span>Material</span><select id='encMat'>" + A.mats.map(function(m) { return "<option value='" + m + "'" + (m === (PKMAT.cur.infill || PKMAT.cur.posts || ENC.mat(E, id)) ? ' selected' : '') + '>' + esc((flMatInfo(m) || {}).label || m) + '</option>'; }).join('') + '</select></label>';
   h += "<details class='enc-more'><summary>" + esc(A.name) + ' details</summary>' + Object.keys(A.params).map(function(k) {
     var d = A.params[k];
     if (d.opts) return "<label class='enc-row' title='" + esc(d.label) + "'><span>" + esc(d.label) + "</span><select data-enc-p='" + k + "'>" + d.opts.map(function(o2) { return "<option value='" + o2 + "'" + (o2 === p[k] ? ' selected' : '') + '>' + esc(ENCLOSURE_ARCHETYPES[o2] ? ENCLOSURE_ARCHETYPES[o2].name : o2) + '</option>'; }).join('') + '</select></label>';
@@ -32630,7 +32770,7 @@ ENC.renderCard = function() {
   q('#encH').onchange = function() { ENC.renderCard(); };
   q('#encB').oninput = function() { var v = Math.min(+this.value, mx); if (+this.value > mx) this.value = mx.toFixed(2); q('#encBo').textContent = v.toFixed(2) + ' m'; ENC.set({ bufferDepth: v }, { quiet: true, fast: true }); };
   q('#encB').onchange = function() { ENC.renderCard(); };
-  q('#encMat').onchange = function() { var m = {}; m[id] = this.value; ENC.set({ mats: m }, { fast: true }); };
+  q('#encMat').onchange = function() { PKMAT.set({ posts: this.value, infill: this.value }); ENC.renderCard(); };   // the parklet's materials, one store (Brief 30 §5)
   host.querySelectorAll('[data-enc-p]').forEach(function(el) { el.onchange = function() { var pp = {}; pp[id] = {}; pp[id][el.dataset.encP] = el.tagName === 'SELECT' ? el.value : +el.value; ENC.set({ params: pp }, { fast: true }); }; });
   // (Brief 21c) the buffer limit from the generator, after the card is drawn: redrawn only if it differs from the quick one
   clearTimeout(ENC._bt); ENC._bt = setTimeout(function() { if (Math.abs(ENC.bufMax(E) - mx) > 1e-9) ENC.renderCard(); }, 50);
