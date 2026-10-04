@@ -33263,7 +33263,7 @@ P101.SETS = [
   { id: 'cov2016', name: 'City of Vancouver - Parklet Manual 2016, CAD', cur: 'CAD', date: '2016-06', shipped: true, flag: 'confirm with the City',
     prov: 'Vancouver Parklet Manual, version 1.0 (June 2016): the cost range p. 18, the fees pp. 37 and 40. Figures of 2016: confirm with the City.',
     rates: [
-      { k: 'build', item: 'Design, construction and installation', per: 'spaces', unit: 'parking space', low: 10000, high: 15000, src: 'Manual p. 18 (2016): "typically" per parking space, by design, size and material' },
+      { k: 'build', range: true, item: 'Design, construction and installation', per: 'spaces', unit: 'parking space', low: 10000, high: 15000, src: 'Manual p. 18 (2016): "typically" per parking space, by design, size and material' },
       { k: 'fee_review', item: 'Application review fee', per: 'one', unit: 'once', low: 204, high: 204, src: 'Manual p. 37 (2016)' },
       { k: 'fee_recovery', item: 'Program cost recovery fee', per: 'one', unit: 'once', low: 1000, high: 1000, src: 'Manual p. 40 (2016)' },
       { k: 'fee_inspect', item: 'Site inspection, before and after', per: 'one', unit: 'once', low: 200, high: 200, src: 'Manual p. 40 (2016)' },
@@ -33297,14 +33297,24 @@ P101.units = function(r, Q) {
   return { n: 0, f: '-' };
 };
 // the estimate: rows, the range in CAD, what is unpriced, the banner
+// (Brief 30 follow-up) the Manual's "typically $10,000-15,000 a parking space" is not a cost line: it is the range the
+// build cost is placed against (below / within / above); the City's fees are cost lines in every rate set
+P101.MANUAL = P101.SETS[0];
+P101.range = function(Q) {
+  var r = P101.MANUAL.rates.find(function(q) { return q.range; }), u = P101.units(r, Q), sp = Q.find(function(q) { return q.k === 'spaces'; });
+  return { n: u.n, lo: u.n * r.low, hi: u.n * r.high, per: [r.low, r.high], how: sp ? sp.f : '', src: r.src };
+};
 P101.estimate = function(DM) {
   DM = DM || _dmCurrent();
   var C = P101.cost(), S = P101.setById(C.set), Q = P101.qty(DM), fx = S.cur === 'USD' ? C.fx : 1, rows = [], lo = 0, hi = 0, annual = null, userAll = !S.shipped;
-  S.rates.forEach(function(r) {
-    var u = P101.units(r, Q), l = u.n * r.low * fx, h = u.n * r.high * fx;
-    if (!S.shipped && !(r.entered)) userAll = false;
-    rows.push({ k: r.k, item: r.item, qty: u.n, unit: r.unit, rate: r, f: u.f, lo: l, hi: h, city: u.city, annual: u.annual, src: r.src });
-    if (u.annual) annual = { lo: l, hi: h }; else if (!u.city) { lo += l; hi += h; }
+  var bLo = 0, bHi = 0, fLo = 0, fHi = 0, isFee = function(r) { return /^fee_/.test(r.k); };
+  var rates = S.rates.filter(function(r) { return !r.range && r.k !== 'build'; }), manualFees = !rates.some(isFee);
+  if (manualFees) rates = rates.concat(P101.MANUAL.rates.filter(isFee).map(function(r) { return Object.assign({}, r, { ext: true }); }));   // the City's fees, whoever builds it
+  rates.forEach(function(r) {
+    var u = P101.units(r, Q), f1 = r.ext ? 1 : fx, l = u.n * r.low * f1, h = u.n * r.high * f1;
+    if (!S.shipped && !r.ext && !(r.entered)) userAll = false;
+    rows.push({ k: r.k, item: r.item, qty: u.n, unit: r.unit, rate: r, f: u.f, lo: l, hi: h, city: u.city, annual: u.annual, src: r.src + (r.ext ? '; the City\'s fee, CAD' : ''), fee: isFee(r), ext: !!r.ext });
+    if (u.annual) annual = { lo: l, hi: h }; else if (!u.city) { lo += l; hi += h; if (isFee(r)) { fLo += l; fHi += h; } else { bLo += l; bHi += h; } }
   });
   var furn = P101.furniture(), unpriced = 0;
   furn.forEach(function(g) {
@@ -33312,11 +33322,14 @@ P101.estimate = function(DM) {
     var price = fr && fr.low > 0 ? fr : card ? { low: card, high: card, src: 'spec card' } : null;
     if (!price) { unpriced += g.n; rows.push({ furn: g, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', lo: null, hi: null }); return; }
     var l = g.n * price.low * (price.cur === 'USD' ? C.fx : 1), h = g.n * (price.high || price.low) * (price.cur === 'USD' ? C.fx : 1);
-    lo += l; hi += h; rows.push({ furn: g, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', lo: l, hi: h, price: price, suggested: !!(price.suggested) });
+    lo += l; hi += h; bLo += l; bHi += h; rows.push({ furn: g, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', lo: l, hi: h, price: price, suggested: !!(price.suggested) });
   });
+  var R = P101.range(Q), cmp = !(bHi > 0) || !(R.n > 0) ? null : bHi < R.lo ? 'below' : bLo > R.hi ? 'above' : 'within';
   var banner = S.placeholder ? 'Estimate from placeholder rates' : S.shipped ? 'Estimate from the Parklet Manual\'s 2016 figures - confirm with the City' : (userAll ? 'Estimate from your rates' : 'Estimate from your rates (some not entered yet)');
   if (unpriced) banner += ' · Furniture not priced (' + unpriced + ' piece' + (unpriced === 1 ? '' : 's') + ')';
-  return { set: S, rows: rows, lo: lo, hi: hi, annual: annual, unpriced: unpriced, banner: banner, fx: C.fx, Q: Q };
+  var m = P101.money, rng = m(R.lo) + ' - ' + m(R.hi), sp = R.n + ' parking space' + (R.n === 1 ? '' : 's');
+  if (R.n > 0) banner += cmp ? ' · Build ' + m(bLo) + (Math.round(bHi) !== Math.round(bLo) ? ' - ' + m(bHi) : '') + ': ' + cmp + " the Parklet Manual's typical range for " + sp + ' (' + rng + ')' : " · No build cost priced yet to place against the Parklet Manual's typical range for " + sp + ' (' + rng + ')';
+  return { set: S, rows: rows, lo: lo, hi: hi, annual: annual, unpriced: unpriced, banner: banner, fx: C.fx, Q: Q, build: { lo: bLo, hi: bHi }, fees: { lo: fLo, hi: fHi }, range: R, cmp: cmp, manualFees: manualFees };
 };
 // a quote for a furniture group (persists in the design for every identical piece; "suggested" until confirmed)
 P101.setFurn = function(key, low, high, src, suggested) {
@@ -33339,6 +33352,10 @@ P101.newSet = function(supplier) {
 };
 P101.changed = function() { try { saveSettings(); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon(); clearTimeout(P101._rt); P101._rt = setTimeout(P101.render, 0); };   // after the field's own events
 P101.money = function(v) { return v == null ? '—' : '$' + Math.round(v).toLocaleString('en-CA'); };
+P101.rangeLine = function(est) {
+  var R = est.range, m = function(v) { return '$' + Math.round(v).toLocaleString('en-CA'); };
+  return 'Parklet Manual typical range for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + ': ' + m(R.lo) + ' - ' + m(R.hi) + ', for design, construction and installation at ' + m(R.per[0]) + ' - ' + m(R.per[1]) + ' a space (Manual p. 18, 2016). ' + R.n + ' space' + (R.n === 1 ? '' : 's') + ' = ' + R.how + '. Not a cost line and not in the total: it only places the build cost' + (est.cmp ? ' (' + est.cmp + ' it)' : '') + '.';
+};
 // ── A. the exploded section, drawn from this deck's width and the curb's height (DRAW_STYLE), never a stock picture ──
 P101.svg = function(DM) {
   DM = DM || _dmCurrent();
@@ -33428,11 +33445,12 @@ P101.render = function() {
         var hint = r.lo != null ? (r.suggested ? 'suggested - confirm' : (r.price.src || 'entered')) : pr ? "Price on request - <a href='" + brandUrl + "' target='_blank' rel='noopener'>" + e(pr.brand) + ' product page</a>' : g.user ? 'Enter the price from the spec card' : 'Enter a quote, or compare a similar catalogue product';
         return "<tr data-furn='" + e(g.key) + "'><td>" + e(r.item) + "</td><td class='num'>" + r.qty + "</td><td>each</td><td class='num'><input type='number' min='0' step='1' class='p101-q' aria-label='Quote per piece, CAD, low' value='" + (r.price ? r.price.low : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.value, this.nextElementSibling.value)'> - <input type='number' min='0' step='1' class='p101-q' aria-label='Quote per piece, CAD, high' value='" + (r.price ? r.price.high : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.previousElementSibling.value, this.value)'></td><td class='num'>" + (r.lo == null ? '—' : P101.money(r.lo) + (Math.round(r.hi) !== Math.round(r.lo) ? ' - ' + P101.money(r.hi) : '')) + '</td><td>' + hint + '</td></tr>';
       }
-      var rate = S.shipped ? (r.rate.low === r.rate.high ? r.rate.low : r.rate.low + ' - ' + r.rate.high) : "<input type='number' min='0' step='0.01' class='p101-q' value='" + r.rate.low + "' onchange='P101.setRate(\"" + r.k + "\", this.value, this.nextElementSibling.value)'> - <input type='number' min='0' step='0.01' class='p101-q' value='" + r.rate.high + "' onchange='P101.setRate(\"" + r.k + "\", this.previousElementSibling.value, this.value)'>";
+      var rate = S.shipped || r.ext ? (r.rate.low === r.rate.high ? r.rate.low : r.rate.low + ' - ' + r.rate.high) : "<input type='number' min='0' step='0.01' class='p101-q' value='" + r.rate.low + "' onchange='P101.setRate(\"" + r.k + "\", this.value, this.nextElementSibling.value)'> - <input type='number' min='0' step='0.01' class='p101-q' value='" + r.rate.high + "' onchange='P101.setRate(\"" + r.k + "\", this.previousElementSibling.value, this.value)'>";
       return "<tr title='" + e(r.f) + "'" + (r.city ? " class='city'" : '') + '><td>' + e(r.item) + "</td><td class='num'>" + r.qty + '</td><td>' + e(r.unit) + "</td><td class='num'>" + rate + "</td><td class='num'>" + (r.city ? 'City' : P101.money(r.lo) + (Math.round(r.hi) !== Math.round(r.lo) ? ' - ' + P101.money(r.hi) : '')) + (r.annual ? ' a year' : '') + '</td><td>' + e(r.src) + (S.flag ? ' - ' + e(S.flag) : '') + '</td></tr>';
     }).join('') +
-    "<tr class='fee'><td colspan='6'>City of Vancouver fees - enter from the current fee schedule: <a href='" + P101.FEE_URL + "' target='_blank' rel='noopener'>vancouver.ca, parklets</a>" + (S.id === 'cov2016' ? ' (the 2016 fees above are the Manual\'s; confirm them)' : '') + '</td></tr>' +
-    "<tr class='tot'><td colspan='4'><b>Estimate, build and fees</b>" + (S.cur === 'USD' ? ' (USD at ' + C.fx + ')' : '') + "</td><td class='num'><b id='p101Total'>" + P101.money(est.lo) + ' - ' + P101.money(est.hi) + '</b></td><td>' + (est.unpriced ? est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' not priced: not counted as zero' : 'furniture priced') + '</td></tr></tbody></table></section>';
+    "<tr class='fee'><td colspan='6'>City of Vancouver fees - enter from the current fee schedule: <a href='" + P101.FEE_URL + "' target='_blank' rel='noopener'>vancouver.ca, parklets</a>" + (S.id === 'cov2016' || est.manualFees ? ' (the 2016 fees above are the Manual\'s; confirm them)' : '') + '</td></tr>' +
+    "<tr class='sub'><td colspan='4'>Build (deck, edge, furniture priced)</td><td class='num'>" + P101.money(est.build.lo) + (Math.round(est.build.hi) !== Math.round(est.build.lo) ? ' - ' + P101.money(est.build.hi) : '') + "</td><td></td></tr><tr class='sub'><td colspan='4'>City fees</td><td class='num'>" + P101.money(est.fees.lo) + "</td><td>application, cost recovery, inspection" + (C.meters ? ', ' + C.meters + ' meter' + (C.meters === 1 ? '' : 's') : '') + '</td></tr>' +
+    "<tr class='tot'><td colspan='4'><b>Estimate, build and fees</b>" + (S.cur === 'USD' ? ' (USD at ' + C.fx + ')' : '') + "</td><td class='num'><b id='p101Total'>" + P101.money(est.lo) + ' - ' + P101.money(est.hi) + '</b></td><td>' + (est.unpriced ? est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' not priced: not counted as zero' : 'furniture priced') + "</td></tr></tbody></table><p class='p101-note' id='p101Range'>" + e(P101.rangeLine(est)) + '</p></section>';
   // D
   h += "<section id='p101_mats'><h2>Materials</h2><table class='p101-t'><thead><tr><th>Material</th><th>Durability</th><th>Maintenance</th><th>San Francisco (advisory)</th><th>Vancouver Manual</th><th></th></tr></thead><tbody>" +
     P101.MATS.map(function(m) { return '<tr><td>' + m.ids.map(function(id) { var i = flMatInfo(id); return "<span class='p101-sw' style='background:" + i.color + "'></span>" + e(i.label); }).join('<br>') + '</td><td>' + e(m.dur) + '</td><td>' + e(m.maint) + '</td><td>' + e(m.sf) + '</td><td>' + e(m.van) + "</td><td><button type='button' class='txt-btn' onclick='P101.toMaterials()'>Design &rsaquo; Materials</button></td></tr>"; }).join('') + '</tbody></table></section>';
@@ -33448,12 +33466,15 @@ RPT.sheetBudget = function(d) {
   var est = P101.estimate(d.DM), S = est.set, fmt = function(v) { return v == null ? '-' : '$' + Math.round(v).toLocaleString('en-CA'); };
   var qrows = est.Q.filter(function(q) { return !q.sub; }).map(function(q) { return [q.item, String(q.n), q.u, q.f]; });
   var crows = est.rows.map(function(r) { return [r.item, String(r.qty), r.unit, r.city ? 'supplied by the City' : r.lo == null ? '- (not priced)' : fmt(r.lo) + (Math.round(r.hi) !== Math.round(r.lo) ? ' - ' + fmt(r.hi) : '') + (r.annual ? ' a year' : ''), r.furn ? (r.price ? (r.suggested ? 'suggested' : r.price.src || 'entered') : 'not priced') : r.src || '']; });
+  var rg = function(a) { return fmt(a.lo) + (Math.round(a.hi) !== Math.round(a.lo) ? ' - ' + fmt(a.hi) : ''); };
+  crows.push(['Build (deck, edge, furniture priced)', '', '', rg(est.build), ''], ['City fees', '', '', rg(est.fees), 'application, cost recovery, inspection' + (P101.cost().meters ? ', meters' : '')]);
   crows.push([{ t: 'Estimate, build and fees', b: true }, '', '', { t: fmt(est.lo) + ' - ' + fmt(est.hi), b: true }, est.unpriced ? est.unpriced + ' furniture piece(s) not priced, not counted' : '']);
   return RPT.textSheet('G-002', 'Construction and budget', S.name, [
     { p: est.banner + '. Rate set: ' + S.name + '. ' + S.prov + (S.cur === 'USD' ? ' Converted at USD 1 = CAD ' + est.fx + '.' : '') },
     { h2: 'Quantities (from the design)' }, { table: { cols: [{ t: 'Item', w: 0.28 }, { t: 'Qty', w: 0.08, num: true }, { t: 'Unit', w: 0.06 }, { t: 'How', w: 0.58 }], rows: qrows } },
     { h2: 'Estimate' }, { table: { cols: [{ t: 'Item', w: 0.32 }, { t: 'Qty', w: 0.06, num: true }, { t: 'Unit', w: 0.1 }, { t: 'Cost, CAD', w: 0.2, num: true }, { t: 'Source', w: 0.32 }], rows: crows } },
-    { p: 'City of Vancouver fees: enter from the current fee schedule (' + P101.FEE_URL + '). Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). An estimate to plan a budget, not a quote.' }
+    { p: P101.rangeLine(est) },
+    { p: 'City of Vancouver fees: the Manual\'s 2016 figures above; confirm them against the current fee schedule (' + P101.FEE_URL + '). Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). An estimate to plan a budget, not a quote.' }
   ], true);
 };
 </script>
