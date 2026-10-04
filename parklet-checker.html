@@ -32394,8 +32394,8 @@ document.addEventListener('keydown', function(e) {
 body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #seStrip { cursor: crosshair !important; }
 /* the Cost estimate on Export (Brief 31 §9) */
 .ce { max-width: 1180px; padding: 20px 28px 64px; font: 13px/1.5 var(--font-ui); color: var(--c-text); }
-.ce-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; } .ce-state { margin: 0 0 16px; color: var(--c-text); max-width: 90ch; }
-.ce-sum { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 1px; background: var(--c-rule); border: 1px solid var(--c-rule); border-radius: 4px; margin: 0 0 16px; }
+.ce-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; } .ce-state { margin: 0 0 16px; color: var(--c-text); max-width: 72ch; }
+.ce-sum { display: grid; grid-template-columns: 1fr 1fr 1.4fr 1fr; gap: 1px; background: var(--c-rule); border: 1px solid var(--c-rule); border-radius: 4px; margin: 0 0 16px; }
 .ce-sum > div { background: var(--c-panel); padding: 10px 14px; } .ce-sum dt { font-size: 12px; color: var(--c-text-dim); } .ce-sum dd { margin: 2px 0 0; font: 600 18px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; } .ce-sum dd.ce-dd-n { font: 400 12px/1.4 var(--font-ui); color: var(--c-text-dim); }
 .ce-ctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 0; border-top: 1px solid var(--c-rule); border-bottom: 1px solid var(--c-rule); margin-bottom: 8px; }
 .ce-ctl label { font-size: 12px; color: var(--c-text-dim); } .ce-ctl select, .ce-ctl input { margin-left: 6px; } .ce-ctl-g { display: inline-flex; gap: 8px; align-items: center; }
@@ -32413,6 +32413,15 @@ body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #s
 .ce-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 1100px) { .ce-sum { grid-template-columns: repeat(2, 1fr); } }
+/* (Brief 31 §9, critique) the total leads; the comparison is quieter; fields and the rate set read as dark fields with an
+   edge you can see (3:1); long text at 72ch; a refused number says why under the controls */
+.ce-sum .ce-sum-tot dd:not(.ce-dd-n) { font-size: 22px; } .ce-sum .ce-sum-cmp dd:not(.ce-dd-n) { font-size: 15px; }
+.ce select { background: var(--c-bg); color: var(--c-text); border: 1px solid var(--c-text-dim); border-radius: 3px; min-height: 28px; padding: 2px 6px; font: inherit; }
+.ce input[type=text] { border-color: var(--c-text-dim); } .ce input::placeholder { color: var(--c-text-dim); opacity: 1; }
+.ce-note, .ce-range { max-width: 72ch; }
+.ce-copy { flex-basis: 100%; font-size: 12px; } .ce-copy summary { cursor: pointer; color: var(--c-text-dim); min-height: 24px; line-height: 24px; } .ce-copy label { color: var(--c-text-dim); }
+.ce-err { flex-basis: 100%; margin: 0; min-height: 0; color: var(--st-warn, #D69A1E); font-size: 12px; } .ce-err:empty { display: none; }
+.ce .txt-btn { min-height: 24px; }
 .pkm-presets { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px; }
 .pkm-preset { font: 12px var(--font-ui, sans-serif); padding: 3px 8px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; background: transparent; color: var(--c-text, #E8EAED); cursor: pointer; }
 .pkm-preset.on { border-color: var(--accent-ui, #3AA8E4); color: var(--accent-ui, #3AA8E4); }
@@ -33299,7 +33308,7 @@ var EXPV = { view: 'report',
   set: function(v) { EXPV.view = v === 'cost' ? 'cost' : 'report'; if (window.APP_MODE !== 'export') { appSetMode('export'); return; } appSetMode('export'); },
   sync: function() {
     document.querySelectorAll('#expSub button').forEach(function(b) { var on = b.dataset.view === EXPV.view; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
-    var l = document.getElementById('expLead'); if (l) l.textContent = EXPV.view === 'cost' ? 'The cost estimate is in the middle: the build, the furniture and the City fees from one rate set, placed against the Parklet Manual. Export to Excel beside the rate set.' : 'The report is in the middle: choose Schematic or Technical and download the PDF. That is what the City reads.';
+    var l = document.getElementById('expLead'); if (l) l.textContent = EXPV.view === 'cost' ? 'Build, furniture and City fees from one rate set, compared with the Parklet Manual\'s range. Export to Excel beside the rate set.' : 'The report is in the middle: choose Schematic or Technical and download the PDF. That is what the City reads.';
     if (EXPV.view === 'cost' && typeof P101 !== 'undefined') P101.render();
   } };
 P101.SRC = [
@@ -33501,7 +33510,7 @@ P101.estimate = function(DM) {
       if (!isFee(r) && !(L.qty > 0)) return;   // a build line the design does not take
       var f1 = r.ext ? 1 : fx, priced = L.low != null && L.high != null, l = priced ? L.qty * L.low * f1 : null, h = priced ? L.qty * L.high * f1 : null;
       if (!S.shipped && !r.ext && !r.entered) userAll = false;
-      rows.push({ sec: isFee(r) ? 'fee' : 'build', k: r.k + (L.sub ? ':' + L.sub : ''), rk: r.k, item: L.item || r.item, qty: L.qty, unit: L.unit || r.unit, rate: r, rlow: priced ? L.low * f1 : null, rhigh: priced ? L.high * f1 : null, f: L.f, lo: l, hi: h, mat: L.mat || '', src: (L.basis || r.src || '') + (r.ext ? '; the City\'s fee, CAD' : ''), tag: r.ext ? 'Manual 2016' : (r.tag || tag0), city: !!L.city, annual: !!L.annual, fee: isFee(r), ext: !!r.ext, priced: priced });
+      rows.push({ sec: isFee(r) ? 'fee' : 'build', k: r.k + (L.sub ? ':' + L.sub : ''), rk: r.k, item: L.item || r.item, qty: L.qty, unit: L.unit || r.unit, rate: r, rlow: priced ? L.low * f1 : null, rhigh: priced ? L.high * f1 : null, f: L.f, lo: l, hi: h, mat: L.mat || '', src: L.basis || r.src || '', tag: r.ext ? 'Manual 2016' : !priced && !L.city ? 'not priced' : (r.tag || tag0), city: !!L.city, annual: !!L.annual, fee: isFee(r), ext: !!r.ext, priced: priced });
     });
   });
   var furn = P101.furniture(), unpriced = 0;
@@ -33648,12 +33657,14 @@ P101.state = function(est) {
   var how = S.placeholder ? 'Placeholder rates (not Vancouver prices)' : S.tag === 'indicative' ? 'Indicative 2026 rates' : S.shipped ? 'The Parklet Manual\'s 2016 fees only' : (est.userAll ? 'Your rates' : 'Your rates, some not entered yet');
   var pr = est.buildLines ? (est.buildLines - est.unpricedLines) + ' of ' + est.buildLines + ' build lines priced' : 'no build lines';
   var fu = est.unpriced ? ', ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' not priced' : '';
-  var pos = !(R.n > 0) ? '' : est.cmp ? '; the priced build is ' + est.cmp + ' the Parklet Manual\'s typical range for ' + sp : '; nothing priced yet to place against the Parklet Manual\'s typical range for ' + sp;
+  var inc = est.unpricedLines || est.unpriced, pos = !(R.n > 0) ? '' : est.cmp ? '; the priced build is ' + est.cmp + ' the Parklet Manual\'s typical range for ' + sp + (inc ? ', so far: the real build is higher' : '') : '; nothing priced yet to place against the Parklet Manual\'s typical range for ' + sp;
   return how + ': ' + pr + fu + pos + '.';
 };
 P101.rangeLine = function(est) {
   var R = est.range, m = function(v) { return '$' + Math.round(v).toLocaleString('en-CA'); };
-  return 'Parklet Manual typical range for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + ': ' + m(R.lo) + ' - ' + m(R.hi) + ', for design, construction and installation at ' + m(R.per[0]) + ' - ' + m(R.per[1]) + ' a space (Manual p. 18, 2016). ' + R.n + ' space' + (R.n === 1 ? '' : 's') + ' = ' + R.how + '. Not a cost line and not in the total: it only places the build cost' + (est.cmp ? ' (' + est.cmp + ' it)' : '') + '.';
+  return 'The Manual\'s typical range for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + ': ' + m(R.lo) + ' – ' + m(R.hi) + ' (' + m(R.per[0]) + ' – ' + m(R.per[1]) + ' a space, Manual p. 18, 2016). For comparison only, not in the total.';
+};
+P101.spacesNote = function(est) { var R = est.range; return R.n + ' parking space' + (R.n === 1 ? '' : 's') + ' = ' + R.how + '.';
 };
 P101.MATS = [
   { g: 'wood', ids: ['cedar', 'thermowood', 'oak', 'ipe', 'pine', 'weathered_cedar'], dur: 'Good to very good outdoors; ipe and thermowood last longest', maint: 'Oil or stain yearly to keep the colour; boards may be replaced singly', sf: 'Visible pressure-treated lumber not allowed; tropical hardwood and virgin redwood not allowed', van: 'FSC-certified wood suggested (G10, p. 59); recycled or sustainably harvested encouraged (G15, p. 60)' },
@@ -33677,47 +33688,58 @@ P101.render = function() {
   var line = function(r) {
     if (r.furn) {
       var g = r.furn, pr = g.preset, brandUrl = pr ? ({ Vestre: 'https://www.vestre.com', 'mmcité': 'https://www.mmcite.com' }[pr.brand] || '') : '';
-      var hint = r.price ? (r.suggested ? 'suggested: confirm' : (r.price.src || 'entered')) : pr && brandUrl ? "price on request: <a href='" + brandUrl + "' target='_blank' rel='noopener'>" + e(pr.brand) + '</a>' : g.user ? 'enter the price from the spec card' : 'enter a quote';
-      return "<tr data-furn='" + e(g.key) + "'><td>" + e(r.item) + "</td><td class='num'>" + r.qty + "</td><td>each</td><td class='num'><input type='text' inputmode='decimal' class='ce-q' aria-label='" + e(g.item) + ", quote per piece, low' value='" + (r.price ? r.price.low : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.value, this.nextElementSibling.value)'> – <input type='text' inputmode='decimal' class='ce-q' aria-label='" + e(g.item) + ", quote per piece, high' value='" + (r.price ? (r.price.high || '') : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.previousElementSibling.value, this.value)'></td><td class='num'>" + rg(r.lo, r.hi) + '</td><td>' + e(r.mat) + '</td><td>' + hint + '</td></tr>';
+      var hint = r.price ? (r.suggested ? 'suggested: confirm' : (r.price.src || 'entered')) : pr && brandUrl ? "price on request: <a href='" + brandUrl + "' target='_blank' rel='noopener'>" + e(pr.brand) + '</a>' : g.user ? 'the price is on its spec card' : '';
+      return "<tr data-furn='" + e(g.key) + "'><td>" + e(r.item) + "</td><td class='num'>" + r.qty + "</td><td>each</td><td class='num'><input type='text' inputmode='decimal' class='ce-q' placeholder='quote, low' aria-label='" + e(g.item) + ", quote per piece, low' value='" + (r.price ? r.price.low : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.value, this.nextElementSibling.value)'> – <input type='text' inputmode='decimal' class='ce-q' placeholder='quote, high' aria-label='" + e(g.item) + ", quote per piece, high' value='" + (r.price ? (r.price.high || '') : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.previousElementSibling.value, this.value)'></td><td class='num'>" + rg(r.lo, r.hi) + '</td><td>' + e(r.mat) + '</td><td>' + hint + '</td></tr>';
     }
     var cost = r.city ? 'City supplies' : rg(r.lo, r.hi) + (r.annual ? ' a year' : '');
-    return "<tr title='" + e(r.f || '') + "'" + (r.priced || r.city ? '' : " class='ce-none'") + '><td>' + e(r.item) + "</td><td class='num'>" + (r.pct ? '' : r.qty) + '</td><td>' + e(r.pct ? '' : r.unit) + "</td><td class='num'>" + rate(r) + "</td><td class='num'>" + cost + '</td><td>' + e(r.mat || '') + "</td><td><span class='ce-tag'>" + e(r.tag || '') + '</span> ' + e(r.src || '') + '</td></tr>';
+    return "<tr title='" + e(r.f || '') + "'" + ((r.priced || r.city) && (r.qty > 0 || r.pct) ? '' : " class='ce-none'") + '><td>' + e(r.item) + "</td><td class='num'>" + (r.pct ? '' : r.qty) + '</td><td>' + e(r.pct ? '' : r.unit) + "</td><td class='num'>" + rate(r) + "</td><td class='num'>" + cost + '</td><td>' + e(r.mat || '') + "</td><td><span class='ce-tag'>" + e(r.tag || '') + '</span> ' + e(r.src || '') + '</td></tr>';
   };
   var sec = function(id, title, note) { return "<tr class='ce-sec'><th colspan='7' scope='colgroup' id='ceS_" + id + "'>" + e(title) + (note ? " <span class='ce-sec-n'>" + e(note) + '</span>' : '') + '</th></tr>'; };
   var subtot = function(t, lo, hi) { return "<tr class='ce-sub'><td colspan='4'>" + e(t) + "</td><td class='num'>" + rg(lo, hi) + '</td><td colspan=\'2\'></td></tr>'; };
-  var B = est.rows.filter(function(r) { return r.sec === 'build'; }), FU = est.rows.filter(function(r) { return r.sec === 'furn'; }), FE = est.rows.filter(function(r) { return r.sec === 'fee'; });
+  var B = est.rows.filter(function(r) { return r.sec === 'build'; }), FU = est.rows.filter(function(r) { return r.sec === 'furn'; }), FE = est.rows.filter(function(r) { return r.sec === 'fee' && !r.annual; }), AN = est.rows.filter(function(r) { return r.sec === 'fee' && r.annual; });
+  var inc = (est.unpricedLines ? est.unpricedLines + ' line' + (est.unpricedLines === 1 ? '' : 's') : '') + (est.unpricedLines && est.unpriced ? ' and ' : '') + (est.unpriced ? est.unpriced + ' piece' + (est.unpriced === 1 ? '' : 's') : '');
   var fsum = function(k) { return FU.reduce(function(a, r) { return a + (r[k] || 0); }, 0); };
   var h = "<div class='ce'><header class='ce-head'><h1>Cost estimate</h1><p class='ce-state' id='ceState' role='status'>" + e(est.banner) + '</p></header>';
   // the five-second figures
   h += "<dl class='ce-sum'>" +
-    "<div><dt>Build</dt><dd>" + rg(est.build.lo, est.build.hi) + "</dd><dd class='ce-dd-n'>" + (est.unpricedLines || est.unpriced ? (est.unpricedLines ? est.unpricedLines + ' line' + (est.unpricedLines === 1 ? '' : 's') : '') + (est.unpricedLines && est.unpriced ? ' and ' : '') + (est.unpriced ? est.unpriced + ' piece' + (est.unpriced === 1 ? '' : 's') : '') + ' not priced' : 'every line priced') + '</dd></div>' +
+    "<div><dt>Build and furniture</dt><dd>" + rg(est.build.lo, est.build.hi) + "</dd><dd class='ce-dd-n'>" + (inc ? inc + ' not priced yet' : 'every line priced') + '</dd></div>' +
     "<div><dt>City fees</dt><dd>" + rg(est.fees.lo, est.fees.hi) + "</dd><dd class='ce-dd-n'>the Manual's 2016 figures: confirm</dd></div>" +
-    "<div><dt>Total</dt><dd>" + rg(est.lo, est.hi) + "</dd><dd class='ce-dd-n'>" + (est.annual ? 'then ' + m(est.annual.lo) + ' a year' : '') + '</dd></div>' +
-    "<div><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') : '') + '</dd></div></dl>';
+    "<div class='ce-sum-tot'><dt>Total</dt><dd>" + rg(est.lo, est.hi) + "</dd><dd class='ce-dd-n'>" + (est.annual ? 'then ' + m(est.annual.lo) + ' a year' : '') + '</dd></div>' +
+    "<div class='ce-sum-cmp'><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) + (inc ? ', so far' : '') : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + (inc ? '; ' + inc + ' not priced' : '') : '') + '</dd></div></dl>';
   // the controls, grouped
   h += "<div class='ce-ctl' role='group' aria-label='Rates'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.cost().setChosen = true; P101.changed()'>" + sets.map(function(q) { return "<option value='" + q.id + "'" + (q.id === S.id ? ' selected' : '') + '>' + e(q.name) + '</option>'; }).join('') + '</select></label>' +
     "<button type='button' class='ctx-btn' id='ceXlsx' onclick='P101.xlsx()' title='One workbook: the estimate with live totals, the quantities with how each is counted, and the rates with their basis.'>Export to Excel (.xlsx)</button>" +
-    "<span class='ce-ctl-g'><label>New set from this one <input type='text' id='p101Sup' placeholder='supplier' maxlength='40' autocomplete='off'></label> <button type='button' class='ctx-btn' id='p101NewSet' onclick='P101.newSet(document.getElementById(\"p101Sup\").value.trim())'>Create</button></span>" +
-    "<span class='ce-ctl-g'><label>CAD for 1 USD <input type='text' inputmode='decimal' id='p101Fx' value='" + C.fx + "' onchange='var v = pkReadNum(this.value, \"\"); P101.cost().fx = v && v.v > 0 ? v.v : 1.35; P101.changed()'></label>" +
-    " <label>Meters to remove <input type='text' inputmode='numeric' id='p101Meters' value='" + C.meters + "' onchange='var v = parseInt(this.value, 10); P101.cost().meters = v > 0 ? Math.min(12, v) : 0; P101.changed()'></label></span></div>";
+    "<span class='ce-ctl-g'><label>Parking meters to remove <input type='text' inputmode='numeric' id='p101Meters' class='ce-q' value='" + C.meters + "' onchange='P101.setNum(\"meters\", this.value)'></label>" + (S.cur === 'USD' ? " <label>CAD for 1 USD <input type='text' inputmode='decimal' id='p101Fx' class='ce-q' value='" + C.fx + "' onchange='P101.setNum(\"fx\", this.value)'></label>" : '') + '</span>' +
+    "<details class='ce-copy'><summary>Copy as a new rate set</summary><label>Supplier name <input type='text' id='p101Sup' maxlength='40' autocomplete='off'></label> <button type='button' class='ctx-btn' id='p101NewSet' onclick='P101.newSet(document.getElementById(\"p101Sup\").value.trim())'>Copy as new rate set</button></details>" +
+    "<p class='ce-err' id='ceErr' role='status'>" + e(P101._err || '') + '</p></div>';
   h += "<p class='ce-note'>" + e(S.prov) + '</p>';
   // the one table
   h += "<table class='ce-t'><caption class='sr-only'>The estimate: build, furniture, City fees and the total</caption><thead><tr><th scope='col'>Item</th><th scope='col' class='num'>Qty</th><th scope='col'>Unit</th><th scope='col' class='num'>Rate, CAD</th><th scope='col' class='num'>Cost, CAD</th><th scope='col'>Material</th><th scope='col'>Source</th></tr></thead><tbody>" +
     sec('b', 'Build', 'the deck, its edge and the planting, from the take-off') + B.map(line).join('') + subtot('Build lines', B.filter(function(r) { return !r.city && r.lo != null; }).reduce(function(a, r) { return a + r.lo; }, 0), B.filter(function(r) { return !r.city && r.hi != null; }).reduce(function(a, r) { return a + r.hi; }, 0)) +
     sec('f', 'Furniture', 'the schedule; a quote per piece') + (FU.length ? FU.map(line).join('') : "<tr><td colspan='7'>No furniture placed.</td></tr>") + subtot('Furniture', fsum('lo'), fsum('hi')) +
     sec('c', 'City fees', "the Parklet Manual's 2016 figures: confirm against the current schedule") + FE.map(line).join('') + subtot('City fees', est.fees.lo, est.fees.hi) +
-    "<tr class='ce-tot'><td colspan='4'>Total, build and fees</td><td class='num' id='p101Total'>" + rg(est.lo, est.hi) + "</td><td colspan='2'>" + (est.unpricedLines || est.unpriced ? 'what is not priced is not counted as zero' : '') + '</td></tr></tbody></table>';
-  h += "<p class='ce-range' id='p101Range'>" + e(P101.rangeLine(est)) + '</p>';
+    "<tr class='ce-tot'><td colspan='4'>Total, build and fees</td><td class='num' id='p101Total'>" + rg(est.lo, est.hi) + "</td><td colspan='2'>" + (inc ? inc + ' not priced: the real total is higher' : '') + '</td></tr>' +
+    AN.map(function(a) { return "<tr class='ce-sub'><td colspan='4'>Then each year: " + e(a.item.replace(/ \(each year after\)/, '').toLowerCase()) + "</td><td class='num'>" + rg(a.lo, a.hi) + "</td><td colspan='2'>" + e(a.src || '') + '</td></tr>'; }).join('') + '</tbody></table>';
+  h += "<p class='ce-range' id='p101Range'>" + e(P101.rangeLine(est)) + "</p><p class='ce-note'>" + e(P101.spacesNote(est)) + '</p>';
   h += "<p class='ce-note'>Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). City fees: <a href='" + P101.FEE_URL + "' target='_blank' rel='noopener'>vancouver.ca, parklets</a>. An estimate to plan a budget, not a quote.</p>";
   // quantities
-  h += "<h2 class='ce-h2'>Quantities</h2><p class='ce-note'>A take-off from this design's model; each line says how it is counted. Joists every <input type='text' inputmode='numeric' id='p101Sp' class='ce-q' aria-label='Joist spacing, mm' value='" + Math.round(C.spacing * 1000) + "' onchange='var v = parseInt(this.value, 10); if (v >= 200 && v <= 800) { P101.cost().spacing = v / 1000; P101.changed(); }'> mm; decking waste <input type='text' inputmode='numeric' id='p101Waste' class='ce-q' aria-label='Decking waste, percent' value='" + Math.round(C.waste * 100) + "' onchange='var v = parseInt(this.value, 10); if (v >= 0 && v <= 40) { P101.cost().waste = v / 100; P101.changed(); }'> %.</p>" +
+  h += "<h2 class='ce-h2'>Quantities</h2><p class='ce-note'>A take-off from this design's model; each line says how it is counted. Joists every <input type='text' inputmode='numeric' id='p101Sp' class='ce-q' aria-label='Joist spacing, mm' value='" + Math.round(C.spacing * 1000) + "' onchange='P101.setNum(\"spacing\", this.value)'> mm; decking waste <input type='text' inputmode='numeric' id='p101Waste' class='ce-q' aria-label='Decking waste, percent' value='" + Math.round(C.waste * 100) + "' onchange='P101.setNum(\"waste\", this.value)'> %.</p>" +
     "<table class='ce-t ce-qt'><thead><tr><th scope='col'>Item</th><th scope='col' class='num'>Qty</th><th scope='col'>Unit</th><th scope='col'>How it is counted</th></tr></thead><tbody>" +
     Q.map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + '</td></tr>'; }).join('') +
     P101.city(DM).map(function(c) { return '<tr><td>' + e(c.item) + "</td><td class='num'>" + e(c.n) + '</td><td>ea</td><td>supplied by the City (Manual p. 48)</td></tr>'; }).join('') + '</tbody></table>';
   // materials
-  h += "<h2 class='ce-h2'>Materials</h2><table class='ce-t'><thead><tr><th scope='col'>Material</th><th scope='col'>Durability</th><th scope='col'>Maintenance</th><th scope='col'>San Francisco (advisory)</th><th scope='col'>Vancouver Manual</th></tr></thead><tbody>" +
-    P101.MATS.map(function(mm) { return '<tr><td>' + mm.ids.map(function(id) { var i = flMatInfo(id); return "<span class='ce-sw' style='background:" + i.color + "'></span>" + e(i.label); }).join('<br>') + "<br><button type='button' class='txt-btn' onclick='P101.toMaterials()'>Design › Materials</button></td><td>" + e(mm.dur) + '</td><td>' + e(mm.maint) + '</td><td>' + e(mm.sf) + '</td><td>' + e(mm.van) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  h += "<h2 class='ce-h2'>Materials</h2><table class='ce-t'><thead><tr><th scope='col'>Family</th><th scope='col'>Material</th><th scope='col'>Durability</th><th scope='col'>Maintenance</th><th scope='col'>San Francisco (advisory)</th><th scope='col'>Vancouver Manual</th></tr></thead><tbody>" +
+    P101.MATS.map(function(mm) { var dash = function(t) { return t && t !== '-' ? e(t) : '—'; }; return '<tr><td>' + e(P101.GROUP[mm.g] || mm.g) + '</td><td>' + mm.ids.map(function(id) { var i = flMatInfo(id); return "<span class='ce-sw' style='background:" + i.color + "'></span>" + e(i.label); }).join('<br>') + '</td><td>' + dash(mm.dur) + '</td><td>' + dash(mm.maint) + '</td><td>' + dash(mm.sf) + '</td><td>' + dash(mm.van) + '</td></tr>'; }).join('') + "</tbody></table><p class='ce-note'><button type='button' class='txt-btn' onclick='P101.toMaterials()'>Choose the parklet's materials in Design › Materials</button></p></div>";
   host.innerHTML = h;
+};
+P101.GROUP = { wood: 'Timber', other: 'Composite and recycled', metal: 'Metal', powder: 'Powder coat', mineral: 'Mineral' };
+P101.setNum = function(k, v) {
+  var q = typeof pkReadNum === 'function' ? pkReadNum(String(v), '') : { v: parseFloat(v) }, n = q && !q.err && !q.empty ? q.v : NaN, C = P101.cost(), why = '';
+  if (k === 'spacing') { if (n >= 200 && n <= 800) C.spacing = n / 1000; else why = 'Joist spacing is 200 to 800 mm: ' + v + ' was not used.'; }
+  else if (k === 'waste') { if (n >= 0 && n <= 40) C.waste = n / 100; else why = 'Decking waste is 0 to 40 %: ' + v + ' was not used.'; }
+  else if (k === 'meters') { if (n >= 0 && n <= 12 && Math.round(n) === n) C.meters = n; else why = 'Parking meters to remove is a whole number from 0 to 12: ' + v + ' was not used.'; }
+  else if (k === 'fx') { if (n > 0 && n < 5) C.fx = n; else why = 'The exchange rate is a number above 0: ' + v + ' was not used.'; }
+  P101._err = why; P101.changed();
 };
 P101.toMaterials = function() { NAV.sub = 'design'; appSetMode('design'); setTimeout(function() { var m = document.getElementById('dkcdMat'); if (m && m.classList.contains('dk-collapsed') && typeof dkToggle === 'function') dkToggle('dkcdMat'); if (m) m.scrollIntoView({ block: 'start' }); }, 200); };
 // every sync redraws the tab when it is open (a new deck width: every quantity and the section in one sync)
