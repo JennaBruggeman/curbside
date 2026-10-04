@@ -9328,6 +9328,7 @@ function planMU() {
   if (_pvFurnDragging || _pvFurnCornerDragging) {
     var _muInst = (_pvFurnDragging && window.FL3D) ? window.FL3D.placed.find(function(i) { return i.id === _pvFurnDragging.instId; }) : null;
     if (_muInst && _muInst.archetype && flSnapSeat(_muInst)) { flRebuildInstMesh(_muInst); _dmSyncObject(_muInst); }
+    if (_muInst && typeof cadToolsUpdate === 'function') cadToolsUpdate(_muInst);   // Along / Across now, not at reselect (Brief 30 §8C, row 40)
     _pvFurnDragging = null;
     _pvFurnCornerDragging = null;
     _pvActiveSnap = null;
@@ -14280,7 +14281,8 @@ function fl3DGrabMove(e) {
 function fl3DGrabEnd() {
   var G = FL3D_GRAB; if (!G) return; FL3D_GRAB = null;
   if (_3d && _3d.controls) _3d.controls.enabled = true;
-  if (G.moved) { try { syncDesignModel('furniture'); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon(); }
+  if (G.moved) { try { syncDesignModel('furniture'); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon();
+    var gi = G.inst; if (gi && typeof cadToolsUpdate === 'function') cadToolsUpdate(gi); }   // (Brief 30 §8C, row 40)
 }
 
 // Brief 27 item 7 (triage row 5): "Place on deck". Place armed a mode that only a click in the 3D view ended (its tooltip
@@ -14548,14 +14550,27 @@ function renderFurnitureInfoProps(obj) {
     _rpS('ACTIONS')+(sp?'<button class="rp-btn" onclick="fvPlaceObj(\''+obj.id+'\')">Place in Design</button>':'<div style="font-size:11px;color:#666">No 3D geometry</div>');
 }
 
+// (Brief 30 §8C, triage row 40) a copy carries the piece's rotation (a 135° bench came out at 0°), stays on the deck,
+// and is selected; both Duplicate buttons use it
+function flDuplicate(inst) {
+  if (!inst || typeof fl3DPlaceAt !== 'function') return null;
+  var n0 = FL3D.placed.length, rot = typeof inst.userRotation === 'number' ? inst.userRotation : (inst.rotationY || 0);
+  fl3DPlaceAt(inst.objId, (inst.x || 0) + 0.5, (inst.z || 0) + 0.5, { archetype: inst.archetype, params: inst.params, materials: inst.materials, meshUrl: inst.meshUrl });
+  var n = FL3D.placed.length > n0 ? FL3D.placed[FL3D.placed.length - 1] : null; if (!n) return null;
+  n.userRotation = n.rotationY = rot; if (typeof applyFurnitureTransform === 'function') applyFurnitureTransform(n);
+  if (typeof flKeepOnDeck === 'function' && (typeof FLZ === 'undefined' || FLZ.zone(n.objId) === 'deck')) flKeepOnDeck(n);
+  if (typeof _dmSyncObject === 'function') _dmSyncObject(n);
+  try { syncDesignModel('furniture'); } catch (e) {}
+  if (typeof fl3DSelect === 'function') fl3DSelect(n.id);
+  if (typeof renderPlanView === 'function') renderPlanView();
+  if (typeof cadToolsUpdate === 'function') cadToolsUpdate(n);
+  return n;
+}
 function fvDuplicateSelected() {
-  if (FL3D.selId===null||!_3d) return;
+  if (FL3D.selId===null) return;
   var inst=FL3D.placed.find(function(i){return i.id===FL3D.selId;});
-  if (!inst) return;
-  fl3DPlaceAt(inst.objId,inst.mesh.position.x+0.5,inst.mesh.position.z+0.5,{archetype:inst.archetype,params:inst.params,materials:inst.materials,meshUrl:inst.meshUrl});
-  // fl3DPlaceAt already calls renderCrossSection; select new instance
-  var n=FL3D.placed.find(function(i){return i.id===FL3D.selId;});
-  if (n) setSelection('furniture',n.id,n);
+  var n = flDuplicate(inst);
+  if (n && typeof setSelection === 'function') setSelection('furniture',n.id,n);
 }
 
 // Connect 3D furniture selection to right panel
@@ -15435,7 +15450,7 @@ function cadAction(type) {
     if (typeof fl3DRotateSelected === 'function') fl3DRotateSelected(45);
     if (inst) cadToolsUpdate(inst);
   } else if (type === 'duplicate') {
-    if (inst && typeof fl3DPlaceAt === 'function') fl3DPlaceAt(inst.objId, (inst.x||0)+0.5, (inst.z||0)+0.5, {archetype:inst.archetype, params:inst.params, materials:inst.materials, meshUrl:inst.meshUrl});
+    if (inst) flDuplicate(inst);   // the rotation too (Brief 30 §8C, row 40)
   } else if (type === 'delete') {
     if (typeof fl3DDeleteSelected === 'function') fl3DDeleteSelected();
     cadToolsUpdate(null);
