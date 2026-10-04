@@ -28286,6 +28286,7 @@ RVZP._gallery = async function() {
       <button type='submit' class='sm-btn' id='smGo'>Search</button>
       <ul class='sm-results' id='smResults' hidden></ul>
     </form>
+    <div class='sm-keys' id='smKeys' role='group' aria-label='Streets near this place: pick one by its side' hidden></div>
     <div class='sm-body'><div id='smMap'></div><p class='sm-zoom-note' id='smZoomNote' hidden>Zoom in to see site features</p>
       <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><p class='gis-note gis-zoom' id='gisZoomNote' hidden>Zoom in to see site features (hydrants, stops, trees show from zoom 15).</p><div id='smLayersList'></div></aside></div>
     <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
@@ -28510,7 +28511,8 @@ SM.search = async function() {
       var li = ev.target.closest('li'), r = li && SM._res[+li.getAttribute('data-i')]; if (!r) return;
       ul.hidden = true; SM._addr = r.display_name.split(',').slice(0, 3).join(',').trim();
       if (SM.map) SM.map.flyTo({ center: [+r.lon, +r.lat], zoom: 18 });
-      SM.status('<b>' + SM.esc(SM._addr) + '</b>. Now click the street where the parklet goes.');
+      SM.status('<b>' + SM.esc(SM._addr) + '</b>. Now click the street where the parklet goes, or pick it below.');
+      SM.keyList(+r.lat, +r.lon);   // the pick without a mouse (Brief 30 §8B)
     };
     SM.status(res.length ? 'Pick a result.' : 'No match.');
   } catch (e) { SM.status(e.offline ? SM.offlineText : SM.esc(e.message)); }
@@ -28575,6 +28577,33 @@ SM.hoverAt = function(lat, lon) {
     SM.hovered = sn ? { wayId: sn.way.id, name: (sn.way.tags || {}).name || '' } : null;
     SM.map.getCanvas().style.cursor = sn ? 'pointer' : '';
   });
+};
+// ── The pick without a mouse (Brief 30 §8B, triage row 9) ─────────────────────────────────────────────────────────────
+// The map is not a keyboard target, so "Use this location" stayed disabled for a keyboard user. After a search result,
+// the named streets within 40 m are listed as buttons, one per side ("Robson Street, south-west side"); a button makes the
+// same pick a click on the street and a click on its side make.
+SM.keyList = async function(lat, lon) {
+  var el = document.getElementById('smKeys'); if (!el || typeof GIS === 'undefined') return;
+  el.hidden = true; el.innerHTML = '';
+  var ways; try { ways = await GIS.waysNear(lat, lon); } catch (e) { ways = null; } if (!ways) return;
+  var seen = {}, list = [];
+  ways.forEach(function(w) { var t = w.tags || {}; if (!t.name || /^(service|footway|path|cycleway)$/.test(t.highway || '')) return; var sn = SM.snap([w], lat, lon); if (!sn || sn.dist > 40) return; if (!seen[t.name] || sn.dist < seen[t.name].sn.dist) seen[t.name] = { w: w, sn: sn }; });
+  Object.keys(seen).forEach(function(k) { list.push(seen[k]); }); list.sort(function(a, b) { return a.sn.dist - b.sn.dist; }); list = list.slice(0, 3);
+  if (!list.length) return;
+  SM._keys = list;
+  el.innerHTML = "<span class='sm-keys-h'>Or pick the street and side:</span>" + list.map(function(q, i) {
+    return siteSides(q.sn.bearing).map(function(sd, j) { return "<button type='button' class='sm-btn sm-key' onclick='SM.keyPick(" + i + ',' + j + ")'>" + SM.esc(q.w.tags.name) + ', ' + sd.name + ' side</button>'; }).join('');
+  }).join('');
+  el.hidden = false;
+};
+SM.keyPick = function(i, j) {
+  var q = SM._keys && SM._keys[i]; if (!q) return;
+  var sn = q.sn, t = q.w.tags || {}, idx = GIS._idx || {}, at = (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || new Date().toISOString();
+  SM.pick = { snap: sn, wayId: q.w.id, name: t.name || '', highway: t.highway || '', tags: t, fetchedAt: at, via: 'cells' };
+  if (SM.map) { SM.map.getSource('smWay').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: q.w.geometry.map(function(p) { return [p.lon, p.lat]; }) } }); if (SM._mk) SM._mk.remove(); SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([sn.lon, sn.lat]).addTo(SM.map); }
+  var sd = siteSides(sn.bearing)[j], T = SM.enu(sn.lat, sn.lon), b = sd.bearing * Math.PI / 180, p = T.from(6 * Math.sin(b), 6 * Math.cos(b));
+  SM.setSide(p.lat, p.lon);   // the side, as a click 6 m out on it would
+  var u = document.getElementById('smUse'); if (u && !u.disabled) u.focus();
 };
 SM.setSide = function(lat, lon) {
   var sn = SM.pick.snap, T = SM.enu(sn.lat, sn.lon), v = T.to(lat, lon);
@@ -29808,6 +29837,7 @@ FLZ.hide = function() { var g = document.getElementById('_fdZonePrev'); if (g) g
 .sm-body { position: relative; }
 .sm-zoom-note { position: absolute; left: 10px; top: 10px; margin: 0; padding: 4px 8px; font: 12px/1.3 var(--font-ui, sans-serif); color: #1A1A1A; background: rgba(255,255,255,.92); border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.2); pointer-events: none; z-index: 2; }
 .sm-zoom-note[hidden], .gis-zoom[hidden] { display: none; }
+.sm-keys { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 12px; } .sm-keys[hidden] { display: none; } .sm-keys-h { font-size: 12px; color: var(--c-text-dim, #9AA0A6); margin-right: 4px; }
 /* Brief 30 §2: the eligibility band's legend, hover and pick-card line */
 .gis-legend { grid-column: 1 / -1; padding: 2px 0 2px 22px; font-size: 11px; color: var(--c-text-dim, #9AA0A6); line-height: 1.5; }
 .gis-leg-i { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; }
@@ -31793,6 +31823,18 @@ function uiApplyTips(root) {
 }
 /* the left column: the Selection, Grid and Move blocks only with something selected */
 #cadTools.cad-empty { display: none !important; }
+/* Brief 30 §8B (access): with a piece selected the Selection panel filled the column at 200 % and nothing scrolled (its last
+   control 500 px below the window; the panel under it squeezed to 0): it scrolls in its own box, at most half the window */
+#cadTools { max-height: 50vh; overflow-y: auto; flex: 0 0 auto; }
+#ctxPanel .ctx-section { min-height: 120px; }
+/* Brief 30 §8B (access): forced colours drop the fills that marked the active tab, a pressed toggle, the current step and a
+   chosen swatch; an outline in the system highlight marks them instead */
+@media (forced-colors: active) {
+  .ttab.active, .ss-step.on, [aria-current='step'], [aria-pressed='true'], .seg-btn.active, .vpill.active, .pkm-preset.on, .ske-tool.on, .p101-nav button.on, .dk-panel-hdr[aria-expanded='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .badge, .chk-prov, .sm-face, .ax-card { border: 1px solid CanvasText; }
+  :focus-visible { outline: 2px solid Highlight !important; outline-offset: 1px; }
+  .pkm-sw button, .p101-sw, .gis-sw, .gis-leg-sw { forced-color-adjust: none; }
+}
 .cad-hd { font: 600 13px var(--font-ui); color: var(--muted); margin: 2px 0 4px; }
 .cad-pad { display: grid; grid-template-columns: 1fr 64px 1fr; gap: 2px; margin-bottom: 6px; }
 .cad-pad button, .cad-by button { font: 500 12px var(--font-ui); padding: 3px 0; border: 1px solid var(--rule); border-radius: 2px; background: var(--card); color: var(--ink); cursor: pointer; }
