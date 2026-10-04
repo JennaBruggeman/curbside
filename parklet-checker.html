@@ -21096,21 +21096,23 @@ AX.CFG_KEY = 'px_ax_cfg_v1';
 // writes no provenance and no site fact; every applied change is a card (before -> after, the checks that changed) with
 // Undo (10 deep). Its key is the user's (Settings > Connections), straight to Anthropic; nothing it says reaches the
 // report, a save or an export, and nothing is logged anywhere but this browser's console.
-AX.cfg = function() { var c = {}; try { c = JSON.parse(localStorage.getItem(AX.CFG_KEY) || '{}') || {}; } catch(e) {} return { model: c.model, apiKey: CONN.get('anthropic') }; };
+AX.cfg = function() { var c = {}; try { c = JSON.parse(localStorage.getItem(AX.CFG_KEY) || '{}') || {}; } catch(e) {} return { model: c.model, rationales: c.rationales === true, apiKey: CONN.get('anthropic') }; };
+AX.putCfg = function(o) { var c = {}; try { c = JSON.parse(localStorage.getItem(AX.CFG_KEY) || '{}') || {}; } catch(e) {} Object.assign(c, o); try { localStorage.setItem(AX.CFG_KEY, JSON.stringify(c)); } catch(e) {} };
+// (Brief 30 follow-up) a sentence per generated scheme from the model: about 6 calls a run on the user's key, so asked for
+AX.setRationales = function(on) { AX.putCfg({ rationales: !!on }); var b = document.getElementById('axWhy'); if (b) b.checked = !!on; };   // from the next Generate on: ticking it spends nothing
 AX.saveSettings = function() {
-  var c = { model: (document.getElementById('axModel').value || '').trim() || AX.DEFAULT_MODEL };
-  try { localStorage.setItem(AX.CFG_KEY, JSON.stringify(c)); } catch(e) {}
+  AX.putCfg({ model: (document.getElementById('axModel').value || '').trim() || AX.DEFAULT_MODEL });   // (keeps the rationale choice)
   AX.refreshLbl(); AX.toggleSettings(false); pkToast('Assistant settings saved', 'success');
 };
-AX.loadSettingsUI = function() { var c = AX.cfg(), m = document.getElementById('axModel'); if (m) m.value = c.model || AX.DEFAULT_MODEL; AX.refreshLbl(); AX.gate(); };
+AX.loadSettingsUI = function() { var c = AX.cfg(), m = document.getElementById('axModel'), w = document.getElementById('axWhy'); if (m) m.value = c.model || AX.DEFAULT_MODEL; if (w) w.checked = c.rationales; AX.refreshLbl(); AX.gate(); };
 AX.refreshLbl = function() { var c = AX.cfg(), l = document.getElementById('axModelLbl'); if (l) { l.textContent = 'Claude'; l.title = 'Model: ' + (c.model || AX.DEFAULT_MODEL) + ' (Settings)'; } };   // (Brief 30 §12)
 AX.toggleSettings = function(force) { var s = document.getElementById('axSettings'); if (!s) return; var on = force === undefined ? !s.classList.contains('open') : !!force; s.classList.toggle('open', on); };
 AX.configured = function() { return CONN.has('anthropic'); };
 // without a key: the one Connections prompt in place of the chat (nothing greyed)
 AX.gate = function() {
-  var g = document.getElementById('axGate'), row = document.getElementById('axInputRow'), ch = document.getElementById('axChips'), ms = document.getElementById('axMsgs'), ok = AX.configured();
+  var g = document.getElementById('axGate'), row = document.getElementById('axInputRow'), ch = document.getElementById('axChips'), ms = document.getElementById('axMsgs'), wy = document.getElementById('axWhyRow'), ok = AX.configured();
   if (g) { g.hidden = ok; g.innerHTML = ok ? '' : CONN.gate('anthropic'); }
-  if (row) row.hidden = !ok; if (ch) ch.hidden = !ok; if (ms) ms.hidden = !ok;
+  if (row) row.hidden = !ok; if (wy) wy.hidden = !ok; if (ch) ch.hidden = !ok; if (ms) ms.hidden = !ok;
   if (ok && ms && !ms.childElementCount) AX.welcome();
 };
 // the block in Generate's left panel (the last), wrapped as the other panels are
@@ -21122,6 +21124,7 @@ AX.mount = function() {
   sec.innerHTML = "<div class='sb-section-lbl'>Design assistant</div><div id='axBody'>" +
     "<div class='ax-bar'><span class='ax-sub' id='axModelLbl'></span><button type='button' class='ax-ib' title='The model the assistant uses' onclick='AX.toggleSettings()'>&#9881;</button><button type='button' class='ax-ib' title='Clears the conversation (the design is not changed)' onclick='AX.clear()'>&#8635;</button></div>" +
     "<div id='axSettings'><label for='axModel'>Model</label><input id='axModel' type='text' placeholder='" + AX.DEFAULT_MODEL + "'><div class='ax-warn'>Your Anthropic key is in <button type='button' class='conn-go' onclick='CONN.open(\"anthropic\")'>Settings &rsaquo; Connections</button>: kept in this browser only, sent straight to Anthropic.</div><div class='ax-row'><button type='button' class='ctx-btn' onclick='AX.saveSettings()'>Save</button><button type='button' class='ctx-btn' onclick='AX.toggleSettings()'>Close</button></div></div>" +
+    "<label class='ax-why' id='axWhyRow' hidden><input type='checkbox' id='axWhy' onchange='AX.setRationales(this.checked)'> Write a rationale for each scheme (uses your key, about 6 calls)</label>" +
     "<div class='ax-gate' id='axGate' hidden></div><div id='axMsgs' aria-live='polite'></div><div class='ax-chips' id='axChips'></div>" +
     "<div id='axInputRow'><textarea id='axInput' rows='2' placeholder='Describe a change, or ask why a check fails'></textarea><button type='button' id='axSend' onclick='AX.send()'>Send</button></div></div>";
   host.appendChild(sec);
@@ -23829,7 +23832,7 @@ GEN.renderCards = function() {
 // Optional: the Assistant rewrites the one-line rationale from the metrics (text only - the
 // geometry is the rules'). Without an API key or proxy the templated sentence stays.
 GEN.writeRationales = function() {
-  if (typeof AX === 'undefined' || !AX.configured || !AX.configured()) return;
+  if (typeof AX === 'undefined' || !AX.configured || !AX.configured() || !AX.cfg().rationales) return;   // (Brief 30 follow-up: off unless asked for)
   var R = GEN.result, c = AX.cfg(), url = c.proxy || AX.API_URL, headers = { 'content-type': 'application/json' };
   if (!c.proxy) { headers['x-api-key'] = c.apiKey; headers['anthropic-version'] = '2023-06-01'; headers['anthropic-dangerous-direct-browser-access'] = 'true'; }
   R.schemes.forEach(function(sc, i) {
@@ -33515,6 +33518,12 @@ RPT.sheetBudget = function(d) {
 .pk-form-hint { color: var(--c-text-dim) !important; }
 .sfc-rowf .sfc-dim, #sfcDone .sfc-dim { color: var(--d-mid); }
 #workspaceFacts .sfc-dim { color: var(--c-text-dim); }
+</style>
+<style>
+/* the rationale choice in the assistant block (Brief 30 follow-up) */
+.ax-why { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.35; color: var(--c-text-dim); margin: 4px 0 8px; cursor: pointer; }
+.ax-why input { margin: 1px 0 0; width: 16px; height: 16px; flex: none; }
+.ax-why[hidden] { display: none; }
 </style>
 <style>
 /* Site facts (Brief 30 §9) */
