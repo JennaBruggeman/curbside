@@ -18398,7 +18398,7 @@ var SAVE = {
     if (typeof _dsDesignApplied === 'function' && !_dsDesignApplied()) return;   // the saved design is still being restored (Brief 29b S1)
     if (!SAVE.signedIn()) {
       if (typeof _dsLocalT !== 'undefined') clearTimeout(_dsLocalT);
-      try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); SAVE.local(); } catch (e) { SAVE.fail(e); }
+      TAB2.localWrite(function() { try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); SAVE.local(); } catch (e) { SAVE.fail(e); } });
       return;
     }
     if (!pkCurrentDesignId) {
@@ -18467,8 +18467,8 @@ function _dsScheduleLocal() {
   _dsLocalT = setTimeout(function() {
     if (!_dsDesignApplied()) return;
     _dsLocalBusy = true;   // pkSerialize calls saveSettings: don't reschedule from inside it
-    try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); } catch (e) {}
-    _dsLocalBusy = false;
+    var _st = getDesignState(); _dsLocalBusy = false;
+    TAB2.localWrite(function() { try { localStorage.setItem('pkt-design-state', JSON.stringify(_st)); } catch (e) {} });   // (Brief 30 §8B)
   }, 400);
 }
 // Brief 27 item 4 (triage row 3): every edit is saved. The save runs from saveSettings (the local design state, and the
@@ -18509,6 +18509,7 @@ window.addEventListener('pagehide', function() {
     return;
   }
   clearTimeout(_dsLocalT);
+  if (TAB2.stale) return;   // another tab wrote it since: its newer version stays (Brief 30 §8B)
   try { localStorage.setItem('pkt-design-state', JSON.stringify(getDesignState())); } catch (e) {}
 });
 window.addEventListener('load', function() {
@@ -19074,6 +19075,35 @@ async function pkCreateDesign(name, address) {
 }
 
 var pkSaveAgain = false;
+// ── Two tabs on one design (Brief 30 §8B) ──────────────────────────────────────────────────────────────────────────────
+// The last save won, silently: two tabs (or two browsers) on one design overwrote each other. Now the tab about to write
+// over a newer save asks first: Reload (that version; this tab's changes since then are not kept) or Overwrite (this
+// tab's version). Signed in: the account row's updated_at against the one this tab last loaded or wrote. Signed out: the
+// other tab's write of this browser's design, heard through the storage event.
+var TAB2 = { stale: null, asking: false };
+window.addEventListener('storage', function(e) {
+  if (e.key !== 'pkt-design-state' || !e.newValue || (typeof pkCurrentUser !== 'undefined' && pkCurrentUser)) return;
+  TAB2.stale = { at: new Date().toISOString() };
+});
+TAB2.ask = function(at, onOverwrite, onReload) {
+  if (TAB2.asking) return; TAB2.asking = true;
+  var t = new Date(at), hm = isNaN(t) ? '' : ' at ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  var old = document.getElementById('tab2Dlg'); if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend', "<div class='pk-modal-overlay active' id='tab2Dlg' role='dialog' aria-modal='true' aria-labelledby='tab2T' style='z-index:10001'><div class='pk-dialog-box'>" +
+    "<div class='pk-dialog-title' id='tab2T'>This design was changed elsewhere</div><div class='pk-dialog-body'>It was saved from another tab or browser" + hm + ". Reload to open that version (the changes in this tab since then are not kept), or overwrite it with this tab's version.</div>" +
+    "<div class='pk-dialog-btns' style='gap:6px;'><button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' id='tab2Reload'>Reload that version</button><button type='button' class='pk-btn-danger' style='width:auto;margin:0;' id='tab2Over'>Overwrite with this tab's</button></div></div></div>");
+  var d = document.getElementById('tab2Dlg'), done = function(fn) { d.remove(); TAB2.asking = false; fn(); };
+  document.getElementById('tab2Reload').onclick = function() { done(onReload); };
+  document.getElementById('tab2Over').onclick = function() { done(onOverwrite); };
+  document.getElementById('tab2Reload').focus();
+  console.warn('[save] this design was saved elsewhere' + hm + ': asking before writing over it');
+};
+// signed out: write this browser's design, unless another tab wrote it since (then ask)
+TAB2.localWrite = function(fn) {
+  if (!TAB2.stale) { fn(); return true; }
+  var at = TAB2.stale.at; TAB2.ask(at, function() { TAB2.stale = null; fn(); }, function() { TAB2.stale = null; location.reload(); });
+  return false;
+};
 async function pkSaveDesign(immediate) {
   if (!pkSB || !pkCurrentUser) {   // signed out: this browser only
     pkSaveLocal(pkSerialize());
@@ -19103,6 +19133,11 @@ async function pkSaveDesign(immediate) {
     pkSaveLocal(data);
     try { localStorage.setItem('parklet-state', JSON.stringify(typeof state !== 'undefined' ? state : {})); } catch(_e) {}
 
+    // (Brief 30 §8B) another tab or browser saved since this tab loaded or wrote it: ask before writing over it
+    var _base = pkCurrentDesignMeta && pkCurrentDesignMeta.id === pkCurrentDesignId ? pkCurrentDesignMeta.updated_at : null;
+    if (_base) { var _rr = await pkSB.from('designs').select('updated_at').eq('id', pkCurrentDesignId).single();
+      if (_rr && !_rr.error && _rr.data && Date.parse(_rr.data.updated_at) > Date.parse(_base) + 1000) { var _at = _rr.data.updated_at; pkSaving = false; SAVE.idle();
+        TAB2.ask(_at, function() { pkCurrentDesignMeta.updated_at = _at; pkSaveDesign(true); }, function() { pkSaveDesign._fp = null; pkLoadDesign(pkCurrentDesignId); }); return; } }
     // the row comes back: an update row-level security refuses returns no error and changes nothing, which was a
     // false "Saved" (Brief 27 item 0)
     var res = await pkSB.from('designs').update(payload).eq('id', pkCurrentDesignId).eq('user_id', pkCurrentUser.id).select('id, updated_at');
@@ -19110,6 +19145,7 @@ async function pkSaveDesign(immediate) {
     if (!res.data || !res.data.length) throw { noRow: true };
     SAVE.saved(res.data[0].updated_at || payload.updated_at);
     pkSaveDesign._fp = fp;
+    if (pkCurrentDesignMeta && pkCurrentDesignMeta.id === pkCurrentDesignId) pkCurrentDesignMeta.updated_at = res.data[0].updated_at || payload.updated_at;   // this tab's own write (Brief 30 §8B)
     // Update in-memory list
     var idx = pkAllDesigns.findIndex(function(d) { return d.id === pkCurrentDesignId; });
     if (idx >= 0) Object.assign(pkAllDesigns[idx], { name: data.project.name, description: payload.description, updated_at: payload.updated_at });
