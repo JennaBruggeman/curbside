@@ -1117,8 +1117,10 @@ an advisory above it, no cap; deck flush with the curb. They are done with §2.
     live, Plan at cd, chamfered deck, road surfaces, posts the full length, sheet fill, sample under 1 s.
   - Every sheet: 0 overlaps.
 
-## Later brief: 3D full city (Brief 25 item 24, deferred by Jenna 2026-10-01)
-The 3D view shows the city everywhere, with no cut-off at the import radius. Building cells load around the camera as it moves: far cells as simple extruded blocks, near cells in full detail, and the same for streets and trees. The import radius only decides what gets sections and checks. It needs a streaming loader for the 3D scene (the site map's cell loader, `GIS.load` / `GIS.ensure`, is the starting point) and a level-of-detail rule. Brief 25 keeps the current 3D extent.
+## Removed from Brief 30 scope (Brief 30 commit 0)
+- Full-city 3D (Brief 25 item 24, deferred 2026-10-01): not needed.
+- Survey CSV validation (a duplicate row turned a 12 % slope into a pass): the survey import itself is removed (Brief 30 §10).
+- Notch and free-polygon work on the deck shape editor: Brief 30 §3 replaces the editor with a rectangle plus optional 45° corners.
 
 ## Brief 29: clarity round 2 (branch `clarity-2` from master after v0.14, 2026-10-01; one commit per item; not merged)
 §1–§5 done in order. Merge on Jenna's approval, then v0.15.
