@@ -28605,7 +28605,8 @@ SM.onClick = async function(lat, lon) {
   SM.status('Finding the street...');
   try {
     // the streets from the site data's cells (Brief 24 B6): no Overpass request
-    var ways = await GIS.waysNear(lat, lon), idx = GIS._idx || {}, at = (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || new Date().toISOString();
+    // (Brief 30 §8C, triage S16) 'Finding the street...' once never resolved: after 15 s it says so and the click can be made again
+    var ways = await Promise.race([GIS.waysNear(lat, lon), new Promise(function(res, rej) { setTimeout(function() { var e = new Error('The street data did not arrive within 15 s. Check the connection, then click the street again.'); rej(e); }, 15000); })]), idx = GIS._idx || {}, at = (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || new Date().toISOString();
     if (ways === null) {   // outside the site data: the point as clicked, the axis north-south until it is set in the Site tab
       var nd = { way: { id: 0, tags: {}, geometry: [{ lat: lat, lon: lon }] }, lat: lat, lon: lon, dist: 0, bearing: 0, dir: 0 };
       SM.pick = { snap: nd, wayId: 0, name: '', highway: '', tags: {}, fetchedAt: new Date().toISOString(), via: 'none' };
