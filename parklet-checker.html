@@ -660,7 +660,6 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <div class='seg-group chk-filters' role='group' aria-label='Which checks to show'>
     <button type='button' class='seg-btn active' data-f='all' onclick='chkFilter("all")' title='Shows every check.'>All</button><button type='button' class='seg-btn' data-f='fail' onclick='chkFilter("fail")' title='Shows only the checks that fail.'>Failing</button><button type='button' class='seg-btn' data-f='prov' onclick='chkFilter("prov")' title='Shows only the checks whose result rests on an estimate or imported data: provisional until measured.'>Provisional</button><button type='button' class='seg-btn' data-f='pass' onclick='chkFilter("pass")' title='Shows only the checks that pass.'>Passing</button>
   </div>
-  <p class='hint chk-counts' id='chkCounts' aria-live='polite'></p>
 </div>
 <div class='sb-section' id='chkSide' hidden><button type='button' class='ctx-btn ctx-btn-full' id='chkConfirmBtn' onclick='SFG.review(false)'>Review site facts</button></div>
 </div><div class='ctx-section' id='ctxSettings' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Settings</span></div>
@@ -760,15 +759,11 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div id='workspaceGenerate' style='display:none'><div class='gen-bar' id='genBar'></div><div class='gen-grid' id='genGrid'></div></div>
 <div id='workspaceCheck' style='display:none'>
   <div id='verdictBanner'></div>
-  <div class='chk-bar'><h2>Checks</h2><span class='hint'>Vancouver Parklet Manual v1.0; failures first. Open a row for the rule, its value and where to see it.</span>
+  <div class='chk-bar'><h2>Checks</h2><span class='hint'>Vancouver Parklet Manual v1.0; failures first. Open a card for the rule, how the result was found and the fix.</span>
     <button type='button' class='action-btn' id='toggleAllBtn' onclick='toggleAll()'>Expand all</button>
     <button type='button' class='action-btn' onclick='RPT.print()'>&#8595; Download report (PDF)</button>
     <button type='button' class='action-btn chk-clear' onclick='clearState()' title='Clears every value entered on the Check tab; it asks first.'>Clear entered values…</button></div>
-  <div class='chk-table' role='table' aria-label='Compliance checks'>
-    <div class='chk-head' role='row'><span role='columnheader'>Rule</span><span role='columnheader'>Check</span><span role='columnheader'>Requirement</span><span role='columnheader'>Measured</span><span role='columnheader'>Result</span><span role='columnheader'>Source</span></div>
-    <div id='criteriaList'></div>
-  </div>
-  <div class='summary-section' id='summaryBox'></div>
+  <div id='criteriaList' role='list' aria-label='Compliance checks'></div>
 </div>
 <div id='workspaceFacts' style='display:none;flex:1;overflow:auto;'></div>
 <div id='workspaceCost' style='display:none;flex:1;overflow:auto;background:var(--c-bg);'></div>
@@ -1474,8 +1469,8 @@ CHK.tallyRows = function(rows) { return CHK.tally(rows.map(function(r) { return 
 CHK.paint = function(c) {
   var s = CHK.state(c), B = CHK.BADGE[s.base], b = document.getElementById('badge_' + c.id), el = document.getElementById('crit_' + c.id), bd = document.getElementById('body_' + c.id);
   if (b) { b.className = 'badge ' + B[0] + (s.provisional ? ' badge-prov' : ''); b.textContent = CHK.label(s); b.title = s.provisional ? 'Provisional: depends on imported site data not yet verified on site' : s.base === 'await' ? s.hint : ''; }
-  if (el) { var op = el.classList.contains('open'); el.className = 'criterion chk-row ' + (s.base === 'await' ? 'unclear await' : s.base) + (op ? ' open' : ''); }
-  if (bd) bd.className = 'criterion-body ' + (s.base === 'pass' ? 'pass-body' : s.base === 'fail' ? 'fail-body' : '');
+  if (el) { var op = el.classList.contains('open'); el.className = 'pkc criterion chk-row ' + (s.base === 'await' ? 'unclear await' : s.base) + (op ? ' open' : ''); }
+  if (bd) bd.className = 'pkc-b criterion-body ' + (s.base === 'pass' ? 'pass-body' : s.base === 'fail' ? 'fail-body' : '');
   return s;
 };
 CHK.paintAll = function() { if (typeof criteria !== 'undefined') criteria.forEach(CHK.paint); };
@@ -1588,7 +1583,7 @@ var CHKS = {
     var bad = null;
     CHKS.keys(c).forEach(function(k) { var el = document.getElementById(k); if (!el || el.dataset.num === undefined) return; var q = pkReadNum(el.value, el.dataset.num); if (q.err) bad = bad || q.err; else if (!q.empty) el.value = String(q.v); });
     if (bad) { CHKS.msg(id, bad + ' Not saved.'); var bf = CHKS.keys(c).map(function(k) { return document.getElementById(k); }).find(function(el) { return el && el.dataset.num !== undefined; }); if (bf) bf.focus(); return; }
-    if (typeof CHKG !== 'undefined') CHKG.held[id] = 1;   // the row stays under the pointer (Brief 30 §8C)
+    // (Brief 31 §12) a Save regroups at once (not per keystroke); the card's header keeps the focus where it lands
     CHKS.keys(c).forEach(function(k) {
       var el = document.getElementById(k); if (!el || String(el.value) === String(CHKS.set(state[k]) ? state[k] : '')) return;
       if (c.id === 'c2' && k === c.inputId && typeof onRouteTypeToggle === 'function') onRouteTypeToggle(el.value); else handleInput(c.id, k, el.value);
@@ -1596,6 +1591,7 @@ var CHKS = {
     r.classList.remove('dirty'); var b = document.getElementById('save_' + id); if (b) b.disabled = true;
     CHKS.msg(id, ''); CHKS.view(id);
     if (typeof CHKG !== 'undefined') CHKG.group();
+    { var hd = r.querySelector('.pkc-h'); if (hd && !r.contains(document.activeElement)) hd.focus({ preventScroll: true }); if (r.scrollIntoView) r.scrollIntoView({ block: 'nearest' }); }
     var row = document.getElementById('crit_' + id);
     if (row) {
       var g = row.closest('details.chk-grp'); if (g && !g.open) { g.open = true; if (typeof CHKG !== 'undefined') CHKG.open[g.dataset.g] = true; }
@@ -1636,6 +1632,14 @@ document.addEventListener('keydown', function(e) {
     var ed = document.getElementById('edit_' + r.dataset.crit); if (ed && ed.getClientRects().length) ed.focus({ preventScroll: true });   // the field hid: its Edit
   }
 }, true);
+// (Brief 31 §12) Esc in an open Check card closes it and puts the focus on its header
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  var a = e.target && e.target.closest ? e.target.closest('#criteriaList .pkc.open') : null; if (!a) return;
+  var h = a.querySelector('.pkc-h'); e.preventDefault();
+  if (a.id && a.id.indexOf('crit_') === 0 && typeof toggleCrit === 'function') toggleCrit(a.id.slice(5)); else if (h) PKCARD.toggle(h);
+  if (h) h.focus({ preventScroll: true });
+});
 document.addEventListener('focusout', function(e) {
   var r = e.target && e.target.closest ? e.target.closest('.input-row[data-crit]') : null; if (!r || !r.classList.contains('dirty')) return;
   if (e.relatedTarget && r.contains(e.relatedTarget)) return;
@@ -1675,30 +1679,66 @@ function chkCondText(c) {
   }
   return t;
 }
+// (Brief 31 §12) the one card. Site facts asks with it (one at a time, open); Check answers with it (every check,
+// collapsed, grouped by result). A header (the rule ID, the title, the result badge, the one-line answer with how it is
+// known) over a body. Enter or Space on a collapsible header opens it, Esc inside closes it. PKCARD.data is what a Check
+// card, the banner and C-001 read.
+var PKCARD = {
+  MANUAL: 'https://vancouver.ca/files/cov/parklet-design-construction-manual.pdf',
+  DESIGN: { c14: 1, c16: 1, c17: 1, c18: 1, c19: 1 },   // read from the design alone: the derivation and Go to Design
+  // o: { id, cls, open, toggle (the header's onclick, makes it a button), headCls, rid, ridCls, title, titleTag, titleCls,
+  //      titleId, answer, answerCls, answerId, badge (html), body, bodyCls, bodyId, mainCls, aside, attrs }
+  html: function(o) {
+    var tt = o.titleTag || 'span', tog = o.toggle ? " role='button' tabindex='0' aria-expanded='" + !!o.open + "'" + (o.bodyId ? " aria-controls='" + o.bodyId + "'" : '') + ' onclick="' + o.toggle + '" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();' + o.toggle + '}"' : '';
+    return "<article class='pkc " + (o.cls || '') + (o.open ? ' open' : '') + "'" + (o.id ? " id='" + o.id + "'" : '') + (o.attrs || '') + '>' +
+      "<div class='pkc-main " + (o.mainCls || '') + "'>" +
+        "<div class='pkc-h " + (o.headCls || '') + "'" + tog + '>' +
+          (o.rid != null ? "<span class='pkc-rid " + (o.ridCls || '') + "'>" + o.rid + '</span>' : '') +
+          '<' + tt + " class='pkc-t " + (o.titleCls || '') + "'" + (o.titleId ? " id='" + o.titleId + "'" : '') + '>' + o.title + '</' + tt + '>' +
+          (o.badge || '') +
+          (o.answer != null ? "<span class='pkc-a " + (o.answerCls || '') + "'" + (o.answerId ? " id='" + o.answerId + "'" : '') + '>' + o.answer + '</span>' : '') +
+        '</div>' +
+        "<div class='pkc-b " + (o.bodyCls || '') + "'" + (o.bodyId ? " id='" + o.bodyId + "'" : '') + '>' + (o.body || '') + '</div>' +
+      '</div>' + (o.aside || '') + '</article>';
+  },
+  toggle: function(h) { var a = h.closest('.pkc'); if (!a) return; a.classList.toggle('open'); h.setAttribute('aria-expanded', String(a.classList.contains('open'))); },
+  // the Manual page as a link that opens it
+  cite: function(c) {
+    return c.page ? "<a class='pkc-cite' href='" + PKCARD.MANUAL + '#page=' + c.page + "' target='_blank' rel='noopener'>Parklet Manual p. " + c.page + '</a>' + (c.src && !/^Parklet Manual p/.test(c.src) ? " <span class='pkc-dim'>(" + String(c.src).replace(/^Parklet Manual\s*/, '') + ')</span>' : '') : (c.src ? "<span class='pkc-dim'>" + c.src + '</span>' : '');
+  },
+  // a check's card data: the answer is the value and how it is known ("Fire hydrant 7.0 m · measured on site, 4 Oct")
+  data: function(c, row) {
+    var st = CHK.state(c), sh = CHECK_SHORT[c.id] || [String(c.title), ''], design = !!PKCARD.DESIGN[c.id];
+    var cards = typeof SFG !== 'undefined' ? SFG.cardsFor(c.id).filter(function(k) { return k.kind !== 'group'; }) : [];
+    var ins = st.inputs.filter(function(i) { return i.cls !== 'design' && i.cls !== 'context'; }), val;
+    if (design) val = 'from the design';
+    else if (cards.length) val = SFG.short(cards[0]) + ' ' + SFG.text(cards[0]);
+    else { var DM = _dmCurrent(), I = DM.inputs && DM.inputs[c.inputId]; val = I && I.entered ? (I.label + ' ' + (I.text || I.value) + (I.unit ? ' ' + I.unit : '')) : 'not entered'; }
+    var how = design ? '' : ins.length ? ins[0].src : '';
+    return { id: c.id, rid: 'C' + String(c.num).padStart(2, '0'), title: sh[0], req: sh[1], base: st.base, provisional: st.provisional, badge: CHK.label(st),
+      answer: val.replace(/&[a-z]+;/g, ' ') + (how ? ' · ' + how : ''), derivation: row ? row.msg : '', design: design, page: c.page, src: c.src, plain: cards.length ? cards[0].why : '' };
+  }
+};
 function buildCriterion(c) {
   const cs = CHK.state(c), st = cs.base === 'await' ? 'unclear await' : cs.base, B = CHK.BADGE[cs.base];   // Brief 25 §1
-  const badgeClass = B[0] + (cs.provisional ? ' badge-prov' : '');
-  const badgeText = CHK.label(cs);
-  const bodyClass = cs.base === 'pass' ? 'pass-body' : cs.base === 'fail' ? 'fail-body' : '';
-  const siteCondText = chkCondText(c);
-  const sh = CHECK_SHORT[c.id] || [String(c.title), ''], rid = 'C' + String(c.num).padStart(2, '0');
-  return `<div class="criterion chk-row ${st}" id="crit_${c.id}" role="row">` +
-    `<div class="criterion-header chk-hdr" role="button" tabindex="0" aria-expanded="false" onclick="toggleCrit('${c.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrit('${c.id}')}">` +
-      `<span class="chk-id" role="cell">${rid}</span><span class="chk-title" role="cell">${sh[0]}</span><span class="chk-req" role="cell">${sh[1]}</span>` +
-      `<span class="chk-meas" role="cell" id="meas_${c.id}"></span>` +
-      `<span class="chk-res" role="cell"><span class="badge ${badgeClass}" id="badge_${c.id}">${badgeText}</span><span class="chk-prov" id="prov_${c.id}" hidden>provisional</span><button type="button" class="chk-conf" id="conf_${c.id}" hidden onclick="event.stopPropagation();SBX.confirmFor('${c.id}')" onkeydown="event.stopPropagation()" title="Mark the imported data this check uses as confirmed on site">Confirm</button></span>` +
-      `<span class="chk-src" role="cell">${c.page ? 'Manual p. ' + c.page : (c.src || '')}</span></div>` +
-    `<div class="criterion-body ${bodyClass}" id="body_${c.id}">` +
-      `<div class="chk-rule">${c.requirement}</div>` +
-      `<div class="detail-row"><span class="detail-label">Site condition</span><span class="detail-value" id="cond_${c.id}">${siteCondText}</span></div>` +
-      ((c.id === 'c2' && typeof SMP !== 'undefined' && SMP.widthAdvisory && SMP.widthAdvisory()) ? `<div class="detail-row chk-adv" id="adv_c2"><span class="detail-label">Advisory</span><span class="detail-value">${SMP.widthAdvisory().text} (Manual p. 20)</span></div>` : '') +   // (Brief 30 §8C, triage row 16)
-      (c.note ? `<div class="detail-row"><span class="detail-label">Note</span><span class="detail-value">${c.note}</span></div>` : '') +
-      (typeof SFG !== 'undefined' && SFG.cardsFor(c.id).length ? SFG.rowHTML(c) : buildInput(c)) +   // (Brief 30 §9)
-      (c.resolutionFn ? `<div class="resolution-box" id="resolution_${c.id}">${c.resolutionFn(state[c.inputId] || '')}</div>` : '') +
-      `<button type="button" class="chk-show" onclick="chkShowMe('${c.id}')">${c.id === 'c16' ? 'Open Accessibility' : 'Show me in the Plan'} &rsaquo;</button>` +
-    `</div>` +
-  `</div>`;
-}function render() {
+  const D = PKCARD.data(c), badgeClass = B[0] + (cs.provisional ? ' badge-prov' : ''), bodyClass = cs.base === 'pass' ? 'pass-body' : cs.base === 'fail' ? 'fail-body' : '';
+  const siteCondText = chkCondText(c), esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  const badge = `<span class="chk-res"><span class="badge ${badgeClass}" id="badge_${c.id}">${D.badge}</span><span class="chk-prov" id="prov_${c.id}" hidden>provisional</span><button type="button" class="chk-conf" id="conf_${c.id}" hidden onclick="event.stopPropagation();SBX.confirmFor('${c.id}')" onkeydown="event.stopPropagation()" title="Mark the imported data this check uses as confirmed on site">Confirm</button></span>`;
+  const body =
+    (D.plain ? `<p class="chk-rule">${esc(D.plain)}</p>` : `<p class="chk-rule">${c.requirement}</p>`) +
+    `<p class="pkc-ref">${PKCARD.cite(c)}${D.req ? ' · <span class="pkc-dim">' + D.req + '</span>' : ''}</p>` +
+    (/^Entered:/.test(siteCondText || '') || !siteCondText ? `<span id="cond_${c.id}" hidden></span>` : `<div class="detail-row"><span class="detail-label">Site condition</span><span class="detail-value" id="cond_${c.id}">${siteCondText}</span></div>`) +
+    `<div class="detail-row"><span class="detail-label">How it was found</span><span class="detail-value chk-meas" id="meas_${c.id}"></span></div>` +
+    ((c.id === 'c2' && typeof SMP !== 'undefined' && SMP.widthAdvisory && SMP.widthAdvisory()) ? `<div class="detail-row chk-adv" id="adv_c2"><span class="detail-label">Advisory</span><span class="detail-value">${SMP.widthAdvisory().text} (Manual p. 20)</span></div>` : '') +   // (Brief 30 §8C, triage row 16)
+    (c.note ? `<div class="detail-row"><span class="detail-label">Note</span><span class="detail-value">${c.note}</span></div>` : '') +
+    (c.resolutionFn ? `<div class="resolution-box" id="resolution_${c.id}">${c.resolutionFn(state[c.inputId] || '')}</div>` : '') +
+    (D.design ? '' : (typeof SFG !== 'undefined' && SFG.cardsFor(c.id).length ? SFG.rowHTML(c) : buildInput(c))) +   // (Brief 30 §9)
+    `<div class="pkc-acts">` + (D.design && c.id !== 'c16' ? `<button type="button" class="chk-show" onclick="appSetMode('design')">Go to Design &rsaquo;</button>` : '') +
+    `<button type="button" class="chk-show" onclick="chkShowMe('${c.id}')">${c.id === 'c16' ? 'Open Access' : 'Show me in the Plan'} &rsaquo;</button></div>`;
+  return PKCARD.html({ id: 'crit_' + c.id, cls: 'criterion chk-row ' + st, attrs: ' role="listitem"', toggle: "toggleCrit('" + c.id + "')", headCls: 'criterion-header chk-hdr', bodyId: 'body_' + c.id,
+    rid: D.rid, ridCls: 'chk-id', title: D.title, titleCls: 'chk-title', badge: badge, answer: esc(D.answer), answerCls: 'chk-ans', answerId: 'ans_' + c.id, body: body, bodyCls: 'criterion-body ' + bodyClass });
+}
+function render() {
   const listEl = document.getElementById('criteriaList');
   // failures first, then the ones awaiting a value, then the passes (Brief 21 §3); the rule order within each
   const rank = { fail: 0, await: 1, unclear: 2, pass: 3 }, sb = {};
@@ -1714,7 +1754,6 @@ function buildCriterion(c) {
   }
   if (typeof chkAfterRender === 'function') chkAfterRender();
   renderVerdict();
-  renderSummary();
   renderVerdictCompact();
 
 }
@@ -1756,7 +1795,8 @@ function renderVerdict() {
   let cls, icon, sentence, act;
   if (n.fail > 0) {
     const c = first((s) => s.base === 'fail' && !s.provisional);
-    cls = 'fail-verdict'; icon = '✗'; sentence = `Does not pass: ${n.fail} ${pl(n.fail, 'check fails', 'checks fail')} on measured data.`;
+    const tf = CHK.tallyNow(), on = tf.fM && tf.fD ? `, ${tf.fM} on measured data and ${tf.fD} on the design` : tf.fD ? ' on the design' : ' on measured data';   // (Brief 31 §12) the result's own words
+    cls = 'fail-verdict'; icon = '✗'; sentence = `Does not pass: ${n.fail} ${pl(n.fail, 'check fails', 'checks fail')}${on}.`;
     act = { t: 'Open ' + rid(c), on: `VERDICT.row('${c.id}')` };
   } else if (n.provFail > 0) {
     const c = first((s) => s.base === 'fail');
@@ -1775,7 +1815,7 @@ function renderVerdict() {
     act = { t: 'Download the report', on: 'RPT.print()' };
   }
   // the banner on the Check and Export tabs only (Brief 21 §3); the pass rule under it (Brief 25 item 32b)
-  var _vh = `<div class="verdict ${cls}" data-verdict="1"><div class="verdict-icon">${icon}</div><div class="verdict-body"><h2>${sentence}</h2></div>` +
+  var _vh = `<div class="verdict ${cls}" data-verdict="1"><div class="verdict-icon">${icon}</div><div class="verdict-body"><h2>${sentence}</h2><p class="verdict-n" aria-live="polite">${CHK.tallyParts(CHK.tallyNow()).join(' · ')}</p></div>` +
     `<button type="button" class="verdict-act" onclick="${act.on}">${act.t}</button></div><p class="verdict-rule">${PASS_RULE}</p>`;
   ['verdictBanner', 'verdictBannerExp'].forEach(function(id) { var el = document.getElementById(id); if (el) el.innerHTML = _vh; });
 }
@@ -1854,20 +1894,7 @@ var WALK = {
     var f = WALK.from; WALK.from = null; if (!start && f && document.contains(f) && f.focus) f.focus();
   }
 };
-function renderSummary() {
-  const g = { fail: [], provFail: [], await: [], unclear: [], pass: [], provPass: [] };
-  criteria.forEach(c => {
-    const s = CHK.state(c), t = `[${c.num}] ${c.title}`;
-    if (s.base === 'fail') g[s.provisional ? 'provFail' : 'fail'].push(t + ': ' + CHK.label(s));
-    else if (s.base === 'await') g.await.push(t + ': ' + s.hint);
-    else if (s.base === 'unclear') g.unclear.push(t);
-    else if (s.provisional) g.provPass.push(t + ': ' + CHK.label(s)); else g.pass.push(t + ': ' + CHK.label(s));
-  });
-  const col = (cls, h, list) => list.length ? `<div class="summary-col ${cls}"><h3>${h} (${list.length})</h3><ul>` + list.map(p => `<li>${p}</li>`).join('') + '</ul></div>' : '';
-  const html = '<h2>Plain-language summary</h2>' + col('problems', 'Already failing', g.fail) + col('problems', 'Failing on an estimate or imported data, not yet measured', g.provFail) +
-    col('unconfirmed', 'Awaiting measurement (not known yet)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('unconfirmed', 'Provisional pass, not yet measured', g.provPass) + col('passing', 'Pass', g.pass);
-  const el = document.getElementById('summaryBox'); if (el) el.innerHTML = html;
-}
+
 
 // ─────────────────────────────────────────────
 
@@ -1893,11 +1920,11 @@ const badge = document.getElementById('badge_' + critId);
   
 // Update criterion class  
 const critEl = document.getElementById('crit_' + critId);
-  critEl.className = 'criterion chk-row ' + st + (critEl.classList.contains('open') ? ' open' : '');
+  critEl.className = 'pkc criterion chk-row ' + st + (critEl.classList.contains('open') ? ' open' : '');
   
 // Update body class  
 const body = document.getElementById('body_' + critId);
-  body.className = 'criterion-body ' + (st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '');
+  body.className = 'pkc-b criterion-body ' + (st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '');
   
 // Show inline result  
 const resultEl = document.getElementById('result_' + critId);
@@ -1938,7 +1965,6 @@ try {
   
 // Re-render verdict, summary, and cross-section  
 renderVerdict();
-  renderSummary();
   if (typeof chkAfterRender === 'function') chkAfterRender();
   renderCrossSection();
   renderPlanView();
@@ -3397,7 +3423,7 @@ ENC.c18 = function() {
 ENC.near = function(items, x, z) {
   var bestI = null, bd = Infinity;
   items.forEach(function(it) { var b = GEN.aabb(it), d = Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.z0 - z, 0, z - b.z1)); if (d < bd) { bd = d; bestI = it; } });
-  return bestI && bd <= 1.0 ? ((FL_ARCHETYPES[bestI.type] || {}).label || bestI.type).toLowerCase() + ' at z ' + (+bestI.z).toFixed(2) : 'the deck edge or the enclosure';
+  return bestI && bd <= 1.0 ? ((FL_ARCHETYPES[bestI.type] || {}).label || bestI.type).toLowerCase() + ' at z ' + (+bestI.z).toFixed(2) : 'deck edge or the enclosure';   // after "beside the" (Brief 31 §12)
 };
 ENC.c16 = function() {
   if (typeof GEN === 'undefined' || !GEN.access) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'The route is checked once the layout model has loaded.' };   // the page still loading
@@ -4714,7 +4740,7 @@ const c = criteria.find(c => c.id === 'c2');
   const critEl = document.getElementById('crit_c2');
   if (critEl) critEl.className = 'criterion ' + st + (critEl.classList.contains('open')?' open':'');
   const body = document.getElementById('body_c2');
-  if (body) body.className = 'criterion-body ' + (st==='pass'?'pass-body':st==='fail'?'fail-body':'');
+  if (body) body.className = 'pkc-b criterion-body ' + (st==='pass'?'pass-body':st==='fail'?'fail-body':'');
   const resultEl = document.getElementById('result_c2');
   if (resultEl && c.evalFn) {
     const val = state[c.inputId]||'', msg = c.evalMsg ? c.evalMsg(val) : '';
@@ -4733,7 +4759,6 @@ const c = criteria.find(c => c.id === 'c2');
   const resBox = document.getElementById('resolution_c2');
   if (resBox && c.resolutionFn) resBox.innerHTML = c.resolutionFn(state[c.inputId]||'');
   renderVerdict();
-  renderSummary();
   renderVerdictCompact();
 
 }
@@ -24496,7 +24521,8 @@ RPT.compRows = function(d) { var o = { fail: 0, await: 1, unclear: 2, pass: 3 };
 RPT.measured = function(r) {
   var ne = r.missing.map(function(m) { return m.label; }).join('; ');
   if (r.missing.length && r.status === 'unclear') return { t: 'not entered: ' + ne, c: RPT.MID };
-  return { t: (r.msg || '-') + (r.missing.length ? ' (not entered: ' + ne + (r.id === 'c2' ? '; standard lane envelope applied' : '') + ')' : '') + (RPT.notDrawn(r) ? '; value entered, not drawn' : '') };
+  var cc = typeof PKCARD !== 'undefined' && typeof criteria !== 'undefined' ? criteria.find(function(q) { return q.id === r.id; }) : null, an = cc ? PKCARD.data(cc, r).answer + '. ' : '';   // (Brief 31 §12) the card's answer
+  return { t: an + String(r.msg || '-').replace(/.$/, '') + (r.missing.length ? ' (not entered: ' + ne + (r.id === 'c2' ? '; standard lane envelope applied' : '') + ')' : '') + (RPT.notDrawn(r) ? '; value entered, not drawn' : '') };
 };
 // Brief 27 item 11 (triage row 19): a check that rests on a typed value whose subject no sheet draws (a distance with no
 // object of that kind placed; the drains and fire exits, which are never drawn) says so, so a reviewer knows it cannot be
@@ -30774,6 +30800,7 @@ SMP.widthAdvisory = function() {
 SMP.advisories = function() { return [SMP.treeAdvisory(), SMP.widthAdvisory()].filter(Boolean); };
 SMP.renderAdvice = function() {
   var cl = document.getElementById('criteriaList'); if (!cl) return;
+  { var old = document.getElementById('smpAdvice'); if (old) old.remove(); return; }   // (Brief 31 §12) the Advisory group's cards (CHKG.group)
   var el = document.getElementById('smpAdvice'), all = SMP.advisories();
   if (!all.length) { if (el) el.remove(); return; }
   if (!el) { el = document.createElement('div'); el.id = 'smpAdvice'; el.setAttribute('role', 'note'); cl.parentNode.insertBefore(el, cl); }   // (Brief 29 item 7: above the checks; the sidebar holds filters and counts only)   // the Check tab's left panel (Brief 21 §3)
@@ -32736,6 +32763,19 @@ document.addEventListener('keydown', function(e) {
 
 /* Brief 29b: a piece dragged against the deck's edge */
 body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #seStrip { cursor: crosshair !important; }
+/* (Brief 31 §12) the one card: in Check a header of rule ID, title, the one-line answer and the badge; the body under it */
+#criteriaList { display: flex; flex-direction: column; gap: 0; background: var(--d-paper); border: 1px solid var(--d-lt); border-radius: 6px; overflow: hidden; }
+#workspaceCheck #criteriaList .pkc .pkc-h { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; grid-template-areas: 'id t res' '. a res'; column-gap: 12px; row-gap: 2px; align-items: center; padding: 10px 14px; }
+#workspaceCheck #criteriaList .pkc .pkc-rid { grid-area: id; } #workspaceCheck #criteriaList .pkc .pkc-t { grid-area: t; }
+#workspaceCheck #criteriaList .pkc .chk-res { grid-area: res; justify-content: flex-end; } #workspaceCheck #criteriaList .pkc .pkc-a { grid-area: a; }
+#criteriaList .pkc-a { font-size: 12px; color: var(--d-mid); min-width: 0; overflow-wrap: anywhere; }
+#criteriaList .pkc .criterion-body { padding: 2px 14px 14px 78px; }
+#criteriaList .pkc-ref { margin: 0 0 8px; font-size: 12px; } .pkc-cite { color: var(--accent-ui, #3AA8E4); text-decoration: underline; text-underline-offset: 2px; } .pkc-dim { color: var(--d-mid); }
+#criteriaList .pkc-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; } #criteriaList .pkc-acts .chk-show { margin-top: 0; }
+#criteriaList .pkc-adv .chk-hdr { border-left-color: var(--d-mid); }
+.verdict-n { margin: 4px 0 0; font: 12px/1.4 var(--font-ui); color: inherit; opacity: .85; }
+.sfc-card .pkc-main { flex: 1 1 380px; max-width: 620px; } .sfc-head .pkc-a { display: block; } .sfc-card .pkc-rid { display: block; }
+@media (max-width: 760px) { #criteriaList .pkc .criterion-body { padding-left: 14px; } #workspaceCheck #criteriaList .pkc .pkc-h { grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: 'id t' '. a' '. res'; } #workspaceCheck #criteriaList .pkc .chk-res { justify-content: flex-start; } }
 /* the Cost estimate on Export (Brief 31 §9) */
 .ce { max-width: 1180px; padding: 20px 28px 64px; font: 13px/1.5 var(--font-ui); color: var(--c-text); }
 .ce-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; } .ce-state { margin: 0 0 16px; color: var(--c-text); max-width: 72ch; }
@@ -32950,7 +32990,7 @@ var _chkF = 'all';
 // The rows grouped by state (Brief 25 item 31), in this order: Fails · Awaiting measurement · Not entered · Provisional
 // pass · Pass; Fails and Awaiting measurement open, the others folded with their count. A group the user opens or folds
 // stays so for the session; an empty group is not shown. "Expand all" opens every group and row.
-var CHKG = { ORDER: [['fail', 'Fails'], ['await', 'Awaiting measurement'], ['unclear', 'Not entered'], ['prov', 'Provisional pass'], ['pass', 'Pass']], open: { fail: true, await: true } };
+var CHKG = { ORDER: [['fail', 'Fails'], ['await', 'Awaiting measurement'], ['unclear', 'Not entered'], ['prov', 'Provisional pass'], ['pass', 'Pass'], ['adv', 'Advisory']], open: { fail: true, await: true, unclear: true, prov: true, pass: true, adv: true } };   // (Brief 31 §12) every group open, the cards collapsed: Tab reaches each card
 // (Brief 30 §8C, triage row 1) a Save moved the row to its new group at once, so the list jumped under the pointer and
 // the next click landed on another row. A saved row now stays where it is until the Check tab is left, with a line
 // naming the group it belongs to; the group counts follow the checks' states, not where the rows sit.
@@ -32991,13 +33031,16 @@ CHKG.group = function() {
     if (here !== el) g.insertBefore(el, here || null);
     cur[k]++;
   });
+  // (Brief 31 §12) the advisories (no numbered check) as cards in their own group
+  var ga = gs.adv; if (ga) { [].slice.call(ga.querySelectorAll('.pkc-adv')).forEach(function(e) { e.remove(); }); (typeof SMP !== 'undefined' && SMP.advisories ? SMP.advisories() : []).forEach(function(a, i) {
+    var t = document.createElement('div'); t.innerHTML = PKCARD.html({ id: 'adv_' + i, cls: 'chk-row pkc-adv', attrs: ' role="listitem"', toggle: 'PKCARD.toggle(this)', headCls: 'chk-hdr', rid: 'Advisory', ridCls: 'chk-id', title: SM.esc(a.text), titleCls: 'chk-title', bodyCls: 'criterion-body', body: "<p class='chk-rule'>" + SM.esc(a.detail) + '</p>' }); ga.appendChild(t.firstChild); }); }
   CHKG.counts();
 };
 CHKG.counts = function() {
   document.querySelectorAll('#criteriaList details.chk-grp').forEach(function(d) {
     var all = d.querySelectorAll('.chk-row').length, shown = [].filter.call(d.querySelectorAll('.chk-row'), function(r) { return !r.hidden; }).length;
     // the count is the checks in this state (a held row counts where it belongs, not where it sits)
-    var n = typeof criteria === 'undefined' ? shown : criteria.filter(function(c) { var el = document.getElementById('crit_' + c.id); return el && !el.hidden && CHKG.keyOf(c) === d.dataset.g; }).length;
+    var n = typeof criteria === 'undefined' || d.dataset.g === 'adv' ? shown : criteria.filter(function(c) { var el = document.getElementById('crit_' + c.id); return el && !el.hidden && CHKG.keyOf(c) === d.dataset.g; }).length;
     d.querySelector('.chk-grp-n').textContent = String(n); d.hidden = (!shown || !all) && !n;
   });
 };
@@ -33009,6 +33052,7 @@ function chkAfterRender() {
     var m = document.getElementById('meas_' + r.id), p = document.getElementById('prov_' + r.id), el = document.getElementById('crit_' + r.id);
     var prov = !!r.provisional;
     if (m) { m.textContent = r.missing && r.missing.length && r.status === 'unclear' ? 'not entered' : (r.msg || 'not entered'); m.classList.toggle('chk-none', m.textContent === 'not entered'); }
+    var an = document.getElementById('ans_' + r.id), cr0 = criteria.find(function(q) { return q.id === r.id; }); if (an && cr0) an.textContent = PKCARD.data(cr0, r).answer;   // (Brief 31 §12)
     if (p) { p.hidden = true; p.textContent = r.estimate ? 'estimate' : 'imported'; p.title = r.estimate ? 'The result rests on an estimate: measure it on site to settle it.' : 'The result rests on imported data: check it on site to settle it.'; }   // (Brief 30 §9, §12)
     if (el) { el.dataset.prov = prov ? '1' : ''; var show = CHECK_VIEW[r.id], b = el.querySelector('.chk-show'); if (b) b.hidden = !show; }
     n[r.status] = (n[r.status] || 0) + 1; if (prov) n.prov++;
@@ -33362,11 +33406,11 @@ ENC.refreshChecks = function(now) {
       var c = criteria.find(function(q) { return q.id === id; }); if (!c) return;
       var s3 = typeof CHK !== 'undefined' ? CHK.state(c) : null, st = s3 ? s3.base : getCriterionStatus(c), b = document.getElementById('badge_' + id), el = document.getElementById('crit_' + id), bd = document.getElementById('body_' + id), cd = document.getElementById('cond_' + id);
       if (b) { b.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : st === 'await' ? 'badge-await' : 'badge-unclear') + (s3 && s3.provisional ? ' badge-prov' : ''); b.textContent = s3 ? CHK.label(s3) : st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered'; }
-      if (el) { var op = el.classList.contains('open'); el.className = 'criterion chk-row ' + st + (op ? ' open' : ''); }
-      if (bd) bd.className = 'criterion-body ' + (st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '');
+      if (el) { var op = el.classList.contains('open'); el.className = 'pkc criterion chk-row ' + st + (op ? ' open' : ''); }
+      if (bd) bd.className = 'pkc-b criterion-body ' + (st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '');
       if (cd) cd.textContent = chkCondText(c);   // (Brief 30 §8C)
     });
-    try { renderVerdict(); renderSummary(); renderVerdictCompact(); if (typeof chkAfterRender === 'function') chkAfterRender(); } catch (e) {}
+    try { renderVerdict(); renderVerdictCompact(); if (typeof chkAfterRender === 'function') chkAfterRender(); } catch (e) {}
   };
   clearTimeout(ENC._rt);
   if (now) go(); else ENC._rt = setTimeout(go, 60);
@@ -34485,18 +34529,18 @@ SFG.render = function() {
   var prog = `<div class='sfc-prog'><span>Site facts</span><span>${i < C.length ? (i + 1) + ' of ' + C.length : 'All ' + C.length + ' answered'}</span></div><div class='sfc-bar' role='progressbar' aria-label='Where you are in the site facts' aria-valuemin='0' aria-valuemax='${C.length}' aria-valuenow='${Math.min(i + 1, C.length)}' aria-valuetext='Card ${Math.min(i + 1, C.length)} of ${C.length}'><i style='width:${Math.round(100 * Math.min(i + 1, C.length) / Math.max(1, C.length))}%'></i></div>`;
   if (i >= C.length) {
     var left = SFG.left();
-    host.innerHTML = `<div class='sfc'>${prog}<div id='sfcDone' class='sfc-card sfc-done'><div class='sfc-main'><h2 class='sfc-q'>${left.length ? left.length + ' still to answer' : 'Every site fact has an answer'}</h2>` +
+    host.innerHTML = `<div class='sfc'>${prog}` + PKCARD.html({ id: 'sfcDone', cls: 'sfc-card sfc-done', open: true, mainCls: 'sfc-main', title: left.length ? left.length + ' still to answer' : 'Every site fact has an answer', titleTag: 'h2', titleCls: 'sfc-q', body: '' +
       `<table class='sfc-sum'><thead><tr><th>Fact</th><th>Value</th><th>How it is known</th></tr></thead><tbody>` +
       C.map(function(c, k) { return `<tr><td><button type='button' class='sfc-link' data-sfc-go='${k}'>${SFG.esc(SFG.rid(c))} ${SFG.esc(SFG.short(c))}</button></td><td>${SFG.esc(SFG.text(c))}</td><td>${SFG.chip(c)}</td></tr>`; }).join('') + '</tbody></table>' +
-      `<div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='back'>Back</button>${left.length ? `<button type='button' class='sfc-btn sfc-pri' data-sfc-go='${C.indexOf(left[0])}'>Answer the next one</button>` : `<button type='button' class='sfc-btn sfc-pri' data-sfc='design'>Go to Design</button>`}</div></div></div></div>`;
+      `<div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='back'>Back</button>${left.length ? `<button type='button' class='sfc-btn sfc-pri' data-sfc-go='${C.indexOf(left[0])}'>Answer the next one</button>` : `<button type='button' class='sfc-btn sfc-pri' data-sfc='design'>Go to Design</button>`}</div>` }) + '</div>';
     return;
   }
   var card = C[i], cr = SFG.crop();
-  host.innerHTML = `<div class='sfc'>${prog}<div class='sfc-card' id='sfcCard' role='group' aria-labelledby='sfcQ'><div class='sfc-main'>` +
-    `<p class='sfc-rid'>${SFG.esc(SFG.rid(card))}</p><h2 class='sfc-q' id='sfcQ'>${SFG.esc(card.q)}</h2><p class='sfc-src'>${SFG.esc(SFG.srcLine(card))}</p>` +
-    SFG.form(card) + `<p class='sfc-why'><b>Why it matters.</b> ${SFG.esc(card.why)}</p><p class='sfc-err' id='sfcErr' role='alert'></p>` +
-    `<div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='back'${i ? '' : ' disabled'}>Back</button><button type='button' class='sfc-btn sfc-pri' data-sfc='next'>${i === C.length - 1 ? 'Finish' : 'Next'}</button></div></div>` +
-    (cr ? `<figure class='sfc-crop'>${cr}<figcaption>The Plan around the deck</figcaption></figure>` : '') + '</div></div>';
+  host.innerHTML = `<div class='sfc'>${prog}` + PKCARD.html({ id: 'sfcCard', cls: 'sfc-card', open: true, attrs: ` role='group' aria-labelledby='sfcQ'`, mainCls: 'sfc-main', headCls: 'sfc-head',   // (Brief 31 §12) the one card
+    rid: SFG.esc(SFG.rid(card)), ridCls: 'sfc-rid', title: SFG.esc(card.q), titleTag: 'h2', titleCls: 'sfc-q', titleId: 'sfcQ', answer: SFG.esc(SFG.srcLine(card)), answerCls: 'sfc-src',
+    body: SFG.form(card) + `<p class='sfc-why'><b>Why it matters.</b> ${SFG.esc(card.why)}</p><p class='sfc-err' id='sfcErr' role='alert'></p>` +
+      `<div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='back'${i ? '' : ' disabled'}>Back</button><button type='button' class='sfc-btn sfc-pri' data-sfc='next'>${i === C.length - 1 ? 'Finish' : 'Next'}</button></div>`,
+    aside: cr ? `<figure class='sfc-crop'>${cr}<figcaption>The Plan around the deck</figcaption></figure>` : '' }) + '</div>';
   SFG.syncLanes(host);
 };
 SFG.chip = function(c) { var h = SFG.how(c); return h ? `<span class='sfc-chip sfc-${h.replace(/[^a-z]/g, '')}'>${SFG.esc(h)}</span>` : `<span class='sfc-dim'>not answered</span>`; };
@@ -34523,7 +34567,7 @@ SFG.rowHTML = function(c) {
 SFG.inline = function(id) {
   var card = SFG.CARDS.find(function(q) { return q.id === id; }); if (!card) return;
   var host = document.getElementById('sfcIn_' + card.crit); if (!host) return;
-  host.innerHTML = `<div class='sfc-card sfc-in-row' data-card='${card.id}'><div class='sfc-main'><p class='sfc-q'>${SFG.esc(card.q)}</p><p class='sfc-src'>${SFG.esc(SFG.srcLine(card))}</p>` + SFG.form(card) +
+  host.innerHTML = `<div class='sfc-in-row' data-card='${card.id}'><div class='sfc-main'><p class='sfc-q'>${SFG.esc(card.q)}</p><p class='sfc-src'>${SFG.esc(SFG.srcLine(card))}</p>` + SFG.form(card) +
     `<p class='sfc-err' role='alert'></p><div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='cancel'>Cancel</button><button type='button' class='sfc-btn sfc-pri' data-sfc='save'>Save</button></div></div></div>`;
   SFG.syncLanes(host); var f = host.querySelector('input, select'); if (f) f.focus();
 };
@@ -34531,8 +34575,8 @@ SFG.saveInline = function(box) {
   var card = SFG.CARDS.find(function(q) { return q.id === box.dataset.card; }); if (!card) return;
   var err = SFG.answer(card, SFG.read(box)); if (err) { box.querySelector('.sfc-err').textContent = err; return; }
   if (!SFG.st()) state.__sfc = { v: 1, i: 0, ans: {}, legacy: true };
-  try { if (typeof render === 'function') render(); } catch (e) {}
-  var b = document.querySelector(`.sfc-chg[data-sfc-card='${card.id}']`); if (b) b.focus();
+  try { if (typeof CHKG !== 'undefined') CHKG.held = {}; if (typeof render === 'function') render(); } catch (e) {}   // re-run and regroup on Save (Brief 31 §12)
+  var b = document.querySelector(`.sfc-chg[data-sfc-card='${card.id}']`); if (b) { var rw = b.closest('.pkc'); if (rw && !rw.classList.contains('open') && typeof toggleCrit === 'function') toggleCrit(card.crit); b.focus(); if (rw && rw.scrollIntoView) rw.scrollIntoView({ block: 'nearest' }); }
 };
 // the Site panel: Review site facts, I've measured on site
 SFG.mountSite = function() {
