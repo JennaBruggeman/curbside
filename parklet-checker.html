@@ -32087,6 +32087,30 @@ function uiApplyTips(root) {
   .topbar-right { gap: 6px; }
   .proj-name-input { width: 100px !important; }
 }
+
+/* ── Brief 30 §12, adapt: hit areas, the Check table and the bars at tablet width ─────────────────────────────────────────
+   Every chrome control is at least 24 x 24 px (WCAG 2.2 target size); under a coarse pointer (a tablet) the main controls
+   are 36 px and the dense toolbars 28 px. Below 1180 px the Check table stacks each row's cells (the rule, the value,
+   the result and the source stay in view) instead of cutting the last columns; the step strip keeps one line. */
+.topbar button, .step-strip button, .ctx-panel button, .ctx-panel select, .canvas-toolbar button, .vp-hdr button, .pk-dialog-btns button, .status-bar button, #workspaceExport button, #workspaceCheck button, #swPage button { min-height: 24px; min-width: 24px; }
+.topbar input, .ctx-panel input:not([type=checkbox]):not([type=radio]), #libraryCanvas button, #libraryCanvas input, #swPage input, #workspaceVisualize input, #workspaceExport input { min-height: 24px; }   /* inline links in a sentence are exempt (WCAG 2.5.8) */
+.pkm-sw button { width: 24px; height: 24px; }
+@media (pointer: coarse) {
+  .topbar button, .ttab, .step-strip button, .pk-dialog-btns button, .ctx-btn, .sfc-btn, .ctx-panel select, .ctx-panel input[type=text], .ctx-panel input[type=number], #workspaceExport button, #workspaceCheck button { min-height: 36px; }
+  .canvas-toolbar button, .vp-hdr button, .ctx-panel button, .status-bar button, .dk-panel-hdr { min-height: 28px; }
+  .pkm-sw button { width: 32px; height: 32px; }
+}
+@media (max-width: 1180px) {
+  .chk-head { display: none !important; }
+  #workspaceCheck #criteriaList .chk-hdr { grid-template-columns: 48px minmax(0, 1fr) minmax(112px, auto); grid-template-areas: 'id title res' '. req res' '. meas src'; row-gap: 2px; }
+  #workspaceCheck #criteriaList .chk-hdr .chk-id { grid-area: id; } #workspaceCheck #criteriaList .chk-hdr .chk-title { grid-area: title; } #workspaceCheck #criteriaList .chk-hdr .chk-req { grid-area: req; }
+  #workspaceCheck #criteriaList .chk-hdr .chk-meas { grid-area: meas; } #workspaceCheck #criteriaList .chk-hdr .chk-res { grid-area: res; justify-content: flex-end; } #workspaceCheck #criteriaList .chk-hdr .chk-src { grid-area: src; text-align: right; }
+}
+@media (max-width: 1100px) {
+  .ss-lbl, .ss-note { display: none; }
+  .step-strip { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .ss-step { white-space: nowrap; }
+  .proj-name-input { width: 120px !important; }
+}
 /* the left column: the Selection, Grid and Move blocks only with something selected */
 #cadTools.cad-empty { display: none !important; }
 /* Brief 30 §8B (access): with a piece selected the Selection panel filled the column at 200 % and nothing scrolled (its last
