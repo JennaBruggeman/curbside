@@ -1985,8 +1985,8 @@ function toggleAll() {
   document.getElementById('toggleAllBtn').textContent = allOpen ? 'Collapse all' : 'Expand all';
 
 }
-function clearState() {
-  if (!confirm('Clear all saved measurements? This cannot be undone.')) return;
+function clearState(ok) {
+  if (ok !== true) { pkConfirm({ title: 'Clear entered values?', body: 'Every value entered on the Check tab is cleared. This cannot be undone.', ok: 'Clear values', danger: true, onOk: function() { clearState(true); } }); return; }   // (Brief 31 §2: was the browser's confirm)
   try {
  localStorage.removeItem('parklet-state');
  
@@ -18514,6 +18514,12 @@ html.pk-authing body > *:not(#pkAuthModal):not(#pkLoadingOverlay) { visibility: 
   margin-bottom: 8px;
 }
 .pk-dialog-body { font-size: 12px; color: var(--text-lo); margin-bottom: 18px; line-height: 1.55; }
+/* (Brief 31 §2) the dialog boxes carry their own text colour: only the backdrop dims, never what is in the box */
+.pk-modal-box, .pk-dialog-box { color: var(--c-text); }
+.pk-modal-box h2, .pk-dialog-box h2 { color: var(--c-text); font-size: 18px; font-weight: 600; line-height: 1.3; margin: 0 0 10px; }
+.pk-modal-box p, .pk-dialog-box p { color: var(--c-text); font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
+.pk-dialog-title { color: var(--c-text); font-size: 15px; }
+.pk-dialog-body { color: var(--c-text); font-size: 13px; }
 .pk-dialog-btns { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* ── Toast notification ── */
@@ -20121,15 +20127,59 @@ async function pkDoRename(id) {
   await pkRenameDesign(id, val);
 }
 
+// ─── Every modal dialog (Brief 31 §2) ──────────────────────────────
+// The topmost open modal (a .pk-modal-overlay that is shown, or any [role=dialog][aria-modal=true]) takes the focus when it
+// opens (unless it put it inside itself), keeps Tab inside, and Escape cancels it: its [data-dlg-cancel] control, else
+// the button that says Cancel / Close / Not now / Keep, else it closes. A dialog's own Escape handler that calls
+// preventDefault() wins.
+var PKDLG = {
+  SEL: '.pk-modal-overlay.active, .pk-modal-overlay[style*="flex"], [role="dialog"][aria-modal="true"]',
+  shown: function(d) { if (!d.isConnected) return false; var c = getComputedStyle(d); return c.display !== 'none' && c.visibility !== 'hidden' && d.getClientRects().length > 0; },
+  top: function() { var a = [].filter.call(document.querySelectorAll(PKDLG.SEL), PKDLG.shown); a = a.filter(function(d) { return !a.some(function(o) { return o !== d && o.contains(d); }) || d.getAttribute('aria-modal') === 'true'; }); return a.length ? a[a.length - 1] : null; },
+  items: function(d) { return [].filter.call(d.querySelectorAll('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'), function(e) { return !e.disabled && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden' && e.type !== 'hidden'; }); },
+  cancel: function(d) {
+    var b = d.querySelector('[data-dlg-cancel]') || [].find.call(d.querySelectorAll('button'), function(x) { return /^\s*(cancel|close|not now|keep|no)\b/i.test(x.textContent || '') && x.getClientRects().length; }) || d.querySelector('.pk-modal-close');
+    if (b) { b.click(); return; }
+    if (d.classList.contains('pk-modal-overlay')) { if (d.id && /Dlg$/.test(d.id)) d.remove(); else d.classList.remove('active'); }
+  },
+  focusIn: function() { var d = PKDLG.top(); if (!d || d.contains(document.activeElement)) return; var it = PKDLG.items(d), c = d.querySelector('[data-dlg-cancel]'); var f = c && it.indexOf(c) >= 0 ? c : it[0]; if (f) f.focus(); }
+};
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Tab' && e.key !== 'Escape') return;
+  var d = PKDLG.top(); if (!d) return;
+  if (e.key === 'Escape') { if (e.defaultPrevented) return; e.preventDefault(); PKDLG.cancel(d); return; }
+  var it = PKDLG.items(d); if (!it.length) { e.preventDefault(); return; }
+  var i = it.indexOf(document.activeElement);
+  if (e.shiftKey && (i <= 0)) { e.preventDefault(); it[it.length - 1].focus(); }
+  else if (!e.shiftKey && (i < 0 || i === it.length - 1)) { e.preventDefault(); it[0].focus(); }
+});
+(function() { var t = null, mo = new MutationObserver(function() { clearTimeout(t); t = setTimeout(PKDLG.focusIn, 30); });
+  var go = function() { mo.observe(document.body, { childList: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'], subtree: true }); };
+  if (document.body) go(); else document.addEventListener('DOMContentLoaded', go); })();
+// a confirm in the same component (the browser's own confirm() cannot be styled or kept readable): onOk on the action
+function pkConfirm(o) {
+  var old = document.getElementById('pkConfirmDlg'); if (old) old.remove();
+  var back = document.activeElement;
+  var html = "<div class='pk-modal-overlay active' id='pkConfirmDlg' role='dialog' aria-modal='true' aria-labelledby='pkConfirmT' aria-describedby='pkConfirmB'><div class='pk-dialog-box'>" +
+    "<div class='pk-dialog-title' id='pkConfirmT'>" + pkEsc(o.title) + "</div><div class='pk-dialog-body' id='pkConfirmB'>" + pkEsc(o.body || '') + '</div>' +
+    "<div class='pk-dialog-btns'><button type='button' class='pk-btn-secondary' style='width:auto;margin:0;' data-dlg-cancel id='pkConfirmNo'>Cancel</button>" +
+    "<button type='button' class='" + (o.danger ? 'pk-btn-danger' : 'pk-btn-primary') + "' style='width:auto;margin:0;' id='pkConfirmYes'>" + pkEsc(o.ok || 'OK') + '</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  var close = function() { var d = document.getElementById('pkConfirmDlg'); if (d) d.remove(); if (back && back.focus && back.isConnected) back.focus(); };
+  document.getElementById('pkConfirmNo').onclick = close;
+  document.getElementById('pkConfirmYes').onclick = function() { close(); if (o.onOk) o.onOk(); };
+  document.getElementById('pkConfirmNo').focus();
+}
+
 // ─── Delete confirmation ──────────────────────────────────────────
 function pkPromptDelete(id, name) {
   var html = [
-    '<div class="pk-modal-overlay active" id="pkDeleteDlg">',
+    '<div class="pk-modal-overlay active" id="pkDeleteDlg" role="dialog" aria-modal="true" aria-labelledby="pkDeleteT">',
     '<div class="pk-dialog-box">',
-    '<div class="pk-dialog-title">Delete Design?</div>',
+    '<div class="pk-dialog-title" id="pkDeleteT">Delete this design?</div>',
     '<div class="pk-dialog-body">Delete &ldquo;' + pkEsc(name) + '&rdquo;?<br>This cannot be undone.</div>',
     '<div class="pk-dialog-btns">',
-    '<button class="pk-btn-secondary" style="width:auto;margin:0;" onclick="document.getElementById(\'pkDeleteDlg\').remove()">Cancel</button>',
+    '<button type="button" class="pk-btn-secondary" style="width:auto;margin:0;" data-dlg-cancel onclick="document.getElementById(\'pkDeleteDlg\').remove()">Cancel</button>',
     '<button class="pk-btn-danger" onclick="pkDoDelete(\'' + id + '\')">Delete</button>',
     '</div>',
     '</div></div>'
@@ -29807,13 +29857,13 @@ IMP.render = function() {
 // 'user'); the sheets say "Generic street - not a real location". A disclaimer with Continue comes first. ──────────
 var BLANK = { ROAD: 11.4, LANE: 3.3, PARK: 2.4, SIDEWALK: 3.0,
   NOTE: 'Generic street — not a real location',
-  TEXT: 'A blank street is a generic two-way street: one travel lane each way, a parking lane each side, sidewalks on both sides and two buildings on each side. It is not a Vancouver location, and every width is a placeholder: replace each with a measurement taken on site. The sheets will say "Generic street — not a real location".' };
+  TEXT: 'A generic two-way street, not a real place. Every width is a placeholder until you measure it; the sheets will say so.' };   // (Brief 31 §2)
 BLANK.storeyH = function(n) { return typeof bldgHeightFromStoreys === 'function' ? bldgHeightFromStoreys(n) : 4.2 + 3.5 * (n - 1); };
 BLANK.ask = function() {
   var m = document.getElementById('blankModal');
   if (!m) {
     m = document.createElement('div'); m.id = 'blankModal'; m.className = 'pk-modal-overlay'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'blankTitle');
-    m.innerHTML = "<div class='pk-modal-box blank-box'><h2 id='blankTitle'>Blank street</h2><p>" + SM.esc(BLANK.TEXT) + "</p><div class='pk-s0-acts'><button type='button' class='ctx-btn pk-s0-go' id='blankGo' onclick='BLANK.close(); BLANK.apply()'>Continue</button><button type='button' class='txt-btn' onclick='BLANK.close()'>Cancel</button></div></div>";
+    m.innerHTML = "<div class='pk-modal-box blank-box'><h2 id='blankTitle'>Blank street</h2><p>" + SM.esc(BLANK.TEXT) + "</p><div class='pk-s0-acts'><button type='button' class='ctx-btn pk-s0-go' id='blankGo' onclick='BLANK.close(); BLANK.apply()'>Continue</button><button type='button' class='txt-btn' data-dlg-cancel onclick='BLANK.close()'>Cancel</button></div></div>";
     m.addEventListener('keydown', function(e) { if (e.key === 'Escape') BLANK.close(); });
     document.body.appendChild(m);
   }
