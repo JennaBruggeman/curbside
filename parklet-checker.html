@@ -658,7 +658,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div id='verdictCompact' hidden></div>
 <div class='sb-section' id='chkFilterSec'><div class='sb-section-lbl'>Show</div>
   <div class='seg-group chk-filters' role='group' aria-label='Which checks to show'>
-    <button type='button' class='seg-btn active' data-f='all' onclick='chkFilter("all")' title='Shows every check.'>All</button><button type='button' class='seg-btn' data-f='fail' onclick='chkFilter("fail")' title='Shows only the checks that fail.'>Failing</button><button type='button' class='seg-btn' data-f='prov' onclick='chkFilter("prov")' title='Shows only the checks whose result rests on an estimate or imported data: provisional until measured.'>Provisional</button><button type='button' class='seg-btn' data-f='pass' onclick='chkFilter("pass")' title='Shows only the checks that pass.'>Passing</button>
+    <button type='button' class='seg-btn active' data-f='all' onclick='chkFilter("all")' title='Shows every check.'>All</button><button type='button' class='seg-btn' data-f='fail' onclick='chkFilter("fail")' title='Shows only the checks that fail.'>Fails</button><button type='button' class='seg-btn' data-f='prov' onclick='chkFilter("prov")' title='Shows only the checks whose result rests on an estimate or imported data: provisional until measured.'>Provisional</button><button type='button' class='seg-btn' data-f='pass' onclick='chkFilter("pass")' title='Shows only the checks that pass.'>Passing</button>
   </div>
 </div>
 <div class='sb-section' id='chkSide' hidden><button type='button' class='ctx-btn ctx-btn-full' id='chkConfirmBtn' onclick='SFG.review(false)'>Review site facts</button></div>
@@ -759,11 +759,11 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div id='workspaceGenerate' style='display:none'><div class='gen-bar' id='genBar'></div><div class='gen-grid' id='genGrid'></div></div>
 <div id='workspaceCheck' style='display:none'>
   <div id='verdictBanner'></div>
-  <div class='chk-bar'><h2>Checks</h2><span class='hint'>Vancouver Parklet Manual v1.0; failures first. Open a card for the rule, how the result was found and the fix.</span>
+  <div class='chk-bar'><h2>Checks</h2><span class='hint'>Vancouver Parklet Manual v1.0</span>
     <button type='button' class='action-btn' id='toggleAllBtn' onclick='toggleAll()'>Expand all</button>
     <button type='button' class='action-btn' onclick='RPT.print()'>&#8595; Download report (PDF)</button>
     <button type='button' class='action-btn chk-clear' onclick='clearState()' title='Clears every value entered on the Check tab; it asks first.'>Clear entered values…</button></div>
-  <div id='criteriaList' role='list' aria-label='Compliance checks'></div>
+  <div id='criteriaList' aria-label='Compliance checks'></div>
 </div>
 <div id='workspaceFacts' style='display:none;flex:1;overflow:auto;'></div>
 <div id='workspaceCost' style='display:none;flex:1;overflow:auto;background:var(--c-bg);'></div>
@@ -1689,7 +1689,7 @@ var PKCARD = {
   // o: { id, cls, open, toggle (the header's onclick, makes it a button), headCls, rid, ridCls, title, titleTag, titleCls,
   //      titleId, answer, answerCls, answerId, badge (html), body, bodyCls, bodyId, mainCls, aside, attrs }
   html: function(o) {
-    var tt = o.titleTag || 'span', tog = o.toggle ? " role='button' tabindex='0' aria-expanded='" + !!o.open + "'" + (o.bodyId ? " aria-controls='" + o.bodyId + "'" : '') + ' onclick="' + o.toggle + '" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();' + o.toggle + '}"' : '';
+    var tt = o.titleTag || 'span', tog = o.toggle ? " role='button' tabindex='0' aria-expanded='" + !!o.open + "'" + (o.labelledby ? " aria-labelledby='" + o.labelledby + "'" : '') + (o.bodyId ? " aria-controls='" + o.bodyId + "'" : '') + ' onclick="' + o.toggle + '" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();' + o.toggle + '}"' : '';
     return "<article class='pkc " + (o.cls || '') + (o.open ? ' open' : '') + "'" + (o.id ? " id='" + o.id + "'" : '') + (o.attrs || '') + '>' +
       "<div class='pkc-main " + (o.mainCls || '') + "'>" +
         "<div class='pkc-h " + (o.headCls || '') + "'" + tog + '>' +
@@ -1715,6 +1715,7 @@ var PKCARD = {
     else if (cards.length) val = SFG.short(cards[0]) + ' ' + SFG.text(cards[0]);
     else { var DM = _dmCurrent(), I = DM.inputs && DM.inputs[c.inputId]; val = I && I.entered ? (I.label + ' ' + (I.text || I.value) + (I.unit ? ' ' + I.unit : '')) : 'not entered'; }
     var how = design ? '' : ins.length ? ins[0].src : '';
+    if (/(^| )not entered$/.test(val) || / not entered;/.test(val)) { val = /^not known yet/.test(how) ? 'Not known yet' : 'Not entered'; how = /^not known yet/.test(how) ? 'measure on site' : how; }   // (Brief 31 §12, critique)
     return { id: c.id, rid: 'C' + String(c.num).padStart(2, '0'), title: sh[0], req: sh[1], base: st.base, provisional: st.provisional, badge: CHK.label(st),
       answer: val.replace(/&[a-z]+;/g, ' ') + (how ? ' · ' + how : ''), derivation: row ? row.msg : '', design: design, page: c.page, src: c.src, plain: cards.length ? cards[0].why : '' };
   }
@@ -1735,7 +1736,7 @@ function buildCriterion(c) {
     (D.design ? '' : (typeof SFG !== 'undefined' && SFG.cardsFor(c.id).length ? SFG.rowHTML(c) : buildInput(c))) +   // (Brief 30 §9)
     `<div class="pkc-acts">` + (D.design && c.id !== 'c16' ? `<button type="button" class="chk-show" onclick="appSetMode('design')">Go to Design &rsaquo;</button>` : '') +
     `<button type="button" class="chk-show" onclick="chkShowMe('${c.id}')">${c.id === 'c16' ? 'Open Access' : 'Show me in the Plan'} &rsaquo;</button></div>`;
-  return PKCARD.html({ id: 'crit_' + c.id, cls: 'criterion chk-row ' + st, attrs: ' role="listitem"', toggle: "toggleCrit('" + c.id + "')", headCls: 'criterion-header chk-hdr', bodyId: 'body_' + c.id,
+  return PKCARD.html({ id: 'crit_' + c.id, cls: 'criterion chk-row ' + st, titleId: 'ttl_' + c.id, labelledby: 'ttl_' + c.id, toggle: "toggleCrit('" + c.id + "')", headCls: 'criterion-header chk-hdr', bodyId: 'body_' + c.id,
     rid: D.rid, ridCls: 'chk-id', title: D.title, titleCls: 'chk-title', badge: badge, answer: esc(D.answer), answerCls: 'chk-ans', answerId: 'ans_' + c.id, body: body, bodyCls: 'criterion-body ' + bodyClass });
 }
 function render() {
@@ -32776,6 +32777,24 @@ body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #s
 .verdict-n { margin: 4px 0 0; font: 12px/1.4 var(--font-ui); color: inherit; opacity: .85; }
 .sfc-card .pkc-main { flex: 1 1 380px; max-width: 620px; } .sfc-head .pkc-a { display: block; } .sfc-card .pkc-rid { display: block; }
 @media (max-width: 760px) { #criteriaList .pkc .criterion-body { padding-left: 14px; } #workspaceCheck #criteriaList .pkc .pkc-h { grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: 'id t' '. a' '. res'; } #workspaceCheck #criteriaList .pkc .chk-res { justify-content: flex-start; } }
+/* (Brief 31 §12) Impeccable critique and layout on Check */
+.chk-filters .seg-btn { flex: 1 1 auto; white-space: nowrap; padding-left: 8px; padding-right: 8px; }
+@media (max-width: 540px) { .chk-filters { border-radius: 14px; } }
+#workspaceCheck .pkc-cite, #workspaceCheck .chk-show { color: #1F6FA3; }
+#criteriaList details.chk-grp[data-g='await'] .badge-await, #criteriaList details.chk-grp[data-g='unclear'] .badge-unclear { border-color: transparent !important; }   /* the group already says it (over the Brief 30 !important) */
+#criteriaList .badge.badge-prov { outline: none; border-style: dashed; }
+.chk-bar .chk-clear { color: var(--d-mid); }
+#criteriaList .pkc .criterion-body { padding: 2px 14px 14px 81px; }
+#criteriaList .chk-grp > summary { padding: 8px 14px 8px 17px; min-height: 32px; box-sizing: border-box; }
+#criteriaList .chk-grp > summary::before { font-size: 14px; color: var(--d-ink, #1A1A1A); }
+#criteriaList .sfc-line { gap: 4px 12px; } #criteriaList .sfc-line-l { flex: 0 0 130px; min-width: 0; }
+#workspaceCheck #verdictBanner h2 { font-size: 18px; line-height: 1.3; } #workspaceCheck .chk-bar h2 { font-size: 15px; }
+#workspaceCheck { gap: 8px; } #workspaceCheck > .chk-bar { margin-top: 16px; }
+#workspaceCheck > * { width: 100%; max-width: 1080px; }
+#verdictBanner .verdict { flex-wrap: wrap; } #verdictBanner .verdict-icon { align-self: flex-start; margin-top: 3px; } #verdictBanner .verdict-act { margin-left: auto; }
+.verdict-rule { margin: 6px 0 0; }
+@media (max-width: 1100px) { .chk-bar .hint { order: 5; flex-basis: 100%; min-width: 0; } }
+@media (max-width: 760px) { #criteriaList .pkc .criterion-body { padding-left: 17px; } #criteriaList .sfc-line-l { flex-basis: 100%; } #verdictBanner .verdict-act { flex-basis: 100%; margin-left: 29px; } }
 /* the Cost estimate on Export (Brief 31 §9) */
 .ce { max-width: 1180px; padding: 20px 28px 64px; font: 13px/1.5 var(--font-ui); color: var(--c-text); }
 .ce-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; } .ce-state { margin: 0 0 16px; color: var(--c-text); max-width: 72ch; }
@@ -33033,7 +33052,7 @@ CHKG.group = function() {
   });
   // (Brief 31 §12) the advisories (no numbered check) as cards in their own group
   var ga = gs.adv; if (ga) { [].slice.call(ga.querySelectorAll('.pkc-adv')).forEach(function(e) { e.remove(); }); (typeof SMP !== 'undefined' && SMP.advisories ? SMP.advisories() : []).forEach(function(a, i) {
-    var t = document.createElement('div'); t.innerHTML = PKCARD.html({ id: 'adv_' + i, cls: 'chk-row pkc-adv', attrs: ' role="listitem"', toggle: 'PKCARD.toggle(this)', headCls: 'chk-hdr', rid: 'Advisory', ridCls: 'chk-id', title: SM.esc(a.text), titleCls: 'chk-title', bodyCls: 'criterion-body', body: "<p class='chk-rule'>" + SM.esc(a.detail) + '</p>' }); ga.appendChild(t.firstChild); }); }
+    var t = document.createElement('div'); t.innerHTML = PKCARD.html({ id: 'adv_' + i, cls: 'chk-row pkc-adv', titleId: 'advt_' + i, labelledby: 'advt_' + i, toggle: 'PKCARD.toggle(this)', headCls: 'chk-hdr', rid: 'Advisory', ridCls: 'chk-id', title: SM.esc(a.text), titleCls: 'chk-title', bodyCls: 'criterion-body', body: "<p class='chk-rule'>" + SM.esc(a.detail) + '</p>' }); ga.appendChild(t.firstChild); }); }
   CHKG.counts();
 };
 CHKG.counts = function() {
