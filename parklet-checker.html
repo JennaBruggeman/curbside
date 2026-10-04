@@ -4444,9 +4444,9 @@ function onLanesBChange() {
 const BLDG_FIELDS = [
   {k:'height',  lbl:'Height',                 min:2,   max:60, step:0.5, def:8,  fb:8},
   {k:'depth',   lbl:'Depth',                  min:2,   max:30, step:0.5, def:4,  fb:4},
-  {k:'length',  lbl:'Length along street',    min:0.5, max:80, step:0.5, def:30, fb:10},
-  {k:'zOffset', lbl:'Start (z)',              min:-20, max:80, step:0.5, def:-5, fb:0,
-   tip:'Start position, m from the parklet start (negative = before it)'},
+  {k:'length',  lbl:'Frontage length',        min:0.5, max:80, step:0.5, def:30, fb:10},
+  {k:'zOffset', lbl:'Position along the street', min:-200, max:200, step:0.5, def:-5, fb:0,
+   tip:'Where the building starts, m along the street from the parklet\'s start (negative = before it)'},
   {k:'setback', lbl:'Setback from sidewalk',  min:0,   max:8,  step:0.5, def:0,  fb:0}
 ];
 const BLDG_KEY_SVG =
@@ -4460,7 +4460,21 @@ const BLDG_KEY_SVG =
   "<line class='k' data-k='length' x1='12' y1='40' x2='12' y2='58'/>" +
   "<line class='k' data-k='zOffset' x1='15.5' y1='34' x2='15.5' y2='40'/>" +
   "</svg>";
+// (Brief 31 §13) where the building editor lives: on a blank street, Design's Context section (after Materials); on an
+// imported site, Site's Context buildings, as before
+var CTXB = { home: null };
+CTXB.sync = function() {
+  var sec = document.getElementById('contextSection'), pan = sec && sec.closest('.dk-panel'); if (!pan) return;
+  if (!CTXB.home) CTXB.home = { parent: pan.parentNode, next: pan.nextSibling };
+  var blank = typeof state !== 'undefined' && !!state.__generic, design = document.getElementById('ctxDesign'), t = pan.querySelector('.dkpt');
+  if (blank && design && pan.parentNode !== design) { var mat = document.getElementById('dkcdMat'); design.insertBefore(pan, mat && mat.parentNode === design ? mat.nextSibling : null); }
+  else if (!blank && pan.parentNode !== CTXB.home.parent) CTXB.home.parent.insertBefore(pan, CTXB.home.next && CTXB.home.next.parentNode === CTXB.home.parent ? CTXB.home.next : null);
+  if (t) t.textContent = blank ? 'Context' : 'Context buildings';
+  if (typeof _dkPanels !== 'undefined' && _dkPanels[pan.id]) _dkPanels[pan.id].title = blank ? 'Context' : 'Context buildings';
+  pan.dataset.ctxb = blank ? 'design' : 'site';
+};
 function renderBldgControls() {
+  try { CTXB.sync(); } catch (e) {}
   const sec = document.getElementById('contextSection');
   if (!sec) return;
   sec.innerHTML = '';
@@ -4524,7 +4538,7 @@ function renderBldgList(side) {
       inp.addEventListener('input', function() {
         (side === 'L' ? BLDG_L : BLDG_R).buildings[i][f.k] = parseFloat(this.value) || f.fb;
         if (f.k === 'height') (side === 'L' ? BLDG_L : BLDG_R).buildings[i].heightManual = true;   // storeys no longer drive it
-        saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
+        saveSettings(); if (typeof syncDesignModel === 'function') try { syncDesignModel('buildings'); } catch (e) {} renderCrossSection(); renderPlanView(); renderMassView();
       });
       function mark(on) {
         row.classList.toggle('on', on);
@@ -4541,6 +4555,11 @@ function renderBldgList(side) {
     if (dmB && dmB.host) { const hb = document.createElement('span'); hb.className = 'bl-host'; hb.textContent = 'Host building'; hb.title = 'The parklet sits in front of this building'; hdr.insertBefore(hb, rmBtn); }
     const prog = document.createElement('div');
     prog.className = 'bl-rows bl-prog';
+    { const sr = document.createElement('label'); sr.className = 'bl-row';   // (Brief 31 §13) the side: moving it moves the building
+      sr.innerHTML = '<span>Side</span><select id="bldg' + side + i + '_side" class="bl-sel"><option value="L">near (parklet side)</option><option value="R">far side</option></select>';
+      const ss = sr.querySelector('select'); ss.value = side;
+      ss.addEventListener('change', function() { const from = side === 'L' ? BLDG_L : BLDG_R, to = this.value === 'L' ? BLDG_L : BLDG_R; if (from === to) return; to.buildings.push(from.buildings.splice(i, 1)[0]); saveSettings(); if (typeof syncDesignModel === 'function') try { syncDesignModel('buildings'); } catch (e) {} renderBldgList('L'); renderBldgList('R'); renderCrossSection(); renderPlanView(); renderMassView(); });
+      prog.appendChild(sr); }
     const cur = function(k, d) { return b[k] !== undefined ? b[k] : (dmB ? dmB[k] : d); };
     const after = function() { saveSettings(); if (typeof syncDesignModel === 'function') syncDesignModel('building-programme'); renderBldgList(side); };
     [['use', 'Use', BLDG_USES], ['frontage', 'Frontage', BLDG_FRONTAGES]].forEach(function(r) {
@@ -4580,21 +4599,21 @@ function addBuilding(side) {
   const lastZ = last.zOffset !== undefined ? last.zOffset : -5;
   const lastL = last.length !== undefined ? last.length : 10;
   bldg.buildings.push({
-    height: last.height,
+    height: bldg.buildings.length ? last.height : bldgHeightFromStoreys(2), storeys: bldg.buildings.length ? last.storeys : 2,
     depth: last.depth,
     length: lastL,
     setback: last.setback !== undefined ? last.setback : 0,
-    zOffset: Math.round((lastZ + lastL) * 2) / 2
+    zOffset: Math.round((lastZ + (bldg.buildings.length ? lastL : 0)) * 2) / 2
   });
   renderBldgList(side);
-  saveSettings();
-  renderMassView();
+  saveSettings(); if (typeof syncDesignModel === 'function') try { syncDesignModel('buildings'); } catch (e) {}
+  renderCrossSection(); renderPlanView(); renderMassView(); renderBldgList(side);
 }
 function removeBuilding(side, idx) {
   const bldg = side === 'L' ? BLDG_L : BLDG_R;
   bldg.buildings.splice(idx, 1);
   renderBldgList(side);
-  saveSettings(); renderCrossSection(); renderPlanView(); renderMassView();
+  saveSettings(); if (typeof syncDesignModel === 'function') try { syncDesignModel('buildings'); } catch (e) {} renderCrossSection(); renderPlanView(); renderMassView();
 }
 function updateMinRoadNote() {
   const el = document.getElementById('roadWidthNote');
@@ -14209,6 +14228,7 @@ var NAV = {
     var st = NAV.step(mode);
     document.querySelectorAll('.ttab').forEach(function(t) { var on = t.dataset.step === st; t.classList.toggle('active', on); if (on) t.setAttribute('aria-current', 'step'); else t.removeAttribute('aria-current'); });
     if (st === 'design') { NAV.sub = mode; NAV.mountSub(mode); }
+    if (typeof CTXB !== 'undefined') try { CTXB.sync(); } catch (e) {}   // (Brief 31 §13) the Context section's place
     if (typeof DK !== 'undefined') DK.onMode(mode);   // the left panel's sections reset on a step change
   },
   mountSub: function(mode) {
@@ -29926,6 +29946,7 @@ BLANK.apply = function() {
   try { SMP.refresh(); } catch (e) {}
   try { syncDesignModel('blank-street'); } catch (e) {}
   try { render(); } catch (e) {}
+  try { renderBldgControls(); } catch (e) {}   // (Brief 31 §13) Design › Context
   if (typeof SFG !== 'undefined') setTimeout(function() { SFG.start({ blank: true }); }, 0);   // (Brief 30 §9)
   console.log('[blank] a generic street: ' + BLANK.ROAD + ' m curb to curb, 1 + 1 lanes of ' + lane.toFixed(3) + ' m, parking ' + BLANK.PARK + ' m, sidewalks ' + BLANK.SIDEWALK + ' m, no buildings');
 };
@@ -34266,6 +34287,7 @@ BLANK.migrate = function() {
 };
 SFG.afterLoad = function() {
   try { BLANK.migrate(); } catch (e) {}
+  try { CTXB.sync(); renderBldgControls(); } catch (e) {}
   SFG.migrate(); SFG.sync();
   if (SFG.locked()) setTimeout(function() { if (SFG.locked() && window.APP_MODE !== 'facts') appSetMode('facts'); }, 0);   // a reload mid-sequence returns to the same card
 };
