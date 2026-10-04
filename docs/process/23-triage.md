@@ -1312,3 +1312,45 @@ About 2 min of in-app waiting. The Generate refusal matched the script word for 
   for a measured value, Place on deck instead of dragging the card, the Check table's grouping).
 - **Before Friday:** S1, S2 and S4 can show up on stage. Rehearse one real mouse drag and one Generate on the demo
   laptop.
+
+## Closed in Brief 30 (branch `friday-round`, 2026-10-03/04)
+
+Each row re-run at its site; the numbers are in `docs/process/HANDOFF_SESSION_8.md`. "Already fixed" rows were
+re-checked and found fixed by an earlier brief; "not reproduced" rows could not be made to happen again.
+
+| Row | Outcome | Commit |
+|---|---|---|
+| T4, T5 | Already fixed; re-measured: export longest stall 0.43 s, + New 0.33 s | — |
+| T10 | Fixed: the route-type note no longer counts stops within 80 m | 898e040 |
+| T15 | Not reproduced: after a search result the map is loaded, tiles drawn, zoom 18 | — |
+| 1 | Fixed: a saved Check row stays under the pointer until Check is left (cards replace the in-row fields, §9) | 5ba89a9, 99ed523 |
+| 4, 6, 7, 22 | Already fixed; re-checked (scheme keeps the import; header fits at 1280; sign-in dialog Tab / Escape; values cleared on a site change) | — |
+| 9 | Fixed: the street and side from the keyboard | 888e8c0 |
+| 16 | Fixed: the deck-width advisory on C02 | a7dbc82 |
+| 20 | Fixed: the sidewalk is not capped by the roadway | 3c34ecc |
+| 21 | Fixed: the enclosure follows the outline (a notch is wrapped, not spanned) | f8b4fbd |
+| 23 | Fixed: lane counts, the shape editor's negative values refused with the reason | 4ef0e34, e23af12 |
+| 24 | Fixed: decimal comma and m / cm / mm read; anything else refused (Check, Section, shape editor, cards) | 8af5d46, e23af12 |
+| 25 | Partly: C01 follows the deck and names its stop; the cover's "nearest stop" line is open | a7dbc82, f50bbde |
+| 29 | Fixed: a blank street imported onto a real site takes the default name and the address | 5d2cd10 |
+| 30 | Partly: chains close; the genus note is gone; the lane line over C03 labels is open | a7dbc82 |
+| 33 | Fixed: the Plan's route layer waits for the generator's script | 303cb1c |
+| 34 | Fixed: bearing rounded (earlier), local dates, "Over 0.002 m" within a 5 mm tolerance | 4ef0e34, 8587958 |
+| 35 | Fixed: the map search starts from the design's address, not the last search | a3d44d6 |
+| 39 | Partly: one-finger drags, 24 px targets (36 px under touch), the Check table at 1024 | 2ee27f8, 0173f16 |
+| 40 | Fixed: Duplicate keeps the rotation; Along follows a drag | 25e2b59 |
+| 42 | Partly: site facts in plain questions; "z" and the model string gone from the chrome | 99ed523, ccd9470 |
+| 44 | Fixed: README step 7 and the shape editor text | c51a6fd |
+| S5 | Not reproduced: 400 Tabs through every open Check row | — |
+| S7 | Fixed: Try without an account | d22c606 |
+| S8 | Fixed: the disabled Use button says what it waits for | a3d44d6 |
+| S9 | Fixed: the search starts from the street address | a3d44d6 |
+| S10, S19 | Already fixed; re-checked (the located point after a reload; the street resolves in 0.16–2.0 s, cached after) | — |
+| S16 | Fixed: a lookup that never returns says so after 15 s | e9352f6 |
+| S18 | Fixed: generated schemes and the Site panels' folds survive a reload | 9481eb1 |
+
+**Still open** (not taken in Brief 30): 5 (pieces selectable from a list by Tab), 7 (the Help dialog's focus trap),
+11, 15 (C16's z position), 18 (one street per report), 19 (drawing what the checks rest on), 27 (Generate's narrowing
+sentence and counts), 28 (the side summary's double count), 31 (emoji in the PDF), 36 (usable width on the Edge
+tiles), 37 (hover-only explanations), 38 (tree advisory on the drawings), 41 (skip link, landmarks), S17 (ask for the
+host frontage).
