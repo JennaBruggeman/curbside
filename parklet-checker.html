@@ -8002,7 +8002,7 @@ var DS = {
     return out;
   })(),
   segColor: function(type) { return DRAW_STYLE.seg(type); },
-  segColor3D: function(type) { return parseInt(DRAW_STYLE.seg(type, 'schematic').slice(1), 16); }
+  segColor3D: function(type) { return parseInt(DRAW_STYLE.seg(type, DS.mode()).slice(1), 16); }   // (Brief 31 §6C) the style shown, as the Plan
 };
 
 // Plan. renderPlanView() draws the live view (#planView, its viewBox VB, zoom, grid). With
@@ -10197,7 +10197,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
   // Left sidewalk slab (clear pedestrian zone, independent of buffer)
   { const _sw3 = _s3d.find(function(sg){ return sg.type === 'sidewalk'; });
-    const _swm = mplane(XSWL, ZS, XCL, ZE, 0.001, 0xd4d0c8, 0.97);
+    const _swm = mplane(XSWL, ZS, XCL, ZE, 0.001, DS.segColor3D('sidewalk'), 0.97);
     if (_sw3) _swm.userData.seg = _sw3.id; }
 
   // Left curb
@@ -10296,6 +10296,18 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       }
     });
   }
+
+  // (Brief 31 §6C) a hairline at every segment edge, on the ground, and along the curb's top edge (the curb is a 150 mm
+  // step): the lanes, the parking, the buffers and the bike lane read apart in grey alone, without the yellow line
+  { const _hx = new Set();
+    _s3d.forEach(function(sg) { if (sg.x1 > sg.x0 + 0.001) { _hx.add(+sg.x0.toFixed(3)); _hx.add(+sg.x1.toFixed(3)); } });
+    [XSWL, XCL, XCR, XSWR].forEach(function(x) { if (isFinite(x)) _hx.add(+(+x).toFixed(3)); });
+    // a 5 cm strip one step above the highest ground layer (the ground is drawn forward by a polygon offset of its height:
+    // a line cannot take one, so a line on the ground is never seen)
+    let _first = null;
+    _hx.forEach(function(x) { const m = mplane(x - 0.025, ZS, x + 0.025, ZE, 0.009, DS.t().edge3d); m.userData.segEdge = true; if (!_first) _first = m; });
+    [XCL, XCR].forEach(function(x) { if (isFinite(x)) mplane(x - 0.02, ZS, x + 0.02, ZE, 0.153, DS.t().edge3d).userData.segEdge = true; });   // the curb's top edge
+    if (_first) _first.userData.segEdges = _hx.size; }
 
   // White edge lines at curbs
   mplane(XCL, ZS, XCL + 0.12, ZE, 0.004, 0xffffff, 1.0).userData.mark = 1;   // markings: faint on the cover (Brief 25 item 23b)
