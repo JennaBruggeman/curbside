@@ -1511,13 +1511,29 @@ function buildInput(c) {
   let h = "<span class='input-label'>" + chkLbl(c.inputLabel) + '</span> ';
   // the select shows the stored value (one fact, one store: Brief 25 §1.3); C02's route type is the Route type fact
   if (c.inputType === 'select') h += sel(c.inputId, c.selectOptions, state[c.inputId], 220);
-  else h += `<input class="input-field" type="number" step="0.01" id="${c.inputId}" data-crit="${c.id}" placeholder="enter value" value="${state[c.inputId] == null ? '' : String(state[c.inputId]).replace(/"/g, '')}" oninput="CHKS.draft('${c.id}')" /> <span class="input-unit">${c.inputUnit || ''}</span>`;
+  else h += `<input class="input-field" type="text" inputmode="decimal" autocomplete="off" data-num="${c.inputUnit || ''}" id="${c.inputId}" data-crit="${c.id}" placeholder="enter value" value="${state[c.inputId] == null ? '' : String(state[c.inputId]).replace(/"/g, '')}" oninput="CHKS.draft('${c.id}')" /> <span class="input-unit">${c.inputUnit || ''}</span>`;
   if (c.inputId2) {
     h += `<span class="input-label" style="margin-left:12px;">${chkLbl(c.inputLabel2)}</span> `;
     if (c.inputType2 === 'select') h += sel(c.inputId2, c.selectOptions2, state[c.inputId2], 160);
   }
   return chkRow(c, h);
 }
+// ── Typed numbers (Brief 30 §8C, triage row 24) ──────────────────────────────────────────────────────────────────────────
+// The browser's number field dropped a decimal comma ("2,5" became 25) and a unit ("3 m" became 3) without a word. A
+// typed value is now read as text: a decimal point or comma, and for a length m, cm or mm (converted to metres); anything
+// else is refused with the reason, and the value is not kept.
+window.pkReadNum = function(str, unit) {
+  var t = String(str == null ? '' : str).trim().replace(/\s+/g, ' ');
+  if (t === '') return { empty: true };
+  var m = t.match(/^([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))\s*(mm|cm|m|%|kpa)?$/i);
+  var what = unit === 'm' ? 'a length in metres: a number like 2.5 or 2,5, with m, cm or mm if you like' : 'a number like 2.5 or 2,5' + (unit ? ' (' + unit + ')' : '');
+  if (!m) return { err: '"' + t + '" is not ' + what + '.' };
+  var v = parseFloat(m[1].replace(',', '.')), u = (m[2] || '').toLowerCase();
+  if (u === 'mm' || u === 'cm') { if (unit !== 'm') return { err: '"' + t + '": this value is in ' + (unit || 'plain numbers') + ', not ' + u + '.' }; v = v / (u === 'mm' ? 1000 : 100); }
+  else if (u && u !== String(unit || '').toLowerCase()) return { err: '"' + t + '": this value is in ' + (unit || 'plain numbers') + ', not ' + u + '.' };
+  if (!isFinite(v)) return { err: '"' + t + '" is not ' + what + '.' };
+  return { v: Math.round(v * 10000) / 10000 };
+};
 // the draft and its commit
 var CHKS = {
   crit: function(id) { return typeof criteria === 'undefined' ? null : criteria.find(function(q) { return q.id === id; }); },
@@ -1542,6 +1558,10 @@ var CHKS = {
   },
   save: function(id) {
     var c = CHKS.crit(id), r = CHKS.row(id); if (!c || !r) return;
+    // typed numbers read as text (Brief 30 §8C, row 24): a refused one is not kept, and the row says why
+    var bad = null;
+    CHKS.keys(c).forEach(function(k) { var el = document.getElementById(k); if (!el || el.dataset.num === undefined) return; var q = pkReadNum(el.value, el.dataset.num); if (q.err) bad = bad || q.err; else if (!q.empty) el.value = String(q.v); });
+    if (bad) { CHKS.msg(id, bad + ' Not saved.'); var bf = CHKS.keys(c).map(function(k) { return document.getElementById(k); }).find(function(el) { return el && el.dataset.num !== undefined; }); if (bf) bf.focus(); return; }
     if (typeof CHKG !== 'undefined') CHKG.held[id] = 1;   // the row stays under the pointer (Brief 30 §8C)
     CHKS.keys(c).forEach(function(k) {
       var el = document.getElementById(k); if (!el || String(el.value) === String(CHKS.set(state[k]) ? state[k] : '')) return;
@@ -5596,12 +5616,13 @@ document.addEventListener('mouseup', function() {
     var s = _segs.find(function(x){ return x.id===id; }); if (!s) return;
     var cell = btn.parentNode, start = s.width, done = false;
     var inp = document.createElement('input');
-    inp.type = 'number'; inp.step = '0.05'; inp.className = 'se-dim-in'; inp.value = s.width.toFixed(2);
+    inp.type = 'text'; inp.inputMode = 'decimal'; inp.className = 'se-dim-in'; inp.value = s.width.toFixed(2);   // read as text (Brief 30 §8C, row 24)
     inp.setAttribute('aria-label', ((SE_TYPES[s.type]||{}).label||s.type) + ' width in metres');
     cell.replaceChild(inp, btn); inp.focus(); inp.select();
     function finish(commit) {
       if (done) return; done = true;
-      var v = parseFloat(inp.value);
+      var q = pkReadNum(inp.value, 'm'), v = q.err || q.empty ? NaN : q.v;
+      if (commit && q.err && typeof pkToast === 'function') pkToast(q.err + ' The width is unchanged.');
       if (commit && !isNaN(v) && Math.abs(v - start) > 0.001) {
         s.typed = true;   // (Brief 29c item 2: a width you typed is measured)
         _seResize(id, v); _trigger();
@@ -5662,7 +5683,7 @@ document.addEventListener('mouseup', function() {
     var wMin = la ? la.env.absMin : (def.mn||0.1), wMax = la ? LANE_EXCEPTION_MAX : (def.mx||99);
     var wHtml = def.resize ?
       '<div style="display:flex;align-items:center;gap:5px">'+
-        '<input type="number" id="sePropW" data-id="'+s.id+'" value="'+s.width.toFixed(3)+
+        '<input type="text" inputmode="decimal" autocomplete="off" id="sePropW" data-id="'+s.id+'" value="'+s.width.toFixed(3)+
         '" min="'+wMin+'" max="'+wMax+'" step="0.05" '+
         'style="width:65px;padding:3px 6px;font-size:11px;font-weight:600;border:1px solid var(--rule);border-radius:3px;background:var(--bg);color:var(--text)">'+
         '<span style="font-size:11px;color:var(--d-mid)">m</span><button type="button" class="chk-save" id="sePropSave" disabled>Save</button>'+compHtml+'</div>' +
@@ -5707,12 +5728,12 @@ document.addEventListener('mouseup', function() {
       // Brief 28 item 3: the width is a draft until Save (or Enter); Escape, or leaving the field, discards it and says so
       // (Brief 27 resized on change, which leaving the field also fired)
       var _propFocusW = s.width, sv = document.getElementById('sePropSave'), pm = document.getElementById('sePropMsg');
-      var dirty = function() { return Math.abs((parseFloat(wi.value) || 0) - s.width) > 0.0005 || wi.value === ''; };
+      var dirty = function() { var q = pkReadNum(wi.value, 'm'); return !!q.err || !!q.empty || Math.abs(q.v - s.width) > 0.0005; };
       var say = function(t) { if (pm) pm.textContent = t || ''; };
       wi.addEventListener('focus', function(){ _propFocusW = s.width; });
       wi.addEventListener('input', function() { var d = dirty(); if (sv) sv.disabled = !d; say(d ? 'Not saved yet: Save (or Enter) keeps it, Esc discards it.' : ''); });
       var commit = function() {
-        var v = parseFloat(wi.value); if (isNaN(v)) return;
+        var q = pkReadNum(wi.value, 'm'); if (q.err) { say(q.err + ' Not saved.'); return; } if (q.empty) return; var v = q.v;   // (Brief 30 §8C, row 24)
         if(Math.abs(v-_propFocusW)>0.001) {
           var snap=JSON.parse(JSON.stringify(_segs));
           var ss=snap.find(function(x){ return x.id===s.id; });
