@@ -28829,8 +28829,18 @@ SM.search = async function() {
   finally { SM._searching = false; }
 };
 // First click: the street (snap to the nearest highway way within 30 m). Second click: the side.
+// (Brief 31 §3C) after a pick: the street nearest the click, when it is another street (another name, or another unnamed
+// way) and nearer than the picked one, starts a new pick there; otherwise the click sets (or flips) the side
+SM.otherStreetAt = async function(lat, lon) {
+  var cur = SM.pick; if (!cur || !cur.snap || !cur.snap.way || !cur.wayId || typeof GIS === 'undefined') return null;
+  var ways; try { ways = await GIS.waysNear(lat, lon); } catch (e) { return null; } if (!ways || !ways.length) return null;
+  var near = SM.snap(ways.filter(function(w) { var q = SM.snap([w], lat, lon); return q && q.dist <= 30; }), lat, lon); if (!near) return null;
+  var nm = (near.way.tags || {}).name || '', same = near.way.id === cur.wayId || (!!nm && nm === cur.name); if (same) return null;
+  var dc = SM.snap([cur.snap.way], lat, lon), dCur = dc ? dc.dist : Infinity;
+  return near.dist < dCur ? near : null;
+};
 SM.onClick = async function(lat, lon) {
-  if (SM.pick && SM.pick.snap) return SM.setSide(lat, lon);
+  if (SM.pick && SM.pick.snap) { if (!(await SM.otherStreetAt(lat, lon))) return SM.setSide(lat, lon); SM.pick = null; }   // another street: a new pick
   SM.status('Finding the street...');
   try {
     // the streets from the site data's cells (Brief 24 B6): no Overpass request
@@ -28855,7 +28865,7 @@ SM.onClick = async function(lat, lon) {
     if (SM._mk) SM._mk.remove(); if (SM._mkS) { SM._mkS.remove(); SM._mkS = null; }
     SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([sn.lon, sn.lat]).addTo(SM.map);
     document.getElementById('smUse').disabled = true;
-    SM.status('<b>' + SM.esc(SM.pick.name || 'Unnamed street') + '</b> (' + SM.esc(SM.pick.highway) + ', OSM way ' + sn.way.id + '), axis ' + Math.round(sn.bearing) + '&deg; from north. Now <b>click the side of the street</b> the parklet is on.');
+    SM.status('<b>' + SM.esc(SM.pick.name || 'Unnamed street') + '</b> (' + SM.esc(SM.pick.highway) + ', OSM way ' + sn.way.id + '), axis ' + Math.round(sn.bearing) + '&deg; from north. Now <b>click the side of the street</b> the parklet is on, or click another street to pick it instead.');
   } catch (e) { SM.status(e.offline ? SM.offlineText : SM.esc(e.message)); }
 };
 // ── The street under the pointer while a street pick is awaited (Brief 30 §1) ─────────────────────────────────────────
@@ -28926,7 +28936,7 @@ SM.setSide = function(lat, lon) {
   var el = document.createElement('div'); el.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#F2F2F0;border:3px solid #3AA8E4;box-shadow:0 0 0 1px #17191C';
   SM._mkS = new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(SM.map);
   document.getElementById('smUse').disabled = false;
-  SM.status('Parklet on the <b>' + side.name + '</b> side of <b>' + SM.esc(SM.pick.name || 'the street') + '</b>, street axis ' + Math.round(sn.bearing) + '&deg;. <b>Use this location</b>, or click again to change the side.');
+  SM.status('Parklet on the <b>' + side.name + '</b> side of <b>' + SM.esc(SM.pick.name || 'the street') + '</b>, street axis ' + Math.round(sn.bearing) + '&deg;. <b>Use this location</b>; click this street again to change the side, or click another street to pick it instead.');
   // the eligibility estimate where the pick stands (Brief 30 §2): an excluded face may be picked; its reason shows here
   var pk = SM.pick;
   if (typeof GIS !== 'undefined' && GIS.faceAt) GIS.faceAt(pk).then(function(p) {
