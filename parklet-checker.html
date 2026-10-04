@@ -25498,9 +25498,104 @@ RPT.parkletRange = function(DM) {
   var lane = DM.crossSection.find(function(s) { return s.type === 'travel-lane' && s.x0 >= LM.deckX1 - 0.01; }) || DM.crossSection.find(function(s) { return s.type === 'travel-lane'; }) || null;
   return { xL: cbf ? Math.min(cbf.faceX - 0.8, LM.sidewalkL.x0) : LM.sidewalkL.x0 - 0.4, xR: lane ? lane.x1 : LM.deckX1 + 3.5, lane: lane, top: Math.max(4.2, lv.deckTop + (DM.enclosure ? DM.enclosure.height : 1) + 2.8) };
 };
-RPT.parkletScale = function(d) { var R = RPT.parkletRange(d.DM), fits = function(s) { var k = 1000 / s; return (R.xR - R.xL) * k + 70 <= RPT.SW && (R.top + 0.9) * k + 86 <= RPT.DA.h; }; return fits(25) ? 25 : 50; };
+RPT.parkletScale = function(d) { var R = RPT.detailRange(d.DM), fits = function(s) { var k = 1000 / s; return (R.xR - R.xL) * k + 60 <= RPT.SW && (R.yT - R.yB) * k + 70 <= RPT.DA.h; }; return RPT.ladder(fits, 20); };   // (Brief 31 §11C) 1:20 when it fits, else 1:25, ...
+// A-202's extent (Brief 31 §11C): across, 0.5 m into the sidewalk to 0.5 m past the traffic-side enclosure (or the deck edge);
+// up, 0.3 m under the road to 0.3 m over the tallest thing on the deck
+RPT.CROSSFALL = 0.02;   // the road's crossfall under the deck, up from the gutter: assumed 2 % (Parklet Manual p. 62: the platform 2 % at most; roads 1-4 %)
+RPT.detailRange = function(DM) {
+  var LM = DM.landmarks, lv = DM.parklet.levels, EN = DM.enclosure, top = lv.deckTop + (EN ? EN.height : 1);
+  (typeof ENC !== 'undefined' ? ENC.items() : []).forEach(function(it) { try { var h = flParts(it.type, it.params).reduce(function(a, q) { return Math.max(a, q.y1); }, 0); top = Math.max(top, lv.deckTop + h); } catch (e) {} });
+  return { xL: -0.5, xR: LM.deckX1 + 0.5, yB: -0.3, yT: top + 0.3 };
+};
 // opt.kind: 'street' (A-201: building to building, 1:100) or 'parklet' (A-202: the parklet and what touches it, 1:25 / 1:50);
 // one cut, one look direction (the section box), the same trees, in both
+RPT.sheetParklet = function(d) {
+  var G = RPT.geo(d), DM = G.DM, LM = G.LM, P = RPT.pen(), FI = RPT.fills(d.mode), lv = G.lv, EN = G.enc, tech = d.mode === 'technical', R = RPT.detailRange(DM);
+  var sc = RPT.SCALE_OF.parklet(d), k = 1000 / sc, mir = G.sec.dir === 1, W = (R.xR - R.xL) * k, H = (R.yT - R.yB) * k, X0 = (RPT.SW - W) / 2, Y0 = 14;
+  var X = function(x) { return mir ? X0 + W - (x - R.xL) * k : X0 + (x - R.xL) * k; }, Y = function(y) { return Y0 + (R.yT - y) * k; };
+  var box = function(x0, x1, y0, y1) { var a = X(x0), b = X(x1); return [Math.min(a, b), Y(y1), Math.abs(b - a), (y1 - y0) * k]; };
+  var rectXY = function(x0, x1, y0, y1, o) { var q = box(x0, x1, y0, y1); P.rect(q[0], q[1], q[2], q[3], o); return q; };
+  var shape = function(q) { return "<rect x='" + q[0].toFixed(2) + "' y='" + q[1].toFixed(2) + "' width='" + q[2].toFixed(2) + "' height='" + q[3].toFixed(2) + "'/>"; };
+  var hat = function(q, kind, o) { P.hatch(shape(q), [q[0], q[1], q[0] + q[2], q[1] + q[3]], kind, o); };
+  var road = function(x) { return Math.max(0, x) * RPT.CROSSFALL; }, keys = [], tag = function(name) { return " data-a202='" + name + "'"; };
+  var dimV = function(x, y0, y1, label, side, name) {   // a vertical dimension beside x, ticks at both ends
+    var px = X(x) + (side === 'left' ? -1 : 1) * (mir ? -1 : 1) * 6, a = Y(y0), b = Y(y1);
+    P.line(px, a, px, b, { cls: 'context', data: tag(name) }); [a, b].forEach(function(y) { P.line(px - 0.9, y + 0.9, px + 0.9, y - 0.9, { cls: 'general' }); P.line(X(x), y, px + (side === 'left' ? -1.5 : 1.5) * (mir ? -1 : 1), y, { cls: 'fine' }); });
+    P.text(px + (side === 'left' ? -1.6 : 1.6) * (mir ? -1 : 1), (a + b) / 2 + 1, label, RPT.TX.tag, { anchor: (side === 'left') !== mir ? 'end' : 'start', c: RPT.INK });
+  };
+  var dimH = function(x0, x1, y, label, below, name) {
+    var py = Y(y) + (below ? 5 : -5), a = X(x0), b = X(x1);
+    P.line(a, py, b, py, { cls: 'context', data: tag(name) }); [a, b].forEach(function(x) { P.line(x - 0.9, py + 0.9, x + 0.9, py - 0.9, { cls: 'general' }); P.line(x, Y(y), x, py + (below ? 1.2 : -1.2), { cls: 'fine' }); });
+    P.text((a + b) / 2, py + (below ? 3.4 : -1.2), label, RPT.TX.tag, { anchor: 'middle', c: RPT.INK });
+  };
+  P.clipOpen("<rect x='" + Math.min(X(R.xL), X(R.xR)) + "' y='" + Y(R.yT) + "' width='" + W + "' height='" + H + "'/>");
+  // beyond: the City's wheel stops and bollards (light), the furniture past the cut as outlines
+  var scn = getSectionScene(G.sec), inX = function(it) { return it.x1 >= R.xL && it.x0 <= R.xR; }, city = 0;
+  scn.beyond.forEach(function(it) {
+    if (!inX(it)) return;
+    if (it.kind === 'city') { rectXY(it.x0, it.x1, road((it.x0 + it.x1) / 2), road((it.x0 + it.x1) / 2) + it.y1, { fill: '#FFFFFF', cls: 'context', data: tag('city') }); city++; }
+    else if (it.kind === 'furniture' && it.data && it.data.inst) { var ib = it.data.inst, sb = flInstSpec(ib); if (sb) P.add(flSectionArchetype(sb.type, sb.params, { mats: sb.mats, x: ib.x || 0, rot: (typeof ib.userRotation === 'number' ? ib.userRotation : (ib.rotationY || 0)), xToPx: X, yDeck: Y(lv.deckTop), SC: k, isBeyond: true, tech: tech, id: ib.id })); }
+    else if (it.kind === 'enclosure') RPT.encSection({ rectXY: rectXY, hat: hat, sec: G.sec, lv: lv, tech: tech, FI: FI }, it, false);
+  });
+  if (city) keys.push({ t: 'Beyond: the City\'s wheel stop and flexible bollard at the deck end, supplied and installed by the City (Parklet Manual p. 48).', at: null });
+  // the ground: the road on its crossfall over a 2 mm earth band; the sidewalk slab and the curb, cut
+  var gx = [], roadPoly = []; for (var x = 0; x <= R.xR + 1e-6; x += 0.25) gx.push(Math.min(x, R.xR));
+  roadPoly = gx.map(function(x) { return [X(x), Y(road(x))]; }).concat([[X(R.xR), Y(R.yB)], [X(0), Y(R.yB)]]);
+  P.poly(roadPoly, { fill: tech ? '#FFFFFF' : FI.earth, cls: 'object', data: tag('road') });
+  P.hatch("<polygon points='" + roadPoly.map(function(q) { return q[0].toFixed(2) + ',' + q[1].toFixed(2); }).join(' ') + "'/>", [Math.min(X(0), X(R.xR)), Y(road(R.xR)), Math.max(X(0), X(R.xR)), Y(R.yB)], 'asphalt');
+  var sw = rectXY(R.xL, -0.15, lv.curbTop - 0.1, lv.curbTop, { fill: '#FFFFFF', cls: 'object', data: tag('sidewalk') }); hat(sw, 'concrete');
+  rectXY(R.xL, -0.15, R.yB, lv.curbTop - 0.1, { fill: FI.earth, w: 0 });
+  var cb = rectXY(-0.15, 0, R.yB, lv.curbTop, { fill: '#FFFFFF', cls: 'cut', data: tag('curb') }); hat(cb, 'concrete');
+  // the deck: boards cut across (140 mm, 5 mm joints, 25 mm thick), the battens under them (beyond, 40 mm), the levelling
+  // pedestals every 0.6 m down to the road on its crossfall
+  var x0d = LM.deckX0 + (lv.gap || 0.012), x1d = LM.deckX1, bt = 0.025, bat = Math.max(0.02, lv.deckThk - bt), under = lv.deckTop - lv.deckThk, nb = 0;
+  for (var bx = x0d; bx < x1d - 0.02; bx += 0.145) { var be = Math.min(x1d, bx + 0.14); hat(rectXY(bx, be, lv.deckTop - bt, lv.deckTop, { fill: '#FFFFFF', cls: 'cut', data: nb ? '' : tag('board') }), 'cut'); nb++; }
+  rectXY(x0d, x1d, under, lv.deckTop - bt, { fill: 'none', cls: 'general', data: tag('batten') });
+  var np = 0;
+  for (var px = x0d + 0.15; px < x1d - 0.05; px += 0.6) { var g0 = road(px); if (under - g0 < 0.005) continue; rectXY(px - 0.04, px + 0.04, g0, g0 + 0.008, { fill: 'none', cls: 'general' }); rectXY(px - 0.015, px + 0.015, g0 + 0.008, under, { fill: 'none', cls: 'general', data: np ? '' : tag('pedestal') }); np++; }
+  keys.push({ t: 'Deck: ' + nb + ' boards 140 mm wide, 25 mm thick, 5 mm joints, on 40 mm battens on ' + np + ' adjustable pedestals per row, set to the road\'s crossfall (2 %, assumed: measure it on site); top of deck flush with the curb.', at: [X((x0d + x1d) / 2), Y(lv.deckTop) - 3] });
+  // the deck-edge gap at the curb (C14)
+  dimH(0, x0d, lv.deckTop, Math.round((x0d - 0) * 1000) + '', false, 'gap');
+  keys.push({ t: 'Deck edge at the curb: gap ' + Math.round((x0d - 0) * 1000) + ' mm (C14: 12 mm at most, a connector plate 13 mm high at most where wider; Parklet Manual p. 62).', at: [X(x0d / 2), Y(lv.deckTop) - 6] });
+  // levels: top of curb the datum, the deck, the road at the curb
+  var lx = X(R.xL) + (mir ? 4 : -4);
+  RPT.sym.level(P, lx, Y(lv.curbTop), '±0.00 top of curb (datum)', mir);
+  RPT.sym.level(P, X(R.xR) + (mir ? -4 : 4), Y(lv.deckTop), (Math.abs(lv.deckTop - lv.curbTop) < 0.0005 ? '±0.00' : RPT.fmt(lv.deckTop - lv.curbTop)) + ' top of deck', !mir);
+  // the cut: the enclosure as built, the furniture at its size
+  var encC = { rectXY: rectXY, hat: hat, sec: G.sec, lv: lv, tech: tech, FI: FI }, encX = null, seat = null;
+  scn.cut.forEach(function(it) {
+    if (!inX(it)) return;
+    if (it.kind === 'enclosure') { RPT.encSection(encC, it, true); if (it.data && it.data.run && it.data.run.side === 'traffic') encX = { x0: it.x0, x1: it.x1 }; }
+    else if (it.kind === 'furniture' && it.data && it.data.inst) {
+      var ic = it.data.inst, sp = flInstSpec(ic); if (!sp) return;
+      P.add(flSectionArchetype(sp.type, sp.params, { mats: sp.mats, x: ic.x || 0, rot: (typeof ic.userRotation === 'number' ? ic.userRotation : (ic.rotationY || 0)), xToPx: X, yDeck: Y(lv.deckTop), SC: k, isBeyond: false, tech: tech, id: ic.id }));
+      var A = FL_ARCHETYPES[sp.type] || {}, dm = flInstDims(ic);
+      if (!seat && sp.params && sp.params.seatH) { seat = { x: (it.x0 + it.x1) / 2, h: sp.params.seatH, name: (A.label || 'seat').toLowerCase() }; }
+      keys.push({ t: (A.label || sp.type) + ', cut: ' + RPT.fmt(dm.l) + ' x ' + RPT.fmt(dm.d) + ' x ' + RPT.fmt(dm.h) + ' m' + (sp.params && sp.params.seatH ? ', seat ' + Math.round(sp.params.seatH * 1000) + ' mm above the deck' : '') + '.', at: [X((it.x0 + it.x1) / 2), Y(lv.deckTop + (it.y1 - it.y0)) - 3] });
+    }
+  });
+  if (seat) dimV(seat.x, lv.deckTop, lv.deckTop + seat.h, Math.round(seat.h * 1000) + ' seat', 'right', 'seat');
+  // the enclosure's height (C17), the buffer to the deck's traffic edge
+  if (EN) {
+    var ex = encX ? (encX.x0 + encX.x1) / 2 : LM.deckX1 - (EN.bufferDepth || 0) - 0.03;
+    dimV(encX ? encX.x1 : ex, lv.deckTop, lv.deckTop + EN.height, Math.round(EN.height * 1000) + ' (C17)', 'right', 'encH');
+    if (EN.bufferDepth > 0.005) dimH(LM.deckX1 - EN.bufferDepth, LM.deckX1, lv.deckTop, Math.round(EN.bufferDepth * 1000) + ' buffer', true, 'buffer');
+    var EA = ENCLOSURE_ARCHETYPES[EN.runs[0].id] || {}, ep = EN.runs[0].params || {}, pr = EA.params ? Object.keys(EA.params).map(function(kk) { var v = ep[kk]; return EA.params[kk].label.toLowerCase() + ' ' + (typeof v === 'number' ? (kk === 'open' ? Math.round(v * 100) + ' %' : Math.round(v * 1000) + ' mm') : (v != null ? String(v) : '')); }).filter(function(t) { return !/ $/.test(t); }).join(', ') : '';
+    keys.push({ t: 'Enclosure: ' + (EA.name || 'traffic side').toLowerCase() + (pr ? ' (' + pr + ')' : '') + ', ' + RPT.fmt(EN.height) + ' m above the deck (C17: 0.75-1.0 m)' + (EN.bufferDepth > 0.005 ? ', set ' + RPT.fmt(EN.bufferDepth) + ' m in from the traffic-side edge (the buffer)' : '') + '.', at: [X(encX ? encX.x1 : ex), Y(lv.deckTop + EN.height) - 3] });
+  }
+  // C19: the clearance under an overhead element
+  var c19 = ENC.c19();
+  (c19.list || []).forEach(function(q, i) {
+    var it = scn.cut.concat(scn.beyond).find(function(s2) { return s2.kind === 'furniture' && s2.data && s2.data.inst && s2.data.inst.objId && FL_ARCHETYPES[(flInstSpec(s2.data.inst) || {}).type] && (flInstSpec(s2.data.inst) || {}).type === q.type; });
+    var x = it ? (it.x0 + it.x1) / 2 + 0.4 : (LM.deckX0 + LM.deckX1) / 2;
+    dimV(x, lv.deckTop, lv.deckTop + q.clear, RPT.fmt(q.clear) + ' clear (C19)', 'right', 'c19');
+    if (!i) keys.push({ t: q.label + ': ' + RPT.fmt(q.clear) + ' m clear above the deck (C19: ' + RPT.fmt(ENC.OVERHEAD_H) + ' m at least, within the footprint).', at: [X(x), Y(lv.deckTop + q.clear) - 3] });
+  });
+  P.clipClose();
+  dimV(R.xL, 0, lv.curbTop, Math.round((lv.curbTop - lv.road) * 1000) + ' curb', 'left', 'curbH');   // outside the sidewalk's hatch
+  keys.unshift({ t: 'A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ': the parklet and the curb it meets; the street on A-201.', at: null });
+  return RPT.dsheet(d, 'A-202', 'Parklet section', sc, P, keys, { zA: G.sec.z - 0.3, zB: G.sec.z + 0.3, xTop: R.xL, xBot: R.xR, notesStrip: true });
+};
 RPT.sheetSection = function(d, opt) {
   opt = opt || { kind: 'street' }; var PARK = opt.kind === 'parklet';
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), FI = RPT.fills(d.mode), lv = G.lv, EN = G.enc, tech = d.mode === 'technical', T = DRAW_STYLE.t(d.mode);
@@ -25592,9 +25687,9 @@ RPT.sheetSection = function(d, opt) {
     P.line(X(xL), Y(bh), X(cbf.faceX), Y(bh), { cls: 'cut' }); P.line(X(cbf.faceX), Y(lv.curbTop), X(cbf.faceX), Y(bh), { cls: 'cut', data: " data-face='1'" });
   }
   // deck structure (indicative supports from the road to the deck), then the deck board cut: thin material, solid
-  for (var sx0 = LM.deckX0 + 0.3; sx0 < LM.deckX1 - 0.1; sx0 += 0.6) rectXY(sx0 - 0.025, sx0 + 0.025, 0, lv.deckTop - lv.deckThk, { cls: 'general' });
-  rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk - 0.09, lv.deckTop - lv.deckThk, { cls: 'general' });
-  var dk = rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk, lv.deckTop, { fill: '#FFFFFF', cls: 'cut' }); hat(dk, 'cut');
+  if (PARK) { for (var sx0 = LM.deckX0 + 0.3; sx0 < LM.deckX1 - 0.1; sx0 += 0.6) rectXY(sx0 - 0.025, sx0 + 0.025, 0, lv.deckTop - lv.deckThk, { cls: 'general' });
+  rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk - 0.09, lv.deckTop - lv.deckThk, { cls: 'general' }); }
+  var dk = PARK ? rectXY(LM.deckX0 + 0.012, LM.deckX1, lv.deckTop - lv.deckThk, lv.deckTop, { fill: '#FFFFFF', cls: 'cut' }) : rectXY(LM.deckX0 + 0.012, LM.deckX1, 0, lv.deckTop, { fill: '#FFFFFF', cls: 'cut', data: " data-deck-bar='1'" }); hat(dk, 'cut');   // (Brief 31 §11D) A-201: the deck a simple bar
   // at the cut: furniture, trees, the wheel stops, the enclosure
   scn.cut.forEach(function(it) {
     if (it.kind === 'furniture') furn(it, true);
@@ -25638,7 +25733,7 @@ RPT.sheetSection = function(d, opt) {
   // strip under the section; the section's own note first, how the beyond reads last
   var cutTxt = 'A-A at z ' + G.sec.z.toFixed(2) + ' m, looking ' + (G.sec.dir > 0 ? '+z' : '-z') + ', ' + G.sec.depth.toFixed(1) + ' m beyond in elevation';
   var keys = [{ t: PARK ? 'Parklet section ' + cutTxt + ': the cut and the direction of the street section A-201.' : 'Street section ' + cutTxt + '; the parklet in detail on A-202.', at: null }]
-    .concat(sectionNotes(scn, G.DM).filter(function(q) { return !(PARK && /^Enclosure/.test(q.t)); }).map(function(q) { return { t: q.t + '.', at: [X(q.at[0]), Y(q.at[1]) - 3] }; }));   // (A-202: the enclosure's full note below)
+    .concat(sectionNotes(scn, G.DM).filter(function(q) { return PARK ? !/^Enclosure/.test(q.t) : /^Building at the cut/.test(q.t); }).map(function(q) { return { t: q.t + '.', at: [X(q.at[0]), Y(q.at[1]) - 3] }; }));   // (Brief 31 §11D: A-201 keeps the street's notes; the parklet's are on A-202)
   if (PARK && EN && EN.runs && EN.runs[0]) {   // Brief 25 item 22e: what A-301 said, here, keyed to the enclosure and the deck edge
     var EA = ENCLOSURE_ARCHETYPES[EN.runs[0].id], ep = EN.runs[0].params || {};
     var par = EA && EA.params ? Object.keys(EA.params).map(function(key) { var v = ep[key]; return EA.params[key].label.toLowerCase() + ' ' + (typeof v === 'number' ? (key === 'open' ? Math.round(v * 100) + ' %' : Math.round(v * 1000) + ' mm') : (ENCLOSURE_ARCHETYPES[v] ? ENCLOSURE_ARCHETYPES[v].name.toLowerCase() : v)); }).join(', ') : '';
@@ -25704,7 +25799,7 @@ RPT.BUILDERS = {
   deck: function(d, drw, s) { return RPT.sheetDeck(d, s.part, s.i, s.n); },
   route: function(d) { var cr = d.DM.site.sheets.A103.crop; return RPT.sheetDeck(d, [cr.z0, cr.z1], 0, 1, { route: true }); },
   section: function(d) { return RPT.sheetSection(d, { kind: 'street' }); },
-  section2: function(d) { return RPT.sheetSection(d, { kind: 'parklet' }); },
+  section2: function(d) { return RPT.sheetParklet(d); },   // (Brief 31 §11C)
   details: function(d) { return RPT.sheetDetails(d); },
 
   schedule: function(d) { return RPT.schedule(d); }, compliance: function(d) { return RPT.compliance(d); },
