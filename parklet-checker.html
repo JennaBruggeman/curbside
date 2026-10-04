@@ -1542,6 +1542,7 @@ var CHKS = {
   },
   save: function(id) {
     var c = CHKS.crit(id), r = CHKS.row(id); if (!c || !r) return;
+    if (typeof CHKG !== 'undefined') CHKG.held[id] = 1;   // the row stays under the pointer (Brief 30 §8C)
     CHKS.keys(c).forEach(function(k) {
       var el = document.getElementById(k); if (!el || String(el.value) === String(CHKS.set(state[k]) ? state[k] : '')) return;
       if (c.id === 'c2' && k === c.inputId && typeof onRouteTypeToggle === 'function') onRouteTypeToggle(el.value); else handleInput(c.id, k, el.value);
@@ -13925,6 +13926,7 @@ var STEPS = { KEY: 'pkt_exported_once', done: function() { try { return localSto
 (function() { var go = function() { var a = document.querySelector('.ttab.active'), m = a ? (String(a.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : 'site'; STEPS.sync(m || 'site'); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
 function appSetMode(mode) {
   var _was = window.APP_MODE; window.APP_MODE = mode;   // (Brief 28 item 4: the Plan draws the route only in Accessibility)
+  if (_was === 'check' && mode !== 'check' && typeof CHKG !== 'undefined' && Object.keys(CHKG.held).length) CHKG.release();   // (Brief 30 §8C)
   STEPS.sync(mode);
   // leaving the Export tab stops the axon preview (it lives in the Export panel)
   if (mode !== 'export' && window.AXE && AXE.previewing) AXE.stop();
@@ -32138,6 +32140,7 @@ input[data-secret] { -webkit-text-security: disc; }
 .site-step[data-st='next'] .site-step-n { background: var(--accent-ui, #3AA8E4); color: #fff; }
 .site-step[data-st='next'] .site-step-st { color: var(--accent-ui, #3AA8E4); border-color: var(--accent-ui, #3AA8E4); }
 .site-step-body { padding: 8px 10px 4px; }
+.chk-held { display: block; font-size: 11px; color: var(--c-text-dim, #9AA0A6); margin-top: 2px; }
 </style><script>
 // ── Structure, continued (Brief 21 §3): the Check table, the Design readout, Visualize, empty states, the Site steps ──
 // the Check tab: which view each rule is drawn in (the "Show me" link), the row's measured value and provisional flag,
@@ -32149,6 +32152,11 @@ var _chkF = 'all';
 // pass · Pass; Fails and Awaiting measurement open, the others folded with their count. A group the user opens or folds
 // stays so for the session; an empty group is not shown. "Expand all" opens every group and row.
 var CHKG = { ORDER: [['fail', 'Fails'], ['await', 'Awaiting measurement'], ['unclear', 'Not entered'], ['prov', 'Provisional pass'], ['pass', 'Pass']], open: { fail: true, await: true } };
+// (Brief 30 §8C, triage row 1) a Save moved the row to its new group at once, so the list jumped under the pointer and
+// the next click landed on another row. A saved row now stays where it is until the Check tab is left, with a line
+// naming the group it belongs to; the group counts follow the checks' states, not where the rows sit.
+CHKG.held = {};
+CHKG.release = function() { CHKG.held = {}; CHKG.group(); };
 CHKG.keyOf = function(c) { var st = typeof CHK !== 'undefined' ? CHK.state(c) : { base: getCriterionStatus(c) }; return st.base === 'fail' ? 'fail' : st.base === 'await' ? 'await' : st.base === 'pass' ? (st.provisional ? 'prov' : 'pass') : 'unclear'; };
 CHKG.group = function() {
   var list = document.getElementById('criteriaList'); if (!list || typeof criteria === 'undefined') return;
@@ -32167,18 +32175,31 @@ CHKG.group = function() {
   // rows in their group, in the rule order, each moved only when out of place: moving a row blurs what has focus in it
   // (Brief 28 item 3: the Edit button after a Save)
   var cur = {}; Object.keys(gs).forEach(function(k) { cur[k] = 1; });   // after the group's summary
-  criteria.forEach(function(c) {
+  var name = {}; CHKG.ORDER.forEach(function(g) { name[g[0]] = g[1]; });
+  criteria.forEach(function(c) {   // a held row keeps its place, marked with where it belongs
     var el = document.getElementById('crit_' + c.id); if (!el) return;
-    var g = gs[CHKG.keyOf(c)], here = g.children[cur[CHKG.keyOf(c)]];
+    var k = CHKG.keyOf(c), at = el.parentNode && el.parentNode.dataset ? el.parentNode.dataset.g : null, keep = !!CHKG.held[c.id] && !!at && at !== k;
+    el.toggleAttribute('data-held', keep);
+    var note = el.querySelector('.chk-held');
+    if (keep) { if (!note) { note = document.createElement('span'); note.className = 'chk-held'; note.setAttribute('role', 'status'); var h = el.querySelector('.criterion-body') || el; h.insertBefore(note, h.firstChild); } note.textContent = 'Now under ' + name[k] + ': it moves there when you leave Check.'; }
+    else if (note) note.remove();
+  });
+  criteria.forEach(function(c) {
+    var el = document.getElementById('crit_' + c.id); if (!el || el.hasAttribute('data-held')) return;
+    var k = CHKG.keyOf(c), g = gs[k];
+    while (g.children[cur[k]] && g.children[cur[k]].hasAttribute('data-held')) cur[k]++;
+    var here = g.children[cur[k]];
     if (here !== el) g.insertBefore(el, here || null);
-    cur[CHKG.keyOf(c)]++;
+    cur[k]++;
   });
   CHKG.counts();
 };
 CHKG.counts = function() {
   document.querySelectorAll('#criteriaList details.chk-grp').forEach(function(d) {
     var all = d.querySelectorAll('.chk-row').length, shown = [].filter.call(d.querySelectorAll('.chk-row'), function(r) { return !r.hidden; }).length;
-    d.querySelector('.chk-grp-n').textContent = String(shown); d.hidden = !shown || !all;
+    // the count is the checks in this state (a held row counts where it belongs, not where it sits)
+    var n = typeof criteria === 'undefined' ? shown : criteria.filter(function(c) { var el = document.getElementById('crit_' + c.id); return el && !el.hidden && CHKG.keyOf(c) === d.dataset.g; }).length;
+    d.querySelector('.chk-grp-n').textContent = String(n); d.hidden = (!shown || !all) && !n;
   });
 };
 function chkAfterRender() {
