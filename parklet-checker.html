@@ -3761,7 +3761,7 @@ ENC.meshes3D = function(DM, base) {
       });
       var gq = new THREE.BufferGeometry(); gq.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); gq.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); gq.computeBoundingBox(); gq.computeBoundingSphere();
       var miq = ENC.matInfo(q0.mat), mq = new THREE.Mesh(gq, new THREE.MeshStandardMaterial({ color: parseInt(String(miq.color || '#A8B0B2').slice(1), 16), roughness: miq.rough != null ? miq.rough : 0.7 }));
-      mq.castShadow = q0.op >= 1; mq.receiveShadow = true; mq.userData.label = 'Enclosure (' + q0.side + ')'; mq.userData.enc = q0.side; mq.userData.expLayer = 'Parklet'; mq.userData.encParts = n;
+      mq.castShadow = q0.op >= 1; mq.receiveShadow = true; mq.userData.label = 'Enclosure (' + q0.side + ')'; mq.userData.enc = q0.side; mq.userData.expLayer = 'Parklet'; mq.userData.encParts = n; mq.userData.matId = q0.mat;
       if (q0.op < 1) { mq.material.transparent = true; mq.material.opacity = q0.op; mq.material.depthWrite = false; }
       return mq;
     }
@@ -3774,7 +3774,7 @@ ENC.meshes3D = function(DM, base) {
     var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1)); g.computeBoundingBox(); g.computeBoundingSphere();
     var mi = ENC.matInfo(q0.mat), m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: parseInt(String(mi.color || '#A8B0B2').slice(1), 16), roughness: mi.rough != null ? mi.rough : 0.7 }));
     m.castShadow = q0.op >= 1; m.receiveShadow = true;
-    m.userData.label = 'Enclosure (' + q0.side + ')'; m.userData.enc = q0.side; m.userData.expLayer = 'Parklet'; m.userData.encParts = n;
+    m.userData.label = 'Enclosure (' + q0.side + ')'; m.userData.enc = q0.side; m.userData.expLayer = 'Parklet'; m.userData.encParts = n; m.userData.matId = q0.mat;
     if (q0.op < 1) { m.material.transparent = true; m.material.opacity = q0.op; m.material.depthWrite = false; }
     return m;
   });
@@ -3786,7 +3786,7 @@ ENC.mesh3D = function(q) {
   var mi = ENC.matInfo(q.mat), col = parseInt(String(mi.color || '#A8B0B2').slice(1), 16);
   var m = q.quad ? new THREE.Mesh(ENC.quadGeom(q), new THREE.MeshStandardMaterial({ color: col, roughness: mi.rough != null ? mi.rough : 0.7 }))   // (Brief 30 §11)
     : new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.001, q.x1 - q.x0), Math.max(0.001, q.y1 - q.y0), Math.max(0.001, q.z1 - q.z0)), new THREE.MeshStandardMaterial({ color: col, roughness: mi.rough != null ? mi.rough : 0.7 }));
-  if (!q.quad) m.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2); m.castShadow = q.op >= 1; m.receiveShadow = true;
+  if (!q.quad) m.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2); m.castShadow = q.op >= 1; m.receiveShadow = true; m.userData.matId = q.mat;
   m.userData.label = 'Enclosure (' + q.side + ')'; m.userData.enc = q.side; m.userData.expLayer = 'Parklet';
   if (q.op < 1) { m.material.transparent = true; m.material.opacity = q.op; m.material.depthWrite = false; }
   return m;
@@ -10412,7 +10412,7 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
 
 
     const _dm = new THREE.Mesh(_eg, new THREE.MeshStandardMaterial({color:PKMAT.hex3('deck', 0xD6AE74), roughness:0.85}));   // (Brief 30 §5)
-    _dm.userData.expLayer = 'Parklet'; _dm.userData.label = 'Parklet deck';
+    _dm.userData.expLayer = 'Parklet'; _dm.userData.label = 'Parklet deck'; _dm.userData.matId = PKMAT.eff('deck'); _dm.userData.boardsAlong = true;
     _dm.castShadow = true; _dm.receiveShadow = true; g.add(_dm);
     // Dark fascia edge lines around shape perimeter
     const _el = new THREE.LineSegments(new THREE.EdgesGeometry(_eg, 30), new THREE.LineBasicMaterial({color:PKMAT.hex3('fascia', 0x7a5020)}));
@@ -12918,6 +12918,7 @@ function fl3DBuildFromKey(key) {
 
 // -- Editing a placed piece (Selection panel) --------------------------------------------------------
 // Swap a piece's mesh for one built from its current params/materials, keeping its transform.
+(function() { var f = window.fl3DBuildInst; if (typeof f !== 'function' || f._tex) return; window.fl3DBuildInst = function() { var m = f.apply(this, arguments); try { if (m && typeof MATTEX !== 'undefined') MATTEX.dress(m); } catch (e) {} return m; }; window.fl3DBuildInst._tex = true; })();
 function flRebuildInstMesh(inst) {
   if (!inst || !inst.mesh || typeof _3d === 'undefined' || !_3d || !_3d.group) return;
   var old = inst.mesh, parent = old.parent || _3d.group, mesh = fl3DBuildInst(inst);
@@ -15315,10 +15316,106 @@ function setDrawingTheme(mode) {
 }
 
 var _techEdges = [];
+// ── (Brief 31 §7B) material surfaces in 3D ───────────────────────────────────────────────────────────────────────────
+// Each family's surface is one greyscale detail texture (1 m square, 512 px), multiplied by the material's own colour, so
+// one texture serves every colour of the family; timber and concrete also get a normal map from the same heights.
+var MATTEX = { tex: {}, mats: {}, env: null, BOARD: 0.14, PX: 512 };
+MATTEX.kind = function(id) {
+  if (!id || typeof PKMAT === 'undefined') return null; var m = flMatInfo(id), f = PKMAT.fam(m);
+  if (f === 'timber') return 'timber'; if (id === 'terrazzo') return 'terrazzo'; if (id === 'granite') return 'granite';
+  if (/^(concrete|precast_grey|fibre_cement)$/.test(id)) return 'concrete'; if (f === 'composite') return /^(recycled_|hpl)/.test(id) ? 'recycled' : 'composite';
+  if (f === 'metal') return 'sheen'; return null;
+};
+// a seeded random, so a surface is the same on every load
+MATTEX.rnd = function(seed) { var x = seed || 1; return function() { x = (x * 16807) % 2147483647; return (x - 1) / 2147483646; }; };
+MATTEX.make = function(kind) {
+  if (MATTEX.tex[kind]) return MATTEX.tex[kind];
+  var N = MATTEX.PX, cv = document.createElement('canvas'); cv.width = cv.height = N; var cx = cv.getContext('2d'), R = MATTEX.rnd(kind.length * 7919), H = new Float32Array(N * N).fill(0.5), i, j;
+  var img = cx.createImageData(N, N), put = function(v) { for (i = 0; i < N * N; i++) { var g = Math.max(0, Math.min(255, Math.round(v[i] * 255))); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = g; img.data[i * 4 + 3] = 255; } cx.putImageData(img, 0, 0); };
+  var V = new Float32Array(N * N).fill(0.9), bw = Math.round(MATTEX.BOARD * N);
+  if (kind === 'timber') {   // boards along v (the street), a joint every 140 mm across u; grain streaks along v, a tone per board
+    var tone = []; for (i = 0; i <= N / bw + 1; i++) tone.push(0.82 + R() * 0.16);
+    var streak = []; for (i = 0; i < N; i++) streak.push((R() - 0.5) * 0.12);
+    for (j = 0; j < N; j++) for (i = 0; i < N; i++) {
+      var b = Math.floor(i / bw), w = Math.sin((j / N) * Math.PI * 2 * (2 + b % 3) + b) * 2, u = (i + Math.round(w) + N) % N, v = tone[b] + streak[u] + Math.sin(u * 0.9 + b) * 0.02, joint = (i % bw) < 2;
+      V[j * N + i] = joint ? 0.35 : v; H[j * N + i] = joint ? 0 : 0.5 + streak[u] * 2;
+    }
+  } else if (kind === 'composite' || kind === 'recycled') {   // fine grooves along v
+    var gp = kind === 'composite' ? 6 : 10; for (j = 0; j < N; j++) for (i = 0; i < N; i++) { var t = (i % gp) / gp; V[j * N + i] = 0.86 + (t < 0.2 ? -0.18 : 0) + (R() - 0.5) * 0.04; }
+    if (kind === 'composite') for (j = 0; j < N; j++) for (i = 0; i < N; i++) if (i % bw < 2) V[j * N + i] = 0.4;
+  } else if (kind === 'terrazzo' || kind === 'granite') {   // chips: many small, a few larger, light and dark
+    for (i = 0; i < N * N; i++) V[i] = 0.9 + (R() - 0.5) * 0.04;
+    var n = kind === 'terrazzo' ? 2600 : 9000, rmax = kind === 'terrazzo' ? 6 : 2.2;
+    for (var c = 0; c < n; c++) { var x0 = R() * N, y0 = R() * N, r = 0.8 + R() * rmax * (R() < 0.15 ? 1.8 : 1), tn = R() < 0.5 ? 0.45 + R() * 0.25 : 1.0 + R() * 0.12;
+      for (j = Math.floor(y0 - r); j <= y0 + r; j++) for (i = Math.floor(x0 - r); i <= x0 + r; i++) { var dx = i - x0, dy = j - y0; if (dx * dx + dy * dy <= r * r) V[((j + N) % N) * N + ((i + N) % N)] = tn; } }
+  } else if (kind === 'concrete') {   // a mottle at two scales and pores
+    var cell = function(sz) { var g = []; for (i = 0; i < (N / sz + 1) * (N / sz + 1); i++) g.push(R()); return g; };
+    var g1 = cell(64), g2 = cell(16), sm = function(g, sz, x, y) { var k = N / sz + 1, a = Math.floor(x / sz), bq = Math.floor(y / sz), fx = x / sz - a, fy = y / sz - bq, q = function(p, r2) { return g[(r2 % (k - 1)) * k + (p % (k - 1))]; }; return q(a, bq) * (1 - fx) * (1 - fy) + q(a + 1, bq) * fx * (1 - fy) + q(a, bq + 1) * (1 - fx) * fy + q(a + 1, bq + 1) * fx * fy; };
+    for (j = 0; j < N; j++) for (i = 0; i < N; i++) { var m2 = 0.84 + (sm(g1, 64, i, j) - 0.5) * 0.12 + (sm(g2, 16, i, j) - 0.5) * 0.06; V[j * N + i] = m2; H[j * N + i] = m2; }
+    for (c = 0; c < 900; c++) { var px = Math.floor(R() * N), py = Math.floor(R() * N); V[py * N + px] = 0.55; H[py * N + px] = 0.2; }
+  } else if (kind === 'sheen') {   // a soft brushed sheen
+    for (j = 0; j < N; j++) for (i = 0; i < N; i++) V[j * N + i] = 0.9 + Math.sin(j * 0.05) * 0.03 + (R() - 0.5) * 0.03;
+  }
+  put(V); var map = new THREE.CanvasTexture(cv); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.anisotropy = 4; if (THREE.sRGBEncoding) map.encoding = THREE.sRGBEncoding;
+  var normal = null;
+  if (kind === 'timber' || kind === 'concrete') {   // the normal map from the heights
+    var nc = document.createElement('canvas'); nc.width = nc.height = N; var nx = nc.getContext('2d'), ni = nx.createImageData(N, N), k = kind === 'timber' ? 3 : 6;
+    for (j = 0; j < N; j++) for (i = 0; i < N; i++) { var hx = (H[j * N + (i + 1) % N] - H[j * N + (i - 1 + N) % N]) * k, hy = (H[((j + 1) % N) * N + i] - H[((j - 1 + N) % N) * N + i]) * k, l = Math.hypot(hx, hy, 1), o = (j * N + i) * 4;
+      ni.data[o] = Math.round((-hx / l * 0.5 + 0.5) * 255); ni.data[o + 1] = Math.round((-hy / l * 0.5 + 0.5) * 255); ni.data[o + 2] = Math.round((1 / l * 0.5 + 0.5) * 255); ni.data[o + 3] = 255; }
+    nx.putImageData(ni, 0, 0); normal = new THREE.CanvasTexture(nc); normal.wrapS = normal.wrapT = THREE.RepeatWrapping;
+  }
+  return (MATTEX.tex[kind] = { map: map, normal: normal });
+};
+// box mapping in metres: a top face reads (x, z), a face toward x reads (z, y), a face toward z reads (x, y)
+MATTEX.boxUV = function(geo) {
+  if (!geo || !geo.attributes || !geo.attributes.position || (geo.userData && geo.userData.boxUV)) return;
+  if (!geo.attributes.normal) geo.computeVertexNormals();
+  var P = geo.attributes.position, Nn = geo.attributes.normal, uv = new Float32Array(P.count * 2);
+  for (var i = 0; i < P.count; i++) { var ax = Math.abs(Nn.getX(i)), ay = Math.abs(Nn.getY(i)), az = Math.abs(Nn.getZ(i));
+    if (ay >= ax && ay >= az) { uv[i * 2] = P.getX(i); uv[i * 2 + 1] = P.getZ(i); } else if (ax >= az) { uv[i * 2] = P.getZ(i); uv[i * 2 + 1] = P.getY(i); } else { uv[i * 2] = P.getX(i); uv[i * 2 + 1] = P.getY(i); } }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.userData = geo.userData || {}; geo.userData.boxUV = true;
+};
+// one neutral environment: a soft sky, a warm horizon, a darker ground, prefiltered once
+MATTEX.envMap = function(renderer) {
+  if (MATTEX.env || !renderer || !THREE.PMREMGenerator) return MATTEX.env;
+  var sc = new THREE.Scene(), g = new THREE.SphereGeometry(50, 32, 16), col = [], P = g.attributes.position;
+  for (var i = 0; i < P.count; i++) { var y = P.getY(i) / 50, c = y > 0 ? new THREE.Color(0xD9E2EA).lerp(new THREE.Color(0xF4F1EA), 1 - y) : new THREE.Color(0xB9B3A8).lerp(new THREE.Color(0x8A847A), -y); col.push(c.r, c.g, c.b); }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  sc.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  var pm = new THREE.PMREMGenerator(renderer); MATTEX.env = pm.fromScene(sc, 0.04).texture; pm.dispose(); g.dispose();
+  return MATTEX.env;
+};
+// a material with its family's surface: the original's colour, roughness, metalness and opacity kept
+MATTEX.material = function(id, orig) {
+  var key = id + '|' + (orig.transparent ? orig.opacity : 1); if (MATTEX.mats[key]) return MATTEX.mats[key];
+  var T = MATTEX.make(MATTEX.kind(id)), info = flMatInfo(id), m = orig.clone();
+  m.map = T.map; if (T.normal) { m.normalMap = T.normal; m.normalScale = new THREE.Vector2(0.6, 0.6); }
+  if (info && info.metal != null) m.metalness = info.metal * 0.85; m.envMapIntensity = 0.8; m.userData = Object.assign({}, orig.userData, { matTex: MATTEX.kind(id), flMatId: id }); m.needsUpdate = true;
+  return (MATTEX.mats[key] = m);
+};
+// one object and its parts (a piece of furniture as it is built)
+MATTEX.dress = function(root) {
+  if (!root || typeof DS === 'undefined' || DS.mode() === 'technical') return 0; var n = 0;
+  root.traverse(function(o) {
+    if (!o.isMesh || !o.material || Array.isArray(o.material) || o.userData.flatGround || o.userData.treeCanopy) return;
+    var id = (o.material.userData && o.material.userData.flMatId) || o.userData.matId, k = MATTEX.kind(id);
+    if (o.material.isMeshStandardMaterial && !k) o.material.envMapIntensity = 0.6;
+    if (!k || !o.material.isMeshStandardMaterial || (o.material.userData && o.material.userData.matTex)) return;
+    if (o.geometry.userData && o.geometry.userData.shared) o.geometry = o.geometry.clone();
+    MATTEX.boxUV(o.geometry); o.material = MATTEX.material(id, o.material); n++;
+  });
+  return n;
+};
+MATTEX.apply = function() {
+  if (typeof _3d === 'undefined' || !_3d || !_3d.scene || !_3d.group || DS.mode() === 'technical') return 0;
+  var env = MATTEX.envMap(_3d.renderer); if (env) _3d.scene.environment = env;
+  var n = MATTEX.dress(_3d.scene);   // the street model and the placed furniture (its own layer)
+  MATTEX.last = n; return n;
+};
 function apply3DTheme() {
   if (!_3d||!_3d.scene||!_3d.group) return;
-  if (drawingTheme.mode==='technical') { _3dApplyTechnical(); }
-  else { _3dApplySchematic(); }
+  if (drawingTheme.mode==='technical') { if (_3d.scene) _3d.scene.environment = null; _3dApplyTechnical(); }
+  else { _3dApplySchematic(); try { MATTEX.apply(); } catch (e) { console.warn('[mattex]', e); } }
 }
 function _3dApplyTechnical() {
   _3d.scene.background = new THREE.Color(DS.tokens.technical.bg3d);
