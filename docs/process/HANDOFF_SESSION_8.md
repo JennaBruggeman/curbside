@@ -5,12 +5,12 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
 
 ## Where things stand
 
-- **Branch `friday-round`** from master `cfd4b63` (v0.17.2), 52 commits, one per change. **Not merged, not pushed.**
+- **Branch `friday-round`** from master `cfd4b63` (v0.17.2), 56 commits (52 for the brief, 4 follow-ups), one per change. **Not merged, not pushed.**
   Master, the live site, GitHub Pages and Supabase are untouched (code freeze until after 9 October).
 - **curbside-data:** branch `friday-round` (b93e85e blockfaces build, 62b8e56 points beside every face). Not pushed;
   the published cells are unchanged. The app's band reads the blockfaces layer, so **the band shows nothing on the
   live cells until that branch is published** (the test fixtures in 1357a77 carry it for the three test sites).
-- `parklet-checker.html`: 2,475,673 bytes at start, **2,633,310** at end (+157,637; §10 removed 42,407).
+- `parklet-checker.html`: 2,475,673 bytes at start, **2,633,310** at the report, **2,640,907** after the follow-ups (+165,234; §10 removed 42,407).
 - Test browser: the installed Edge through Playwright (`channel: 'msedge'`). The ms-playwright Chromium was gone
   after the reinstall and was not downloaded again. Tests serve the repo from disk through Playwright routes (the two
   background servers on 8766 / 8767 stopped at their 2-hour limit).
@@ -40,7 +40,9 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
 
 ### §3 Shape editor: a rectangle and 45° cuts (819575e)
 - 12 × 2.4 with the traffic corners cut 0.6: area 28.44 in the editor, the model, the Plan clip, the 3D, Rhino and the
-  schedule; consistency 0. The brief expected 27.99, but 28.8 − 2 × 0.18 = 28.44 (27.99 would need 0.9 m cuts).
+  schedule; consistency 0.
+- **Brief error, not a code issue:** the brief's expected area of 27.99 m² is wrong. 12 × 2.4 = 28.8, less two 0.6 m
+  corner triangles of 0.18 m² each = 28.44 m², which every view gives. (27.99 would need 0.9 m cuts.)
 - A handle drag gives a 0.75 cut on the 0.25 grid; Ctrl+Z returns to 0. An older notched design loads at 49.052 m²
   unchanged; Convert gives 19.8 × 2.5 = 49.5. Polygon, notch and vertex: 0 matches in the UI.
 
@@ -66,7 +68,8 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
   generator refuses (bus zone) and says so in the chat.
 - "Why does C02 fail?" answers from the check. An unknown tool is refused. A 401 gives one plain message.
 - The export has no key and no chat text; the system prompt is 11.1 kB.
-- Found, not changed: `GEN.writeRationales` makes 6 Anthropic calls after every generator run when a key exists.
+- `GEN.writeRationales` made 6 Anthropic calls after every generator run when a key existed. Since 29b2397 it is a
+  choice in the assistant block, off by default (see the follow-ups below).
 
 ### §8A Peer-review issues
 - `gh issue list --state all` on JennaBruggeman/curbside: **0 issues**.
@@ -183,16 +186,39 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
   - The accent ink #1F6FA3 is for blue text on paper.
   - "Awaiting" is in the Wait colour, not the accent.
 
+## Follow-ups after the report (2026-10-04, three commits)
+1. **80c0b12, no bare Pass on an estimate.** A result that rests on an estimate reads "Provisional pass (estimate)" /
+   "Provisional fail (estimate)"; on imported data not yet checked, "(imported)". This covers the Check badge (all four
+   painters), the row's result text ("Passes." → "Provisional pass (estimate)."), the counts line, the compact verdict,
+   the verdict, the summary, C-001's Result column and count, and the counts on A-000 and the cover.
+   - **Before**, at W 4th with C05 as an estimate, 3 provisional checks were shown bare in 9 places: badges "Pass" /
+     "Fail" (C02, C03, C05); row text "Passes." (C03, C05); counts "6 passing · 3 provisional"; cover "6 pass, 1 fail";
+     A-000 "6 pass"; C-001 "PASS (estimate)" and "6 pass"; the summary's Passing column.
+   - **After**, at W 4th and Robson (C05 measured, estimate, not known yet): 0 bare. X-001 never printed a result
+     (0 matches); it states how each fact is known.
+2. **e47c2a4, G-002.** The City's fees are cost lines in every rate set (the Manual's when a set has none). The
+   Manual's $10,000–15,000 a space is a separate line, not in the total, used only for the banner (below / within /
+   above). The sheet adds Build and City fees subtotals.
+3. **29b2397, rationales.** "Write a rationale for each scheme (uses your key, about 6 calls)" is a box in the
+   assistant block, off by default and kept in this browser. Generate with a key: 6 calls before; 0 with the box off,
+   0 after a reload; 6 when on.
+- The scratch worktrees `master-wt` and `pre12-wt` were removed; `git worktree list` shows only the main checkout.
+
+## Jenna's decisions (2026-10-04)
+- No tabs and no step strip merged; the interface stays as it is until Jenna has walked through it.
+- Wait for **Brief 31**, after the merge on 10 October: PRODUCT.md, the sample re-render, the assistant test with
+  Jenna's key, the hosted relay and render-to-account tests, the landing page screenshots, and the open triage rows.
+
 ## Needs Jenna
-1. **The assistant with a real key.** It is mocked only. The open questions are a real model's refusal sentence for
-   provenance, and whether `GEN.writeRationales` (6 calls per run) should stay.
+1. **The assistant with a real key** (Brief 31). It is mocked only; open is a real model's refusal sentence for
+   provenance.
 2. **Photoreal sample renders.** `demo/render-*.jpg` still show the 2.4 m umbrella. Re-rendering needs the hosted
    render.
 3. **The hosted photoreal relay, and the render-to-account test** (the Supabase `design-renders` bucket is untested).
 4. **Publish the curbside-data `friday-round` branch** after 9 Oct, so the band works on the live cells.
 5. **PRODUCT.md:** confirm the answers (written from the brief, no interview).
 6. **The landing page:** new screenshots, and a Site facts step in its walkthrough.
-7. **Audit P1, merging tabs and steps:** nine tabs plus a step strip. The audit recommends fewer; this is your call.
+7. ~~Audit P1, merging tabs and steps~~: decided 2026-10-04, no merge; the interface stays until Jenna's walk-through.
 8. **Triage rows still open:** 5, 7, 11, 15, 18, 19, 27, 28, 31, 36, 37, 38, 41, S17 (`23-triage.md`).
 9. **The merge:** review the branch, then merge, tag and push after 9 Oct. Then set `invite_only` back to true.
 10. Carried over: the numbers in HANDOFF's "Numbers waiting on Jenna" (route width 0.92 m, tree clearance, …).
@@ -200,5 +226,4 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
 ## Tools left behind
 - `tools/hooks/pre-push` runs the Impeccable detector on `parklet-checker.html` when the launcher is installed. It is
   skipped with a note when the launcher is not installed.
-- Two scratch worktrees in the session scratchpad, `master-wt` (master, for before / after) and `pre12-wt` (2a4f520, for
-  the §12 comparisons), are still registered: `git worktree prune` after the scratchpad is cleared, or `git worktree remove`.
+- The scratch worktrees (`master-wt`, `pre12-wt`) were removed on 2026-10-04.
