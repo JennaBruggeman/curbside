@@ -49,10 +49,10 @@ A 1.5 m clear route from each entry to an accessible seat (a bench end, or a tab
 
 ### 5. Check
 
-The verdict in one sentence with one next step, then every check grouped under *Fails*, *Awaiting measurement*, *Not entered*, *Provisional pass* and *Pass*. Every result says how it is known: *Pass (measured)* on a site measurement, *Pass (design)* where only the design is read, *Provisional pass (estimate)* or *(imported)* until it is measured, *Awaiting measurement* while a fact is not known.
+The verdict in one sentence with one next step and the count by result, then every check as a card, grouped under *Fails*, *Awaiting measurement*, *Not entered*, *Provisional pass*, *Pass* and *Advisory*. A card shows its rule, its result and the value with how it is known; open it (click, or Enter) for the rule in plain words, the Manual page (a link that opens it), how the result was found and the fix. Esc closes it. Every result says how it is known: *Pass (measured)* on a site measurement, *Pass (design)* where only the design is read, *Provisional pass (estimate)* or *(imported)* until it is measured, *Awaiting measurement* while a fact is not known.
 
-- **Change a value:** open the row and click *Change* next to the fact: its card opens in the row. Change the value and how you know it, then *Save*.
-- **See it on the drawing:** *Show me in the Plan ›* in any open row.
+- **Change a value:** open the card and click *Change* next to the fact: the same inputs as its Site facts card open in it. Change the value and how you know it, then *Save*; the check runs again and the card moves to its new group.
+- **See it on the drawing:** *Show me in the Plan ›* in any open card. A check read from the design alone (C14, C16 to C19) has *Go to Design ›*.
 - **Measure on site:** the report's S-002 lists every site fact with its value now, how it is known and a blank column for the measurement.
 
 ### 6. Visualize
@@ -61,7 +61,9 @@ The parklet in 3D, with the sun at any date and time. Photoreal renders are opti
 
 ### 7. Export
 
-In *Report*, choose *Schematic* (colour, renders on the title sheet) or *Technical* (line and hatch, no images), tick what to *Include*, and click *Download report (PDF)*. Page two is *What to do next*. *More formats* holds the 3D model (*Rhino (.3dm)*, glTF, IFC, Collada, STL, OBJ, DXF) and the animation.
+In *Report*, choose *Schematic* (colour, renders on the title sheet) or *Technical* (line and hatch, no images), tick what to *Include*, and click *Download report (PDF)*. Page two is *What to do next*. *Accessible route (A-104)* adds the route sheet; it is printed anyway when C16 fails. Sheet scales are the largest of 1:20, 1:25, 1:50, 1:75, 1:100, 1:200 and 1:250 that fits.
+
+*Cost estimate* (beside *Report*) prices the design as a range from a stated rate set: *Vancouver indicative 2026* by default, each rate with its source and date, and a line without a checkable source shown as *—* and counted. *Download (.xlsx)* gives the same estimate as a workbook with live formulas. *More formats* holds the 3D model (*Rhino (.3dm)*, glTF, IFC, Collada, STL, OBJ, DXF) and the animation.
 
 ### Settings
 
