@@ -77,6 +77,14 @@ var CONFIG = {
 .topbar-tabs { display:flex; gap:2px; flex:1; justify-content:center; }
 .ttab { background:none; border:none; border-bottom:2px solid transparent; padding:0 14px; height:var(--topbar-h); font:500 12px/1 var(--font-ui); color:var(--text-lo); cursor:pointer; letter-spacing:.05em; transition:color .15s,border-color .15s; }
 .ttab:hover { color:var(--text-hi); }
+/* (Brief 31 §1) a step's number, as the step strip had it: filled in the accent on the current step */
+.ttab .tt-n { display:inline-block; min-width:16px; height:16px; line-height:16px; margin-right:6px; border-radius:50%; text-align:center; font-size:12px; font-weight:600; background:var(--border-c); color:var(--text-hi); letter-spacing:0; }
+.ttab.active .tt-n { background:var(--acc); }
+/* Design's sub-tabs: Generate, Layout, Furniture */
+.ds-sub { display:flex; gap:2px; padding:8px 12px; border-bottom:1px solid var(--border-c); }
+.ds-sub button { flex:1; min-height:28px; background:transparent; border:1px solid var(--border-c); border-radius:4px; color:var(--text-lo); font:500 12px var(--font-ui); cursor:pointer; }
+.ds-sub button:hover { color:var(--text-hi); }
+.ds-sub button[aria-selected='true'] { color:var(--text-hi); border-color:var(--acc); background:var(--raise, #2A2E34); }
 .ttab.active { color:var(--text-hi); border-bottom-color:var(--acc); }
 .topbar-right { display:flex; align-items:center; gap:8px; margin-left:auto; }
 .proj-name-input { background:transparent; border:none; border-bottom:1px solid var(--border-c); color:var(--text-hi); font:500 12px var(--font-ui); padding:2px 4px; width:150px; outline:none; }
@@ -86,20 +94,6 @@ var CONFIG = {
 
 /* â”€â”€ APP BODY â”€â”€ */
 .app-body { display:flex; flex:1; overflow:hidden; min-height:0; }
-/* the step strip (Brief 25 item 30): Site -> Design -> Check -> Export under the tabs, the current step lit; gone after the first export */
-.step-strip { display:flex; align-items:center; gap:6px; height:28px; padding:0 12px; background:var(--nav-bg); border-bottom:1px solid var(--border-c); flex-shrink:0; font:500 12px/1 var(--font-ui); color:var(--text-lo); }
-.step-strip[hidden] { display:none; }
-.ss-lbl { letter-spacing:.08em; text-transform:uppercase; margin-right:4px; }
-.ss-step { background:none; border:1px solid transparent; border-radius:12px; padding:3px 9px; font:inherit; color:var(--text-lo); cursor:pointer; }
-.ss-step b { display:inline-block; width:15px; height:15px; line-height:15px; margin-right:4px; border-radius:50%; text-align:center; font-size:12px; background:var(--border-c); color:var(--text-hi); }
-.ss-step:hover:not(:disabled) { color:var(--text-hi); }
-.ss-step:disabled { opacity:.42; cursor:not-allowed; }
-.ss-step.on { color:var(--text-hi); border-color:var(--acc); }
-.ss-step.on b { background:var(--acc); color:#0B0C0E; }
-.ss-step:focus-visible { outline:2px solid var(--acc); outline-offset:1px; }
-.ss-arr { opacity:.5; }
-.ss-note { margin-left:auto; opacity:.75; }
-@media (max-width: 900px) { .ss-note { display:none; } }
 
 
 /* â”€â”€ CONTEXT PANEL â”€â”€ */
@@ -514,16 +508,14 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <span class='brand-name'>CURBSIDE</span>
     <span class='brand-sub'>schematic parklet design for Vancouver streets</span>
   </div>
-  <nav class='topbar-tabs'>
-    <button class='ttab active' onclick='appSetMode("site")'>Site</button>
-    <button class='ttab' onclick='appSetMode("generate")'>Generate</button>
-    <button class='ttab' onclick='appSetMode("design")'>Design</button>
-    <button class='ttab' onclick='appSetMode("furniture")'>Furniture</button>
-    <button class='ttab' onclick='appSetMode("accessibility")' aria-label='Accessibility'>Access<span class='tt-x'>ibility</span></button>
-    <button class='ttab' onclick='appSetMode("check")'>Check</button>
-    <button class='ttab' onclick='appSetMode("visualize")'>Visualize</button>
-    <button class='ttab' onclick='appSetMode("export")'>Export</button>
-    <button class='ttab ttab-learn' onclick='appSetMode("learn")' title='How a parklet is built, what this design takes and may cost, and the materials: a reference, not a step.'>Parklets 101</button>
+  <nav class='topbar-tabs' aria-label='Steps'>
+    <button class='ttab active' data-step='site' onclick='NAV.go("site")' aria-current='step'><b class='tt-n'>1</b>Site</button>
+    <button class='ttab' data-step='facts' onclick='NAV.go("facts")'><b class='tt-n'>2</b>Site facts</button>
+    <button class='ttab' data-step='design' onclick='NAV.go("design")'><b class='tt-n'>3</b>Design</button>
+    <button class='ttab' data-step='accessibility' onclick='NAV.go("accessibility")'><b class='tt-n'>4</b>Access</button>
+    <button class='ttab' data-step='check' onclick='NAV.go("check")'><b class='tt-n'>5</b>Check</button>
+    <button class='ttab' data-step='visualize' onclick='NAV.go("visualize")'><b class='tt-n'>6</b>Visualize</button>
+    <button class='ttab' data-step='export' onclick='NAV.go("export")'><b class='tt-n'>7</b>Export</button>
   </nav>
   <div class='topbar-right'>
     <span class='proj-name'><input class='proj-name-input' id='projectName' placeholder='Untitled parklet' value='Untitled parklet' aria-label='Design name' oninput='saveSettings()'><button type='button' class='proj-name-pen' onclick='var i=document.getElementById("projectName");i.focus();i.select()' aria-label='Rename the design' title='Rename the design: click and type a new name.'>&#9998;</button></span>
@@ -531,16 +523,6 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button type='button' class='tb-btn' id='helpBtn' onclick='uiShowHelp()' aria-label='Help and keyboard shortcuts' title='Keyboard shortcuts and what this tool checks (press ?).'>?</button>
   </div>
 </div>
-<nav class='step-strip' id='stepStrip' aria-label='The steps' hidden>
-  <span class='ss-lbl'>Steps</span>
-  <button type='button' class='ss-step' data-step='site' onclick='appSetMode("site")'><b>1</b> Site</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='facts' onclick='appSetMode("facts")'><b>2</b> Site facts</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='design' onclick='appSetMode("design")'><b>3</b> Design</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='accessibility' onclick='appSetMode("accessibility")'><b>4</b> Access</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='check' onclick='appSetMode("check")'><b>5</b> Check</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='export' onclick='appSetMode("export")'><b>6</b> Export</button>
-  <span class='ss-note'>Generate, Furniture and Visualize are in the tabs above when you want them.</span>
-</nav>
 <div class='app-body'>
 <div class='ctx-panel' id='ctxPanel'>
 <div id='cadTools' class='cad-empty' style='padding:8px 10px 6px 10px;border-bottom:2px solid var(--c-rule);background:var(--c-panel);flex-shrink:0;'>
@@ -664,14 +646,14 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
         <button class='txt-btn' onclick='appSetMode("furniture")'>Open the full library &rsaquo;</button>
       </div>      </div>
 <div class='ctx-section' id='ctxVisualize' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Visualize</span></div><div id='rvzCtx'></div></div>
-<div class='ctx-section' id='ctxGenerate' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Generate</span></div>
+<div class='ctx-section' id='ctxGenerate' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div>
 <div class='sb-section' id='genSecSite'><div class='sb-section-lbl'>Site constraints</div><div id='genSite'></div></div>
 <div class='sb-section' id='genSecFacts'><div class='sb-section-lbl'>Site facts</div><div id='genFacts'></div></div>
 <div class='sb-section' id='genSecProg'><div class='sb-section-lbl'>Programme</div><div id='genProg'></div></div>
 <div class='sb-section' id='genSecChar'><div class='sb-section-lbl'>Character and materials</div><div id='genChar'></div></div>
 <div class='sb-section' id='genSecOut'><div class='sb-section-lbl'>Output</div><div id='genOut'></div></div>
 </div>
-<div class='ctx-section' id='ctxAccessibility' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Accessibility</span></div><div class='sb-section'><div id='accCard' class='acc-card' role='status' aria-live='polite'></div></div></div>
+<div class='ctx-section' id='ctxAccessibility' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Access</span></div><div class='sb-section'><div id='accCard' class='acc-card' role='status' aria-live='polite'></div></div></div>
 <div class='ctx-section' id='ctxCheck' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Check</span></div>
 <div id='verdictCompact' hidden></div>
 <div class='sb-section' id='chkFilterSec'><div class='sb-section-lbl'>Show</div>
@@ -691,10 +673,9 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <button class='sw-nav-btn' onclick='swScrollTo("swData")'>Data</button>
 </nav>
 </div>
-<div class='ctx-section' id='ctxFurniture' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Furniture Library</span></div>
+<div class='ctx-section' id='ctxFurniture' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Design</span></div>
 <div class='sb-section'>
   <div style='font-size:12px;color:var(--sb-muted);line-height:1.6;margin-bottom:10px;'>50 objects &middot; Vestre 2024/25 &amp; mmcit&eacute; Kup&eacute;<br>Seating, tables, planters, bins, bike racks, edge elements, shelter systems.</div>
-  <button class='ctx-btn ctx-btn-full' onclick='appSetMode("design")' style='margin-bottom:6px;'>&larr; Back to Design to place furniture</button>
   <div style='font-size:12px;color:var(--sb-muted);line-height:1.5;'>Use search and categories in the main view. Click Place on any card to switch to Design and start placement.</div>
 </div>
 </div>
@@ -14153,19 +14134,49 @@ function fl3DRenderTray() {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // the step strip (Brief 25 item 30): shown until this browser has exported once (localStorage, a per-viewer convenience)
+// (Brief 31 §1) one navigation: the seven steps in the top bar are the steps; Generate and Furniture are sub-tabs of
+// Design (modes 'generate' and 'furniture' stay, shown as step 3). The step strip of Brief 25 is gone.
+var NAV = {
+  STEPS: ['site', 'facts', 'design', 'accessibility', 'check', 'visualize', 'export'],
+  NAME: { site: 'Site', facts: 'Site facts', design: 'Design', accessibility: 'Access', check: 'Check', visualize: 'Visualize', export: 'Export', generate: 'Design', furniture: 'Design', settings: 'Settings', learn: 'Export' },
+  SUB: [['generate', 'Generate'], ['design', 'Layout'], ['furniture', 'Furniture']],
+  step: function(mode) { return mode === 'generate' || mode === 'furniture' ? 'design' : mode === 'learn' ? 'export' : mode; },
+  sub: null,   // the Design sub-tab last used in this session
+  // a step's button: Design opens on the sub-tab last used, else Generate while nothing is on the deck (the quick start)
+  go: function(step) {
+    if (step === 'design') { var placed = typeof FL3D !== 'undefined' && FL3D.placed ? FL3D.placed.length : 0; step = NAV.sub || (placed ? 'design' : 'generate'); }
+    appSetMode(step);
+  },
+  onMode: function(mode) {
+    var st = NAV.step(mode);
+    document.querySelectorAll('.ttab').forEach(function(t) { var on = t.dataset.step === st; t.classList.toggle('active', on); if (on) t.setAttribute('aria-current', 'step'); else t.removeAttribute('aria-current'); });
+    if (st === 'design') { NAV.sub = mode; NAV.mountSub(mode); }
+  },
+  mountSub: function(mode) {
+    var host = document.getElementById('ctx' + mode.charAt(0).toUpperCase() + mode.slice(1)); if (!host) return;
+    var el = document.getElementById('dsSub');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'dsSub'; el.className = 'ds-sub'; el.setAttribute('role', 'tablist'); el.setAttribute('aria-label', 'Design');
+      el.innerHTML = NAV.SUB.map(function(q) { return "<button type='button' role='tab' data-sub='" + q[0] + "' onclick='appSetMode(\"" + q[0] + "\")'>" + q[1] + '</button>'; }).join('');
+    }
+    var hdr = host.querySelector(':scope > .ctx-hdr'); if (hdr && hdr.nextSibling !== el) host.insertBefore(el, hdr.nextSibling);
+    el.querySelectorAll('button').forEach(function(b) { var on = b.dataset.sub === mode; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
+  }
+};
+// keys 1-7 go to the steps (not while typing, not with a modifier, not over a dialog)
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || !/^[1-7]$/.test(e.key)) return;
+  var t = e.target || {}, tag = (t.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return;
+  if (typeof PKDLG !== 'undefined' && PKDLG.top()) return;
+  var b = document.querySelector('.ttab[data-step="' + NAV.STEPS[+e.key - 1] + '"]'); if (!b || b.classList.contains('ttab-off')) return;
+  e.preventDefault(); NAV.go(b.dataset.step);
+});
 var STEPS = { KEY: 'pkt_exported_once', done: function() { try { return localStorage.getItem(STEPS.KEY) === '1'; } catch (e) { return false; } },
-  mark: function() { try { localStorage.setItem(STEPS.KEY, '1'); } catch (e) {} STEPS.sync(); },
-  sync: function(mode) {
-    var el = document.getElementById('stepStrip'); if (!el) return; el.hidden = STEPS.done();
-    el.querySelectorAll('.ss-step').forEach(function(b) {
-      if (mode) { var on = b.dataset.step === mode; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); }
-      // a step is as open as its tab (the stage gating: no Design or Check before a site)
-      var t = [].find.call(document.querySelectorAll('.ttab'), function(x) { return String(x.getAttribute('onclick') || '').indexOf('"' + b.dataset.step + '"') >= 0; });
-      var off = !!(t && t.classList.contains('ttab-off')); b.disabled = off; b.title = off ? (t.getAttribute('data-tip') || '') : '';
-    });
-  } };
-(function() { var go = function() { var tabs = document.querySelector('.topbar-tabs'); if (tabs && typeof MutationObserver !== 'undefined') new MutationObserver(function() { STEPS.sync(); }).observe(tabs, { subtree: true, attributes: true, attributeFilter: ['class'] }); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
-(function() { var go = function() { var a = document.querySelector('.ttab.active'), m = a ? (String(a.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : 'site'; STEPS.sync(m || 'site'); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
+  mark: function() { try { localStorage.setItem(STEPS.KEY, '1'); } catch (e) {} },
+  sync: function(mode) { if (mode) NAV.onMode(mode); } };
+(function() { var go = function() {}; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
+(function() { var go = function() { STEPS.sync(window.APP_MODE || 'site'); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go(); })();
 function appSetMode(mode) {
   var _was = window.APP_MODE; window.APP_MODE = mode;   // (Brief 28 item 4: the Plan draws the route only in Accessibility)
   if (_was === 'check' && mode !== 'check' && typeof CHKG !== 'undefined' && Object.keys(CHKG.held).length) CHKG.release();   // (Brief 30 §8C)
@@ -14174,9 +14185,7 @@ function appSetMode(mode) {
   if (mode !== 'export' && window.AXE && AXE.previewing) AXE.stop();
   if (mode === 'export' && window.RPT && RPT.syncCard) setTimeout(RPT.syncCard, 0);   // the Report card lists this design's renders
   // Top nav tabs
-  document.querySelectorAll('.ttab').forEach(function(t) { t.classList.remove('active'); });
-  var tab = document.querySelector('.ttab[onclick*="' + (mode === 'facts' ? 'site' : mode) + '"]');   // Site facts is a step of the Site tab (Brief 30 §9)
-  if (tab) tab.classList.add('active');
+  NAV.onMode(mode);   // (Brief 31 §1) the step lit, Design's sub-tab
 
 
   // LHS context sections
@@ -14190,7 +14199,7 @@ function appSetMode(mode) {
 
   // Breadcrumb
   var bc = document.getElementById('sbBreadcrumb');
-  if (bc) bc.textContent = 'Vancouver \u00b7 ' + mode.charAt(0).toUpperCase() + mode.slice(1);
+  if (bc) bc.textContent = 'Vancouver \u00b7 ' + (NAV.NAME[mode] || mode) + (mode === 'generate' ? ' \u00b7 Generate' : mode === 'furniture' ? ' \u00b7 Furniture' : '');
 
   // Workspace: show only the relevant main-area panel
   var isCanvas = (mode === 'site' || mode === 'design' || mode === 'accessibility');   // (Brief 21 §3: the Check tab's main area is its table)
@@ -31584,7 +31593,7 @@ PVCTX.install = function() {
 // 2 the user's design: furniture on the deck (pkStage reads it; nothing stores the stage).
 // ════════════════════════════════════════════════════════════════════════════════════════════
 // TODO(Jenna): DECK_L is the app's existing default deck (19.8 m); confirm the Parklet Manual's default length and cite it.
-var SEED = { DECK_L: 19.8, DECK_W: 2.5, GATED: ['generate', 'design', 'accessibility', 'check', 'visualize', 'export'],
+var SEED = { DECK_L: 19.8, DECK_W: 2.5, GATED: ['facts', 'generate', 'design', 'furniture', 'accessibility', 'check', 'visualize', 'export'],
   TIP: 'Choose a site first: Locate on map in the Site tab, then Import street context.' };
 // the hidden stage-0 globals: what the views could draw before a site exists (never shown, never saved)
 SEED.NOMINAL = { totalRoad: 5.635, sidewalkW: 1.8, numLanes: 1, lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L };
@@ -31625,7 +31634,7 @@ SEED.tabTips = function() {
   if (typeof ut === 'function' && !ut._stage) { window.uiApplyTips = function() { var r = ut.apply(this, arguments); try { SEED.tabTips(); } catch (e) {} return r; }; window.uiApplyTips._stage = true; }
   var lk = !s0 && typeof SFG !== 'undefined' && SFG.locked(), lt = lk ? SFG.TIP() : '';   // (Brief 30 §9) the site facts gate
   SEED.GATED.concat(['furniture']).forEach(function(m) {
-    var t = document.querySelector('.ttab[onclick*="' + m + '"]'); if (!t) return;
+    var t = document.querySelector('.ttab[data-step="' + m + '"]'); if (!t) return;
     var off = s0 ? SEED.GATED.indexOf(m) >= 0 : lk && SFG.GATED.indexOf(m) >= 0, tip = s0 ? SEED.TIP : lt;
     t.classList.toggle('ttab-off', off); t.setAttribute('aria-disabled', off ? 'true' : 'false');
     if (t.hasAttribute('title')) { if (!t.hasAttribute('data-tip')) t.setAttribute('data-tip', t.getAttribute('title')); t.removeAttribute('title'); }
@@ -31665,7 +31674,7 @@ function pkStageSync() {
   if (ov) ov.hidden = !s0;
   try { if (typeof IMP !== 'undefined') IMP.render(); } catch (e) {}
   if (s0) ['roadWidth', 'sidewalkWidth', 'laneCount', 'lanesA', 'lanesB'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
-  var act = document.querySelector('.ttab.active'), m = act ? (String(act.getAttribute('onclick') || '').match(/appSetMode\("(\w+)"\)/) || [])[1] : null;
+  var m = window.APP_MODE || null;
   if (s0 && m && SEED.GATED.indexOf(m) >= 0) appSetMode('site');
 }
 (function() {
@@ -31957,14 +31966,16 @@ MLY.renderBox = function(keepMsg) {
 // browser's own slower tooltip never doubles it. UI_TIPS gives the sentence for controls built by code or with none.
 var UI_TIPS = [
   // top bar
-  ['.ttab[onclick*=\'"site"\']', 'Locate the site, import its context and place the parklet.'],
-  ['.ttab[onclick*=\'"design"\']', 'Shape the parklet, set the street and place furniture.'],
-  ['.ttab[onclick*=\'"visualize"\']', 'Preview the design in 3D and make renders.'],
-  ['.ttab[onclick*=\'"generate"\']', 'Generate layouts that pass every check, from your preferences.'],
-  ['.ttab[onclick*=\'"check"\']', 'See every compliance check, what it measured and why it passes or fails.'],
-  ['.ttab[onclick*=\'"furniture"\']', 'Browse the furniture library and place pieces on the deck.'],
-  ['.ttab[onclick*=\'"settings"\']', 'Units, grid, project north and saved data.'],
-  ['.ttab[onclick*=\'"export"\']', 'Download the report, a 3D model or an animation.'],
+  ['.ttab[data-step="site"]', 'Step 1 (key 1): locate the site, import its context and place the parklet.'],
+  ['.ttab[data-step="facts"]', 'Step 2 (key 2): answer one card per site fact the checks read.'],
+  ['.ttab[data-step="design"]', 'Step 3 (key 3): generate a layout, shape the deck and its edge, place furniture.'],
+  ['.ttab[data-step="accessibility"]', 'Step 4 (key 4): the accessible route from the sidewalk to a seat.'],
+  ['.ttab[data-step="check"]', 'Step 5 (key 5): every compliance check, what it read and why it passes or fails.'],
+  ['.ttab[data-step="visualize"]', 'Step 6 (key 6): the design in 3D, with the sun; renders if you want them.'],
+  ['.ttab[data-step="export"]', 'Step 7 (key 7): the report, the cost estimate, a 3D model or an animation.'],
+  ['.ds-sub [data-sub="generate"]', 'Layouts that pass every check, from your preferences: the quick start.'],
+  ['.ds-sub [data-sub="design"]', 'The deck shape, its edge, the materials and the selected piece.'],
+  ['.ds-sub [data-sub="furniture"]', 'The furniture library: place pieces on the deck.'],
   ['#projectName', 'The design&rsquo;s name, used on the report and in your saved designs.'],
   ['#dkMenuBtn', 'Shows or hides the panels of the left column.'],
   ['#pkAccBtn', 'Sign in, or open your account and saved designs.'],
@@ -32236,11 +32247,11 @@ function uiApplyTips(root) {
    Every chrome control is at least 24 x 24 px (WCAG 2.2 target size); under a coarse pointer (a tablet) the main controls
    are 36 px and the dense toolbars 28 px. Below 1180 px the Check table stacks each row's cells (the rule, the value,
    the result and the source stay in view) instead of cutting the last columns; the step strip keeps one line. */
-.topbar button, .step-strip button, .ctx-panel button, .ctx-panel select, .canvas-toolbar button, .vp-hdr button, .pk-dialog-btns button, .status-bar button, #workspaceExport button, #workspaceCheck button, #swPage button { min-height: 24px; min-width: 24px; }
+.topbar button, .ctx-panel button, .ctx-panel select, .canvas-toolbar button, .vp-hdr button, .pk-dialog-btns button, .status-bar button, #workspaceExport button, #workspaceCheck button, #swPage button { min-height: 24px; min-width: 24px; }
 .topbar input, .ctx-panel input:not([type=checkbox]):not([type=radio]), #libraryCanvas button, #libraryCanvas input, #swPage input, #workspaceVisualize input, #workspaceExport input { min-height: 24px; }   /* inline links in a sentence are exempt (WCAG 2.5.8) */
 .pkm-sw button { width: 24px; height: 24px; }
 @media (pointer: coarse) {
-  .topbar button, .ttab, .step-strip button, .pk-dialog-btns button, .ctx-btn, .sfc-btn, .ctx-panel select, .ctx-panel input[type=text], .ctx-panel input[type=number], #workspaceExport button, #workspaceCheck button { min-height: 36px; }
+  .topbar button, .ttab, .pk-dialog-btns button, .ctx-btn, .sfc-btn, .ctx-panel select, .ctx-panel input[type=text], .ctx-panel input[type=number], #workspaceExport button, #workspaceCheck button { min-height: 36px; }
   .canvas-toolbar button, .vp-hdr button, .ctx-panel button, .status-bar button, .dk-panel-hdr { min-height: 28px; }
   .pkm-sw button { width: 32px; height: 32px; }
 }
@@ -32251,8 +32262,6 @@ function uiApplyTips(root) {
   #workspaceCheck #criteriaList .chk-hdr .chk-meas { grid-area: meas; } #workspaceCheck #criteriaList .chk-hdr .chk-res { grid-area: res; justify-content: flex-end; } #workspaceCheck #criteriaList .chk-hdr .chk-src { grid-area: src; text-align: right; }
 }
 @media (max-width: 1100px) {
-  .ss-lbl, .ss-note { display: none; }
-  .step-strip { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .ss-step { white-space: nowrap; }
   .proj-name-input { width: 120px !important; }
 }
 
@@ -32266,7 +32275,7 @@ function uiApplyTips(root) {
 .chk-bar .chk-clear:hover { border-color: currentColor; background: transparent; }
 
 /* (Brief 30 §12, typeset) mixed-case labels: capitals only for rule IDs, sheet numbers and the wordmark */
-.ss-lbl, .sbx-fold > summary, .gis-grp-h, .smp-badge, .smp-grp-h, .imp-grp-h, .walk-step, .acc-h, .badge, .crit-hdr h2, .detail-label, .summary-section h2, .summary-col h3, .drw-tb-name { text-transform: none !important; letter-spacing: normal !important; }
+.sbx-fold > summary, .gis-grp-h, .smp-badge, .smp-grp-h, .imp-grp-h, .walk-step, .acc-h, .badge, .crit-hdr h2, .detail-label, .summary-section h2, .summary-col h3, .drw-tb-name { text-transform: none !important; letter-spacing: normal !important; }
 
 /* the first use of Design (Brief 30 §12, onboard) */
 .onb-box { margin: 10px 12px 6px; padding: 10px 12px; border: 1px dashed var(--c-rule); border-radius: 4px; }
@@ -32282,7 +32291,7 @@ function uiApplyTips(root) {
 /* Brief 30 §8B (access): forced colours drop the fills that marked the active tab, a pressed toggle, the current step and a
    chosen swatch; an outline in the system highlight marks them instead */
 @media (forced-colors: active) {
-  .ttab.active, .ss-step.on, [aria-current='step'], [aria-pressed='true'], .seg-btn.active, .vpill.active, .pkm-preset.on, .ske-tool.on, .p101-nav button.on, .dk-panel-hdr[aria-expanded='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .ttab.active, [aria-current='step'], [aria-pressed='true'], .seg-btn.active, .vpill.active, .pkm-preset.on, .ske-tool.on, .p101-nav button.on, .dk-panel-hdr[aria-expanded='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
   .badge, .chk-prov, .sm-face, .ax-card { border: 1px solid CanvasText; }
   :focus-visible { outline: 2px solid Highlight !important; outline-offset: 1px; }
   .pkm-sw button, .p101-sw, .gis-sw, .gis-leg-sw { forced-color-adjust: none; }
@@ -33590,7 +33599,7 @@ RPT.sheetBudget = function(d) {
    only: the last pass over the chrome. The drawings are untouched. */
 :root { --nav-blue: var(--accent-ui); --acc: var(--accent-ui); --accent: var(--accent-ui); }
 /* text on the accent and on a status fill is near-black, not white */
-#axSend, .ui-empty-btn, .seg-btn.active, .ptb-btn.active, .sk-apply-btn, .site-step-n, .sfc-btn.sfc-pri, .ss-step.on b { color: var(--on-accent) !important; }
+#axSend, .ui-empty-btn, .seg-btn.active, .ptb-btn.active, .sk-apply-btn, .site-step-n, .sfc-btn.sfc-pri, .ttab.active .tt-n { color: var(--on-accent) !important; }
 /* blue text on paper: the accent's ink */
 #flLibTab7Furn, #flImportBtn, .fv-id, .fl-oid, .fl-iid, .conn-help a, #swPage a, .str-card-id, .rp-src-crit, .fv-place-btn, .fl-pcard h3 { color: var(--accent-ink) !important; }
 /* grey text on paper and on the bench at AA */
@@ -33611,7 +33620,7 @@ RPT.sheetBudget = function(d) {
 /* line height: never 1.0 on wrapping text */
 .ttab { line-height: 1.3 !important; }
 .vp-lbl { line-height: 13px !important; white-space: nowrap; }   /* one word on one line: its line box stays 13 px (as before) so the panel header, and the drawing under it, keep their size */
-.step-strip, .ss-step, .ss-lbl, .ss-arr, .ss-note, .dkpb button { line-height: 1.3 !important; }
+.dkpb button { line-height: 1.3 !important; }
 .ctx-panel { color: var(--c-text); }
 .ctx-panel ::placeholder, .topbar ::placeholder, #smModal ::placeholder, #workspaceFacts ::placeholder { color: var(--c-text-dim); opacity: 1; }   /* the dark panel sets its own text colour (it inherited the page ink) */
 .site-rose { color: var(--c-text); }   /* its labels are filled in their own colours; this is the text colour they would inherit */
