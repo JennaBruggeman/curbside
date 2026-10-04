@@ -33550,6 +33550,98 @@ P101.newSet = function(supplier) {
 };
 P101.changed = function() { try { saveSettings(); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon(); clearTimeout(P101._rt); P101._rt = setTimeout(P101.render, 0); };   // after the field's own events
 P101.money = function(v) { return v == null ? '—' : '$' + Math.round(v).toLocaleString('en-CA'); };
+// (Brief 31 §9) the workbook: "Cost estimate" (the table; costs and totals as formulas over the quantities and rates, so a
+// changed rate re-totals; the Manual's range a note row), "Quantities" (the take-off, each formula written out), "Rates"
+// (the selected set, one row per rate, with its tag and basis). SheetJS (tools/vendor, Apache-2.0), loaded on first use;
+// its free edition writes no frozen panes, so the header row is frozen by editing the sheet's XML in the zip.
+P101.XLSX_URL = 'tools/vendor/xlsx-0.20.3.full.min.js';
+P101.slug = function() {
+  var nm = (document.getElementById('projectName') || {}).value || '', unnamed = !nm || /^(untitled parklet|my first parklet|blank street)$/i.test(nm.trim());
+  if (unnamed && typeof pkSiteAddress === 'function' && pkSiteAddress()) nm = pkSiteAddress();
+  return String(nm || 'parklet').slice(0, 60).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'parklet';
+};
+P101.workbook = function(X) {
+  var est = P101.estimate(), S = est.set, d = new Date(), ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  var name = (document.getElementById('projectName') || {}).value || 'Untitled parklet', addr = typeof pkSiteAddress === 'function' ? pkSiteAddress() || '' : '';
+  var CUR = '"$"#,##0.00', CUR0 = '"$"#,##0', A = [], cell = function(r, c) { return X.utils.encode_cell({ r: r, c: c }); };
+  // the estimate sheet, built row by row: [Item, Qty, Unit, Rate low, Rate high, Cost low, Cost high, Material, Tag, Source]
+  var ws = {}, R0 = 4, r = 0, put = function(rr, c, v, z) { if (v == null || v === '') return; var o = typeof v === 'object' ? v : (typeof v === 'number' ? { t: 'n', v: v } : { t: 's', v: String(v) }); if (z) o.z = z; ws[cell(rr, c)] = o; };
+  put(0, 0, 'Cost estimate: ' + name); put(1, 0, (addr ? addr + ' · ' : '') + d.toISOString().slice(0, 10) + ' · Rate set: ' + S.name + ' · ' + est.banner);
+  ['Item', 'Qty', 'Unit', 'Rate low, CAD', 'Rate high, CAD', 'Cost low, CAD', 'Cost high, CAD', 'Material', 'Tag', 'Where the number comes from'].forEach(function(t, c) { put(3, c, t); });
+  r = R0;
+  var secRows = {}, section = function(key, title, list) {
+    put(r, 0, title); r++; var first = r;
+    list.forEach(function(q) {
+      if (q.pct) return;   // the contingency after the subtotals
+      put(r, 0, q.item); if (!q.pct) put(r, 1, q.qty); put(r, 2, q.unit);
+      if (q.city) { put(r, 5, 'supplied by the City'); }
+      else if (q.rlow != null) { put(r, 3, +q.rlow.toFixed(2), CUR); put(r, 4, +q.rhigh.toFixed(2), CUR); put(r, 5, { t: 'n', v: +(q.qty * q.rlow).toFixed(2), f: 'B' + (r + 1) + '*D' + (r + 1) }, CUR); put(r, 6, { t: 'n', v: +(q.qty * q.rhigh).toFixed(2), f: 'B' + (r + 1) + '*E' + (r + 1) }, CUR); }
+      else { put(r, 3, '—'); put(r, 4, '—'); }
+      put(r, 7, q.mat || ''); put(r, 8, q.tag || ''); put(r, 9, (q.annual ? 'a year, not in the total; ' : '') + (q.src || '')); if (q.annual) secRows.annual = r;
+      r++;
+    });
+    var last = r - 1, ex = secRows.annual != null && secRows.annual >= first && secRows.annual <= last ? secRows.annual : null;
+    var sumF = function(col) { var L = String.fromCharCode(65 + col), f = last >= first ? 'SUM(' + L + (first + 1) + ':' + L + (last + 1) + ')' : '0'; return ex != null ? f + '-' + L + (ex + 1) : f; };
+    var sv = function(col) { var t = 0; for (var i = first; i <= last; i++) { if (i === ex) continue; var c = ws[cell(i, col)]; if (c && c.t === 'n') t += c.v; } return +t.toFixed(2); };
+    put(r, 0, title + ' subtotal'); put(r, 5, { t: 'n', v: sv(5), f: sumF(5) }, CUR); put(r, 6, { t: 'n', v: sv(6), f: sumF(6) }, CUR); secRows[key] = r; r += 2;
+  };
+  var B = est.rows.filter(function(q) { return q.sec === 'build'; }), FU = est.rows.filter(function(q) { return q.sec === 'furn'; }), FE = est.rows.filter(function(q) { return q.sec === 'fee'; });
+  section('build', 'Build', B); section('furn', 'Furniture', FU);
+  var pc = B.find(function(q) { return q.pct; });
+  if (pc) {
+    var bl = secRows.build + 1, fl = secRows.furn + 1, p = pc.qty / 100;
+    put(r, 0, pc.item); put(r, 1, pc.qty); put(r, 2, '% of build and furniture');
+    var cl = ws[cell(secRows.build, 5)].v + ws[cell(secRows.furn, 5)].v, ch = ws[cell(secRows.build, 6)].v + ws[cell(secRows.furn, 6)].v;
+    put(r, 5, { t: 'n', v: +(cl * p).toFixed(2), f: 'B' + (r + 1) + '/100*(F' + bl + '+F' + fl + ')' }, CUR); put(r, 6, { t: 'n', v: +(ch * p).toFixed(2), f: 'B' + (r + 1) + '/100*(G' + bl + '+G' + fl + ')' }, CUR);
+    put(r, 8, pc.tag || ''); put(r, 9, pc.src || ''); secRows.cont = r; r += 2;
+  }
+  section('fee', 'City fees', FE);
+  var refs = function(col) { var L = String.fromCharCode(65 + col); return ['build', 'furn', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).map(function(k) { return L + (secRows[k] + 1); }); };
+  var tv = function(col) { return +['build', 'furn', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).reduce(function(a, k) { return a + ws[cell(secRows[k], col)].v; }, 0).toFixed(2); };
+  put(r, 0, 'Total, build and fees'); put(r, 5, { t: 'n', v: tv(5), f: refs(5).join('+') }, CUR0); put(r, 6, { t: 'n', v: tv(6), f: refs(6).join('+') }, CUR0); secRows.total = r; r += 2;
+  put(r, 0, 'Note'); put(r, 9, P101.rangeLine(est)); r++;
+  put(r, 0, 'Note'); put(r, 9, 'What is not priced (—) is not counted as zero. An estimate to plan a budget, not a quote. City fees: the Parklet Manual\'s 2016 figures; confirm against the current schedule.'); r++;
+  ws['!ref'] = 'A1:J' + r; ws['!cols'] = [{ wch: 42 }, { wch: 8 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 90 }];
+  // Quantities
+  var q = [['Quantities: ' + name], [(addr ? addr + ' · ' : '') + d.toISOString().slice(0, 10)], [], ['Item', 'Qty', 'Unit', 'How it is counted (the formula)']].concat(est.Q.map(function(x) { return [x.item, x.n, x.u, x.f]; }));
+  var wq = X.utils.aoa_to_sheet(q); wq['!cols'] = [{ wch: 44 }, { wch: 10 }, { wch: 8 }, { wch: 100 }];
+  // Rates
+  var rr2 = [['Rates: ' + S.name], [S.prov], [], ['Line', 'For', 'Unit', 'Low, ' + S.cur, 'High, ' + S.cur, 'Tag', 'Basis']];
+  S.rates.forEach(function(x) {
+    var tag = x.tag || S.tag || (S.placeholder ? 'placeholder' : S.shipped ? 'Manual 2016' : 'entered');
+    if (x.fam) Object.keys(x.fam).forEach(function(k) { var f = x.fam[k]; rr2.push([x.item, P101.FAMNAME[k] || k, x.unit, f.low, f.high, tag, f.src]); });
+    else if (x.types) Object.keys(x.types).forEach(function(k) { var f = x.types[k], A2 = ENCLOSURE_ARCHETYPES[k]; rr2.push([x.item, A2 ? A2.name : k, x.unit, f.low, f.high, tag, f.src]); });
+    else rr2.push([x.item, x.range ? 'the comparison range, not a cost line' : '', x.per === 'pct' ? '%' : x.unit, x.per === 'pct' ? x.pct : (x.low == null ? '—' : x.low), x.per === 'pct' ? x.pct : (x.high == null ? '—' : x.high), tag, x.src || '']);
+  });
+  var wr = X.utils.aoa_to_sheet(rr2); wr['!cols'] = [{ wch: 30 }, { wch: 28 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 110 }];
+  Object.keys(wr).forEach(function(k) { if (k[0] === '!') return; var c = X.utils.decode_cell(k); if (c.r >= 4 && (c.c === 3 || c.c === 4) && wr[k].t === 'n') wr[k].z = CUR; });
+  var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Cost estimate'); X.utils.book_append_sheet(wb, wq, 'Quantities'); X.utils.book_append_sheet(wb, wr, 'Rates');
+  wb.Props = { Title: 'Cost estimate: ' + name, Author: 'Curbside', CreatedDate: d };
+  return { wb: wb, file: P101.slug() + '-cost-estimate-' + ymd + '.xlsx', total: [ws[cell(secRows.total, 5)].v, ws[cell(secRows.total, 6)].v], rows: secRows };
+};
+// the header frozen on every sheet: a pane under row 4 (the title, the subtitle, a blank row, the column heads)
+P101.freeze = function(X, buf) {
+  var cfb = X.CFB.read(new Uint8Array(buf), { type: 'array' });
+  cfb.FullPaths.forEach(function(p, i) {
+    if (!/xl\/worksheets\/sheet\d+\.xml$/.test(p)) return;
+    var f = cfb.FileIndex[i], xml = new TextDecoder().decode(f.content), pane = '<sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A5" sqref="A5"/></sheetView>';
+    xml = /<sheetViews>/.test(xml) ? xml.replace(/<sheetViews>[\s\S]*?<\/sheetViews>/, '<sheetViews>' + pane + '</sheetViews>') : xml.replace(/(<dimension[^>]*\/>)/, '$1<sheetViews>' + pane + '</sheetViews>');
+    f.content = new TextEncoder().encode(xml); f.size = f.content.length;
+  });
+  return X.CFB.write(cfb, { fileType: 'zip', type: 'array' });
+};
+P101.xlsx = async function() {
+  var b = document.getElementById('ceXlsx'); if (b) { b.disabled = true; b.textContent = 'Preparing…'; }
+  try {
+    if (!window.XLSX) await RPT._script(P101.XLSX_URL);
+    var W = P101.workbook(window.XLSX), out = P101.freeze(window.XLSX, window.XLSX.write(W.wb, { bookType: 'xlsx', type: 'array', compression: true }));
+    var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = W.file; document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    P101.lastXlsx = { file: W.file, total: W.total };
+    if (typeof pkToast === 'function') pkToast('Saved ' + W.file, 'success');
+  } catch (e) { console.warn('[xlsx]', e); if (typeof pkToast === 'function') pkToast('The workbook could not be made: ' + e.message, 'error'); }
+  finally { if (b) { b.disabled = false; b.textContent = 'Export to Excel (.xlsx)'; } }
+};
 // one state line: how the rates are known, what is priced, where the build stands against the Manual
 P101.state = function(est) {
   var S = est.set, m = P101.money, R = est.range, sp = R.n + ' parking space' + (R.n === 1 ? '' : 's');
@@ -33604,6 +33696,7 @@ P101.render = function() {
     "<div><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') : '') + '</dd></div></dl>';
   // the controls, grouped
   h += "<div class='ce-ctl' role='group' aria-label='Rates'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.cost().setChosen = true; P101.changed()'>" + sets.map(function(q) { return "<option value='" + q.id + "'" + (q.id === S.id ? ' selected' : '') + '>' + e(q.name) + '</option>'; }).join('') + '</select></label>' +
+    "<button type='button' class='ctx-btn' id='ceXlsx' onclick='P101.xlsx()' title='One workbook: the estimate with live totals, the quantities with how each is counted, and the rates with their basis.'>Export to Excel (.xlsx)</button>" +
     "<span class='ce-ctl-g'><label>New set from this one <input type='text' id='p101Sup' placeholder='supplier' maxlength='40' autocomplete='off'></label> <button type='button' class='ctx-btn' id='p101NewSet' onclick='P101.newSet(document.getElementById(\"p101Sup\").value.trim())'>Create</button></span>" +
     "<span class='ce-ctl-g'><label>CAD for 1 USD <input type='text' inputmode='decimal' id='p101Fx' value='" + C.fx + "' onchange='var v = pkReadNum(this.value, \"\"); P101.cost().fx = v && v.v > 0 ? v.v : 1.35; P101.changed()'></label>" +
     " <label>Meters to remove <input type='text' inputmode='numeric' id='p101Meters' value='" + C.meters + "' onchange='var v = parseInt(this.value, 10); P101.cost().meters = v > 0 ? Math.min(12, v) : 0; P101.changed()'></label></span></div>";
