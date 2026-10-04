@@ -3431,30 +3431,43 @@ ACC.legs = function(pts, grid) {
 };
 ACC.planSVG = function(DK, U, ann) {
   if (typeof GEN === 'undefined' || typeof ENC === 'undefined') return '';   // an early Plan render, before the generator's script has run ('GEN is not defined': Brief 30 §8C, triage row 33)
-  var c = ENC.c16(), a = c.acc, LM = DESIGN_MODEL.landmarks, RW = GEN.ROUTE_W, f = function(v) { return (+v).toFixed(1); }, out = '';
+  var c = ENC.c16(), a = c.acc, LM = DESIGN_MODEL.landmarks, RW = GEN.ROUTE_W, T = GEN.TURN, f = function(v) { return (+v).toFixed(1); }, out = '';
   var P = function(p) { var q = worldToPlan(LM.deckX0 + p[0], p[1]); return [q.px, q.py]; };
-  var red = DRAW_STYLE.UI.snapPk;
-  ACC._drawn = { route: 0, entry: 0, pinch: 0, blocked: !c.ok && !c.unknown };
-  // one band: its legs, each extended by half its width at both ends (but not back out over the sidewalk) so the corners
-  // close; drawn solid inside a translucent group, so the overlaps read as one shape
-  var band = function(legs, colr, entry, tip) {
-    var g = '';
-    legs.forEach(function(l, i) {
-      if (!(l.w > 0.02)) return;
-      var dx = l.b[0] - l.a[0], dz = l.b[1] - l.a[1], len = Math.hypot(dx, dz) || 1, ux = dx / len, uz = dz / len, e = l.w / 2;
-      var a0 = i === 0 ? l.a : [l.a[0] - ux * e, l.a[1] - uz * e], b0 = [l.b[0] + ux * e, l.b[1] + uz * e];
-      var poly = ACC.band([a0, b0], l.w).map(P); if (poly.length < 3) return;
-      g += "<polygon points='" + poly.map(function(q) { return f(q[0]) + ',' + f(q[1]); }).join(' ') + "' data-leg-w='" + l.w.toFixed(2) + "'/>";
-    });
-    if (!g) return '';
+  var blocked = !c.ok && !c.unknown, ink = DRAW_STYLE.c(DK, 'ink'), mid = DRAW_STYLE.c(DK, 'mid'), acc = DRAW_STYLE.UI.accent;
+  var line = blocked ? ink : mid, pts2 = function(poly) { return poly.map(function(q) { return f(q[0]) + ',' + f(q[1]); }).join(' '); };
+  ACC._drawn = { route: 0, entry: 0, pinch: 0, turn: 0, blocked: blocked };
+  // (Brief 31 §8) the dotted hatch: dots every 6 px, faint
+  out += "<defs><pattern id='accDots' patternUnits='userSpaceOnUse' width='" + f(6 * U) + "' height='" + f(6 * U) + "'><circle cx='" + f(1.5 * U) + "' cy='" + f(1.5 * U) + "' r='" + (0.7 * U).toFixed(2) + "' fill='" + line + "' fill-opacity='0.45'/></pattern></defs>";
+  // a corridor: the route's centre line offset by half the required width, its outline dashed, the hatch inside
+  var corridor = function(pts, w, colr, entry, tip) {
+    if (!pts || pts.length < 2) return '';
+    var poly = ACC.band(pts, w).map(P); if (poly.length < 3) return '';
     ACC._drawn.route++;
-    return "<g fill='" + colr + "' opacity='0.34' data-route='" + entry + "'><title>" + tip + '</title>' + g + '</g>';
+    return "<g data-route='" + entry + "'><title>" + tip + "</title><polygon points='" + pts2(poly) + "' fill='url(#accDots)'" + DRAW_STYLE.ui(DK, 1, colr, { dash: [5, 3], join: 'round' }) + " data-corridor='" + w.toFixed(2) + "'/></g>";
+  };
+  // a turning space: a dashed circle of the turning width (an ellipse where the Plan's axes differ in scale)
+  var turn = function(x, z, w) {
+    var p0 = P([x, z]), px = P([x + T / 2, z]), pz = P([x, z + T / 2]), rx = Math.hypot(px[0] - p0[0], px[1] - p0[1]), ry = Math.hypot(pz[0] - p0[0], pz[1] - p0[1]);
+    ACC._drawn.turn++;
+    return "<ellipse cx='" + f(p0[0]) + "' cy='" + f(p0[1]) + "' rx='" + f(rx) + "' ry='" + f(ry) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, w != null && w < T - 1e-9 ? acc : line, { dash: [3, 3] }) + " data-turn='" + T.toFixed(2) + "'><title>Turning space, " + T.toFixed(2) + ' m' + (w != null ? ' (' + w.toFixed(2) + ' m clear)' : '') + '</title></ellipse>';
+  };
+  // a dimension across the route at a point (deck frame), w wide along n (the unit normal), the text beside it
+  var dimAcross = function(x, z, nx, nz, w, txt, colr, data) {
+    var h = w / 2, q0 = P([x - nx * h, z - nz * h]), q1 = P([x + nx * h, z + nz * h]), dx = q1[0] - q0[0], dy = q1[1] - q0[1], l = Math.hypot(dx, dy) || 1, ex = -dy / l * 6 * U, ey = dx / l * 6 * U, pc = P([x, z]);
+    var g = "<line x1='" + f(q0[0]) + "' y1='" + f(q0[1]) + "' x2='" + f(q1[0]) + "' y2='" + f(q1[1]) + "'" + DRAW_STYLE.ui(DK, 1.2, colr, { cap: 'butt' }) + ' ' + data + '/>';
+    [q0, q1].forEach(function(q) { g += "<line x1='" + f(q[0] - ex) + "' y1='" + f(q[1] - ey) + "' x2='" + f(q[0] + ex) + "' y2='" + f(q[1] + ey) + "'" + DRAW_STYLE.ui(DK, 1, colr) + '/>' + "<line x1='" + f(q[0] - dx / l * 3 * U - dy / l * 3 * U) + "' y1='" + f(q[1] - dy / l * 3 * U + dx / l * 3 * U) + "' x2='" + f(q[0] + dx / l * 3 * U + dy / l * 3 * U) + "' y2='" + f(q[1] + dy / l * 3 * U - dx / l * 3 * U) + "'" + DRAW_STYLE.ui(DK, 1.2, colr) + '/>'; });   // extension lines and ticks
+    // the dimension's own text, beside its far end on the road side, always drawn (the annotation layer gives way to it)
+    var tx = Math.max(q0[0], q1[0]) + 8 * U, ty = (q0[1] + q1[1]) / 2 + 4 * U, tw = txt.length * 0.55 * DRAW_STYLE.fs(DK, 'body');
+    if (ann) ann.obst(Math.min(q0[0], q1[0]) - 6 * U, Math.min(q0[1], q1[1]) - 6 * U, tx + tw + 4 * U, Math.max(q0[1], q1[1]) + 6 * U);
+    g += "<text x='" + f(tx) + "' y='" + f(ty) + "' font-size='" + f(DRAW_STYLE.fs(DK, 'body')) + "' font-weight='600' fill='" + colr + "' paint-order='stroke' stroke='" + DRAW_STYLE.c(DK, 'paper') + "' stroke-width='" + (3 * U).toFixed(2) + "' " + data.replace(/='1'/, "-t='1'") + '>' + txt + '</text>';
+    return g;
   };
   (a.paths || []).forEach(function(rt) {
-    var legs = ACC.legs(rt.pts, a.grid), tight = (rt.turns || []).some(function(t) { return t.w < GEN.TURN - 1e-9; });
-    out += band(legs, tight ? red : DRAW_STYLE.UI.accent, rt.entry, 'Accessible route (C16) from the entry at z ' + rt.entry.toFixed(2) + ' to the ' + rt.seat + ': ' + rt.w.toFixed(2) + ' m clear at its narrowest, ' + RW.toFixed(2) + ' m needed');
+    out += corridor(rt.pts, RW, line, rt.entry, 'Accessible route (C16) from the entry at z ' + rt.entry.toFixed(2) + ' to the ' + rt.seat + ': ' + rt.w.toFixed(2) + ' m clear at its narrowest, ' + RW.toFixed(2) + ' m needed');
+    (rt.turns || []).forEach(function(t) { out += turn(t.x, t.z, t.w); });
+    var e = rt.pts[rt.pts.length - 1]; if (e) out += turn(e[0], e[1], null);   // the turning space at the seat
   });
-  // an entry with no route at C16's width: the narrower path that exists, red
+  // an entry with no route at C16's width: the narrower path that exists, its outline in the accent
   var loose = null;
   (a.per || []).forEach(function(p) {
     if (p.seat) return;
@@ -3462,23 +3475,29 @@ ACC.planSVG = function(DK, U, ann) {
     loose = loose || GEN.access(its, fp, { w: 0.3 });
     var lw = ((loose.per || []).find(function(q) { return q.entry === p.entry; }) || {}).route || 0; if (!(lw >= 0.3)) return;
     var wide = GEN.access(its, fp, { w: lw - 1e-3, paths: true }), lp = (wide.paths || []).find(function(q) { return q.entry === p.entry; }); if (!lp) return;
-    out += band(ACC.legs(lp.pts, wide.grid), red, p.entry, 'No ' + RW.toFixed(2) + ' m route from the entry at z ' + p.entry.toFixed(2) + ': ' + lp.pinch.w.toFixed(2) + ' m at its narrowest');
+    out += corridor(lp.pts, Math.max(0.3, lp.pinch.w), acc, p.entry, 'No ' + RW.toFixed(2) + ' m route from the entry at z ' + p.entry.toFixed(2) + ': ' + lp.pinch.w.toFixed(2) + ' m at its narrowest');
   });
-  // the pinch (the card's first block): a bar across the band at its clear width, the width beside it
   var over = '';
-  if (!c.ok && !c.unknown && typeof ACCTAB !== 'undefined') {
+  if (blocked && typeof ACCTAB !== 'undefined') {
+    // the pinch: a dimension across the narrow point; the piece in the way outlined in the accent, named by a leader
     var bk = ACCTAB.analyse().blocks[0];
     if (bk) {
       ACC._drawn.pinch++;
-      var h = Math.max(bk.w, 0.2) / 2, q0 = P([bk.x - h, bk.z]), q1 = P([bk.x + h, bk.z]), pc = P([bk.x, bk.z]), fs = DRAW_STYLE.fs(DK, 'body');
-      var lbl = bk.w > 0.05 ? bk.w.toFixed(2) + ' m, needs ' + RW.toFixed(2) + ' m' : 'closed, needs ' + RW.toFixed(2) + ' m';
-      over += "<line x1='" + f(q0[0]) + "' y1='" + f(q0[1]) + "' x2='" + f(q1[0]) + "' y2='" + f(q1[1]) + "'" + DRAW_STYLE.ui(DK, 2.4, 'snapPk', { cap: 'butt' }) + " data-pinch='1'><title>Pinch: " + lbl + '</title></line>';
-      [q0, q1].forEach(function(q) { var dx = q1[0] - q0[0], dy = q1[1] - q0[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * 5 * U, ny = dx / l * 5 * U;
-        over += "<line x1='" + f(q[0] - nx) + "' y1='" + f(q[1] - ny) + "' x2='" + f(q[0] + nx) + "' y2='" + f(q[1] + ny) + "'" + DRAW_STYLE.ui(DK, 1.6, 'snapPk') + '/>'; });
-      if (ann) { ann.obst(Math.min(q0[0], q1[0]) - 6 * U, Math.min(q0[1], q1[1]) - 6 * U, Math.max(q0[0], q1[0]) + 6 * U, Math.max(q0[1], q1[1]) + 6 * U);
-        ann.text('dim', lbl, pc[0] + 8 * U, pc[1] - 8 * U, { role: 'body', c: 'fail', bold: true, axis: 'x', tier: 'mid', at: pc, data: " data-pinch-t='1'" }); }
-      else over += "<text x='" + f(pc[0] + 8 * U) + "' y='" + f(pc[1] - 8 * U) + "' font-size='" + f(fs) + "' font-weight='600' fill='" + red + "' data-pinch-t='1'>" + lbl + '</text>';
+      var lbl = (bk.w > 0.05 ? bk.w.toFixed(2) + ' m' : 'closed') + ' · min ' + RW.toFixed(2) + ' m';
+      over += dimAcross(bk.x, bk.z, 1, 0, Math.max(bk.w, 0.05), lbl, ink, "data-pinch='1'");
+      var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(P);
+      over += "<polygon points='" + pts2(cs) + "' fill='none'" + DRAW_STYLE.ui(DK, 2, acc, { join: 'miter' }) + " data-obstruction='1'/>";
+      var tag = ACCTAB.tagOf(bk.it), nm = (tag ? tag + ' ' : '') + ((FL_ARCHETYPES[bk.it.type] || {}).label || 'piece').toLowerCase(), cr = cs[2], lx = cr[0] + 18 * U, ly = cr[1] + 14 * U;
+      over += "<line x1='" + f(cr[0]) + "' y1='" + f(cr[1]) + "' x2='" + f(lx) + "' y2='" + f(ly) + "'" + DRAW_STYLE.ui(DK, 1, acc) + " data-leader='1'/>";
+      if (ann) ann.text('object', nm + ' in the way', lx + 3 * U, ly + 4 * U, { role: 'body', c: 'accent', bold: true, axis: 'x', tier: 'mid', at: [lx, ly], data: " data-obstruction-t='1'" });
+      else over += "<text x='" + f(lx + 3 * U) + "' y='" + f(ly + 4 * U) + "' font-size='" + f(DRAW_STYLE.fs(DK, 'body')) + "' font-weight='600' fill='" + acc + "' data-obstruction-t='1'>" + nm + ' in the way</text>';
     }
+  } else if (!c.unknown && (a.paths || []).length) {
+    // a clear route: its narrowest clear width, dimensioned once (the legs inside the deck; the first leg comes in from the edge)
+    var best = null;
+    a.paths.forEach(function(rt) { ACC.legs(rt.pts, a.grid).forEach(function(l, k) { if (k === 0 && rt.pts.length > 2) return; if (l.w > 0.02 && (!best || l.w < best.w)) best = l; }); });
+    if (best) { var dx2 = best.b[0] - best.a[0], dz2 = best.b[1] - best.a[1], ll = Math.hypot(dx2, dz2) || 1; ACC._drawn.narrowest = best.w;
+      over += dimAcross((best.a[0] + best.b[0]) / 2, (best.a[1] + best.b[1]) / 2, -dz2 / ll, dx2 / ll, best.w, best.w.toFixed(2) + ' m clear', mid, "data-narrowest='1'"); }
   }
   // the entries: the opening in the enclosure line at the sidewalk edge (1.8 m, C18's least, within its clear run), "Entry"
   var op = ENC.openingsOf(ENC.items(), ENC.fpLive(_dmCurrent())).runs;
@@ -3619,8 +3638,10 @@ ACC.planKey = function(svg) {
   var el = document.getElementById('pvKey');
   if (!el) { el = document.createElement('details'); el.id = 'pvKey'; el.className = 'pv-key'; el.open = false; if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.appendChild(el); }
   var D = ACC._drawn || {}, rows = [];
-  if (D.route) rows.push(["<span class='pk-sw pk-route" + (D.blocked ? ' pk-blocked' : '') + "'></span>", 'Accessible route at its clear width, ' + GEN.ROUTE_W.toFixed(2) + ' m needed (C16; red: blocked)']);
-  if (D.pinch) rows.push(["<span class='pk-sw pk-pinch'></span>", 'Pinch: the clear width where the route is blocked']);
+  if (D.route) rows.push(["<span class='pk-sw pk-route" + (D.blocked ? ' pk-blocked' : '') + "'></span>", 'Accessible route: the ' + GEN.ROUTE_W.toFixed(2) + ' m corridor from each entry to a seat, dashed (C16)']);
+  if (D.turn) rows.push(["<span class='pk-sw pk-turn'></span>", 'Turning space: a ' + GEN.TURN.toFixed(2) + ' m circle, dashed']);
+  if (D.pinch) rows.push(["<span class='pk-sw pk-pinch'></span>", 'Pinch: the clear width dimensioned; the piece in the way outlined']);
+  else if (D.narrowest) rows.push(["<span class='pk-sw pk-pinch'></span>", 'The narrowest clear width of the route, dimensioned']);
   if (D.entry) rows.push(["<span class='pk-sw pk-entry'></span>", 'Entry: the opening in the enclosure at the sidewalk edge']);
   var M = window._pvMarks || {};
   if (M.H) rows.push(["<span class='pk-sym pk-h'>H</span>", 'Fire hydrant']);
@@ -26286,9 +26307,10 @@ RPT.print = async function() {
 .pk-sym.pk-clr { font-weight: 400; font-size: 12px; }
 .pk-tree { border-radius: 50%; width: 12px; height: 12px; margin: 0 3px; background: #C9D3C2; }   /* fill.treeSil */
 .dm-technical .pk-tree { background: #DEDEDE; }
-.pk-route { background: rgba(58, 168, 228, 0.34); border: 0; }
-.pk-route.pk-blocked { background: rgba(192, 48, 48, 0.34); }
-.pk-pinch { height: 0; border-top: 2.5px solid #C03030; align-self: center; }
+.pk-route { background: radial-gradient(circle, rgba(140,140,140,.55) 0.7px, transparent 1px) 0 0 / 5px 5px; border: 1px dashed #8C8C8C; }   /* (Brief 31 §8) the dashed corridor, dotted */
+.pk-route.pk-blocked { border-color: #6C6C6C; }
+.pk-turn { border: 1px dashed #8C8C8C; border-radius: 50%; }
+.pk-pinch { height: 0; border-top: 1.5px solid #6C6C6C; align-self: center; }
 .pk-entry { height: 0; border-top: 3px solid var(--accent-ui); align-self: center; }
 .pk-area { border: 1px dashed var(--d-mid); opacity: .7; }
 .se-hex { flex: 0 0 auto; width: 15px; height: 15px; margin-top: 1px; }
