@@ -32129,6 +32129,12 @@ function uiApplyTips(root) {
 
 /* (Brief 30 §12, typeset) mixed-case labels: capitals only for rule IDs, sheet numbers and the wordmark */
 .ss-lbl, .sbx-fold > summary, .gis-grp-h, .smp-badge, .smp-grp-h, .imp-grp-h, .walk-step, .acc-h, .badge, .crit-hdr h2, .detail-label, .summary-section h2, .summary-col h3, .drw-tb-name { text-transform: none !important; letter-spacing: normal !important; }
+
+/* the first use of Design (Brief 30 §12, onboard) */
+.onb-box { margin: 10px 12px 6px; padding: 10px 12px; border: 1px dashed var(--c-rule); border-radius: 4px; }
+.onb-t { margin: 0 0 4px; font: 600 13px var(--font-ui); color: var(--c-text); }
+.onb-p { margin: 0 0 8px; font: 12px/1.5 var(--font-ui); color: var(--c-text-dim); }
+.onb-b { display: flex; flex-wrap: wrap; gap: 6px; }
 /* the left column: the Selection, Grid and Move blocks only with something selected */
 #cadTools.cad-empty { display: none !important; }
 /* Brief 30 §8B (access): with a piece selected the Selection panel filled the column at 200 % and nothing scrolled (its last
@@ -32628,9 +32634,25 @@ function uiEmpty(hostId, on, text, btn, onclick, before) {
   if (!el) { el = document.createElement('div'); el.id = id; el.className = 'ui-empty'; el.setAttribute('role', 'status'); if (before) host.insertBefore(el, host.firstChild); else host.appendChild(el); }
   el.innerHTML = '<p>' + text + "</p><button type='button' class='ui-empty-btn' onclick='" + onclick + "'>" + btn + '</button>';
 }
+// ── First use of Design (Brief 30 §12, onboard) ──────────────────────────────────────────────────────────────────────
+// A deck with nothing on it opened Design on four folded panels with nothing saying where to begin. Until the first piece
+// is placed, one line under the Design header says it, with the two ways in: the library, or layouts that already pass.
+var ONB = {};
+ONB.design = function(placed) {
+  var host = document.getElementById('ctxDesign'); if (!host) return;
+  var el = document.getElementById('onbDesign'), show = placed === 0 && !(typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET);
+  if (!show) { if (el) el.remove(); return; }
+  if (el) return;
+  el = document.createElement('div'); el.id = 'onbDesign'; el.className = 'onb-box'; el.setAttribute('role', 'note');
+  el.innerHTML = "<p class='onb-t'>Nothing on the deck yet</p><p class='onb-p'>Set the edge first (Edge, below), then add furniture: open the library, tap a piece, then tap the deck. Or let Generate propose layouts that already pass.</p>" +
+    "<div class='onb-b'><button type='button' class='ctx-btn' onclick='ONB.library()'>Open the furniture library</button><button type='button' class='ctx-btn' onclick='appSetMode(\"generate\")'>Generate layouts</button></div>";
+  var hdr = host.querySelector('.ctx-hdr'); host.insertBefore(el, hdr ? hdr.nextSibling : host.firstChild);
+};
+ONB.library = function() { var p = document.getElementById('dkcd2'); if (p && p.classList.contains('dk-collapsed') && typeof dkToggle === 'function') dkToggle('dkcd2'); if (p) p.scrollIntoView({ block: 'start', behavior: 'smooth' }); var t = p && p.querySelector('.lib-tile, button'); if (t) t.focus({ preventScroll: true }); };
 function uiEmptyStates() {
   var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.length : 0, located = typeof state !== 'undefined' && (!!state.__siteMap || !!state.__generic);   // the blank street exports too, its sheets marked generic (Brief 30 §8C, row 29)
   uiEmpty('libraryCanvas', placed === 0, 'Nothing is placed on the deck yet. Place furniture from the library &mdash; go to Design.', 'Go to Design', 'appSetMode("design")', true);
+  ONB.design(placed);   // (Brief 30 §12, onboard) Design with nothing on the deck says where to start
   uiEmpty('expReportHost', !located, 'Locate a site first: the report is drawn from the street the parklet is on.', 'Locate the site', 'appSetMode("site");setTimeout(function(){SM.open()},50)', true);
 }
 // the Site tab as three numbered steps (not a wizard: every field stays editable, nothing is modal)
