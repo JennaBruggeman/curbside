@@ -17,7 +17,7 @@ URL: `http://127.0.0.1:5500/parklet-checker.html`
 Do NOT open as a `file://` URL — Supabase network requests will fail.
 
 ## Current state
-v0.17.2 on master, tagged and live on GitHub Pages. Code freeze until after 9 October 2026: README edits only, anything found is logged for Brief 30 (see "Review period" and "v0.17.1: My designs" below). Where things stand, the open questions and the order from here: `docs/process/HANDOFF_SESSION_7.md`.
+v0.17.2 on master, tagged and live on GitHub Pages. Code freeze until after 9 October 2026 (see "Review period" below). **Brief 30 (the Friday round) is done on branch `friday-round`, not merged and not pushed**; curbside-data has an unpublished `friday-round` branch too (the blockfaces layer the picker's band reads). What it did, the VERIFY numbers, the decisions and what needs Jenna: `docs/process/HANDOFF_SESSION_8.md`. The session before it: `docs/process/HANDOFF_SESSION_7.md`.
 
 ## Photoreal notes (from the v0.4 candidate)
 Kept for reference; the branch plan these were written under is superseded by the releases above.
@@ -1308,17 +1308,26 @@ $html = $html.Replace($old, $new)
 - No OAuth (email/password only)
 - No thumbnail generation (stub returns null)
 - No offline save queue (last cloud save is restored on reload)
-- Open a design in one tab at a time; the last save wins. Two tabs on the same design are not merged or detected
-  (two-tab merge is Brief 30).
+- Two tabs on the same design are not merged; since Brief 30 (`friday-round`) the later writer is asked before it
+  overwrites (signed in or out).
+- The picker's band needs the blockfaces layer, which is only on curbside-data's unpublished `friday-round` branch.
 
 ## Known dead code
+
+- The survey import (SURV) was removed in Brief 30 §10; old designs' `__survey` / `__surveyMap` are still read (a
+  surveyed value loads as measured) and nothing writes them.
 
 - `renderFurnitureProps` (both definitions, one plain and one `window.` override) - never called; the live selection panel is `#cadTools` (`cadToolsUpdate`). Candidate for deletion.
 - Furniture popover `#furniturePanel` (`cadToggleFurniturePanel`, `_cadBuildFp`, `_cadRenderFp`) - its markup is gone, so it never shows. Candidate for deletion.
 
 ## Style system
 - Dark charcoal dock (`--c-bg #17191C`, `--c-panel #202328`), one blue accent `--accent-ui #3AA8E4` (Brief 07; the old red accent is retired)
-- Fonts: `--font-ui` (DM Sans stack) and `--font-mono`; Barlow Condensed remains for drawing labels
+- Fonts: `--font-ui` (DM Sans stack) and `--font-mono`; Barlow Condensed remains for drawing labels (the Plan's)
+- Brief 30 §12: `docs/DESIGN.md` is the UI's design system (Impeccable format, sidecar `.impeccable/design.json`), with
+  `docs/PRODUCT.md`. New tokens `--accent-ink #1F6FA3` (blue text on paper) and `--on-accent #0E1114` (text on a blue
+  or status fill); `--nav-blue`, `--acc`, `--accent` alias `--accent-ui`. 12 px floor for interface text (`--fs-11` is
+  12 px; the drawings' `.se-` text pinned at 11 px). The Impeccable detector runs in `tools/hooks/pre-push`; exceptions
+  in `.impeccable/config.json`.
 - Older variables (`--panel-bg`, `--border-c`, `--text-hi`, `--text-lo`, `--text-mu`, `--acc`, ...) are aliases of the Brief 07 tokens
 
 ## To continue in a new session
