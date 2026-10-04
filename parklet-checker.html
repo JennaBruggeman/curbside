@@ -3044,6 +3044,23 @@ var PKMAT = {
   ],
   cur: {}
 };
+// (Brief 31 §7A) material families, as the panel heads them; the family of a material; what each role may be made of
+PKMAT.FAMS = [['timber', 'Timber'], ['metal', 'Metal and powder coat'], ['mineral', 'Mineral'], ['composite', 'Composite and recycled'], ['glass', 'Glass']];
+PKMAT.fam = function(m) { if (!m) return null; if (/^glass_/.test(m.id)) return 'glass'; if (/^fabric_/.test(m.id)) return 'fabric'; return { wood: 'timber', metal: 'metal', powder: 'metal', mineral: 'mineral', other: 'composite' }[m.group] || null; };
+PKMAT.ALLOW = { deck: ['timber', 'composite', 'mineral'], fascia: ['timber', 'metal', 'composite'], posts: ['metal', 'timber'], infill: ['timber', 'metal', 'composite', 'glass'], planter: ['timber', 'metal', 'mineral', 'composite'], screen: ['timber', 'metal', 'mineral', 'composite', 'glass'] };
+// no bright powder coats on a deck or its edge (the RAL reds, blues, yellows, orange): on posts, infill, planters, screens only
+PKMAT.okFor = function(role, m) { var f = PKMAT.fam(m); if (!f || (PKMAT.ALLOW[role] || []).indexOf(f) < 0) return false; if ((role === 'deck' || role === 'fascia') && /^ral_(3020|5010|1021|2004)$/.test(m.id)) return false; return true; };
+// a material's tile: its colour with the family's surface drawn in CSS (no images)
+PKMAT.tile = function(m) {
+  var c = m.color, f = PKMAT.fam(m), g = '';
+  if (f === 'timber') g = 'repeating-linear-gradient(90deg, rgba(0,0,0,.22) 0 1px, transparent 1px 7px), repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 1px, transparent 1px 3px, rgba(0,0,0,.06) 3px 4px, transparent 4px 5px), ';
+  else if (f === 'metal') g = 'linear-gradient(160deg, rgba(255,255,255,.38) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,.18) 100%), ';
+  else if (m.id === 'terrazzo' || m.id === 'granite') g = 'radial-gradient(circle at 25% 30%, rgba(0,0,0,.35) 0 1px, transparent 1.5px), radial-gradient(circle at 70% 60%, rgba(120,60,40,.45) 0 1.2px, transparent 1.7px), radial-gradient(circle at 45% 80%, rgba(255,255,255,.6) 0 1px, transparent 1.5px), radial-gradient(circle at 80% 20%, rgba(60,70,80,.4) 0 1px, transparent 1.5px), ';
+  else if (f === 'mineral') g = 'radial-gradient(circle at 30% 40%, rgba(255,255,255,.14), transparent 40%), radial-gradient(circle at 70% 70%, rgba(0,0,0,.12), transparent 45%), ';
+  else if (f === 'composite') g = 'repeating-linear-gradient(90deg, rgba(0,0,0,.25) 0 1px, transparent 1px 4px), ';
+  else if (f === 'glass') g = 'linear-gradient(135deg, rgba(255,255,255,.7) 0 18%, rgba(255,255,255,0) 19% 55%, rgba(255,255,255,.4) 56% 62%, rgba(255,255,255,0) 63%), ';
+  return 'background:' + g + c + (f === 'terrazzo' ? '' : '') + ';' + ((m.id === 'terrazzo' || m.id === 'granite') ? 'background-size:7px 7px, 9px 9px, 6px 6px, 8px 8px, auto;' : '');
+};
 PKMAT.role = function(k) { return PKMAT.ROLES.find(function(r) { return r.k === k; }); };
 PKMAT.norm = function(o) {
   var out = {}; if (!o || typeof o !== 'object') return out;
@@ -3107,13 +3124,17 @@ PKMAT.renderPanel = function() {
     return "<button type='button' class='pkm-preset" + (p.id === pid ? ' on' : '') + "' aria-pressed='" + (p.id === pid) + "' onclick='PKMAT.preset(&quot;" + p.id + "&quot;)' title='Sets every part below: " + esc(PKMAT.ROLES.map(function(r) { return r.label.toLowerCase() + ' ' + flMatInfo(p.m[r.k]).label.toLowerCase(); }).join('; ')) + "'>" + esc(p.label) + '</button>';
   }).join('') + "<button type='button' class='pkm-preset' onclick='PKMAT.reset()' title='Back to the default look: the drawings&rsquo; deck colour and each enclosure archetype&rsquo;s own material.'>Default</button></div>";
   PKMAT.ROLES.forEach(function(r) {
-    var cur = PKMAT.cur[r.k], shown = cur ? flMatInfo(cur).label : (r.today ? flMatInfo(r.today).label + ' (default)' : 'the enclosure&rsquo;s own (default)');
-    h += "<div class='pkm-row' data-pkm-role='" + r.k + "'><div class='pkm-lbl'>" + esc(r.label) + " &middot; <span class='pkm-cur'>" + shown + '</span></div><div class="pkm-sw">';
-    FL_MATERIALS.forEach(function(m) {
-      if (m.custom || r.allow.indexOf(m.group) < 0 || /^deck_/.test(m.id)) return;
-      h += "<button type='button' data-pkm='" + r.k + ':' + m.id + "' title='" + esc(m.label) + "' aria-label='" + esc(r.label + ': ' + m.label) + "' aria-pressed='" + (cur === m.id) + "' onclick='PKMAT.set({" + r.k + ": &quot;" + m.id + "&quot;})' style='background:" + m.color + (cur === m.id ? ';outline:2px solid var(--accent-ui,#3AA8E4);outline-offset:1px' : '') + "'></button>";
+    var cur = PKMAT.cur[r.k], shown = cur ? flMatInfo(cur).label : (r.today ? flMatInfo(r.today).label.replace(/ \(default [a-z]+\)$/, '') + ' (default)' : 'the enclosure&rsquo;s own (default)');
+    h += "<div class='pkm-row' data-pkm-role='" + r.k + "'><div class='pkm-lbl'>" + esc(r.label) + "</div>";
+    PKMAT.FAMS.forEach(function(fm) {
+      var list = FL_MATERIALS.filter(function(m) { return !m.custom && !/^deck_/.test(m.id) && PKMAT.fam(m) === fm[0] && PKMAT.okFor(r.k, m); }); if (!list.length) return;
+      h += "<div class='pkm-fam'>" + esc(fm[1]) + "</div><div class='pkm-sw' role='group' aria-label='" + esc(r.label + ', ' + fm[1]) + "'>";
+    list.forEach(function(m) {
+      h += "<button type='button' data-pkm='" + r.k + ':' + m.id + "' title='" + esc(m.label) + "' aria-label='" + esc(r.label + ': ' + m.label) + "' aria-pressed='" + (cur === m.id) + "' onclick='PKMAT.set({" + r.k + ": &quot;" + m.id + "&quot;})' style='" + PKMAT.tile(m) + "'></button>";
     });
-    h += '</div></div>';
+    h += '</div>';
+    });
+    h += "<div class='pkm-cur' aria-live='polite'>" + shown + '</div></div>';
   });
   el.innerHTML = h;
 };
@@ -32468,7 +32489,9 @@ body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #s
 .pkm-preset { font: 12px var(--font-ui, sans-serif); padding: 3px 8px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; background: transparent; color: var(--c-text, #E8EAED); cursor: pointer; }
 .pkm-preset.on { border-color: var(--accent-ui, #3AA8E4); color: var(--accent-ui, #3AA8E4); }
 .pkm-row { margin-bottom: 6px; } .pkm-lbl { font-size: 12px; color: var(--c-text-dim, #9AA0A6); margin-bottom: 2px; } .pkm-cur { color: var(--c-text, #E8EAED); }
-.pkm-sw { display: flex; flex-wrap: wrap; gap: 3px; } .pkm-sw button { width: 16px; height: 16px; padding: 0; border-radius: 2px; border: 1px solid rgba(0,0,0,.35); cursor: pointer; }
+.pkm-sw { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; } .pkm-sw button { width: 24px; height: 24px; padding: 0; border-radius: 3px; border: 1px solid rgba(0,0,0,.45); cursor: pointer; }
+.pkm-sw button[aria-pressed='true'] { outline: 2px solid var(--accent-ui); outline-offset: 1px; }
+.pkm-fam { font-size: 12px; color: var(--c-text-dim); margin: 6px 0 3px; } .pkm-row > .pkm-cur { font-size: 12px; margin-top: 2px; } .pkm-row { margin-bottom: 12px; }   /* (Brief 31 §7A) */
 .place-card-hint { grid-column: 1 / -1; margin: 2px 0 6px; padding: 4px 8px; font-size: 12px; line-height: 1.35; color: var(--c-text, #E8EAED); border-left: 3px solid var(--accent-ui, #3AA8E4); background: rgba(58,168,228,.08); }
 #planView .pv-furn.pv-hover { filter: drop-shadow(0 0 1.5px #3AA8E4) drop-shadow(0 0 1.5px #3AA8E4); }
 #planView .pv-edge-flash line { stroke: #E8A317; stroke-width: 5px; vector-effect: non-scaling-stroke; stroke-linecap: square; animation: pvEdgeFlash 0.35s ease-in-out 2; }
