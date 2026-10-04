@@ -4137,9 +4137,12 @@ function onSidewalkWidthChange() {
 function getTotalLanes() {
   return ROAD_DIR === 'twoway' ? LANES_A + LANES_B : NUM_LANES;
 }
+// Brief 30 §8C (triage row 23): a count out of range was shown, tagged "You" and ignored; now it is refused aloud, the field
+// shows the count the street has, and nothing is recorded
+function laneRefuse(id, cur, lo, hi) { var el = document.getElementById(id); if (el) el.value = cur; if (typeof pkToast === 'function') pkToast('Lanes: a whole number from ' + lo + ' to ' + hi + '. Kept at ' + cur + '.', 'error'); }
 function onLaneCountChange() {
   const v = parseInt(document.getElementById('laneCount').value, 10);
-  if (isNaN(v) || v < 1 || v > 6) return;
+  if (isNaN(v) || v < 1 || v > 6) { if (document.getElementById('laneCount').value !== '') laneRefuse('laneCount', NUM_LANES, 1, 6); return; }
   NUM_LANES = v;
   onLaneEnvelopeInput();
 }
@@ -4156,13 +4159,13 @@ function onRoadDirChange(dir) {
 }
 function onLanesAChange() {
   const v = parseInt(document.getElementById('lanesA').value, 10);
-  if (isNaN(v) || v < 1 || v > 4) return;
+  if (isNaN(v) || v < 1 || v > 4) { if (document.getElementById('lanesA').value !== '') laneRefuse('lanesA', LANES_A, 1, 4); return; }
   LANES_A = v;
   onLaneEnvelopeInput();
 }
 function onLanesBChange() {
   const v = parseInt(document.getElementById('lanesB').value, 10);
-  if (isNaN(v) || v < 1 || v > 4) return;
+  if (isNaN(v) || v < 1 || v > 4) { if (document.getElementById('lanesB').value !== '') laneRefuse('lanesB', LANES_B, 1, 4); return; }
   LANES_B = v;
   onLaneEnvelopeInput();
 }
@@ -19137,7 +19140,8 @@ async function pkDeleteDesign(id) {
 
 async function pkDuplicateDesign(id) {
   if (!pkSB || !pkCurrentUser) return;
-  var src = pkAllDesigns.find(function(d) { return d.id === id; });
+  // (Brief 30 §8B: the list's rows carry no state, so the copy was empty; the whole row is read first)
+  var src = pkAllDesigns.find(function(d) { return d.id === id && d.state; });
   if (!src) {
     var r = await pkSB.from('designs').select('*').eq('id', id).single();
     if (r.error || !r.data) { pkToast('Could not load source design.', 'error'); return; }
@@ -25262,7 +25266,7 @@ RPT.overlay = function(src, title, extra, noBar) {
   var o = document.createElement('div'); o.id = 'rptOverlay'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', title);
   o.innerHTML = (noBar ? '' : "<div class='rpt-ov-bar'><b>" + RPT.esc(title) + "</b><span class='rpt-ov-sp'></span>" + (extra || '') +
     "<button type='button' class='rpt-ov-back' onclick='RPT.closeOverlay()'>&larr; Back to Curbside</button></div>") +
-    "<iframe class='rpt-ov-frame' title='" + RPT.esc(title) + "' src='" + src + "'></iframe>";
+    "<iframe class='rpt-ov-frame' title='" + RPT.esc(title) + "' src='" + src + (/^blob:|.pdf$/i.test(src) ? '#view=Fit' : '') + "'></iframe>";   // (Brief 30 §8B: the whole page in view)
   document.body.appendChild(o);
   var b = o.querySelector(noBar ? '.rpt-ov-frame' : '.rpt-ov-back'); if (b) b.focus();
   return o;
@@ -25629,7 +25633,8 @@ RPT.render = async function(d, drw) {
   if (RPT.lastCheck.overlaps.length || RPT.lastCheck.outside.length) console.warn('[report] layout check:', RPT.lastCheck);
   return doc;
 };
-RPT.fileName = function(d) { return 'curbside-' + String(d.DM.project.name || 'parklet').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + d.mode + (d.sample ? '-sample' : '') + '.pdf'; };
+// (Brief 30 §8C, triage row 31: an unnamed design's file takes its address; long names are cut at 60 characters)
+RPT.fileName = function(d) { var nm = d.DM.project.name, unnamed = !nm || /^(untitled parklet|my first parklet|blank street)$/i.test(String(nm).trim()); if (unnamed && !d.sample && typeof pkSiteAddress === 'function' && pkSiteAddress()) nm = pkSiteAddress(); return 'curbside-' + String(nm || 'parklet').slice(0, 60).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + d.mode + (d.sample ? '-sample' : '') + '.pdf'; };
 // the whole report: data, renders, drawings, pages -> a PDF (RPT.lastPdf: {blob, name, pages, check})
 RPT.make = async function(mode, opt) {
   var T = {}, t = performance.now(), lap = function(k) { var n = performance.now(); T[k] = Math.round(n - t); t = n; };
@@ -29109,7 +29114,7 @@ GIS.buildRows = function() {
   });
   GIS.renderRows();
 };
-GIS.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
+GIS.day = function(iso) { return SMP.day ? SMP.day(iso) : (iso ? String(iso).slice(0, 10) : ''); };   // (Brief 30 §8C: the local date)
 GIS.renderRows = function() {
   var p = document.getElementById('smLayersList'); if (!p || !p.dataset.built || document.getElementById('smLayers').hidden) return;
   var idx = GIS._idx;
@@ -29804,7 +29809,9 @@ Object.defineProperty(SMP, 'R', { get: function() { return Math.min(SMP.INNER_R,
 SMP.prov = function() { if (!state.__prov || typeof state.__prov !== 'object') state.__prov = {}; return state.__prov; };
 // SMP._via = 'cells' while an import from the site data's cells applies it (Brief 24): the record carries via
 SMP.set = function(key, source, id, at, note) { if (SMP._touched && SMP._touched.indexOf(key) < 0) SMP._touched.push(key); SMP.prov()[key] = { source: source, id: id == null ? null : String(id), fetchedAt: at || new Date().toISOString(), note: note || '' }; if (SMP._via) SMP.prov()[key].via = SMP._via; };
-SMP.day = function(iso) { return iso ? String(iso).slice(0, 10) : ''; };
+// the local calendar date of a time stamp (Brief 30 §8C, triage row 34: an import late in the evening read as tomorrow, the
+// UTC date); a bare date stays as it is
+SMP.day = function(iso) { if (!iso) return ''; var t = String(iso); if (/^d{4}-d{2}-d{2}$/.test(t)) return t; var d = new Date(t); if (isNaN(d)) return t.slice(0, 10); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 // "data <day>" for what the cells gave (the date of the data), "fetched <day>" for a request made then
 SMP.when = function(p) { return (p && (p.via === 'cells' || p.source === 'cell') ? 'data ' : 'fetched ') + SMP.day(p && p.fetchedAt); };
 // (cell and osm-live: the brief's names, for a record that carries them; an import from the cells keeps source osm /
@@ -29841,6 +29848,7 @@ SMP.tags = function() {
     if (!el._smpBound) {   // a user edit flips the field to 'user'
       el._smpBound = true;
       ['input', 'change', 'click'].forEach(function(ev) { el.addEventListener(ev, function(e) { if (ev === 'click' && !e.target.closest('button')) return; var q = SMP.prov()[k];
+        if (SMP.FIELDS[k] && /^(laneCount|lanesA|lanesB)$/.test(SMP.FIELDS[k])) { var _lv = parseInt(el.value, 10), _lh = SMP.FIELDS[k] === 'laneCount' ? 6 : 4; if (!(_lv >= 1 && _lv <= _lh)) return; }   /* a refused lane count records nothing (Brief 30 §8C) */
         if (k === 'roadWidth' && (window._rwRefused || (typeof roadRowCeil === 'function' && roadRowCeil() && parseFloat(el.value) >= roadRowCeil() - 0.0005))) { window._rwRefused = false; return; } /* a refused entry (Brief 22 item 4) changes nothing */ if (q && q.source !== 'user') { SMP.prov()[k] = { source: 'user', from: q.source, fetchedAt: q.fetchedAt, editedAt: new Date().toISOString() }; setTimeout(SMP.refresh, 0); } }); });
     }
   });
