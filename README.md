@@ -132,12 +132,12 @@ downloaded and paged through: cover, What to do next, layout plan, deck plan, bo
 - **Schematic, not construction.** The drawings are for the Parklet Manual pre-application; no structural or
   construction feasibility is assessed.
 - **Imported data is a starting point.** Street facts, buildings and site objects come from City open data and
-  OpenStreetMap. Curb-to-curb width is an estimate to measure, and every imported object stays *provisional* until
-  confirmed on site.
+  OpenStreetMap. Curb-to-curb width is an estimate to measure; a result that rests on an estimate or imported data stays
+  *provisional* until you mark the fact measured in *Site facts*.
 - **Checks need inputs.** A check whose value is neither imported nor entered reports *not entered*, never a pass.
-- **Vancouver only**, and a desktop browser with WebGL.
-- **Open a design in one tab at a time; the last save wins.** Two tabs on the same design do not merge: whichever
-  saves last replaces the other's edits.
+- **Vancouver only**, and a browser with WebGL: a desktop or laptop, or a tablet (taps and one-finger drags work).
+- **Open a design in one tab at a time.** Two tabs (or two browsers) on the same design do not merge: the one that saves
+  second is asked first whether to reload the newer version or overwrite it.
 - **Photoreal renders and the Design Assistant use the visitor's own keys** (Replicate, Anthropic), entered in
   Settings › Connections and kept only in that browser. The site ships with none.
 - **The render relay is absent on the Pages build.** Photoreal renders go through the relay in `tools/serve.ps1`,
