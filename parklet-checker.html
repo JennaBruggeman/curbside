@@ -14648,6 +14648,32 @@ function pkSetCornerHalf(i, v) { var k = pkPlace().corners[i], h = parseFloat(v)
 function pkDelCorner(i) { pkPlace().corners.splice(i, 1); pkAfterMove('corner-edit'); }
 function pkAddCorner(v) { var s = parseFloat(v); if (!isFinite(s)) return; pkPlace().corners.push({ s: s, half: 5.7, name: 'Corner', src: 'user' }); pkPlace().corners.sort(function(a, b) { return a.s - b.s; }); pkAfterMove('corner-edit'); }
 function pkMsg(t) { var el = document.getElementById('pkPlaceMsg'); if (el) el.textContent = t; }
+// Brief 30 (§8B, C03 not reading the map corner): the corners from the site data's streets, by the rule below, with no
+// request: a way of the cells that shares a node (the same 7-decimal point) with the located way and crosses it at 35
+// degrees or more. Null when the located way is not in the resident cells (outside the data, or the cells not loaded).
+function pkCornersFromCells() {
+  var sm = state.__siteMap; if (!sm || !sm.wayId || typeof GIS === 'undefined' || !GIS.ways) return null;
+  // the located way and the street's other ways of the same name (the block runs on past the way's end)
+  var ways = GIS.ways(), mine0 = function(w) { return String(w.id) === String(sm.wayId) || (!!sm.name && (w.tags || {}).name === sm.name); }, me = ways.filter(mine0);
+  if (!me.some(function(w) { return String(w.id) === String(sm.wayId); })) return null;
+  var T = SM.enu(+SITE_ORIENT.lat, +SITE_ORIENT.lon), E = siteBearingWorld(90), N = siteBearingWorld(0), sb = +sm.streetBearing || 0, out = [], mine = {};
+  var key = function(p) { return (+p.lat).toFixed(7) + ',' + (+p.lon).toFixed(7); };
+  me.forEach(function(w) { w.geometry.forEach(function(p) { mine[key(p)] = p; }); });
+  ways.forEach(function(w) {
+    if (mine0(w)) return; var tg = w.tags || {};
+    if (!tg.highway || /^(footway|path|cycleway|steps|pedestrian|track|bridleway|corridor|elevator|service|proposed|construction)$/.test(tg.highway)) return;
+    w.geometry.forEach(function(p, i) {
+      if (!mine[key(p)]) return; var q = w.geometry[i + 1] || w.geometry[i - 1]; if (!q) return;
+      var a = T.to(p.lat, p.lon), b = T.to(q.lat, q.lon), bw = Math.atan2(b.e - a.e, b.n - a.n) * 180 / Math.PI, da = (((bw - sb) % 180) + 180) % 180;
+      if (Math.min(da, 180 - da) < 35) return;
+      var wd = parseFloat(tg.width), ln = parseInt(tg.lanes, 10), half = isFinite(wd) && wd > 3 ? wd / 2 : (isFinite(ln) && ln > 0 ? ln : 2) * 1.65 + 2.4, s = a.e * E.z + a.n * N.z;
+      var o = out.find(function(k) { return Math.abs(k.s - s) < 4; });
+      if (!o) out.push({ s: +s.toFixed(2), half: +half.toFixed(2), name: tg.name || tg.highway, src: isFinite(wd) && wd > 3 ? 'osm' : 'estimate' });
+      else if (half > o.half) { o.half = +half.toFixed(2); o.name = tg.name || tg.highway; }   // two ways at one node: the wider
+    });
+  });
+  return out.sort(function(a, b) { return a.s - b.s; });
+}
 // The cross streets from OpenStreetMap: the highway ways through the located street's nodes (one query, cached). A corner
 // is where one crosses at 35 degrees or more; its half width from its width tag, else its lanes at 3.3 m and a 2.4 m
 // parking lane a side (an estimate, editable).
@@ -14655,6 +14681,8 @@ async function pkFindCorners() {
   var sm = state.__siteMap;
   if (!sm || !sm.wayId) { pkMsg('Locate the site on the map first: the corners come from the located street.'); return null; }
   pkMsg('Finding the cross streets...');
+  var kc = pkCornersFromCells();   // the site data first (Brief 30); Overpass only where the cells do not hold the street
+  if (kc) { pkPlace().corners = kc; SMP.faceFilter(null); pkAfterMove('corners'); pkMsg(kc.length ? kc.length + ' cross street' + (kc.length > 1 ? 's' : '') + ' found on ' + (sm.name || 'the street') + ' (site data).' : 'No cross street on this way in the site data: add a corner by hand.'); return kc; }
   var q = '[out:json][timeout:25];way(' + sm.wayId + ')->.s;.s out body geom;node(w.s)->.n;way(bn.n)[highway]->.x;.x out body geom;', j = null;
   for (var t = 0; t < 3 && !j; t++) { try { j = await SM.overpass('cross|' + sm.wayId, q); } catch (e) { if (e && e.offline) { pkMsg(SM.offlineText); return null; } SM.nextOverpass(); } }
   if (!j) { pkMsg('The map service did not answer: try again, or add a corner by hand.'); return null; }
@@ -30167,8 +30195,10 @@ SMP.importContext = async function(opt) {
     SMP.applyStreet(P.way, P.routes, P.stops, cov.bikeways, data.osm.at, rep, P.cands);
     SMP.applyBuildings(P.blds, P.pois, data.osm.at, rep);
     SMP.applyAddresses(cov['property-addresses'].rows, cov['property-addresses'].at, rep);
+    var kc = pkCornersFromCells(); if (kc) { pkPlace().corners = kc; rep.notes.push(kc.length + ' corner' + (kc.length === 1 ? '' : 's') + ' from the site data (C03)'); }   // Brief 30: C03 reads the map's corners
     SMP.applyObjects(cov, P.stops, data.osm.at, rep);
     if (PK_NOSTREET && typeof SEED !== 'undefined') SEED.parklet(rep);   // stage 0 -> 1: the deck at the host frontage (Brief 22 item 5)
+    SMP.busZone(rep); pkAfterMove('import');   // C01, C03 and the clearances at the deck's place
     SITEF.fromImport(P.way, cov['right-of-way-widths'], data.osm.at, rep);   // the existing street, before any design change
     SMP._via = null; SMP._truck = null;
     SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString(); state.__generic = null; state.__siteMap.via = 'cells'; state.__siteMap.cellsBuild = A.build;
@@ -30440,7 +30470,9 @@ SMP.applyBuildings = function(blds, pois, at, rep, opts) {
   var h = _dmCurrent().site.host; rep.host = h ? (h.name || '(unnamed)') + ', ' + h.use : null;
 };
 SMP.applyObjects = function(cov, stops, osmAt, rep) {
-  var F = SMP.frame(), LM = F.LM, L = F.L, near = function(w) { return w.x < LM.roadCenterX; }, yM = function(w) { return Math.max(-(LM.sidewalkW || 2) - 0.5, Math.min(0, w.x - LM.roadLeft)); };
+  // on the parklet's half of the street and within 12 m of its curb (Brief 30: an object 40 m down a cross street's sidewalk
+  // projects onto this street near the corner, and was laid on this curb; curbside-data's blockfaces uses the same window)
+  var F = SMP.frame(), LM = F.LM, L = F.L, near = function(w) { return w.x < LM.roadCenterX && w.x > LM.roadLeft - SMP.FACE_M; }, yM = function(w) { return Math.max(-(LM.sidewalkW || 2) - 0.5, Math.min(0, w.x - LM.roadLeft)); };
   var keep = function(list) { return (state[list] || []).filter(function(f) { return !f.prov || f.prov.source === 'user'; }); };   // a re-import replaces earlier imports
   var dropT = 0, dropS = 0;   // nothing inside the import radius is dropped for distance (Brief 17, 4b)
   // hydrants -> curb features H (C05 measures them)
@@ -30477,14 +30509,41 @@ SMP.applyObjects = function(cov, stops, osmAt, rep) {
   (cov['rapid-transit-stations'].rows || []).forEach(function(r) { var g = SMP.pt(r); if (!g) return; var w = F.w(g.lat, g.lon); if (!near(w)) return; ts.push({ id: 'cov-' + (SMP.rowId(r) || r.station || ''), kind: 'rapid', name: r.station || '', xM: Math.round(w.z * 100) / 100, yM: Math.round(yM(w) * 100) / 100, prov: { source: 'cov', dataset: 'rapid-transit-stations', id: SMP.rowId(r), fetchedAt: cov['rapid-transit-stations'].at, via: cov['rapid-transit-stations'].via }, confirmed: false }); });
   state.transit_stops = ts; rep.transit = ts.length;
   if (dropT || dropS) rep.notes.push((dropT ? dropT + ' tree' + (dropT > 1 ? 's' : '') : '') + (dropT && dropS ? ' and ' : '') + (dropS ? dropS + ' stop' + (dropS > 1 ? 's' : '') : '') + ' beyond the context extent (' + siteContextZ(SITE_CONTEXT_Z) + ' m each way) left out');
-  // C01: a parklet-side bus stop within 15 m of the deck suggests a bus zone
-  var inZone = ts.filter(function(s) { return s.kind === 'bus' && s.xM > -15 && s.xM < L + 15; });
+  SMP.faceFilter(rep);   // only the block face's own objects (Brief 30: a cross street's stop or hydrant is not this curb's)
+  SMP.busZone(rep);
+};
+// The block face's own objects (Brief 30 §2 / §8B). The import takes every object on the parklet's half of the street, at
+// any distance along it, and lays it on this sidewalk; at a corner that brought the cross street's stops, hydrants and trees
+// onto this curb (at Robson & Burrard, a Burrard bus stop made C01 a bus zone and a Burrard hydrant failed C05). With the
+// corners known, an imported object past a corner's curb return (the corner's s -/+ its half width) is left out.
+SMP.FACE_M = 12;
+SMP.faceRange = function() {
+  var ks = pkPlace().corners || [], c = pkZNow(), L = designParkletLength, lo = -Infinity, hi = Infinity;
+  ks.forEach(function(k) { if (k.s <= c) lo = Math.max(lo, k.s + k.half); else hi = Math.min(hi, k.s - k.half); });
+  return { lo: lo - (c - L / 2), hi: hi - (c - L / 2) };   // in the deck's frame (world z, as an object's xM)
+};
+SMP.faceFilter = function(rep) {
+  if (!(pkPlace().corners || []).length) return;
+  var R = SMP.faceRange(), out = {}, on = function(o) { return !o.prov || o.prov.source === 'user' || (+o.xM > R.lo && +o.xM < R.hi); };
+  ['curb_features', 'street_trees', 'transit_stops'].forEach(function(k) { var a = state[k] || [], b = a.filter(on); if (b.length < a.length) out[k] = a.length - b.length; state[k] = b; });
+  if (rep) { rep.hydrants = (state.curb_features || []).filter(function(o) { return o.type === 'H' && o.prov && o.prov.source !== 'user'; }).length; rep.trees = (state.street_trees || []).length; rep.transit = (state.transit_stops || []).length; }
+  var n = Object.keys(out).map(function(k) { return out[k] + ' ' + { curb_features: 'hydrant', street_trees: 'tree', transit_stops: 'stop' }[k] + (out[k] > 1 ? 's' : ''); });
+  if (n.length && rep) rep.notes.push(n.join(', ') + ' past a corner (on the cross street) left out');
+};
+// C01: a parklet-side bus stop within 15 m of the deck suggests a bus zone; run again once the deck is placed, and an
+// imported bus zone with no stop left beside the deck is cleared (a value the user chose stays)
+SMP.busZone = function(rep) {
+  var L = designParkletLength, ts = state.transit_stops || [], inZone = ts.filter(function(s) { return s.kind === 'bus' && s.xM > -15 && s.xM < L + 15; }), P = SMP.prov(), sel = document.getElementById('parking_restrictions');
+  var NOTE = 'C01 set to a bus zone from a bus stop beside the deck';
   if (inZone.length) {
-    var sel = document.getElementById('parking_restrictions'); if (sel) sel.value = 'bus_zone';
+    if (sel) sel.value = 'bus_zone';
     handleInput('c1', 'parking_restrictions', 'bus_zone');
     SMP.set('parkingRestrictions', inZone[0].prov.source, inZone[0].prov.id, inZone[0].prov.fetchedAt, '');
     SMP.prov().parkingRestrictions.stopId = inZone[0].id; SMP.stopNote();   // the note follows the stop (Brief 27 item 10)
-    rep.notes.push('C01 set to a bus zone from a bus stop beside the deck');
+    if (rep && rep.notes.indexOf(NOTE) < 0) rep.notes.push(NOTE);
+  } else if (state.parking_restrictions === 'bus_zone' && P.parkingRestrictions && P.parkingRestrictions.source !== 'user') {
+    if (sel) sel.value = ''; handleInput('c1', 'parking_restrictions', ''); delete P.parkingRestrictions;
+    if (rep) { var i = rep.notes.indexOf(NOTE); if (i >= 0) rep.notes.splice(i, 1); }
   }
 };
 
