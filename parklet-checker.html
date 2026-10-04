@@ -16422,6 +16422,9 @@ function _dkWrap(el, pid, title, startCollapsed) {
   body.appendChild(el);
   wrap.appendChild(body);
   _dkPanels[pid] = { el: wrap, body: body, title: title, collapsed: startCollapsed, hidden: false, floating: false };
+  // a panel built after the design's open set was applied (the Site tab's sections): open it if the design has it open
+  // (Brief 30 §8C, triage S18: Street widths folded on every reload)
+  if (startCollapsed && typeof state !== 'undefined' && Array.isArray(state.__dockOpen) && state.__dockOpen.indexOf(pid) >= 0) setTimeout(function() { _dkSetOpen(pid, true); }, 0);
 }
 
 function dkToggle(pid) {
@@ -22387,6 +22390,7 @@ GEN.bindDock = function() {
 GEN.renderResults = function() {
   var bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
   if (!bar || !grid) return;
+  if (!GEN.result) GEN.result = GEN.kept();   // the schemes made before a reload, for this site (Brief 30 §8C, S18)
   if (!GEN.result) {
     bar.innerHTML = "<span class='gen-title'>Generated schemes</span>";
     grid.innerHTML = "<div class='gen-empty empty-state ui-empty'><p>Set the preferences in the left panel, then generate: every scheme shown passes every check.</p><button type='button' class='ui-empty-btn' onclick='GEN.run()'>Generate</button></div>";
@@ -23440,9 +23444,16 @@ GEN.generate = function() {
 GEN.finish = function(res, t0) {
   res.ms = Math.round(performance.now() - t0);
   GEN.result = res;
+  GEN.keep(res);
   GEN.renderResults();
   return res;
 };
+// (Brief 30 §8C, triage S18) the schemes are kept over a reload of this tab, for the same imported site: in the tab's
+// session storage (they are this tab's working results, not part of the design), dropped when the site changes
+GEN.KEEP = 'pkt-gen-result';
+GEN.siteKey = function() { var sm = typeof state !== 'undefined' && state.__siteMap; return sm ? [sm.lat, sm.lon, sm.parkletSide, sm.importedAt || ''].join('|') : (state && state.__generic ? 'blank' : ''); };
+GEN.keep = function(res) { try { if (res && res.schemes && res.schemes.length) sessionStorage.setItem(GEN.KEEP, JSON.stringify({ k: GEN.siteKey(), res: res })); else sessionStorage.removeItem(GEN.KEEP); } catch (e) {} };
+GEN.kept = function() { try { var o = JSON.parse(sessionStorage.getItem(GEN.KEEP) || 'null'); return o && o.k && o.k === GEN.siteKey() ? o.res : null; } catch (e) { return null; } };
 // The candidate as a DESIGN_STATE: site skeleton at deck [a, a + L], shape, derived inputs,
 // furniture with palette materials. Deterministic: no ids, no timestamps.
 GEN.buildState = function(S, base, env, fp, lay, pal) {
