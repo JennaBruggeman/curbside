@@ -25163,10 +25163,9 @@ RPT.treeTags = function(P, F, trees, o) {
 // The sheet's scale for its crop (Brief 17, 4b): its own, or the next one out of {1:10, 1:20, 1:50, 1:100, 1:250} when the
 // crop and its dimension rows (padW, padH mm) do not fit the drawing area; never a scale in between.
 RPT.SCALES = [10, 20, 50, 100, 200, 250];   // (1:200: A-102 over a block face, Brief 28 item 11)
+// (Brief 31 §11E) the plans on the same ladder as every drawing sheet: the largest standard scale from `base` that fits
 RPT.fitScale = function(cr, base, padW, padH) {
-  var i = RPT.SCALES.indexOf(base);
-  while (i < RPT.SCALES.length - 1 && ((cr.z1 - cr.z0) * 1000 / RPT.SCALES[i] + padW > RPT.DA.w || (cr.x1 - cr.x0) * 1000 / RPT.SCALES[i] + padH > RPT.DA.h)) i++;
-  return RPT.SCALES[i];
+  return RPT.ladder(function(s) { return (cr.z1 - cr.z0) * 1000 / s + padW <= RPT.DA.w && (cr.x1 - cr.x0) * 1000 / s + padH <= RPT.DA.h; }, base);
 };
 // the stops of a chain across the street that fall inside a crop's across range
 RPT.cropStops = function(xs, lo, hi) { return xs.filter(function(x) { return x >= lo - 1e-6 && x <= hi + 1e-6; }); };
