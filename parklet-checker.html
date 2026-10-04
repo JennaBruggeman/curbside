@@ -1786,19 +1786,22 @@ var WALK = {
     { step: 'Site', img: 'docs/landing/how-1-site.png', alt: 'The map: the parklet placed on a Vancouver street, its side chosen',
       what: 'Where the parklet goes: a real Vancouver curb from the map, or a blank street to sketch on.',
       you: 'Locate on map, click the street, then its side, and import the street. What is imported or estimated is marked; only what you measure on site is final.' },
-    { step: 'Design', img: 'docs/landing/how-2-seed.png', alt: 'The Design tab: the deck in plan, section and 3D',
-      what: 'The deck, the edge that encloses it, and the furniture on it.',
-      you: 'Shape the deck, choose its edge, then place furniture: Place on deck, or drag a card onto the deck.' },
-    { step: 'Accessibility', img: 'docs/landing/how-5-access.png', alt: 'The Accessibility tab: the route from the sidewalk to a seat over the deck plan',
+    { step: 'Site facts', img: '', alt: '',
+      what: 'One card per fact the checks read: the value found, where it came from, and how you know it.',
+      you: 'Confirm or change each value and say whether it was measured on site, an estimate, or not known yet.' },
+    { step: 'Design', img: 'docs/landing/how-2-seed.png', alt: 'Step 3, Design: the deck in plan, section and 3D',
+      what: 'Generate a layout, shape the deck and its edge, and place the furniture.',
+      you: 'Start from Generate, or shape the deck in Layout and place pieces from Furniture: Place on deck, or drag a card onto the deck.' },
+    { step: 'Access', img: 'docs/landing/how-5-access.png', alt: 'Step 4, Access: the route from the sidewalk to a seat over the deck plan',
       what: 'The accessible route from the sidewalk to a seat, checked live as you place furniture.',
-      you: 'Keep the 1.5 m path and the turning space clear; the tab names any piece in the way and how far to move it.' },
-    { step: 'Check', img: 'docs/landing/how-3-design.png', alt: 'The Check tab: the verdict and the checks, failures first',
+      you: 'Keep the 1.5 m path and the turning space clear; the step names any piece in the way and how far to move it.' },
+    { step: 'Check', img: 'docs/landing/how-3-design.png', alt: 'Step 5, Check: the verdict and the checks, failures first',
       what: 'The 19 checks of the City of Vancouver Parklet Manual, with the reason for each result.',
       you: 'Measure on site what it asks and enter it. ' + PASS_RULE },
-    { step: 'Visualize', img: 'docs/landing/how-6-visualize.png', alt: 'The Visualize tab: the parklet in 3D in afternoon sun',
+    { step: 'Visualize', img: 'docs/landing/how-6-visualize.png', alt: 'Step 6, Visualize: the parklet in 3D in afternoon sun',
       what: 'The parklet in 3D, with the sun at any date and time; photoreal renders with your own key, if you want them.',
       you: 'Pick a camera and a time; renders are optional.' },
-    { step: 'Export', img: 'docs/landing/how-4-report.png', alt: 'The Export tab: the report options and Download report',
+    { step: 'Export', img: 'docs/landing/how-4-report.png', alt: 'Step 7, Export: the report options and Download report',
       what: 'The drawing set as a PDF: the sheets, a survey sheet for the site visit, and What to do next.',
       you: 'Choose Schematic or Technical and download; take the survey sheet to the site.' }
   ],
@@ -1829,9 +1832,9 @@ var WALK = {
   },
   go: function(i) {
     var n = WALK.CARDS.length; i = Math.max(0, Math.min(n - 1, i)); WALK.i = i; var c = WALK.CARDS[i];
-    var img = document.getElementById('walkImg'); img.src = c.img; img.alt = c.alt;
+    var img = document.getElementById('walkImg'); img.hidden = !c.img; if (c.img) { img.src = c.img; img.alt = c.alt; } else img.removeAttribute('src');
     document.getElementById('walkStep').textContent = (i + 1) + ' of ' + n;
-    document.getElementById('walkT').textContent = c.step;
+    document.getElementById('walkT').textContent = (i + 1) + ' ' + c.step;
     document.getElementById('walkWhat').textContent = c.what;
     document.getElementById('walkYou').textContent = c.you;
     document.getElementById('walkDots').innerHTML = WALK.CARDS.map(function(q, k) { return "<span class='walk-dot" + (k === i ? ' on' : '') + "'></span>"; }).join('');
@@ -32322,6 +32325,7 @@ function cadNudge(dx, dz) {
 // help: every keyboard shortcut (the Brief 21 audit's §D, after its fixes) and what the tool checks
 var UI_SHORTCUTS = [
   ['?', 'Shows this panel.'],
+  ['1 to 7', 'Goes to the step: 1 Site, 2 Site facts, 3 Design, 4 Access, 5 Check, 6 Visualize, 7 Export (not while typing).'],
   ['Esc', 'Closes a panel or dialog; cancels placing a piece or a street object; clears the selection; returns from an enlarged view to three views.'],
   ['&uarr; &darr; &larr; &rarr;', 'Moves the selected piece in the Plan&rsquo;s directions: up toward the sidewalk, down toward the road, left and right along the street. One grid step with Snap on, 5 cm with it off; with Shift, four times as far.'],
   ['&larr; &rarr;', 'With the parklet selected: moves it along the curb.'],
@@ -32338,7 +32342,7 @@ function uiShowHelp() {
   if (!el) {
     el = document.createElement('div'); el.id = 'uiHelp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'false'); el.setAttribute('aria-label', 'Help');
     el.innerHTML = "<div class='uh-box'><button type='button' class='uh-close' onclick='uiHideHelp()'>Close</button><h2>Help</h2>" +
-      "<button type='button' class='uh-walk' onclick='uiHideHelp();WALK.show(typeof pkCurrentUser !== \"undefined\" ? pkCurrentUser : null)'>How it works: the six steps</button>" +
+      "<button type='button' class='uh-walk' onclick='uiHideHelp();WALK.show(typeof pkCurrentUser !== \"undefined\" ? pkCurrentUser : null)'>How it works: the seven steps</button>" +
       "<h3>Keyboard shortcuts</h3><table>" + UI_SHORTCUTS.map(function(r) { return '<tr><td><kbd>' + r[0] + '</kbd></td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>' +
       "<h3>What this tool checks</h3><p style='margin:0'>The siting requirements of the City of Vancouver Parklet Manual v1.0 (June 2016): criteria pp. 20&ndash;21 and 60&ndash;63, with the Engineering Design Manual&rsquo;s lane widths. Results are provisional and no substitute for the City&rsquo;s review.</p></div>";
     el.addEventListener('click', function(e) { if (e.target === el) uiHideHelp(); });
@@ -32876,14 +32880,14 @@ RPT.nextItems = function(d) {
   return { todo: todo.slice(0, 5), more: Math.max(0, todo.length - 5), fails: fails };
 };
 RPT.sheetNext = function(d) {
-  var N = RPT.nextItems(d), blocks = [{ h2: 'Measure or confirm on site' }];
+  var N = RPT.nextItems(d), blocks = [{ h2: 'Step 2, Site facts: measure or confirm on site' }];   // (Brief 31 §1: the seven steps)
   if (N.todo.length) blocks.push({ table: { cols: [{ t: 'What', w: 0.66 }, { t: 'Check', w: 0.1 }, { t: 'Sheet', w: 0.24 }], rows: N.todo.map(function(q) { return [q.t, { t: q.c, b: true }, q.s]; }) } });
   else blocks.push({ p: 'Nothing: every value the checks read is measured or confirmed.' });
   if (N.more) blocks.push({ p: N.more + ' more on S-002 Site survey.' });
-  blocks.push({ h2: 'Failing checks' });
+  blocks.push({ h2: 'Step 3, Design: what fails and how to resolve it' });
   if (N.fails.length) blocks.push({ table: { cols: [{ t: 'Check', w: 0.1 }, { t: 'What fails', w: 0.3 }, { t: 'How to resolve it', w: 0.6 }], rows: N.fails.map(function(f) { return [{ t: f.c, b: true }, f.t, f.res]; }) } });
   else blocks.push({ p: 'None.' });
-  blocks.push({ p: typeof PASS_RULE !== 'undefined' ? PASS_RULE : '' });
+  blocks.push({ h2: 'Then' }, { p: 'Enter each measurement in step 2, Site facts; step 5, Check, re-runs every check; step 7, Export, prints this set again. ' + (typeof PASS_RULE !== 'undefined' ? PASS_RULE : '') });
   return RPT.textSheet('G-001', 'What to do next', 'read this page and the cover', blocks, true);
 };
 RPT.surveySheet = function(d) {
