@@ -29032,6 +29032,15 @@ var GIS = { SCHEMA: 1, MAX_CELLS: 12, LS: 'pkt_gis_layers', DB: 'pkt-gis', INDEX
   BASE: 'https://jennabruggeman.github.io/curbside-data/', gen: 0, genLog: [], cs: new Map(), lru: new Map(), view: [], _idx: null };
 // on a development host, ?gis=fixtures reads the vendored fixtures (tools/test/gis-fixtures/): every VERIFY runs offline
 (function() { if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && /[?&]gis=fixtures\b/.test(location.search)) { GIS.BASE = 'tools/test/gis-fixtures/'; GIS.fixtures = true; } })();
+// (Brief 31 §3B) on a development host, a curbside-data checkout beside the repo (tools/serve.ps1 serves it at
+// /curbside-data/) is read in place of the published cells when it answers: unpublished layers (the blockfaces band of
+// Brief 30 §2) can be seen before they are published. Published sites never ask. ?gis=published skips it.
+GIS._baseP = (function() {
+  if (GIS.fixtures || !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || /[?&]gis=published\b/.test(location.search) || typeof fetch !== 'function') return Promise.resolve();
+  return fetch('curbside-data/index.json', { cache: 'no-cache' }).then(function(r) { return r.ok ? r.json() : null; }).then(function(j) {
+    if (j && j.grid && j.layers && j.cells) { GIS.BASE = 'curbside-data/'; GIS.local = true; console.info('[gis] reading the local curbside-data checkout (' + Object.keys(j.layers).length + ' layers), not the published cells'); }
+  }).catch(function() {});
+})();
 // feeds: the site facts a layer derives (import reads it even when it is off); imports: the import reads its objects
 GIS.LAYERS = [
   // Brief 30 §2: where a parklet could go, per block face piece (curbside-data's derived blockfaces layer). A map layer
@@ -29099,6 +29108,7 @@ GIS.index = async function() {
   if (GIS._idx) return GIS._idx;
   if (GIS._idxP) return GIS._idxP;
   GIS._idxP = (async function() {
+    await GIS._baseP;
     var key = 'index|' + GIS.BASE, c = await GIS.idbGet('meta', key);
     var fetchIt = async function() {
       var j = await GIS.fetchJSON(GIS.BASE + 'index.json');
@@ -29526,6 +29536,7 @@ GIS.renderRows = function() {
     if (c && c.checked !== !!GIS.on[L.id]) c.checked = !!GIS.on[L.id];
     var meta = idx && idx.layers[L.id], st = GIS.rowState(L.id), txt;
     if (!idx) txt = GIS._idxErr ? 'not cached here' : 'loading…';
+    else if (!meta) txt = 'not in the published data yet';   // (Brief 31 §3B: the band before curbside-data publishes it)
     else if (!GIS.on[L.id]) txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
     else if (GIS.zoomOut || (GIS.lowZoom && L.geometry === 'point')) txt = 'zoom in to see this layer';
     else if (st.live) txt = 'live OSM ' + new Date(st.live).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -29833,7 +29844,7 @@ INTX.norm = function(s) {
 };
 // a typed part matches a name when all its words are words of the name ("main" -> "Main Street"); exact scores higher
 INTX.score = function(part, name) { var p = INTX.norm(part).trim(), n = INTX.norm(name); if (!p) return 0; if (n.trim() === p) return 2; return p.split(' ').every(function(w) { return n.indexOf(' ' + w + ' ') >= 0; }) ? 1 : 0; };
-INTX.load = function() { if (INTX._p) return INTX._p; INTX._p = GIS.fetchJSON(GIS.BASE + 'intersections.json').then(function(j) { INTX.data = j; return j; }).catch(function(e) { INTX._p = null; throw e; }); return INTX._p; };
+INTX.load = function() { if (INTX._p) return INTX._p; INTX._p = (GIS._baseP || Promise.resolve()).then(function() { return GIS.fetchJSON(GIS.BASE + 'intersections.json'); }).then(function(j) { INTX.data = j; return j; }).catch(function(e) { INTX._p = null; throw e; }); return INTX._p; };
 INTX.search = async function(q) {
   var m = INTX.RE.exec(q); if (!m) return null;
   var j = await INTX.load(), sa = {}, sb = {};
