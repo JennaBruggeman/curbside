@@ -5829,7 +5829,8 @@ document.addEventListener('mouseup', function() {
         if (_seWx >= 0.05 && _seWx <= _sePW - 0.05) {
           var _snapX = (typeof snapToGrid === 'function') ? snapToGrid(_seWx, _gridSpacing) : _seWx;
           var _snapZ = (typeof snapToGrid === 'function') ? snapToGrid(_seWz, _gridSpacing) : _seWz;
-          fl3DPlaceAt(window.FL3D.placing, _snapX, _snapZ);
+          placeFurnitureAtWorld(window.FL3D.placing, _snapX, _snapZ);   // (Brief 30 §4: the one path)
+          if (typeof fl3DCancelPlace === 'function') fl3DCancelPlace();
         }
       }, false);
     }
@@ -11355,12 +11356,15 @@ function fl3DInit() {
 
   // Canvas pointer events — distinguish click from drag
   const cv = _3d.renderer.domElement;
-  cv.addEventListener('pointerdown', e => { FL3D._mdT = Date.now(); FL3D._mdX = e.clientX; FL3D._mdY = e.clientY; });
+  cv.addEventListener('pointerdown', e => { FL3D._mdT = Date.now(); FL3D._mdX = e.clientX; FL3D._mdY = e.clientY; FL3D._grab = fl3DGrabStart(e); if (FL3D._grab) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);   // (Brief 30 §4: before OrbitControls)
+  cv.addEventListener('pointermove', e => { if (FL3D_GRAB) { fl3DGrabMove(e); e.stopImmediatePropagation(); } }, true);
   cv.addEventListener('pointerup', e => {
     const dt = Date.now() - FL3D._mdT;
     const ds = Math.hypot(e.clientX - FL3D._mdX, e.clientY - FL3D._mdY);
-    if (dt < 260 && ds < 9) fl3DHandleClick(e);
+    const grabbed = !!FL3D_GRAB && FL3D_GRAB.moved; fl3DGrabEnd();
+    if (!grabbed && dt < 260 && ds < 9) fl3DHandleClick(e);
   });
+  cv.addEventListener('pointercancel', fl3DGrabEnd);
 
   fl3DRenderTray();
   try { if (typeof createWorldGrid3D === 'function') createWorldGrid3D(); } catch(e2) {}
@@ -11444,37 +11448,10 @@ function ensure3DReady() {
     // for #threeWrap as soon as it is observed and on every later size change.
     console.log('[ensure3DReady] Three.js scene created (' + _e3w + 'x' + _e3h + ')');
   }
-  // Step 2: FL3D interaction layer
+  // Step 2: FL3D interaction layer -- fl3DInit, the one copy (Brief 30 §4: this function kept a second copy of it, whose
+  // canvas handlers lacked the 3D piece drag; the view built by Place took that copy)
   if (typeof FL3D === 'undefined' || !FL3D) { return !!(_3d && _3d.scene && _3d.renderer); }
-  if (!FL3D._built) {
-    FL3D._built = true;
-    FL3D.raycaster = new THREE.Raycaster();
-    FL3D.mouse     = new THREE.Vector2();
-    if (_3d.scene && !FL3D.floor) {
-      FL3D.floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(300, 300),
-        new THREE.MeshBasicMaterial({visible: false, side: THREE.DoubleSide})
-      );
-      FL3D.floor.rotation.x = -Math.PI / 2;
-      FL3D.floor.position.y = FL3D.DECK_H;
-      FL3D.floor.name = '__fl3d_floor';
-      _3d.scene.add(FL3D.floor);
-    }
-    if (_3d.renderer) {
-      var _e3cv = _3d.renderer.domElement;
-      _e3cv.addEventListener('pointerdown', function(e) {
-        FL3D._mdT = Date.now(); FL3D._mdX = e.clientX; FL3D._mdY = e.clientY;
-      });
-      _e3cv.addEventListener('pointerup', function(e) {
-        var dt = Date.now() - FL3D._mdT;
-        var ds = Math.hypot(e.clientX - FL3D._mdX, e.clientY - FL3D._mdY);
-        if (dt < 260 && ds < 9) fl3DHandleClick(e);
-      });
-    }
-    try { if (typeof fl3DRenderTray    === 'function') fl3DRenderTray();    } catch(_ei) {}
-    try { if (typeof createWorldGrid3D === 'function') createWorldGrid3D(); } catch(_ei) {}
-    console.log('[ensure3DReady] FL3D layer ready');
-  }
+  if (!FL3D._built && typeof fl3DInit === 'function') fl3DInit();
   return !!(_3d && _3d.scene && _3d.renderer && FL3D._built);
 }
 window.ensure3DReady = ensure3DReady;
@@ -13508,12 +13485,9 @@ function fl3DHandleClick(e) {
   FL3D.raycaster.setFromCamera(FL3D.mouse, _3d.camera);
 
   if (FL3D.placing) {
-    const hits = FL3D.raycaster.intersectObject(FL3D.floor);
-    if (hits.length) {
-      const pt = hits[0].point;
-      fl3DPlaceAt(FL3D.placing, pt.x, pt.z);
-      fl3DCancelPlace();
-    }
+    const pt = fl3DDeckPoint(e.clientX, e.clientY), near = pt && (FLZ.zone(FL3D.placing) !== 'deck' || flNearestOnDeck(pt.x, pt.z).d <= FL3D_NEAR_M);
+    if (near) { placeFurnitureAtWorld(FL3D.placing, pt.x, pt.z); fl3DCancelPlace(); }
+    else if (typeof PLACE !== 'undefined') PLACE.say('Click on the deck (or within ' + FL3D_NEAR_M + ' m of it) to place the piece. Esc cancels.');
     return;
   }
 
@@ -13735,8 +13709,8 @@ function _pvPlanClick(e) {
   var fx = _snp ? _snp.wx : snapToGrid(wc.x, _gridSpacing);
   var fz = _snp ? _snp.wz : snapToGrid(wc.z, _gridSpacing);
   if (fz < -2 || fz > (_dmCurrent().parklet.length + 2)) return;
-  var _pxr = flXRange((flSpecFromKey(FL3D.placing) || {}).type);
-  fl3DPlaceAt(FL3D.placing, Math.max(_pxr[0], Math.min(fx, _pxr[1])), fz);
+  placeFurnitureAtWorld(FL3D.placing, fx, fz);   // (Brief 30 §4: the one path)
+  if (typeof fl3DCancelPlace === 'function') fl3DCancelPlace();
   _pvActiveSnap = null;
   _planMode = 'select';
   var plBtn = document.getElementById('pvFurnPlaceBtn');
@@ -14041,6 +14015,106 @@ function _fvRender(wrap) {
 
 function fvPlaceObj(objId) { PLACE.start(objId); }
 
+// ── Brief 30 §4: ONE way a piece reaches the deck ─────────────────────────────────────────────────────────────────────
+// Root cause (confirmed on master, 2026-10-04): a library card dropped on the 3D view placed nothing. The 3D drop raycast
+// onto FL3D.floor, which only fl3DInit builds, and the drag path never ran it ("never init WebGL from the drag path"), so
+// until something else had started FL3D every 3D drop was refused. Placement also ran through six separate paths (the card
+// drop, two Plan click handlers, the Section strip, the 3D click, Enter), each with its own snapping and clamping and none
+// saving. Now every entry point calls placeFurnitureAtWorld(key, x, z): grid snap (Snap on), the whole footprint inside the
+// applied outline (a drop beside the deck lands at its nearest point, and says so), the model synced, a save scheduled, the
+// piece selected.
+function flDeckPoly() {
+  var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, ol = DM.parklet.outline;
+  return ol ? ol.verts.map(function(v) { return { x: +v.y, z: +v.x }; }) : [{ x: LM.deckX0, z: 0 }, { x: LM.deckX1, z: 0 }, { x: LM.deckX1, z: L }, { x: LM.deckX0, z: L }];
+}
+function flInPoly(P, x, z) { var c = false; for (var i = 0, j = P.length - 1; i < P.length; j = i++) { var a = P[i], b = P[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; }
+// the nearest point of the deck to (x, z): the point itself when on the deck, else on its outline, 5 cm in
+function flNearestOnDeck(x, z) {
+  var P = flDeckPoly(); if (flInPoly(P, x, z)) return { x: x, z: z, d: 0 };
+  var best = null;
+  for (var i = 0; i < P.length; i++) {
+    var a = P[i], b = P[(i + 1) % P.length], dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz; if (l2 < 1e-12) continue;
+    var t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / l2)), px = a.x + t * dx, pz = a.z + t * dz, d = Math.hypot(x - px, z - pz);
+    if (!best || d < best.d) best = { x: px, z: pz, d: d };
+  }
+  var cx = 0, cz = 0; P.forEach(function(p) { cx += p.x / P.length; cz += p.z / P.length; });
+  var k = Math.hypot(cx - best.x, cz - best.z) || 1; best.x += (cx - best.x) / k * 0.05; best.z += (cz - best.z) / k * 0.05;
+  return best;
+}
+// a deck piece's whole footprint on the deck: the centre held in flDeckRange (the usable rectangle between the ends'
+// enclosures), then stepped toward the deck's middle until every corner is inside the applied outline (a cut corner)
+function flKeepOnDeck(inst) {
+  var r = flDeckRange(inst);
+  if (r) { inst.x = Math.max(r.x[0], Math.min(inst.x, r.x[1])); inst.z = Math.max(r.z[0], Math.min(inst.z, r.z[1])); }
+  var P = flDeckPoly(), cx = 0, cz = 0; P.forEach(function(p) { cx += p.x / P.length; cz += p.z / P.length; });
+  for (var k = 0; k < 60 && getFurnitureCorners(inst).some(function(c) { return !flInPoly(P, c.wx, c.wz); }); k++) {
+    var dx = cx - inst.x, dz = cz - inst.z, l = Math.hypot(dx, dz); if (l < 0.05) break;
+    inst.x += dx / l * 0.05; inst.z += dz / l * 0.05;
+  }
+  if (inst.mesh) inst.mesh.position.set(inst.x, flBaseY(inst), inst.z);
+}
+// the deck-plane point under a screen point in the 3D view (null off the canvas or above the horizon)
+function fl3DDeckPoint(clientX, clientY) {
+  if (!_3d || !_3d.renderer || !_3d.camera) return null;
+  var r = _3d.renderer.domElement.getBoundingClientRect(); if (!r.width || !r.height) return null;
+  var m = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), rc = new THREE.Raycaster(), p = new THREE.Vector3();
+  rc.setFromCamera(m, _3d.camera);
+  return rc.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FL3D.DECK_H || 0)), p) ? { x: p.x, z: p.z } : null;
+}
+var FL3D_NEAR_M = 3;   // a drop farther than this from the deck is refused (the cursor says so); nearer, it lands on the deck's edge
+function placeFurnitureAtWorld(key, x, z, opts) {
+  opts = opts || {};
+  if (!key || !isFinite(+x) || !isFinite(+z)) return null;
+  if ((typeof _3d === 'undefined' || !_3d || !_3d.group) && typeof flush3DScene === 'function') flush3DScene();
+  if (typeof FL3D !== 'undefined' && !FL3D._built) { try { fl3DInit(); } catch (e) {} }
+  var zone = typeof FLZ !== 'undefined' ? FLZ.zone(key) : 'deck', off = 0;
+  if (zone === 'deck') { var q = flNearestOnDeck(+x, +z); off = q.d; x = q.x; z = q.z; }
+  var n0 = FL3D.placed.length;
+  fl3DPlaceAt(key, +x, +z);   // the grid step when Snap is on
+  var inst = FL3D.placed.length > n0 ? FL3D.placed[FL3D.placed.length - 1] : null; if (!inst) return null;
+  if (zone === 'deck') flKeepOnDeck(inst);
+  if (typeof _dmSyncObject === 'function') _dmSyncObject(inst);
+  try { syncDesignModel('furniture'); } catch (e) {}
+  fl3DSelect(inst.id);
+  if (typeof renderPlanView === 'function') renderPlanView();
+  if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon();   // placing alone saves (persona 6)
+  if (off > 0.01 && typeof PLACE !== 'undefined') PLACE.say('Dropped ' + off.toFixed(1) + ' m beside the deck: the ' + flKeyLabel(key).toLowerCase() + ' is placed at the nearest point on it.');
+  return inst;
+}
+// Dragging a placed piece in the 3D view: the orbit stops while a piece is held; the pointer's point on the deck plane moves
+// it by the same path the Plan's arrows and fields use (moveFurnitureWorld), held on the deck as the Plan's drag holds it
+var FL3D_GRAB = null;
+function fl3DGrabStart(e) {
+  if (FL3D.placing || e.button > 0) return false;
+  var r = _3d.renderer.domElement.getBoundingClientRect(), rc = new THREE.Raycaster(), meshes = [];
+  rc.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), _3d.camera);
+  FL3D.placed.forEach(function(i) { if (i.mesh) i.mesh.traverse(function(c) { if (c.isMesh) meshes.push(c); }); });
+  var h = rc.intersectObjects(meshes, false); if (!h.length) return false;
+  var o = h[0].object; while (o.parent && o.parent !== _3d.group) o = o.parent;
+  var inst = FL3D.placed.find(function(i) { return i.mesh === o; }); if (!inst) return false;
+  var p = fl3DDeckPoint(e.clientX, e.clientY); if (!p) return false;
+  FL3D_GRAB = { inst: inst, ox: inst.x - p.x, oz: inst.z - p.z, moved: false, id: e.pointerId };
+  if (_3d.controls) _3d.controls.enabled = false;
+  fl3DSelect(inst.id);
+  try { _3d.renderer.domElement.setPointerCapture(e.pointerId); } catch (er) {}
+  return true;
+}
+function fl3DGrabMove(e) {
+  var G = FL3D_GRAB; if (!G) return;
+  var p = fl3DDeckPoint(e.clientX, e.clientY); if (!p) return;
+  var g = (typeof _snapEnabled !== 'undefined' && _snapEnabled && typeof cadStep === 'function') ? cadStep() : 0;
+  var nx = p.x + G.ox, nz = p.z + G.oz; if (g) { nx = Math.round(nx / g) * g; nz = Math.round(nz / g) * g; }
+  var keep = Object.assign({}, G.inst, { x: nx, z: nz, mesh: null });
+  if (FLZ.zone(G.inst.objId) === 'deck') flKeepOnDeck(keep);
+  var dx = keep.x - G.inst.x, dz = keep.z - G.inst.z; if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) return;
+  G.moved = true; moveFurnitureWorld(G.inst, dx, 0, dz);
+}
+function fl3DGrabEnd() {
+  var G = FL3D_GRAB; if (!G) return; FL3D_GRAB = null;
+  if (_3d && _3d.controls) _3d.controls.enabled = true;
+  if (G.moved) { try { syncDesignModel('furniture'); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon(); }
+}
+
 // Brief 27 item 7 (triage row 5): "Place on deck". Place armed a mode that only a click in the 3D view ended (its tooltip
 // said the Plan), with no word on screen and no keyboard way. Now it opens Design at the Plan (3D still works), arms both,
 // and says what to do in one line over the Plan (in full the first time): click a spot on the deck, drag to move; Enter
@@ -14060,6 +14134,16 @@ var PLACE = {
     var lbl = typeof flKeyLabel === 'function' ? flKeyLabel(key) : key;
     PLACE.say(first ? 'Click a spot on the deck to place the ' + lbl.toLowerCase() + '; drag it to move. Or press Enter to place it by the deck’s centre, then move it with the arrow keys. Esc cancels.'
                     : 'Placing ' + lbl + ': click the deck, or press Enter for its centre · Esc cancels');
+    PLACE.cardHint(key);   // under the card too, where the eye is (Brief 30 §4), and the views' crosshair
+    document.body.classList.add('pk-placing');
+  },
+  // the hint under the card that started placing (the Design library tile or a Furniture tab card)
+  cardHint: function(key) {
+    var old = document.getElementById('placeCardHint'); if (old) old.remove(); if (!key) return;
+    var c = [].slice.call(document.querySelectorAll('[data-key="' + key + '"], [data-fid="' + key + '"]')).find(function(e) { return e.getClientRects().length; }); if (!c) return;
+    var h = document.createElement('div'); h.id = 'placeCardHint'; h.className = 'place-card-hint'; h.setAttribute('role', 'status');
+    h.textContent = 'Click the deck in the Plan or 3D view to place it · Esc cancels';
+    c.insertAdjacentElement('afterend', h);
   },
   say: function(t) {
     var host = document.getElementById('pvPanel'); if (!host) return;
@@ -14070,7 +14154,7 @@ var PLACE = {
   // a placement happened (a click, or Enter): the new piece selected, the mode and the hint ended
   placed: function() {
     var inst = FL3D.placed.length > PLACE.n0 ? FL3D.placed[FL3D.placed.length - 1] : null;
-    PLACE.key = null;
+    PLACE.key = null; PLACE.cardHint(null); document.body.classList.remove('pk-placing');
     if (inst && typeof fl3DSelect === 'function') fl3DSelect(inst.id);
     if (typeof renderPlanView === 'function') renderPlanView();
     PLACE.say(PLACE.kb && inst ? flKeyLabel(inst.objId) + ' placed. Arrow keys move it (Shift: four steps); Enter confirms.' : '');
@@ -14083,7 +14167,7 @@ var PLACE = {
     var busy = function(zz) { return FL3D.placed.some(function(i) { return Math.abs((+i.z || 0) - zz) < 1.0 && Math.abs((+i.x || 0) - x) < 1.0; }); };
     for (var k = 0; k <= 2 * L && busy(z); k++) { var zz = L / 2 + (k % 2 ? 1 : -1) * Math.ceil(k / 2); if (zz > 0.6 && zz < L - 0.6) z = zz; }
     PLACE.kb = true;
-    fl3DPlaceAt(key, x, z);
+    placeFurnitureAtWorld(key, x, z);
     if (typeof fl3DCancelPlace === 'function') fl3DCancelPlace();
     if (typeof _cadCancelPlacing === 'function') _cadCancelPlacing();
   },
@@ -15511,10 +15595,10 @@ document.addEventListener('keydown', function(e) {
     var sp = pt.matrixTransform(ctm.inverse());
     var x = sp.x, y = sp.y;
     var _pm = planMetrics();
-    if (x < _pm.PK_X || x > _pm.PK_X+_pm.PK_W || y < _pm.PK_Y || y > _pm.PK_Y+_pm.PK_H) return;
-    // Plan horizontal = world z (along street), vertical = world x (across street).
+    // Plan horizontal = world z (along street), vertical = world x (across street). Within 3 m of the deck it lands on it.
     var _w = planToWorld(x, y);
-    if (typeof fl3DPlaceAt === 'function') fl3DPlaceAt(window.FL3D.placing, _w.x, _w.z);
+    if (FLZ.zone(window.FL3D.placing) === 'deck' && flNearestOnDeck(_w.x, _w.z).d > FL3D_NEAR_M) return;
+    placeFurnitureAtWorld(window.FL3D.placing, _w.x, _w.z);   // (Brief 30 §4: the one path)
     if (typeof fl3DCancelPlace === 'function') fl3DCancelPlace();
     _cadCancelPlacing();
     e.stopPropagation();
@@ -16480,8 +16564,8 @@ function _fdGetPlanWorld(e) {
   if (!m) return { valid: false };
   // the piece's drop zone (Brief 25 item 15b): furniture on the deck's rect; a vehicle on the road, a person anywhere
   var zone = typeof FLZ !== 'undefined' ? FLZ.cur() : 'deck';
-  if (zone === 'deck' && (sp.x < m.PK_X || sp.x > m.PK_X + m.PK_W || sp.y < m.PK_Y || sp.y > m.PK_Y + m.PK_H)) return { valid: false };
   var w = planToWorld(sp.x, sp.y);
+  if (zone === 'deck' && flNearestOnDeck(w.x, w.z).d > FL3D_NEAR_M) return { valid: false };   // (Brief 30 §4: beside the deck lands on it)
   if (zone !== 'deck' && !FLZ.ok(zone, w.x, w.z)) return { valid: false };
   return { valid: true, wx: w.x, wz: w.z };
 }
@@ -16496,7 +16580,11 @@ function _fdGetSectionWorld(e) {
   return { valid: true, wx: wx, wz: getSectionCutWorldZ() };
 }
 function _fdGet3DWorld(e) {
+  // Brief 30 §4: the canvas is on screen when the pointer is over it, so the 3D layer may start here (it refused every drop
+  // until something else had started it)
+  if ((!_3d || !_3d.renderer) && typeof ensure3DReady === 'function') { try { ensure3DReady(); } catch (er) {} }
   if (!_3d || !_3d.renderer || !_3d.camera || !_3d.scene) return { valid: false };
+  if (typeof FL3D !== 'undefined' && !FL3D._built) { try { fl3DInit(); } catch (er) {} }
   if (typeof FL3D === 'undefined' || !FL3D || !FL3D.floor || !FL3D._built ||
       !FL3D.raycaster || !FL3D.mouse) return { valid: false };
   var cv = _3d.renderer.domElement;
@@ -16511,9 +16599,9 @@ function _fdGet3DWorld(e) {
     var gp = new THREE.Vector3(); if (!FL3D.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), gp)) return { valid: false };
     return FLZ.ok(zone, gp.x, gp.z) ? { valid: true, wx: gp.x, wz: gp.z } : { valid: false };
   }
-  var hits = FL3D.raycaster.intersectObject(FL3D.floor);
-  if (!hits.length) return { valid: false };
-  return { valid: true, wx: hits[0].point.x, wz: hits[0].point.z };
+  var dp = fl3DDeckPoint(e.clientX, e.clientY);   // the deck plane; beside the deck (within 3 m) it lands on the nearest point
+  if (!dp || flNearestOnDeck(dp.x, dp.z).d > FL3D_NEAR_M) return { valid: false };
+  return { valid: true, wx: dp.x, wz: dp.z };
 }
 
 // ── Plan preview (SVG rect) ───────────────────────────────────
@@ -16646,13 +16734,7 @@ function _fdPlaceFurniture(objId, wx, wz) {
   if (_3d && _3d.scene && typeof fl3DInit === 'function' && !FL3D._built) {
     fl3DInit();
   }
-  var _origSnap = window.snapToGrid;
-  window.snapToGrid = function(v) { return v; };
-  try {
-    if (typeof fl3DPlaceAt === 'function') fl3DPlaceAt(objId, wx, wz);
-  } finally {
-    window.snapToGrid = _origSnap;
-  }
+  placeFurnitureAtWorld(objId, wx, wz);   // (Brief 30 §4: the one path; the drag's snap already applied, the grid again is the same point)
   if (typeof _cadCancelPlacing === 'function') _cadCancelPlacing();
 }
 
@@ -31560,6 +31642,8 @@ document.addEventListener('keydown', function(e) {
 .chk-res .badge-await, #ctxCheck .badge-await { color: var(--accent-ui, #3AA8E4); border-color: currentColor; white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }   /* Brief 25 §1: an estimate awaits a measurement (wraps in the Result column) */
 
 /* Brief 29b: a piece dragged against the deck's edge */
+body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #seStrip { cursor: crosshair !important; }
+.place-card-hint { grid-column: 1 / -1; margin: 2px 0 6px; padding: 4px 8px; font-size: 12px; line-height: 1.35; color: var(--c-text, #E8EAED); border-left: 3px solid var(--accent-ui, #3AA8E4); background: rgba(58,168,228,.08); }
 #planView .pv-furn.pv-hover { filter: drop-shadow(0 0 1.5px #3AA8E4) drop-shadow(0 0 1.5px #3AA8E4); }
 #planView .pv-edge-flash line { stroke: #E8A317; stroke-width: 5px; vector-effect: non-scaling-stroke; stroke-linecap: square; animation: pvEdgeFlash 0.35s ease-in-out 2; }
 @keyframes pvEdgeFlash { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
