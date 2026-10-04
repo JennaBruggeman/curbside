@@ -7687,6 +7687,48 @@ DRAW_STYLE.font = function(ctx, role, o) {
 DRAW_STYLE.SEG_FILL = { 'travel-lane': 'road', 'transit-lane': 'road', 'turn-lane': 'road', 'parking': 'parking', 'parklet': 'parking', 'bike-lane': 'bike',
   'buf-pk': 'planting', 'buf-bl': 'concrete', 'planting': 'planting', 'curb': 'concrete', 'unallocated': 'road', 'sidewalk': 'sidewalk',
   'travel-lane-fail': 'failTint', 'bike-lane-fail': 'failTint' };
+// (Brief 31 §5) the city context as a figure-ground at 1:2500: paper ground; the footprints the only filled shapes
+// (technical: poché in the one grey; schematic: a light grey, a hairline round the inner ring's); the streets paper between
+// curb lines one screen pixel wide (a service lane half that), square ends, every casing under every surface so the curb
+// lines break where streets cross; parks the palest green, no outline. Three weights by ring: the design block is the
+// model's (ink); the inner ring (within CTX.ring m of the site) medium; the outer ring hairline, footprints fill only.
+// Street names along their lines at Mid, one face at two sizes; none at Far.
+DRAW_STYLE.CTX = {
+  ring: 100, lane: 0.5,
+  curb: { inner: { c: 'ink', op: 0.85 }, outer: { c: 'mid', op: 0.75 } },
+  bldg: {
+    technical: { inner: { c: 'ink', op: 0.34, line: 'ink', lop: 0.55 }, outer: { c: 'ink', op: 0.2 } },
+    schematic: { inner: { c: 'mid', op: 0.34, line: 'mid', lop: 0.9 }, outer: { c: 'mid', op: 0.22 } }
+  },
+  park: { technical: '#E9F0E3', schematic: '#E6EEDD' },
+  name: { major: 10.5, minor: 9, majorRe: /^(motorway|trunk|primary|secondary)/, gap: 260 }
+};
+// streets: [{ d, w, ring: 'inner' | 'outer', lane, foot }] in the drawing's units; px: one screen pixel (or the sheet's
+// hairline) in them. Returns the strokes in paint order: every curb casing, then every surface, then the footways
+DRAW_STYLE.ctxRoads = function(streets, px, T) {
+  var C = DRAW_STYLE.CTX, cas = {}, sur = {}, fd = '', ops = [];
+  streets.forEach(function(q) {
+    if (q.foot || !(q.w > 0)) { fd += q.d; return; }
+    var kc = q.w.toFixed(2) + '|' + q.ring + '|' + (q.lane ? C.lane : 1), ks = q.w.toFixed(2);
+    cas[kc] = (cas[kc] || '') + q.d; sur[ks] = (sur[ks] || '') + q.d;
+  });
+  Object.keys(cas).forEach(function(k) { var a = k.split('|'), cc = C.curb[a[1]] || C.curb.outer; ops.push({ d: cas[k], c: T[cc.c] || cc.c, op: cc.op, w: +a[0] + 2 * px * +a[2], role: 'curb' }); });
+  Object.keys(sur).forEach(function(k) { ops.push({ d: sur[k], c: T.paper, op: 1, w: +k, role: 'street' }); });
+  if (fd) ops.push({ d: fd, c: T.mid, op: 0.5, w: px * C.lane, role: 'foot' });
+  return ops;
+};
+DRAW_STYLE.ctxSVG = function(ops) {
+  return ops.map(function(o) { return "<path d='" + o.d + "' fill='none' stroke='" + o.c + "' stroke-width='" + o.w.toFixed(3) + "'" + (o.op < 1 ? " stroke-opacity='" + o.op + "'" : '') + " stroke-linejoin='round' stroke-linecap='" + (o.role === 'foot' ? 'butt' : 'square') + "' data-ctx-" + o.role + "='1'/>"; }).join('');
+};
+DRAW_STYLE.ctxCanvas = function(cx, ops) {
+  ops.forEach(function(o) { cx.globalAlpha = o.op; cx.strokeStyle = o.c; cx.lineWidth = o.w; cx.lineJoin = 'round'; cx.lineCap = o.role === 'foot' ? 'butt' : 'square'; cx.stroke(new Path2D(o.d)); });
+  cx.globalAlpha = 1;
+};
+// a ring's footprint style: { fill, op, line (or null), lop }
+DRAW_STYLE.ctxBldg = function(mode, ring, T) { var b = DRAW_STYLE.CTX.bldg[mode === 'technical' ? 'technical' : 'schematic'][ring] || DRAW_STYLE.CTX.bldg.technical.outer; return { fill: T[b.c] || b.c, op: b.op, line: b.line ? (T[b.line] || b.line) : null, lop: b.lop || 1 }; };
+DRAW_STYLE.ctxPark = function(mode) { return DRAW_STYLE.CTX.park[mode === 'technical' ? 'technical' : 'schematic']; };
+// a street's ring from its local points (metres from the site)
+DRAW_STYLE.ctxRing = function(pts) { var R = DRAW_STYLE.CTX.ring; return pts.some(function(p) { return Math.hypot(p[0], p[1]) <= R; }) ? 'inner' : 'outer'; };
 DRAW_STYLE.seg = function(type, mode) { var T = DRAW_STYLE.t(mode); return T.fill[DRAW_STYLE.SEG_FILL[type] || 'road']; };
 // dimension text (Brief 17, 3b): metres, two decimals, no units; a compliance clearance "1.62 (>=1.50 C13)". The Plan's DIM
 // toggle and the report print these same strings.
@@ -8361,7 +8403,7 @@ function _renderPlanView(o) {
   s += _defsStr;
   // the city context (Brief 19 B): the outer ring under the street, one cached group (its own paper out to the radius)
   const _iR = typeof SMP !== 'undefined' ? SMP.R : 150;   // the inner ring (the import script may not have run yet)
-  const _oc = _pvOuterLayer({ far: LODn < 1, U: U, L: PARKLET_M, DK: DK,
+  const _oc = _pvOuterLayer({ far: LODn < 1, mid: LODn === 1, U: U, L: PARKLET_M, DK: DK,
     x0: Math.min(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px), x1: Math.max(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px),
     y0: -CTX_TOP, y1: OPP_BOTTOM, ry0: SW_Y - 1, ry1: _pvOppSW1 + 1 });
   s += _oc.paper + `<rect width='${VW}' height='${VH}' fill='${DK.T.paper}'/>` + _oc.svg;
@@ -14987,62 +15029,77 @@ function _pvOuterLayer(g) {
   var DK = g.DK, T = DK.T, LM = DESIGN_MODEL.landmarks, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
   var W = function(e, n) { return worldToPlan(LM.roadCenterX + e * E.x + n * N.x, g.L / 2 - pk + e * E.z + n * N.z); };
   var p0 = W(0, 0), pe = W(1, 0), pn = W(0, 1), ax = pe.px - p0.px, ay = pe.py - p0.py, bx = pn.px - p0.px, by = pn.py - p0.py, sc = Math.hypot(ax, ay);
-  var key = [o.stamp, g.far ? (2 / g.U).toFixed(4) : '', pk, g.L, p0.px.toFixed(2), p0.py.toFixed(2), ax.toFixed(5), ay.toFixed(5), bx.toFixed(5), by.toFixed(5), g.far ? 1 : 0, DK.mode, g.x0.toFixed(1), g.x1.toFixed(1), g.y0.toFixed(1), g.y1.toFixed(1)].join('|');
+  var key = [o.stamp, (2 / g.U).toFixed(4), g.mid ? 'mid' : '', pk, g.L, p0.px.toFixed(2), p0.py.toFixed(2), ax.toFixed(5), ay.toFixed(5), bx.toFixed(5), by.toFixed(5), g.far ? 1 : 0, DK.mode, g.x0.toFixed(1), g.x1.toFixed(1), g.y0.toFixed(1), g.y1.toFixed(1)].join('|');
   if (_pvOuterCache && _pvOuterCache.key === key) { window._pvOuterCheck = _pvOuterCache.check; return _pvOuterCache.out; }
   var t0 = performance.now(), f = function(v) { return v.toFixed(1); };
   var P = function(p) { return [p0.px + ax * p[0] + bx * p[1], p0.py + ay * p[0] + by * p[1]]; };
   var ring = function(r) { return 'M' + r.map(function(p) { var q = P(p); return f(q[0]) + ' ' + f(q[1]); }).join('L') + 'Z'; };
   var cen = function(r) { var s = [0, 0]; r.forEach(function(p) { s[0] += p[0]; s[1] += p[1]; }); return P([s[0] / r.length, s[1] / r.length]); };
   var inStrip = function(q) { return q[0] >= g.x0 && q[0] <= g.x1 && q[1] >= g.y0 && q[1] <= g.y1; };
-  var bd = '', nb = 0, skipped = 0;
-  o.bldg.forEach(function(r) { if (inStrip(cen(r))) { skipped++; return; } bd += ring(r); nb++; });
+  // (Brief 31 §5) the footprints by ring (DRAW_STYLE.CTX): within CTX.ring m of the site medium, beyond fill only
+  var bdI = '', bdO = '', nb = 0, skipped = 0, RI = DRAW_STYLE.CTX.ring;
+  o.bldg.forEach(function(r) { if (inStrip(cen(r))) { skipped++; return; } var m = [0, 0]; r.forEach(function(p) { m[0] += p[0] / r.length; m[1] += p[1] / r.length; }); if (Math.hypot(m[0], m[1]) <= RI) bdI += ring(r); else bdO += ring(r); nb++; });
   var pd = o.parks.map(ring).join(''), wd = o.water.map(ring).join('');
-  // the streets (Brief 28 item 9): each a road surface, its centre line stroked at its width (round joins and ends, so
-  // the crossings merge) in the road's fill over a casing a line wider (the curbs); grouped by width, one path each.
-  // A footway: one faint line. The main street (all inside its own band) is the model's, not drawn here.
-  var byW = {}, fd = '', ns = 0;
+  // the streets (Brief 28 item 9; Brief 31 §5): paper between curb lines, by width and ring; a footway one faint line. The
+  // main street (all inside its own band) is the model's, not drawn here
+  var SL = [], ns = 0, named = [];
   o.streets.forEach(function(st) {
     var q = st.pts.map(P); if (q.length < 2 || q.every(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; })) return;
     ns++;
-    var d = 'M' + q.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L');
-    if (st.kind === 'foot' || !(st.half > 0)) { fd += d; return; }
-    var kw = (2 * (st.half || 4.5) * sc).toFixed(2); byW[kw] = (byW[kw] || '') + d;
+    var d = 'M' + q.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L'), foot = st.kind === 'foot' || !(st.half > 0);
+    SL.push({ d: d, w: foot ? 0 : 2 * (st.half || 4.5) * sc, ring: DRAW_STYLE.ctxRing(st.pts), lane: st.use === 'service', foot: foot });
+    if (st.name && !foot) named.push({ st: st, q: q });
   });
-  var widths = Object.keys(byW).sort(function(a, b) { return b - a; }), cw = DRAW_STYLE.sw(DK, 'context');
+  var tech = DK.mode === 'technical', U1 = g.U > 0 ? g.U : 1, ops = DRAW_STYLE.ctxRoads(SL, U1, T), bI = DRAW_STYLE.ctxBldg(DK.mode, 'inner', T), bO = DRAW_STYLE.ctxBldg(DK.mode, 'outer', T), park = DRAW_STYLE.ctxPark(DK.mode);
   var R = o.R, cs = [W(-R, -R), W(R, -R), W(R, R), W(-R, R)], xs = cs.map(function(c) { return c.px; }), ys = cs.map(function(c) { return c.py; });
   var paper = "<rect x='" + f(Math.min.apply(null, xs)) + "' y='" + f(Math.min.apply(null, ys)) + "' width='" + f(Math.max.apply(null, xs) - Math.min.apply(null, xs)) + "' height='" + f(Math.max.apply(null, ys) - Math.min.apply(null, ys)) + "' fill='" + T.paper + "' data-layer='city-paper'/>";
-  var tech = DK.mode === 'technical';
-  // the far tier: the same paths painted once into a canvas (2 px per screen px) and placed as one image, so panning
+  // the far tier: the same strokes painted once into a canvas (2 px per screen px) and placed as one image, so panning
   // moves a picture instead of repainting thousands of footprints; nearer, vector
   if (g.far && g.U > 0 && typeof Path2D !== 'undefined') {
     var bx0 = Math.min.apply(null, xs), by0 = Math.min.apply(null, ys), bw = Math.max.apply(null, xs) - bx0, bh = Math.max.apply(null, ys) - by0;
     var k2 = Math.min(2 / g.U, 4096 / bw, 4096 / bh), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(bw * k2)); cv.height = Math.max(1, Math.round(bh * k2));
     var cx2 = cv.getContext('2d'); cx2.setTransform(k2, 0, 0, k2, -bx0 * k2, -by0 * k2);
     if (wd) { cx2.fillStyle = T.fill.sea; cx2.fill(new Path2D(wd), 'evenodd'); }
-    if (pd) { cx2.fillStyle = T.fill.park; cx2.fill(new Path2D(pd)); }
-    // the roads under the buildings: every casing, then every surface (so crossings of two widths merge)
-    cx2.lineJoin = 'round'; cx2.lineCap = 'round'; var cw2 = Math.max(cw, 0.75 / k2);
-    cx2.strokeStyle = T.mid; cx2.globalAlpha = 0.6; widths.forEach(function(w) { cx2.lineWidth = +w + 2 * cw2; cx2.stroke(new Path2D(byW[w])); }); cx2.globalAlpha = 1;
-    cx2.strokeStyle = T.fill.road; widths.forEach(function(w) { cx2.lineWidth = +w; cx2.stroke(new Path2D(byW[w])); });
-    if (fd) { cx2.strokeStyle = T.mid; cx2.globalAlpha = 0.5; cx2.lineWidth = cw2; cx2.stroke(new Path2D(fd)); cx2.globalAlpha = 1; }
-    if (bd) { cx2.globalAlpha = tech ? 0.08 : 0.12; cx2.fillStyle = tech ? '#000000' : T.mid; cx2.fill(new Path2D(bd)); cx2.globalAlpha = 1; }
+    if (pd) { cx2.fillStyle = park; cx2.fill(new Path2D(pd)); }
+    DRAW_STYLE.ctxCanvas(cx2, DRAW_STYLE.ctxRoads(SL, Math.max(g.U, 1 / k2), T));
+    [[bdO, bO], [bdI, bI]].forEach(function(b) { if (!b[0]) return; var p2 = new Path2D(b[0]); cx2.globalAlpha = b[1].op; cx2.fillStyle = b[1].fill; cx2.fill(p2); if (b[1].line) { cx2.globalAlpha = b[1].lop; cx2.strokeStyle = b[1].line; cx2.lineWidth = 0.5 * g.U; cx2.stroke(p2); } cx2.globalAlpha = 1; });
     var img = "<g data-layer='city' pointer-events='none'><image x='" + f(bx0) + "' y='" + f(by0) + "' width='" + f(bw) + "' height='" + f(bh) + "' preserveAspectRatio='none' href='" + cv.toDataURL('image/png') + "' data-city='raster'/></g>";
-    var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height] };
+    var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height], names: 0 };
     _pvOuterCache = { key: key, out: { paper: paper, svg: img }, check: chk };
     window._pvOuterCheck = chk;
     return _pvOuterCache.out;
   }
-  // clipped to the context square; water, parks, the roads (casings, then surfaces), footways, then the buildings over them
-  var rs = function(w, sw2, c, op) { return "<path d='" + byW[w] + "' fill='none' stroke='" + c + "' stroke-width='" + sw2 + "'" + (op ? " stroke-opacity='" + op + "'" : '') + " stroke-linejoin='round' stroke-linecap='round'/>"; };
+  // the names (Mid only): along the longest straight runs of each named street, one per CTX.name.gap m, upright, on its
+  // own paper, clear of the import area and the main street's band
+  var nm = '', nNames = 0;
+  if (g.mid) {
+    var NC = DRAW_STYLE.CTX.name, byName = {};
+    named.forEach(function(n) { (byName[n.st.name] = byName[n.st.name] || []).push(n); });
+    Object.keys(byName).forEach(function(name) {
+      var segs = [], major = byName[name].some(function(n) { return NC.majorRe.test(n.st.use); }), fs2 = (major ? NC.major : NC.minor) * U1, need = name.length * 0.56 * fs2 + 6 * U1;
+      byName[name].forEach(function(n) { for (var i2 = 1; i2 < n.q.length; i2++) { var a2 = n.q[i2 - 1], b2 = n.q[i2], L2 = Math.hypot(b2[0] - a2[0], b2[1] - a2[1]); if (L2 >= need) segs.push({ a: a2, b: b2, L: L2, m: [(a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2], lm: [(n.st.pts[i2 - 1][0] + n.st.pts[i2][0]) / 2, (n.st.pts[i2 - 1][1] + n.st.pts[i2][1]) / 2] }); } });
+      segs.sort(function(x, y) { return y.L - x.L; });
+      var took = [];
+      segs.forEach(function(sg) {
+        if (inStrip(sg.m) || (sg.m[1] >= g.ry0 && sg.m[1] <= g.ry1) || took.some(function(t) { return Math.hypot(t[0] - sg.lm[0], t[1] - sg.lm[1]) < NC.gap; })) return;
+        took.push(sg.lm);
+        var ang = Math.atan2(sg.b[1] - sg.a[1], sg.b[0] - sg.a[0]) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+        nm += "<text x='" + f(sg.m[0]) + "' y='" + f(sg.m[1]) + "' transform='rotate(" + ang.toFixed(1) + ' ' + f(sg.m[0]) + ' ' + f(sg.m[1]) + ")' dy='0.35em' text-anchor='middle' font-family='" + DRAW_STYLE.FONT + "' font-size='" + fs2.toFixed(2) + "' fill='" + T.anno + "' data-street-name='" + (major ? 'major' : 'minor') + "'>" + name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;') + '</text>';
+        nNames++;
+      });
+    });
+  }
+  // clipped to the context square; water, parks, the curb casings, the street surfaces, footways, the buildings, the names
   var cl = 'pvCityClip', bx = Math.min.apply(null, xs), by = Math.min.apply(null, ys);
+  var bpath = function(dd, b, r) { return dd ? "<path d='" + dd + "' fill='" + b.fill + "' fill-opacity='" + b.op + "'" + (b.line ? " stroke='" + b.line + "' stroke-opacity='" + b.lop + "' stroke-width='" + (0.5 * U1).toFixed(3) + "'" : " stroke='none'") + " data-city='bldg' data-ring='" + r + "'/>" : ''; };
   var svg = "<defs><clipPath id='" + cl + "'><rect x='" + f(bx) + "' y='" + f(by) + "' width='" + f(Math.max.apply(null, xs) - bx) + "' height='" + f(Math.max.apply(null, ys) - by) + "'/></clipPath></defs>" +
     "<g data-layer='city' pointer-events='none' clip-path='url(#" + cl + ")'>" +
     (wd ? "<path d='" + wd + "' fill='" + T.fill.sea + "' fill-rule='evenodd' stroke='none' data-city='water'/>" : '') +
-    (pd ? "<path d='" + pd + "' fill='" + T.fill.park + "' stroke='none' data-city='parks'/>" : '') +
-    (widths.length ? "<g data-city='streets'>" + widths.map(function(w) { return rs(w, (+w + 2 * cw).toFixed(2), T.mid, 0.6); }).join('') + widths.map(function(w) { return rs(w, w, T.fill.road); }).join('') + '</g>' : '') +
-    (fd ? "<path d='" + fd + "' fill='none'" + DRAW_STYLE.st(DK, 'fine', { c: 'mid', op: 0.5 }) + " data-city='footways'/>" : '') +
-    (bd ? "<path d='" + bd + "' fill='" + (tech ? '#000000' : T.mid) + "' fill-opacity='" + (tech ? 0.08 : 0.12) + "' stroke='none' data-city='bldg'/>" : '') + '</g>';
-  var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far };
+    (pd ? "<path d='" + pd + "' fill='" + park + "' stroke='none' data-city='parks'/>" : '') +
+    (ops.length ? "<g data-city='streets'>" + DRAW_STYLE.ctxSVG(ops) + '</g>' : '') +
+    bpath(bdO, bO, 'outer') + bpath(bdI, bI, 'inner') + (nm ? "<g data-city='names'>" + nm + '</g>' : '') + '</g>';
+  var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far, names: nNames, curbOps: ops.filter(function(q) { return q.role === 'curb'; }).length };
+
   _pvOuterCache = { key: key, out: { paper: paper, svg: svg }, check: check };
   window._pvOuterCheck = check;
   return _pvOuterCache.out;
@@ -15057,16 +15114,15 @@ var CTX_ROADS = {
     return o.streets.map(function(st) {
       var pts = st.pts.map(function(p) { return [LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z]; });
       if (pts.length < 2 || (!withMain && pts.every(function(q) { return q[0] >= x0 && q[0] <= x1; }))) return null;
-      return { pts: pts, half: st.kind === 'foot' ? 0 : (st.half || 4.5), kind: st.kind || 'road' };
+      return { pts: pts, half: st.kind === 'foot' ? 0 : (st.half || 4.5), kind: st.kind || 'road', ring: DRAW_STYLE.ctxRing(st.pts), lane: st.use === 'service' };
     }).filter(Boolean);
   },
   // SVG for a sheet or a pen: casings then surfaces, footways faint; T: the drawing's tokens; to(x, z) -> [X, Y]; k: units per m
+  // (Brief 31 §5) DRAW_STYLE.ctxRoads: paper between curb lines lw wide, breaking at the crossings, as the live Plan
   svg: function(roads, to, k, T, lw) {
-    var f = function(v) { return v.toFixed(2); }, byW = {}, fd = '';
-    roads.forEach(function(r) { var d = 'M' + r.pts.map(function(p) { var q = to(p[0], p[1]); return f(q[0]) + ' ' + f(q[1]); }).join('L'); if (r.kind === 'foot') fd += d; else { var w = f(2 * r.half * k); byW[w] = (byW[w] || '') + d; } });
-    var ws = Object.keys(byW), st = function(w, sw, c, op) { return "<path d='" + byW[w] + "' fill='none' stroke='" + c + "' stroke-width='" + sw + "'" + (op ? " stroke-opacity='" + op + "'" : '') + " stroke-linejoin='round' stroke-linecap='round'/>"; };
-    return ws.length || fd ? "<g data-ctx-roads='" + roads.length + "'>" + ws.map(function(w) { return st(w, f(+w + 2 * lw), T.mid, 0.6); }).join('') + ws.map(function(w) { return st(w, w, T.fill.road); }).join('') +
-      (fd ? "<path d='" + fd + "' fill='none' stroke='" + T.mid + "' stroke-opacity='0.5' stroke-width='" + f(lw) + "'/>" : '') + '</g>' : '';
+    var f = function(v) { return v.toFixed(2); };
+    var SL = roads.map(function(r) { return { d: 'M' + r.pts.map(function(p) { var q = to(p[0], p[1]); return f(q[0]) + ' ' + f(q[1]); }).join('L'), w: r.kind === 'foot' ? 0 : 2 * r.half * k, ring: r.ring || 'outer', lane: !!r.lane, foot: r.kind === 'foot' }; });
+    return SL.length ? "<g data-ctx-roads='" + roads.length + "'>" + DRAW_STYLE.ctxSVG(DRAW_STYLE.ctxRoads(SL, lw, T)) + '</g>' : '';
   }
 };
 window.addEventListener('load', function() {   // the outer ring from the cache (no request) after a reload
@@ -25246,10 +25302,10 @@ RPT.locator = function(P, x, y, w, h, G, cr, mode) {
   P.clipOpen("<rect x='" + f(x) + "' y='" + f(y) + "' width='" + f(w) + "' height='" + f(h) + "'/>");
   P.rect(x, y, w, h, { fill: '#FFFFFF', w: 0 });
   if (o.water.length) P.path(o.water.map(ring).join(''), { fill: T.fill.sea, w: 0, data: " fill-rule='evenodd' data-loc='water'" });
-  if (o.parks.length) P.path(o.parks.map(ring).join(''), { fill: T.fill.park, w: 0, data: " data-loc='parks'" });
+  if (o.parks.length) P.path(o.parks.map(ring).join(''), { fill: DRAW_STYLE.ctxPark(mode), w: 0, data: " data-loc='parks'" });
   // the streets as surfaces (Brief 28 item 9), the buildings over them
   P.add(CTX_ROADS.svg(CTX_ROADS.world(true), S, k, T, 0.1));
-  if (o.bldg.length) P.path(o.bldg.map(ring).join(''), { fill: mode === 'technical' ? '#000000' : T.mid, fop: mode === 'technical' ? 0.14 : 0.2, w: 0, data: " data-loc='bldg'" });
+  if (o.bldg.length) { var lb = DRAW_STYLE.ctxBldg(mode, 'outer', T); P.path(o.bldg.map(ring).join(''), { fill: lb.fill, fop: lb.op, w: 0, data: " data-loc='bldg'" }); }
   var c0 = S(cr.x0, cr.z0), c1 = S(cr.x1, cr.z1);
   P.rect(Math.min(c0[0], c1[0]), Math.min(c0[1], c1[1]), Math.abs(c1[0] - c0[0]), Math.abs(c1[1] - c0[1]), { cls: 'general', dash: 'hidden' });
   var d0 = S(LM.deckX0, 0), d1 = S(LM.deckX1, L);
@@ -30971,7 +31027,7 @@ SMP.importOuter = async function(opts) {
       if (cx.missing) o.notes.push(cx.missing + ' cell file' + (cx.missing > 1 ? 's' : '') + ' could not be read: the context there is missing');
       var inSq = function(r) { return r.some(function(p) { return Math.abs(p[0]) <= R && Math.abs(p[1]) <= R; }); };
       cx.bldg.forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2 && inSq(r)) o.bldg.push(r); }); });
-      cx.streets.forEach(function(f) { var p = (f.properties && f.properties.props) || {}, sw = SMP.streetWidth(p); SMP._rings(f.geometry, T).forEach(function(l) { if (l.length > 1 && inSq(l)) o.streets.push({ half: sw.half, src: sw.src, kind: sw.kind, use: p.highway || '', pts: l }); }); });
+      cx.streets.forEach(function(f) { var p = (f.properties && f.properties.props) || {}, sw = SMP.streetWidth(p); SMP._rings(f.geometry, T).forEach(function(l) { if (l.length > 1 && inSq(l)) o.streets.push({ half: sw.half, src: sw.src, kind: sw.kind, use: p.highway || '', name: p.name || '', pts: l }); }); });
       cx.parks.forEach(function(f) { SMP._rings(f.geometry, T).forEach(function(r) { if (r.length > 2 && inSq(r)) o.parks.push(r); }); });
       o.source.bldg = 'OpenStreetMap building=* (site data, ' + GIS.day(cx.dates.buildings) + ')';
       o.source.streets = 'OpenStreetMap highways (site data, ' + GIS.day(cx.dates.streets) + ')';
