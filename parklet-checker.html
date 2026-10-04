@@ -7174,7 +7174,7 @@ DRAW_STYLE.MAP = {
   dot: DRAW_STYLE.technical.mid, tree: DRAW_STYLE.schematic.fill.planting, halo: '#FFFFFF', sel: DRAW_STYLE.UI.accent,
   line: DRAW_STYLE.technical.mid, lineW: 1.5, lineDash: [3, 2], footprint: DRAW_STYLE.technical.light,
   // radius by zoom: 4 px to zoom 15, 6 px at 16-17, 8 px above; point layers are hidden below zoom 15
-  minZoom: 15, radius: ['step', ['zoom'], 4, 16, 6, 18, 8], hoverGrow: 2
+  minZoom: 15, radii: [[0, 4], [16, 6], [18, 8]], hoverGrow: 2
 };
 DRAW_STYLE.mode = function(m) {
   if (m === 'technical' || m === 'schematic') return m;
@@ -28030,8 +28030,8 @@ RVZP._gallery = async function() {
       <button type='submit' class='sm-btn' id='smGo'>Search</button>
       <ul class='sm-results' id='smResults' hidden></ul>
     </form>
-    <div class='sm-body'><div id='smMap'></div>
-      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><div id='smLayersList'></div></aside></div>
+    <div class='sm-body'><div id='smMap'></div><p class='sm-zoom-note' id='smZoomNote' hidden>Zoom in to see site features</p>
+      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><p class='gis-note gis-zoom' id='gisZoomNote' hidden>Zoom in to see site features (hydrants, stops, trees show from zoom 15).</p><div id='smLayersList'></div></aside></div>
     <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
       <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' disabled>Use this location</button></div>
   </div>
@@ -28667,22 +28667,30 @@ GIS.mapInit = function(map) {
   if (GIS.map === map && map.getSource(GIS.src(GIS.LAYERS[0].id))) return;
   GIS.map = map;
   var hov = function(a, b) { return ['case', ['boolean', ['feature-state', 'hover'], false], a, b]; };
+  // Brief 30 §1: one marker style for every point layer (DRAW_STYLE.MAP): grey with a white halo, trees muted green, the
+  // radius by zoom, hidden below zoom 15; the type shows on hover only; the selected one is the only saturated colour.
+  // Line layers are thin dashed grey overlays; footprints a light grey. (L.style.colour stays the Layers-tab legend's.)
+  var M = DRAW_STYLE.MAP, sel = function(a, b) { return ['case', ['boolean', ['feature-state', 'sel'], false], a, b]; };
   GIS.LAYERS.forEach(function(L) {
-    var id = GIS.src(L.id), S = L.style;
+    var id = GIS.src(L.id), dot = L.id === 'trees' ? M.tree : M.dot;
     map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' });
-    var spec = L.geometry === 'polygon' ? { type: 'fill', paint: { 'fill-color': S.colour, 'fill-opacity': hov(0.62, S.opacity), 'fill-outline-color': '#5A6068' } }
-      : L.geometry === 'line' ? { type: 'line', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': S.colour, 'line-width': hov(S.width + 2.5, S.width), 'line-opacity': 0.9 } }
-      : { type: 'circle', paint: { 'circle-radius': hov(S.radius + 2.5, S.radius), 'circle-color': S.colour, 'circle-stroke-width': 1, 'circle-stroke-color': '#FFFFFF' } };
-    map.addLayer({ id: id, type: spec.type, source: id, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, spec.layout || {}), paint: spec.paint }, map.getLayer('smWay') ? 'smWay' : undefined);
+    var spec = L.geometry === 'polygon' ? { type: 'fill', paint: { 'fill-color': M.footprint, 'fill-opacity': hov(0.55, 0.3), 'fill-outline-color': M.dot } }
+      : L.geometry === 'line' ? { type: 'line', layout: { 'line-join': 'round' }, paint: { 'line-color': M.line, 'line-width': hov(M.lineW + 1.5, M.lineW), 'line-dasharray': M.lineDash, 'line-opacity': 0.85 } }
+      : { type: 'circle', minzoom: M.minZoom, paint: { 'circle-radius': GIS.radiusExpr(hov), 'circle-color': sel(M.sel, dot), 'circle-stroke-width': 1, 'circle-stroke-color': M.halo } };
+    var lay = { id: id, type: spec.type, source: id, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, spec.layout || {}), paint: spec.paint };
+    if (spec.minzoom) lay.minzoom = spec.minzoom;
+    map.addLayer(lay, map.getLayer('smWay') ? 'smWay' : undefined);
   });
-  // hover: one feature at a time, through feature-state (no DOM per feature)
+  // hover: one feature at a time, through feature-state (no DOM per feature); a point's type in a small label beside it
   var hovered = null;
   map.on('mousemove', function(e) {
     var f = (!GIS.inspecting || GIS.inspecting()) ? GIS.hit(e.point, true) : null;   // no hover state on the dots while picking (Brief 25 item 10)
-    if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; }
-    if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); }
+    if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; GIS.hoverLabel(null); }
+    if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); GIS.hoverLabel(f, e.lngLat); }
     map.getCanvas().style.cursor = f ? 'pointer' : '';
   });
+  map.on('mouseout', function() { if (hovered) { map.setFeatureState(hovered, { hover: false }); hovered = null; } GIS.hoverLabel(null); });
+  map.on('zoomend', GIS.zoomNote);
   map.on('moveend', GIS.onMove);
   GIS.listen(function(lids) {
     if (!GIS.map) return;
@@ -28690,6 +28698,12 @@ GIS.mapInit = function(map) {
     clearTimeout(GIS._rowsT); GIS._rowsT = setTimeout(GIS.renderRows, 120);   // the counts once the batch settles
   });
   GIS.onMove();
+};
+// the marker radius by zoom, hovered ones larger (MapLibre allows one zoom step, and only at the top of the expression)
+GIS.radiusExpr = function(hov) {
+  var M = DRAW_STYLE.MAP, e = ['step', ['zoom']];
+  M.radii.forEach(function(r, i) { if (i) e.push(r[0]); e.push(hov(r[1] + M.hoverGrow, r[1])); });
+  return e;
 };
 // the visible layers' feature under a point (points first, then lines, then buildings); all: any geometry
 GIS.hit = function(pt, all) {
@@ -28707,8 +28721,28 @@ GIS.popupAt = function(e, f) {
   var html = "<div class='gis-pop'><b>" + SM.esc(L.label.replace(/s$/, '')) + '</b>' + rows.map(function(r) { return '<div>' + SM.esc(r) + '</div>'; }).join('') +
     "<div class='gis-pop-src'>" + SM.esc(GIS.GROUPS[L.group]) + (meta ? ', data ' + String(meta.updatedAt).slice(0, 10) : '') + '</div></div>';
   if (GIS._pop) GIS._pop.remove();
+  GIS.hoverLabel(null);
+  // the opened point is the selected one: the accent, until its popup closes (Brief 30 §1)
+  var s = { source: f.source, id: f.id }; if (f.id != null) GIS.map.setFeatureState(s, { sel: true });
   GIS._pop = new maplibregl.Popup({ closeButton: true, maxWidth: '260px' }).setLngLat(e.lngLat).setHTML(html).addTo(GIS.map);
+  GIS._pop.on('close', function() { if (f.id != null && GIS.map.getSource(s.source)) GIS.map.setFeatureState(s, { sel: false }); });
   return true;
+};
+// the hovered feature's type, in a small label beside it (types show on hover only, Brief 30 §1)
+GIS.hoverLabel = function(f, at) {
+  if (GIS._hov) { GIS._hov.remove(); GIS._hov = null; }
+  if (!f || !GIS.map) return;
+  var L = GIS.byId(String(f.layer.id).replace(/^gis-/, '')); if (!L) return;
+  GIS._hov = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'gis-hov', offset: 10, maxWidth: '200px' })
+    .setLngLat(f.geometry && f.geometry.type === 'Point' ? f.geometry.coordinates : at).setText(L.label.replace(/s$/, '')).addTo(GIS.map);
+};
+// below zoom 15 the point layers are hidden: the Layers tab says so, and so does the map's corner note
+GIS.zoomNote = function() {
+  var map = GIS.map; if (!map) return;
+  var low = map.getZoom() < DRAW_STYLE.MAP.minZoom && GIS.LAYERS.some(function(l) { return l.geometry === 'point' && GIS.on[l.id]; });
+  var n = document.getElementById('gisZoomNote'); if (n) n.hidden = !low;
+  var m = document.getElementById('smZoomNote'); if (m) m.hidden = !low;
+  GIS.lowZoom = low;
 };
 GIS.describe = function(lid, p) {
   var r = [], add = function(s) { if (s) r.push(s); };
@@ -28736,6 +28770,7 @@ GIS.onMove = async function() {
   if (cells.length) GIS.cellsIn(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 1).forEach(function(c) { if (cells.length < GIS.MAX_CELLS && cells.indexOf(c) < 0) cells.push(c); });
   GIS.zoomOut = inView.length > GIS.MAX_CELLS;
   GIS.setView(cells);
+  GIS.zoomNote();
   GIS.renderRows();
 };
 // the features of a layer in view (a point inside, a line or polygon whose box overlaps)
@@ -28788,7 +28823,7 @@ GIS.renderRows = function() {
     var meta = idx && idx.layers[L.id], st = GIS.rowState(L.id), txt;
     if (!idx) txt = GIS._idxErr ? 'not cached here' : 'loading…';
     else if (!GIS.on[L.id]) txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
-    else if (GIS.zoomOut) txt = 'zoom in to see this layer';
+    else if (GIS.zoomOut || (GIS.lowZoom && L.geometry === 'point')) txt = 'zoom in to see this layer';
     else if (st.live) txt = 'live OSM ' + new Date(st.live).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     else if (st.loading && !st.ready) txt = 'loading…';
     else if (!st.ready && st.nodata && !st.offline) txt = 'no data for this location';
@@ -28804,6 +28839,7 @@ GIS.toggle = function(lid, v) {
   GIS.on[lid] = !!v; GIS.saveOn();
   if (GIS.map && GIS.map.getLayer(GIS.src(lid))) GIS.map.setLayoutProperty(GIS.src(lid), 'visibility', v ? 'visible' : 'none');
   if (v && GIS.view.length) GIS.ensure([lid], GIS.view, { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal });
+  GIS.zoomNote();
   GIS.renderRows();
 };
 // (GIS.live, the live refresh, is in the next script: Brief 24 B6)
@@ -29400,6 +29436,13 @@ FLZ.hide = function() { var g = document.getElementById('_fdZonePrev'); if (g) g
 .gis-pop { font: 12px/1.4 var(--font-ui, sans-serif); color: #1A1A1A; }
 .gis-pop b { display: block; margin-bottom: 2px; }
 .gis-pop-src { margin-top: 4px; color: #6B7075; font-size: 11px; }
+/* Brief 30 §1: a point's type on hover; the zoom note over the map's corner */
+.gis-hov .maplibregl-popup-content { padding: 2px 6px; font: 12px/1.3 var(--font-ui, sans-serif); color: #1A1A1A; border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.25); pointer-events: none; }
+.gis-hov .maplibregl-popup-tip { display: none; }
+.sm-body { position: relative; }
+.sm-zoom-note { position: absolute; left: 10px; top: 10px; margin: 0; padding: 4px 8px; font: 12px/1.3 var(--font-ui, sans-serif); color: #1A1A1A; background: rgba(255,255,255,.92); border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.2); pointer-events: none; z-index: 2; }
+.sm-zoom-note[hidden], .gis-zoom[hidden] { display: none; }
+.maplibregl-ctrl-attrib-inner { color: #4A4F55; }
 </style>
 <style>
 /* -- Site from map (Brief 13) phase 2: provenance tags, imported objects -------------------- */
