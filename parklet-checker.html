@@ -2327,8 +2327,8 @@ function validateCanonicalGeometry() {
     available: available,
     allocated: allocated,
     remaining: remaining,
-    valid:     remaining >= -0.001,
-    overBy:    remaining < -0.001 ? parseFloat((-remaining).toFixed(4)) : 0
+    valid:     remaining >= -0.005,   // 5 mm: float sums of centimetre widths (Brief 30 §8C, triage row 34)
+    overBy:    remaining < -0.005 ? parseFloat((-remaining).toFixed(4)) : 0
   };
   return DESIGN_MODEL.constraint;
 }
@@ -5363,7 +5363,8 @@ document.addEventListener('mouseup', function() {
     var allocated = Math.round(roadSegs.reduce(function(a,s){ return a+s.width; },0)*1000)/1000;
     var remaining = Math.round((totalRoad - allocated)*1000)/1000;
     return { totalRoad:totalRoad, allocated:allocated, remaining:remaining,
-             over:remaining < -0.001, lanes:lanes, assess:assess, laneById:laneById, minLane:getReqLane(),
+             over:remaining < -0.005, lanes:lanes,   // 5 mm (Brief 30 §8C, triage row 34)
+              assess:assess, laneById:laneById, minLane:getReqLane(),
              laneOk:assess.every(function(a){ return a.c02; }) };
   }
 
@@ -5630,7 +5631,7 @@ document.addEventListener('mouseup', function() {
       '<div class="se-stats-row">' +
         cell('Roadway', m.totalRoad.toFixed(3) + ' m') +
         cell('Allocated', m.allocated.toFixed(3) + ' m', m.over ? LANE_RED : '') +
-        cell(m.over ? 'Over' : 'Remaining', Math.abs(m.remaining).toFixed(3) + ' m', m.over ? LANE_RED : '') +
+        cell(m.over ? 'Over' : 'Remaining', (Math.abs(m.remaining) < 0.005 ? 0 : Math.abs(m.remaining)).toFixed(3) + ' m', m.over ? LANE_RED : '') +
         cell('Lane' + (m.assess.length > 1 ? 's' : ''), lanes) +
       '</div>' +
       // Widths the envelope (or the remaining roadway) clamped -- reported, never silent.
@@ -6281,7 +6282,8 @@ function sectionFrame(DM, o) {
   var extM = sectionExtentM(DM), gY = Math.round(14 + extM * SC), stripH = gY + Math.max(SECTION_H - SECTION_GROUND_Y, Math.round(0.9 * SC));
   return { SC: SC, xL: xL, xR: xR, W: W, H: stripH + (o.labels === 'paper' ? 44 : 0), groundY: gY, stripH: stripH, extM: extM,
     mir: mir, xs: mir ? -1 : 1, x0: mir ? W - POCHE + xL * SC : POCHE - xL * SC,
-    poche: POCHE, minWidth: o.minWidth || 0, remaining: rem, over: rem < -0.001, sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
+    poche: POCHE, minWidth: o.minWidth || 0, remaining: Math.abs(rem) < 0.005 ? 0 : rem, over: rem < -0.005,   // within 5 mm: fully allocated, not "Over 0.002 m" (Brief 30 §8C, row 34)
+    sidewalkX0: LM.sidewalkL.x0, allocatedRight: LM.allocatedRight,
     roadEnd: roadEnd, farStart: Math.max(roadEnd, LM.roadRight),
     swRaise: Math.round(PARKLET_LEVELS.curbTop * SC), deckTk: Math.max(3, Math.round(PARKLET_LEVELS.deckThk * SC)) };
 }
@@ -23322,6 +23324,7 @@ GEN.dist = function(a, b) { var s = 0; for (var i = 0; i < a.length; i++) s += (
 // into a DESIGN_STATE and run through all 15 checks; passers are scored; N are selected by
 // farthest-point diversity, best score first. Same inputs + seed = identical schemes.
 GEN.generate = function() {
+  if (!GEN.site) GEN.site = GEN.siteFromLive();   // a run before the Generate panel was ever drawn (an import or + New clears it): null.road threw (Brief 30 §8C)
   var P = GEN.effectivePrefs(), S = GEN.site, t0 = performance.now();   // the weights as used: host bias applied unless the user set them
   var base = getDesignState(); base.furniture = { placed: [] };
   GEN._base = base;
