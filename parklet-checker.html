@@ -1432,7 +1432,8 @@ CHK.state = function(c) {
   var raw = getCriterionStatus(c), ins = CHK.inputs(c), est = ins.filter(function(i) { return i.cls === 'estimate'; }), unk = ins.filter(function(i) { return i.cls === 'unknown'; });
   var base = unk.length ? 'await' : raw;
   var prov = (base === 'pass' || base === 'fail') && (est.length > 0 || ins.some(function(i) { return i.cls === 'imported'; }) || (typeof SMP !== 'undefined' && SMP.isProvisional(c.id)));
-  return { id: c.id, raw: raw, base: base, provisional: prov, estimate: prov && est.length > 0, inputs: ins, estimates: est, unknowns: unk, hint: base === 'await' ? CHK.hint(c, unk) : '' };
+  var site = ins.some(function(i) { return i.cls === 'measured' || i.cls === 'confirmed'; });   // (Brief 30 follow-up) settled by a site measurement, or by the design alone
+  return { id: c.id, raw: raw, base: base, provisional: prov, estimate: prov && est.length > 0, measured: !prov && site, inputs: ins, estimates: est, unknowns: unk, hint: base === 'await' ? CHK.hint(c, unk) : '' };
 };
 CHK.hint = function(c, unk) {
   if (c.id === 'c2' && unk.some(function(i) { return i.key === 'roadWidth'; })) return 'Measure curb to curb: ' + CHK.c2Line(true);
@@ -1460,30 +1461,33 @@ CHK.counts = function() {
 };
 CHK.BADGE = { pass: ['badge-pass', 'Pass'], fail: ['badge-fail', 'Fail'], await: ['badge-await', 'Awaiting measurement'], unclear: ['badge-unclear', 'Not entered'] };
 // (Brief 30 follow-up) a pass or fail that rests on an estimate is "Provisional pass (estimate)" / "Provisional fail
-// (estimate)" wherever it is shown, never the bare word; on imported data not yet checked, "(imported)"
+// (estimate)" wherever it is shown, never the bare word; on imported data not yet checked, "(imported)"; settled, it says by
+// what: "Pass (measured)" / "Fail (measured)" on a site measurement, "(design)" where only the design is read (C14-C19)
 CHK.label = function(s) {
   if (s && s.provisional && (s.base === 'pass' || s.base === 'fail')) return 'Provisional ' + s.base + ' (' + (s.estimate ? 'estimate' : 'imported') + ')';
+  if (s && (s.base === 'pass' || s.base === 'fail')) return CHK.BADGE[s.base][1] + (s.measured ? ' (measured)' : ' (design)');
   return (CHK.BADGE[s && s.base] || CHK.BADGE.unclear)[1];
 };
 // a check's own result text ("7.0 m ≥ 5 m minimum. Passes.") said the same way
 CHK.msgFor = function(s, msg) {
-  if (!msg || !s || !s.provisional || (s.base !== 'pass' && s.base !== 'fail')) return msg;
-  var w = s.estimate ? 'estimate' : 'imported';
-  return String(msg).replace(/\b(Passes|passes|Fails|fails)\b/g, function(m) { return (m.charAt(0) === m.charAt(0).toUpperCase() ? 'Provisional ' : 'provisional ') + (/^f/i.test(m) ? 'fail' : 'pass') + ' (' + w + ')'; });
+  if (!msg || !s || (s.base !== 'pass' && s.base !== 'fail')) return msg;
+  var w = s.provisional ? (s.estimate ? 'estimate' : 'imported') : s.measured ? 'measured' : 'design';   // settled too: Pass (measured) / (design)
+  return String(msg).replace(/\b(Passes|passes|Fails|fails)\b/g, function(m) { var up = m.charAt(0) === m.charAt(0).toUpperCase(), f = /^f/i.test(m) ? 'fail' : 'pass'; return (s.provisional ? (up ? 'Provisional ' : 'provisional ') + f : (up ? f.charAt(0).toUpperCase() + f.slice(1) : f)) + ' (' + w + ')'; });
 };
 // counts by how the result stands: [{base, provisional, estimate}] -> n; n -> ["2 fail", "1 provisional pass (estimate)", ...]
 CHK.tally = function(list) {
-  var n = { pass: 0, fail: 0, await: 0, unclear: 0, ppE: 0, ppI: 0, pfE: 0, pfI: 0 };
-  list.forEach(function(q) { if (q.provisional && (q.base === 'pass' || q.base === 'fail')) n[(q.base === 'pass' ? 'pp' : 'pf') + (q.estimate ? 'E' : 'I')]++; else n[q.base in n ? q.base : 'unclear']++; });
+  var n = { pass: 0, fail: 0, await: 0, unclear: 0, ppE: 0, ppI: 0, pfE: 0, pfI: 0, pM: 0, pD: 0, fM: 0, fD: 0 };
+  list.forEach(function(q) { if (q.provisional && (q.base === 'pass' || q.base === 'fail')) n[(q.base === 'pass' ? 'pp' : 'pf') + (q.estimate ? 'E' : 'I')]++; else { n[q.base in n ? q.base : 'unclear']++; if (q.base === 'pass' || q.base === 'fail') n[(q.base === 'pass' ? 'p' : 'f') + (q.measured ? 'M' : 'D')]++; } });
   return n;
 };
 CHK.tallyParts = function(n, unclearWord) {
-  return [n.fail + ' fail', n.pfE ? n.pfE + ' provisional fail (estimate)' : '', n.pfI ? n.pfI + ' provisional fail (imported)' : '',
-    n.await ? n.await + ' awaiting measurement' : '', n.unclear + ' ' + (unclearWord || 'not entered'), n.pass + ' pass',
+  var anyFail = n.fail + n.pfE + n.pfI;
+  return [n.fM ? n.fM + ' fail (measured)' : '', n.fD ? n.fD + ' fail (design)' : '', anyFail ? '' : '0 fail', n.pfE ? n.pfE + ' provisional fail (estimate)' : '', n.pfI ? n.pfI + ' provisional fail (imported)' : '',
+    n.await ? n.await + ' awaiting measurement' : '', n.unclear + ' ' + (unclearWord || 'not entered'), n.pM ? n.pM + ' pass (measured)' : '', n.pD ? n.pD + ' pass (design)' : '', n.pass ? '' : '0 pass',
     n.ppE ? n.ppE + ' provisional pass (estimate)' : '', n.ppI ? n.ppI + ' provisional pass (imported)' : ''].filter(Boolean);
 };
 CHK.tallyNow = function() { return CHK.tally(criteria.map(function(c) { return CHK.state(c); })); };
-CHK.tallyRows = function(rows) { return CHK.tally(rows.map(function(r) { return { base: r.status, provisional: r.provisional, estimate: r.estimate }; })); };
+CHK.tallyRows = function(rows) { return CHK.tally(rows.map(function(r) { return { base: r.status, provisional: r.provisional, estimate: r.estimate, measured: r.measured }; })); };
 CHK.paint = function(c) {
   var s = CHK.state(c), B = CHK.BADGE[s.base], b = document.getElementById('badge_' + c.id), el = document.getElementById('crit_' + c.id), bd = document.getElementById('body_' + c.id);
   if (b) { b.className = 'badge ' + B[0] + (s.provisional ? ' badge-prov' : ''); b.textContent = CHK.label(s); b.title = s.provisional ? 'Provisional: depends on imported site data not yet verified on site' : s.base === 'await' ? s.hint : ''; }
@@ -1739,7 +1743,7 @@ function renderVerdictCompact() {
   else if (n.provFail > 0) { cls = 'vc-partial'; icon = '◎'; lbl = t.pfE ? 'Provisional fail (estimate)' : 'Provisional fail (imported)'; detail = parts; }
   else if (pend > 0) { cls = 'vc-partial'; icon = '◎'; lbl = 'Incomplete'; detail = parts; }
   else if (t.ppE || t.ppI) { cls = 'vc-partial'; icon = '◎'; lbl = t.ppE ? 'Provisional pass (estimate)' : 'Provisional pass (imported)'; detail = parts; }
-  else { cls = 'vc-pass'; icon = '✓'; lbl = 'All pass'; detail = `${n.pass} of ${criteria.length} checks pass on measured values`; }
+  else { cls = 'vc-pass'; icon = '✓'; lbl = 'All pass'; detail = parts; }
   const el = document.getElementById('verdictCompact');
   if (el) el.innerHTML = `<div class="vc ${cls}">    <span class="vc-icon">${icon}</span>    <div><div class="vc-lbl">${lbl}</div><div class="vc-detail">${detail}</div></div>  </div>`;
 }
@@ -1868,14 +1872,14 @@ function renderSummary() {
   const g = { fail: [], provFail: [], await: [], unclear: [], pass: [], provPass: [] };
   criteria.forEach(c => {
     const s = CHK.state(c), t = `[${c.num}] ${c.title}`;
-    if (s.base === 'fail') g[s.provisional ? 'provFail' : 'fail'].push(s.provisional ? t + ': ' + CHK.label(s) : t);
+    if (s.base === 'fail') g[s.provisional ? 'provFail' : 'fail'].push(t + ': ' + CHK.label(s));
     else if (s.base === 'await') g.await.push(t + ': ' + s.hint);
     else if (s.base === 'unclear') g.unclear.push(t);
-    else if (s.provisional) g.provPass.push(t + ': ' + CHK.label(s)); else g.pass.push(t);
+    else if (s.provisional) g.provPass.push(t + ': ' + CHK.label(s)); else g.pass.push(t + ': ' + CHK.label(s));
   });
   const col = (cls, h, list) => list.length ? `<div class="summary-col ${cls}"><h3>${h} (${list.length})</h3><ul>` + list.map(p => `<li>${p}</li>`).join('') + '</ul></div>' : '';
   const html = '<h2>Plain-language summary</h2>' + col('problems', 'Already failing', g.fail) + col('problems', 'Failing on an estimate or imported data, not yet measured', g.provFail) +
-    col('unconfirmed', 'Awaiting measurement (not known yet)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('unconfirmed', 'Provisional pass, not yet measured', g.provPass) + col('passing', 'Pass (measured)', g.pass);
+    col('unconfirmed', 'Awaiting measurement (not known yet)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('unconfirmed', 'Provisional pass, not yet measured', g.provPass) + col('passing', 'Pass', g.pass);
   const el = document.getElementById('summaryBox'); if (el) el.innerHTML = html;
 }
 
@@ -4290,7 +4294,7 @@ function complianceRows() {
       if (!msg) msg = ins.filter(function(i) { return i.entered; }).map(function(i) { return i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : ''); }).join('; ');
     }
     if (status === 'await') msg = cs.hint; else msg = CHK.msgFor(cs, msg);
-    return { id: c.id, num: c.num, title: c.title, page: c.page, src: c.src, status: status, raw: cs.raw, provisional: cs.provisional, estimate: !!cs.estimate, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
+    return { id: c.id, num: c.num, title: c.title, page: c.page, src: c.src, status: status, raw: cs.raw, provisional: cs.provisional, estimate: !!cs.estimate, measured: !!cs.measured, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
   });
 }
 
@@ -24032,7 +24036,7 @@ RPT.treeFetched = function(list) {
 // Each builder returns blocks (RPT.flow): {h2}, {kv: [[label, value]]} (the value right-aligned in a 40 mm column),
 // {table: {cols, rows}}, {p}. Every list is a table; nothing is a wrapped sentence of items.
 RPT.RES = { pass: ['PASS', '#1A1A1A'], fail: ['FAIL', '#C62828'], unclear: ['NOT CONFIRMED', '#6E6E6E'], await: ['AWAITING MEASUREMENT', '#6E6E6E'] };
-RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear, pv = r.provisional && (r.status === 'pass' || r.status === 'fail'); return { t: pv ? CHK.label({ base: r.status, provisional: true, estimate: r.estimate }) : a[0], c: pv ? '#6E6E6E' : a[1], b: true, s: RPT.TX.tag }; };   // (Brief 30 follow-up)
+RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear, pv = r.provisional && (r.status === 'pass' || r.status === 'fail'); return { t: pv ? CHK.label({ base: r.status, provisional: true, estimate: r.estimate }) : (r.status === 'pass' || r.status === 'fail') ? CHK.label({ base: r.status, measured: r.measured }) : a[0], c: pv ? '#6E6E6E' : a[1], b: true, s: RPT.TX.tag }; };   // (Brief 30 follow-up)
 // ── Brief 25 item 22f: the sheets list only what the drawings use ───────────────────────────────────────────────
 // Listed by name: the street trees beside the deck (the tree advisory's reach), the nearest hydrant each side and any
 // beside the deck, the nearest bus stop each side and any within 15 m of it (the bus-zone rule). The rest of each kind
