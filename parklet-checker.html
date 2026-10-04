@@ -8966,10 +8966,29 @@ function nearMH(px, py) {
   return (state['manholes'] || []).findIndex(mh => { const p = worldToPlan(mh.yM, mh.xM); return Math.hypot(px - p.px, py - p.py) < 14 * _pvHitU(); });
 }
 
+// ── Touch drags (Brief 30 §8B, access) ───────────────────────────────────────────────────────────────────────────────────
+// The Plan and the shape editor are driven by mouse events; a finger only produced a tap (its drag scrolled the page), so
+// nothing could be dragged on a tablet. One finger on either is now passed on as the mouse: down on the element, moves and
+// up where the finger is (a redraw can remove the element it started on; they bubble to the document's handlers). A second finger ends the drag. The browser's own tap click
+// still follows, as after a mouse click.
+function pkTouchAsMouse(el) {
+  if (!el || el._touchMouse) return; el._touchMouse = true; el.style.touchAction = 'none';
+  var id = null, tgt = null;
+  var send = function(type, e) { var on = type === 'mousedown' ? tgt : (e.target && e.target.isConnected ? e.target : el); on.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: 0, buttons: type === 'mouseup' ? 0 : 1, clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey })); };
+  el.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'touch') return;
+    if (id !== null) { send('mouseup', e); id = null; tgt = null; return; }   // a second finger: end the drag
+    id = e.pointerId; tgt = e.target; e.preventDefault(); send('mousedown', e);
+  });
+  el.addEventListener('pointermove', function(e) { if (e.pointerId === id) { e.preventDefault(); send('mousemove', e); } });
+  var up = function(e) { if (e.pointerId !== id) return; send('mouseup', e); id = null; tgt = null; };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
 function initPlanInteraction() {
   const svg = document.getElementById('planView');
   if (!svg || svg._mhBound) return;
   svg._mhBound = true;
+  pkTouchAsMouse(svg);   // (Brief 30 §8B)
   svg.addEventListener('mousedown', planMD);
   svg.addEventListener('contextmenu', planCM);
   svg.addEventListener('click', planClick);
@@ -10816,6 +10835,7 @@ function skeSyncUI() {
 function skeBind() {
   if (SKE.bound) return; var svg = document.getElementById('skeSVG'); if (!svg) return; SKE.bound = true;
   svg.addEventListener('mousedown', skeDown);
+  pkTouchAsMouse(svg);   // (Brief 30 §8B)
   svg.addEventListener('wheel', skeWheel, { passive: false });
   svg.addEventListener('mouseleave', function() { if (!SKE.drag && SKE.open) { SKE.hover = null; skeRender(); } });
   document.addEventListener('mousemove', skeMove); document.addEventListener('mouseup', skeUp);
