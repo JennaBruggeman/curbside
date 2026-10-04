@@ -699,6 +699,8 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 <div class='ctx-section' id='ctxFacts' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site facts</span></div><nav id='sfcSide' aria-label='Site facts'></nav></div>
 <div class='ctx-section' id='ctxLearn' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Parklets 101</span></div><nav class='p101-nav' aria-label='Parklets 101'><button type='button' data-s='build' onclick='P101.go("build")'>Build-up</button><button type='button' data-s='qty' onclick='P101.go("qty")'>Quantities</button><button type='button' data-s='cost' onclick='P101.go("cost")'>Cost estimate</button><button type='button' data-s='mats' onclick='P101.go("mats")'>Materials</button><button type='button' data-s='src' onclick='P101.go("src")'>Sources</button></nav><p class='p101-side'>A reference beside the steps: it reads the design and changes nothing in it, except the rates you enter here.</p></div>
 <div class='ctx-section' id='ctxExport' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Export</span></div>
+<p class='exp-lead'>The report is in the middle: choose Schematic or Technical and download the PDF. That is what the City reads.</p>
+<details class='exp-more'><summary>More formats: the 3D model, an animation</summary>
 <div class='ctx-group' id='px3dGroup'>
   <div class='ctx-label'>3D Model</div>
   <div class='ctx-row' style='flex-wrap:wrap;gap:6px 12px;margin-bottom:6px'>
@@ -740,6 +742,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <div id='axeStatus' style='font-size:11px;color:var(--text-mu);margin-top:6px;line-height:1.5;min-height:12px'></div>
   <div style='font-size:11px;color:var(--text-mu);margin-top:4px;opacity:.7;line-height:1.5'>Vehicles on the travel lanes, bikes in bike lanes, people on the sidewalks and through the parklet. Follows the Schematic / Technical appearance; far-side buildings are cut away so the street reads. MP4 is not available: browsers can only record WebM &mdash; convert with HandBrake or ffmpeg if you need MP4. Nothing in the design is changed.</div>
 </div>
+</details>
 </div>
 </div>
 <div id='dockResizer'></div>
@@ -760,7 +763,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button id='cadDimBtn' class='ctb-btn active sw-tg' aria-pressed='true' onclick='cadToggleDim()' title='Shows or hides the dimension chains in the Plan and the Section.'>Dims</button>
     <button id='cadTagBtn' class='ctb-btn active sw-tg' aria-pressed='true' onclick='cadToggleTags()' title='Shows or hides the tags: the furniture tags (F1, F2 ...) in the Plan, the numbered keys and their key in the Section. The report prints them either way.'>Tags</button>
     <button class='ctb-btn' onclick='autoSolveWidth()' title='Widens the parklet as far as the travel lanes allow at their minimum width (C02).'>Fit lanes to minimum</button>
-    <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fits the Plan, Section and 3D views to the whole design.'>Fit design</button>
+    <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fits the Plan, Section and 3D views to the whole design.'>Fit all views</button>
     <div class='canvas-toolbar-right'>
       
     </div>
@@ -777,7 +780,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <div class='chk-bar'><h2>Checks</h2><span class='hint'>Vancouver Parklet Manual v1.0; failures first. Open a row for the rule, its value and where to see it.</span>
     <button type='button' class='action-btn' id='toggleAllBtn' onclick='toggleAll()'>Expand all</button>
     <button type='button' class='action-btn' onclick='RPT.print()'>&#8595; Download report (PDF)</button>
-    <button type='button' class='action-btn chk-clear' onclick='clearState()' title='Clears every value entered on the Check tab.'>Clear entered values</button></div>
+    <button type='button' class='action-btn chk-clear' onclick='clearState()' title='Clears every value entered on the Check tab; it asks first.'>Clear entered values…</button></div>
   <div class='chk-table' role='table' aria-label='Compliance checks'>
     <div class='chk-head' role='row'><span role='columnheader'>Rule</span><span role='columnheader'>Check</span><span role='columnheader'>Requirement</span><span role='columnheader'>Measured</span><span role='columnheader'>Result</span><span role='columnheader'>Source</span></div>
     <div id='criteriaList'></div>
@@ -14159,7 +14162,7 @@ function appSetMode(mode) {
   var vw = document.getElementById('workspaceVisualize');
   if (vw) vw.style.display = (mode === 'visualize') ? 'flex' : 'none';
   if (mode === 'visualize' && typeof RVZ !== 'undefined') RVZ.onOpen();
-  if (ct) ct.style.display = isCanvas ? '' : 'none';
+  if (ct) ct.style.display = (mode === 'design' || mode === 'accessibility') ? '' : 'none';   // (Brief 30 §12, layout) not over the Site step
   if (tb) tb.style.display = isCanvas ? '' : 'none';
   // After every display change above: the grid may have been resized while hidden.
   if (isCanvas && typeof _vpSizeAll === 'function') _vpSizeAll();
@@ -32111,6 +32114,15 @@ function uiApplyTips(root) {
   .step-strip { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .ss-step { white-space: nowrap; }
   .proj-name-input { width: 120px !important; }
 }
+
+/* ── Brief 30 §12, layout ─────────────────────────────────────────────────────────────────────────────────────────── */
+.exp-lead { margin: 10px 12px 8px; font-size: 13px; line-height: 1.45; color: var(--c-text); }
+.exp-more { margin: 4px 0 8px; border-top: 1px solid var(--c-rule); }
+.exp-more > summary { cursor: pointer; padding: 10px 12px; font: 600 13px var(--font-ui); color: var(--c-text-dim); list-style-position: inside; }
+.exp-more > summary:hover { color: var(--c-text); }
+.exp-more > summary:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: -2px; }
+.chk-bar .chk-clear { margin-left: auto; border-color: transparent; color: var(--st-fail-ink, #B42C2C); }
+.chk-bar .chk-clear:hover { border-color: currentColor; background: transparent; }
 /* the left column: the Selection, Grid and Move blocks only with something selected */
 #cadTools.cad-empty { display: none !important; }
 /* Brief 30 §8B (access): with a piece selected the Selection panel filled the column at 200 % and nothing scrolled (its last
@@ -33440,7 +33452,7 @@ RPT.sheetBudget = function(d) {
 .sfc-item.done .sfc-item-id::after { content: ' \2713'; color: var(--accent-ui, #3AA8E4); }
 .sfc-site { margin: 8px 12px; padding: 8px 10px; border: 1px solid var(--c-rule, #2E3338); border-radius: 4px; }
 .sfc-site[hidden] { display: none; }
-.sfc-site-t { margin: 0; font-weight: 600; font-size: 12px; } .sfc-site-n { margin: 2px 0 6px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); }
+.sfc-site-t { margin: 0; font-weight: 600; font-size: 13px; color: var(--c-text); } .sfc-site-n { margin: 2px 0 6px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); }
 .sfc-site-b { display: flex; flex-wrap: wrap; gap: 6px; }
 /* the Check rows: the facts with how they are known, and their card in the row */
 .sfc-rowf { margin: 6px 0 4px; }
@@ -33767,6 +33779,7 @@ SFG.mountSite = function() {
     el.innerHTML = `<p class='sfc-site-t'>Site facts</p><p class='sfc-site-n' id='sfcSiteN'></p><div class='sfc-site-b'><button type='button' class='ctx-btn' data-sfc='review'>Review site facts</button><button type='button' class='ctx-btn' data-sfc='measured'>I've measured on site</button></div>`;
     var at = document.getElementById('sbxSteps'); if (at && at.parentNode === host) host.insertBefore(el, at.nextSibling); else host.insertBefore(el, host.children[1] || null);
   }
+  var st0 = document.getElementById('sbxSteps'); if (st0 && st0.parentNode === host && st0.nextSibling !== el) host.insertBefore(el, st0.nextSibling);   // under the Site steps (Brief 30 §12, layout)
   el.hidden = !SFG.site();
   var n = document.getElementById('sfcSiteN');
   if (n) { var C = SFG.cards(), m = C.filter(function(c) { return SFG.how(c) === 'measured on site' || SFG.how(c) === 'Checked on site'; }).length; n.textContent = SFG.st() ? m + ' of ' + C.length + ' measured or checked on site' + (SFG.locked() ? '; ' + SFG.left().length + ' still to answer' : '') : ''; }
