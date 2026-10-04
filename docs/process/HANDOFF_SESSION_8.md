@@ -5,7 +5,7 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
 
 ## Where things stand
 
-- **Branch `friday-round`** from master `cfd4b63` (v0.17.2), 56 commits (52 for the brief, 4 follow-ups), one per change. **Not merged, not pushed.**
+- **Branch `friday-round`** from master `cfd4b63` (v0.17.2), 60 commits (52 for the brief, 8 follow-ups), one per change. **Not merged, not pushed.**
   Master, the live site, GitHub Pages and Supabase are untouched (code freeze until after 9 October).
 - **curbside-data:** branch `friday-round` (b93e85e blockfaces build, 62b8e56 points beside every face). Not pushed;
   the published cells are unchanged. The app's band reads the blockfaces layer, so **the band shows nothing on the
@@ -186,7 +186,7 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
   - The accent ink #1F6FA3 is for blue text on paper.
   - "Awaiting" is in the Wait colour, not the accent.
 
-## Follow-ups after the report (2026-10-04, three commits)
+## Follow-ups after the report (2026-10-04)
 1. **80c0b12, no bare Pass on an estimate.** A result that rests on an estimate reads "Provisional pass (estimate)" /
    "Provisional fail (estimate)"; on imported data not yet checked, "(imported)". This covers the Check badge (all four
    painters), the row's result text ("Passes." → "Provisional pass (estimate)."), the counts line, the compact verdict,
@@ -203,6 +203,30 @@ Read this first in the next session. Previous notes: `HANDOFF_SESSION_7.md`, `HA
    assistant block, off by default and kept in this browser. Generate with a key: 6 calls before; 0 with the box off,
    0 after a reload; 6 when on.
 - The scratch worktrees `master-wt` and `pre12-wt` were removed; `git worktree list` shows only the main checkout.
+4. **d7da976, C02's fix text follows the width's provenance.** It reads "With the measured …" only when the width is
+   measured, "With the estimated …" for an estimate, and "Once the curb-to-curb width is measured …" when it is not
+   known; the measure hint says "placeholder" for an unknown width. Only C02 had a fix sentence that claimed a provenance
+   (3 places changed); the other 18 checks fall back to their result text.
+5. **171f72c, the most direct provenance wins.** When every value a check reads from you was measured on site, the
+   imported stops and hydrants on the map are context, not a reason to make it provisional (C01, C05; C03, C06 and C07
+   read only their measurement). At W 4th, C05 measured with the hydrant unconfirmed: "Provisional pass (imported)"
+   before, now "Pass (measured)". At Commercial, C01: "Provisional fail (imported)" before, now "Fail (measured)".
+6. **58f27ec, every result names how it is known.** On the badge, the row's text, the counts, the verdicts, the
+   summary, C-001, A-000 and the cover. At W 4th, the cover now reads "Checks: 1 provisional fail (estimate),
+   10 awaiting measurement, 2 not confirmed, 1 pass (measured), 4 pass (design), 1 provisional pass (estimate)".
+
+### The result words (final, approved 2026-10-04)
+| Word | When |
+|---|---|
+| Pass (measured) / Fail (measured) | settled by a value measured on site (or an imported item confirmed on site) |
+| Pass (design) / Fail (design) | read from the design alone (C14, C16-C19 and design inputs such as C15), nothing on site |
+| Provisional pass (estimate) / Provisional fail (estimate) | rests on an estimate (yours or Curbside's) |
+| Provisional pass (imported) / Provisional fail (imported) | rests on imported data not yet checked on site |
+| Awaiting measurement | a fact it needs is not known yet |
+| Not entered (reports: not confirmed) | a value it needs has not been entered |
+
+These come from `CHK.label`, the result text from `CHK.msgFor`, and the counts from `CHK.tally` / `CHK.tallyParts`. A new
+result display should go through them, never through the bare word.
 
 ## Jenna's decisions (2026-10-04)
 - No tabs and no step strip merged; the interface stays as it is until Jenna has walked through it.
