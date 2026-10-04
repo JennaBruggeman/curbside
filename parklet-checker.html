@@ -2828,8 +2828,18 @@ var ENCLOSURE_ARCHETYPES = {};
   }
   // posts: the first 0.2 m in, then every pitch while short of the run's end by 0.1 m (as the railing was); one more near
   // the end when the last is over 0.5 m from it
+  // (Brief 30 §11) at a mitred end (a chamfer's vertex) the post stands at the vertex, placed by one of the two runs
+  // (ENC._ends: a / b 'mitre' | 'free', aPost / bPost), and the others keep a pitch from it; free ends as before
   function posts(len, pitch, w) {
-    var a = [];
+    var a = [], E = (typeof ENC !== 'undefined' && ENC._ends) || null;
+    if (E && (E.a === 'mitre' || E.b === 'mitre')) {
+      var u0 = E.a === 'mitre' ? pitch : 0.2, u1 = E.b === 'mitre' ? len - w - 0.15 : len - 0.1;
+      for (var v = u0; v < u1 + 1e-9; v += pitch) a.push(+v.toFixed(4));
+      if (E.b !== 'mitre') { var e2 = +(len - 0.2 - w).toFixed(4); if (a.length && e2 - a[a.length - 1] > 0.5) a.push(e2); }
+      if (E.a === 'mitre' && E.aPost) a.unshift(0);
+      if (E.b === 'mitre' && E.bPost && len > w) a.push(+(len - w).toFixed(4));
+      return a;
+    }
     for (var u = 0.2; u < len - 0.1 + 1e-9; u += pitch) a.push(+u.toFixed(4));
     var e = +(len - 0.2 - w).toFixed(4);
     if (a.length && e - a[a.length - 1] > 0.5) a.push(e);
@@ -3111,20 +3121,112 @@ ENC.params = function(E, id) {
 };
 ENC.mat = function(E, id) { var A = ENCLOSURE_ARCHETYPES[id], m = E.mats && E.mats[id]; return A.mats.indexOf(m) >= 0 ? m : A.mat; };
 ENC.transparency = function(id, p) { var t = ENCLOSURE_ARCHETYPES[id].transparency; return typeof t === 'function' ? t(p) : t; };
+// ── The enclosure from the applied outline (Brief 30 §11) ─────────────────────────────────────────────────────────────
+// It was built from the rectangle (traffic side 0..L, the two ends), so after a corner cut the railing ran along the old
+// outline. Now each edge of the applied outline is a run, by the side it faces: the traffic side (along the lane, set the
+// buffer in), the ends (across the deck at its extremes), the curb side (open), and a cut corner's edge, which takes the
+// side it joins (the traffic side when it meets it). Where two runs meet at an angle the rails are mitred and a post
+// stands at the vertex; where a traffic run meets an end square, the end butts into it as before (so a rectangle is
+// unchanged). Every run has its own origin S, direction d and inward normal n: a part's (u along, v in) maps to the world
+// by S + d u + n v; an oblique or mitred part also carries its footprint quad.
+// the outline in world metres [x across, z along]: the applied shape (arcs as short chords) or the rectangle
+ENC.outlinePts = function(DM) {
+  var LM = DM.landmarks, L = DM.parklet.length, x0 = LM.deckX0, x1 = LM.deckX1, ol = DM.parklet.outline, pts = [];
+  if (ol && ol.verts && ol.verts.length >= 3) {
+    ol.verts.forEach(function(v, i) {
+      var w = ol.verts[(i + 1) % ol.verts.length], sg = ol.segs && ol.segs[i];
+      pts.push([+v.y, +v.x]);
+      if (sg && sg.arc && Math.abs(sg.sag || 0) > 0.001 && typeof shapeArcCtrl === 'function') { var c = shapeArcCtrl(v, w, sg.sag); for (var k = 1; k < 8; k++) { var t = k / 8, A = (1 - t) * (1 - t), B = 2 * (1 - t) * t, C = t * t; pts.push([A * v.y + B * c.y + C * w.y, A * v.x + B * c.x + C * w.x]); } }
+    });
+  } else pts = [[x0, 0], [x0, L], [x1, L], [x1, 0]];
+  return pts.filter(function(p, i) { var q = pts[(i + 1) % pts.length]; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-4; });
+};
+// the runs' geometry: [{type, kind: main | chamfer, S, d, n, len, mA, mB (mitre tangents), aPost, bPost, oblique}]
+ENC.layout = function(DM, E) {
+  var pts = ENC.outlinePts(DM), n = pts.length, AR = ENCLOSURE_ARCHETYPES, b = E.bufferDepth;
+  var depthOf = function(side) { var id = E.sides[side]; return AR[id].depth(ENC.params(E, id)); };
+  var xs = pts.map(function(p) { return p[0]; }), zs = pts.map(function(p) { return p[1]; });
+  var xmid = (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, zmid = (Math.min.apply(null, zs) + Math.max.apply(null, zs)) / 2, area = 0;
+  for (var i = 0; i < n; i++) { var p1 = pts[i], p2 = pts[(i + 1) % n]; area += p1[0] * p2[1] - p2[0] * p1[1]; }
+  var ccw = area > 0;
+  var ed = pts.map(function(a, i) {
+    var c = pts[(i + 1) % n], dx = c[0] - a[0], dz = c[1] - a[1], l = Math.hypot(dx, dz), ux = dx / l, uz = dz / l, ang = Math.atan2(Math.abs(dx), Math.abs(dz)) * 180 / Math.PI;
+    var cls = ang < 5 ? ((a[0] + c[0]) / 2 > xmid ? 'traffic' : 'curb') : ang > 85 ? ((a[1] + c[1]) / 2 < zmid ? 'endA' : 'endB') : 'chamfer';
+    return { a: a, c: c, d: [ux, uz], n: ccw ? [-uz, ux] : [uz, -ux], len: l, cls: cls };
+  });
+  ed.forEach(function(e, i) {
+    if (e.cls !== 'chamfer') { e.type = e.cls === 'curb' ? null : e.cls; return; }
+    var nb = function(step) { for (var k = 1; k < n; k++) { var f = ed[((i + step * k) % n + n) % n]; if (f.cls !== 'chamfer') return f.cls; } return null; };
+    var p = nb(-1), q = nb(1);
+    e.type = p === 'traffic' || q === 'traffic' ? 'traffic' : (p === 'endA' || p === 'endB') ? p : (q === 'endA' || q === 'endB') ? q : ((e.a[0] + e.c[0]) / 2 > xmid ? 'traffic' : ((e.a[1] + e.c[1]) / 2 < zmid ? 'endA' : 'endB'));
+  });
+  ed.forEach(function(e) { e.off = e.type === 'traffic' ? b : 0; });
+  // does a side's type stand on posts (a rail, a bench's fallback rail, a planter with a rail; a plain planter or wall does not)
+  var hp = {}, hasPost = function(t) { if (hp[t] === undefined) { var id = E.sides[t], A = AR[id]; try { hp[t] = A.parts.call(A, 2, E.height, ENC.params(E, id), ENC.mat(E, id), t).some(function(q) { return q.role === 'post'; }); } catch (x) { hp[t] = false; } } return hp[t]; };
+  // where the line of e (moved in by oe) meets the line of f (moved in by of)
+  var X = function(e, oe, f, of) {
+    var p = [e.a[0] + e.n[0] * oe, e.a[1] + e.n[1] * oe], q = [f.a[0] + f.n[0] * of, f.a[1] + f.n[1] * of], r = e.d, t = f.d, den = r[0] * t[1] - r[1] * t[0];
+    if (Math.abs(den) < 1e-9) return [e.c[0] + e.n[0] * oe, e.c[1] + e.n[1] * oe];
+    var k = ((q[0] - p[0]) * t[1] - (q[1] - p[1]) * t[0]) / den; return [p[0] + r[0] * k, p[1] + r[1] * k];
+  };
+  var runs = [], ci = ed.findIndex(function(e) { return !e.type; }), loop = ci < 0, start = loop ? 0 : (ci + 1) % n;
+  var seq = []; for (var k = 0; k < n; k++) seq.push(ed[(start + k) % n]);
+  seq.forEach(function(e, k) {
+    if (!e.type) return;
+    var prev = seq[(k - 1 + n) % n], next = seq[(k + 1) % n], g = { type: e.type, kind: e.cls === e.type ? 'main' : 'chamfer', n: e.n, mA: 0, mB: 0, aPost: false, bPost: false };
+    // a joint: butt (a traffic run meeting an end square: the end stops at the traffic run's inner face) or mitre
+    var joint = function(f, atEnd) {
+      if (!f.type) return { p: X(e, e.off, f, 0), m: 0 };   // a free end, on the curb-side edge
+      var cr = e.d[0] * f.d[1] - e.d[1] * f.d[0], dt = e.d[0] * f.d[0] + e.d[1] * f.d[1], phi = Math.atan2(Math.abs(cr), dt), sq = Math.abs(phi * 180 / Math.PI - 90) < 5;
+      if (sq && e.type !== f.type && (e.type === 'traffic' || f.type === 'traffic')) {
+        if (e.type === 'traffic') return { p: X(e, e.off, f, f.off), m: 0 };
+        return { p: X(e, e.off, f, f.off + depthOf('traffic')), m: 0 };
+      }
+      // the vertex's post, once: the run that stands on posts; both: the traffic side's; the same type: the run that ends there
+      var eh = hasPost(e.type), fh = hasPost(f.type), own = eh && !fh ? true : fh && !eh ? false : e.type !== f.type ? e.type === 'traffic' : atEnd;
+      return { p: X(e, e.off, f, f.off), m: Math.tan(phi / 2), post: own && eh };
+    };
+    var ja = joint(prev, false), jb = joint(next, true);
+    var S = ja.p, T = jb.p; g.mA = ja.m; g.mB = jb.m; g.aPost = !!(ja.m && ja.post); g.bPost = !!(jb.m && jb.post);
+    var v = [T[0] - S[0], T[1] - S[1]], len = Math.hypot(v[0], v[1]); if (len < 0.02) return;
+    var d = [v[0] / len, v[1] / len];
+    // read the way the rectangle's runs read: the traffic side along +z, the ends across +x
+    var flip = e.type === 'traffic' ? d[1] < -1e-9 : d[0] < -1e-9;
+    if (flip) { var t0 = S; S = T; T = t0; d = [-d[0], -d[1]]; var m0 = g.mA; g.mA = g.mB; g.mB = m0; var p0 = g.aPost; g.aPost = g.bPost; g.bPost = p0; }
+    g.S = [+S[0].toFixed(6), +S[1].toFixed(6)]; g.d = d; g.len = +len.toFixed(6); g.oblique = Math.abs(d[0]) > 1e-6 && Math.abs(d[1]) > 1e-6;
+    runs.push(g);
+  });
+  return runs;
+};
+ENC.pt = function(r, u, v) { return [r.S[0] + r.d[0] * u + r.n[0] * v, r.S[1] + r.d[1] * u + r.n[1] * v]; };
+ENC.runLabel = function(r) { return ENC.SIDE_LABEL[r.side] + (r.kind === 'chamfer' ? ', cut corner' : ''); };
 // DESIGN_MODEL.enclosure: the design's enclosure (or Eo) resolved on its deck
 ENC.resolve = function(DM, Eo) {
   var E = ENC.norm(Eo || ENCLOSURE), LM = DM.landmarks, L = DM.parklet.length, x0 = LM.deckX0, x1 = LM.deckX1, W = x1 - x0, H = E.height;
   var AR = ENCLOSURE_ARCHETYPES, pT = ENC.params(E, E.sides.traffic), dT = AR[E.sides.traffic].depth(pT);
   var xO = x1 - E.bufferDepth, xI = xO - dT, runs = [];
-  ENC.SIDES.forEach(function(s) {
-    var id = E.sides[s], A = AR[id], p = ENC.params(E, id), m = ENC.mat(E, id), len = s === 'traffic' ? L : Math.max(0.1, xI - x0);
-    var run = { side: s, id: id, name: A.name, family: A.family, len: len, depth: A.depth(p), params: p, mat: m, top: H, transparency: ENC.transparency(id, p), xO: xO, x0: x0, L: L };
-    run.parts = A.parts.call(A, len, H, p, m, s);
-    run.parts.forEach(function(q) { q.mat = PKMAT.encMat(A, q, m); });   // the parklet's materials (Brief 30 §5)
+  ENC.layout(DM, E).forEach(function(g) {
+    var s = g.type, id = E.sides[s], A = AR[id], p = ENC.params(E, id), m = ENC.mat(E, id), len = g.len;
+    var run = { side: s, kind: g.kind, id: id, name: A.name, family: A.family, len: len, depth: A.depth(p), params: p, mat: m, top: H, transparency: ENC.transparency(id, p), xO: xO, x0: x0, L: L,
+      S: g.S, d: g.d, n: g.n, mA: g.mA, mB: g.mB, oblique: g.oblique };
+    ENC._ends = { a: g.mA ? 'mitre' : 'free', b: g.mB ? 'mitre' : 'free', aPost: g.aPost, bPost: g.bPost };
+    try { run.parts = A.parts.call(A, len, H, p, m, s); } finally { ENC._ends = null; }
+    run.parts.forEach(function(q) {
+      q.mat = PKMAT.encMat(A, q, m);   // the parklet's materials (Brief 30 §5)
+      if (q.role !== 'post') { if (g.mA && q.u0 < 1e-4) q.ma = g.mA; if (g.mB && q.u1 > len - 1e-4) q.mb = g.mB; }   // mitred at a vertex
+    });
     run.mat = PKMAT.encMat(A, { role: 'post', mat: m }, m);
     if (id === 'bench-back') { var br = A.benchRun(len, s); run.bench = br ? { u0: br[0], u1: br[1], len: br[1] - br[0] } : null; }
     runs.push(run);
   });
+  // the main run of each side first (runs[0] the traffic side, [1] the start end, [2] the far end): its longest own edge
+  var main = ENC.SIDES.map(function(sd) {
+    var own = runs.filter(function(r) { return r.side === sd && r.kind === 'main'; }); if (!own.length) own = runs.filter(function(r) { return r.side === sd; });
+    var r0 = own.sort(function(a, b) { return b.len - a.len; })[0]; if (r0) return r0;
+    var id = E.sides[sd], A = AR[id], p = ENC.params(E, id);   // no edge faces that way: an empty run keeps the side's type
+    return { side: sd, kind: 'none', id: id, name: A.name, family: A.family, len: 0, depth: A.depth(p), params: p, mat: ENC.mat(E, id), top: H, transparency: ENC.transparency(id, p), xO: xO, x0: x0, L: L, S: [x0, 0], d: [0, 1], n: [1, 0], mA: 0, mB: 0, parts: [] };
+  });
+  runs = main.concat(runs.filter(function(r) { return main.indexOf(r) < 0; }));
   var dA = runs[1].depth, dB = runs[2].depth, flags = [];
   if (E.bufferDepth < ENC.BUF_ADVISE - 1e-9) flags.push({ k: 'buffer', t: 'Buffer ' + E.bufferDepth.toFixed(2) + ' m: a buffer of at least 0.30 m is recommended from a busy travel lane (Parklet Manual E2, advisory).' });
   if (runs.some(function(r) { return r.id === 'solid-wall' || (r.id === 'bench-back' && r.params.back === 'solid'); })) flags.push({ k: 'solid', t: 'Solid edge — confirm with City (Parklet Manual E4, G13).' });
@@ -3134,16 +3236,45 @@ ENC.resolve = function(DM, Eo) {
 };
 ENC.run = function(DM, side) { var e = (DM || _dmCurrent()).enclosure; return e ? e.runs.find(function(r) { return r.side === side; }) : null; };
 // a part in the model's frame; base = the height of the deck surface in the caller's frame
+// (Brief 30 §11) by the run's frame S + d u + n v; the extent, and an oblique or mitred part's footprint quad
 ENC.toWorld = function(run, q, base) {
   var y0 = base + q.y0, y1 = base + q.y1;
-  if (run.side === 'traffic') return { x0: run.xO - q.v1, x1: run.xO - q.v0, z0: q.u0, z1: q.u1, y0: y0, y1: y1 };
-  if (run.side === 'endA') return { x0: run.x0 + q.u0, x1: run.x0 + q.u1, z0: q.v0, z1: q.v1, y0: y0, y1: y1 };
-  return { x0: run.x0 + q.u0, x1: run.x0 + q.u1, z0: run.L - q.v1, z1: run.L - q.v0, y0: y0, y1: y1 };
+  if (!run.S) {   // a run from before the frames (none are built now)
+    if (run.side === 'traffic') return { x0: run.xO - q.v1, x1: run.xO - q.v0, z0: q.u0, z1: q.u1, y0: y0, y1: y1 };
+    if (run.side === 'endA') return { x0: run.x0 + q.u0, x1: run.x0 + q.u1, z0: q.v0, z1: q.v1, y0: y0, y1: y1 };
+    return { x0: run.x0 + q.u0, x1: run.x0 + q.u1, z0: run.L - q.v1, z1: run.L - q.v0, y0: y0, y1: y1 };
+  }
+  var ta = q.ma || 0, tb = q.mb || 0, c = [ENC.pt(run, q.u0 + q.v0 * ta, q.v0), ENC.pt(run, q.u1 - q.v0 * tb, q.v0), ENC.pt(run, q.u1 - q.v1 * tb, q.v1), ENC.pt(run, q.u0 + q.v1 * ta, q.v1)];
+  var xs = c.map(function(p) { return p[0]; }), zs = c.map(function(p) { return p[1]; }), r6 = function(v) { return Math.round(v * 1e6) / 1e6; };
+  var w = { x0: r6(Math.min.apply(null, xs)), x1: r6(Math.max.apply(null, xs)), z0: r6(Math.min.apply(null, zs)), z1: r6(Math.max.apply(null, zs)), y0: y0, y1: y1 };
+  if (run.oblique || ta || tb) w.quad = c;
+  return w;
+};
+// a quad part where the plane z cuts it: its x extent there (the Section), or null
+ENC.atZ = function(w, z) {
+  if (!w.quad) return w;
+  var xs = [], c = w.quad;
+  for (var i = 0; i < 4; i++) { var a = c[i], b = c[(i + 1) % 4]; if ((a[1] - z) * (b[1] - z) <= 0 && Math.abs(b[1] - a[1]) > 1e-9) xs.push(a[0] + (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1])); else if (Math.abs(a[1] - z) < 1e-9) xs.push(a[0]); }
+  if (!xs.length) return null;
+  return Object.assign({}, w, { x0: Math.min.apply(null, xs), x1: Math.max.apply(null, xs), quad: null });
+};
+// a quad part as a solid (3D, the render scene): the quad from y0 to y1, faces outward, flat normals
+ENC.quadGeom = function(q) {
+  var c = q.quad, V = [];
+  [q.y0, q.y1].forEach(function(y) { c.forEach(function(p) { V.push([p[0], y, p[1]]); }); });
+  var cen = [0, 1, 2].map(function(k) { return V.reduce(function(s, v) { return s + v[k]; }, 0) / 8; }), pos = [];
+  [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]].forEach(function(f) {
+    var a = V[f[0]], b = V[f[1]], d = V[f[2]], u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], w = [d[0] - a[0], d[1] - a[1], d[2] - a[2]];
+    var nrm = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]], fc = [0, 1, 2].map(function(k) { return (V[f[0]][k] + V[f[1]][k] + V[f[2]][k] + V[f[3]][k]) / 4; });
+    var out = nrm[0] * (fc[0] - cen[0]) + nrm[1] * (fc[1] - cen[1]) + nrm[2] * (fc[2] - cen[2]) >= 0, o = out ? f : [f[0], f[3], f[2], f[1]];
+    [[o[0], o[1], o[2]], [o[0], o[2], o[3]]].forEach(function(t) { t.forEach(function(k) { pos.push(V[k][0], V[k][1], V[k][2]); }); });
+  });
+  var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
 };
 // every part of every side in the model's frame: {x0..z1, y0, y1, role, mat, op, side, id}
 ENC.worldParts = function(DM, base) {
   var out = [], E = (DM || _dmCurrent()).enclosure; if (!E) return out;
-  E.runs.forEach(function(r) { r.parts.forEach(function(q) { var w = ENC.toWorld(r, q, base || 0); w.role = q.role; w.mat = q.mat; w.op = q.op == null ? 1 : q.op; w.side = r.side; w.id = q.fallback || r.id; w.what = q.what; out.push(w); }); });
+  E.runs.forEach(function(r) { r.parts.forEach(function(q) { var w = ENC.toWorld(r, q, base || 0); w.role = q.role; w.mat = q.mat; w.op = q.op == null ? 1 : q.op; w.side = r.side; w.kind = r.kind; w.id = q.fallback || r.id; w.what = q.what; out.push(w); }); });
   return out;
 };
 // the widest buffer that leaves the accessible route (GEN.ROUTE_W) beside the generator's edge band inside the enclosure
@@ -3490,23 +3621,28 @@ ENC.describe = function(DM, short) {
 // outline with a planting hatch; wall = poche; bench = seat outline and back. Each prim: {t: 'line'|'rect', ...}
 ENC.planPrims = function(DM) {
   DM = DM || _dmCurrent(); var E = DM.enclosure, out = []; if (!E) return out;
-  var W = function(r, u0, u1, v0, v1) { var w = ENC.toWorld(r, { u0: u0, u1: u1, v0: v0, v1: v1, y0: 0, y1: 0 }, 0); return w; };
+  var W = function(r, u0, u1, v0, v1, mit) { var w = ENC.toWorld(r, { u0: u0, u1: u1, v0: v0, v1: v1, y0: 0, y1: 0, ma: mit && u0 < 1e-4 ? r.mA : 0, mb: mit && u1 > r.len - 1e-4 ? r.mB : 0 }, 0); if (w.quad) w.pts = w.quad; return w; };
+  var Ln = function(r, u0, u1, v) { var a = ENC.pt(r, u0 + v * (u0 < 1e-4 ? r.mA || 0 : 0), v), b = ENC.pt(r, u1 - v * (u1 > r.len - 1e-4 ? r.mB || 0 : 0), v); if (a[1] > b[1]) { var t = a; a = b; b = t; } return { x0: a[0], z0: a[1], x1: b[0], z1: b[1] }; };   // (Brief 30 §11)
   E.runs.forEach(function(r) {
     var fam = function(id) { return ENCLOSURE_ARCHETYPES[id].family; };
     var sym = function(id, u0, u1, parts) {
       var f = fam(id), dp = ENCLOSURE_ARCHETYPES[id].depth(ENC.params(ENC.norm(ENCLOSURE), id));
       if (f === 'rail') {
-        var a = W(r, u0, u1, dp / 2, dp / 2); out.push({ t: 'line', side: r.side, id: id, role: 'rail', x0: a.x0, x1: a.x1, z0: a.z0, z1: a.z1 });
-        parts.filter(function(q) { return q.role === 'post' && q.u0 >= u0 - 1e-6 && q.u1 <= u1 + 1e-6; }).forEach(function(q) { var w = W(r, q.u0, q.u1, q.v0, q.v1); out.push({ t: 'rect', side: r.side, id: id, role: 'post', fill: 'ink', x0: w.x0, x1: w.x1, z0: w.z0, z1: w.z1 }); });
-      } else if (f === 'planter') { var p = W(r, u0, u1, 0, dp); out.push({ t: 'rect', side: r.side, id: id, role: 'planter', fill: 'planter', hatch: 'planting', x0: p.x0, x1: p.x1, z0: p.z0, z1: p.z1 }); }
-      else if (f === 'wall') { var q2 = W(r, u0, u1, 0, dp); out.push({ t: 'rect', side: r.side, id: id, role: 'wall', fill: 'poche', x0: q2.x0, x1: q2.x1, z0: q2.z0, z1: q2.z1 }); }
+        var a = Ln(r, u0, u1, dp / 2); out.push({ t: 'line', side: r.side, id: id, role: 'rail', x0: a.x0, x1: a.x1, z0: a.z0, z1: a.z1 });
+        parts.filter(function(q) { return q.role === 'post' && q.u0 >= u0 - 1e-6 && q.u1 <= u1 + 1e-6; }).forEach(function(q) { var w = W(r, q.u0, q.u1, q.v0, q.v1); out.push({ t: 'rect', side: r.side, id: id, role: 'post', fill: 'ink', pts: w.pts, x0: w.x0, x1: w.x1, z0: w.z0, z1: w.z1 }); });
+      } else if (f === 'planter') { var p = W(r, u0, u1, 0, dp, true); out.push({ t: 'rect', side: r.side, id: id, role: 'planter', fill: 'planter', hatch: 'planting', x0: p.x0, x1: p.x1, z0: p.z0, z1: p.z1, pts: p.pts }); }
+      else if (f === 'wall') { var q2 = W(r, u0, u1, 0, dp, true); out.push({ t: 'rect', side: r.side, id: id, role: 'wall', fill: 'poche', x0: q2.x0, x1: q2.x1, z0: q2.z0, z1: q2.z1, pts: q2.pts }); }
       else { var s = W(r, u0, u1, 0, dp), bk = W(r, u0, u1, 0, 0.05); out.push({ t: 'rect', side: r.side, id: id, role: 'seat', fill: 'furn', x0: s.x0, x1: s.x1, z0: s.z0, z1: s.z1 }); out.push({ t: 'rect', side: r.side, id: id, role: 'back', fill: 'ink', x0: bk.x0, x1: bk.x1, z0: bk.z0, z1: bk.z1 }); }
     };
     if (r.id === 'bench-back' && r.bench) { sym('bench-back', r.bench.u0, r.bench.u1, r.parts); if (r.bench.u0 > 0.05) sym(r.params.fallback, 0, r.bench.u0, r.parts); if (r.len - r.bench.u1 > 0.05) sym(r.params.fallback, r.bench.u1, r.len, r.parts); }
     else if (r.id === 'bench-back') sym(r.params.fallback, 0, r.len, r.parts);
     else sym(r.id, 0, r.len, r.parts);
   });
-  if (E.bufferDepth > 0.005) out.push({ t: 'rect', side: 'traffic', id: 'buffer', role: 'buffer', fill: 'none', dash: 'hidden', x0: E.xOuter, x1: E.xOuter + E.bufferDepth, z0: 0, z1: DM.parklet.length });
+  if (E.bufferDepth > 0.005) E.runs.forEach(function(r) {   // the buffer between each traffic-side run and the deck edge (Brief 30 §11)
+    if (r.side !== 'traffic' || !r.len) return;
+    var bq = ENC.toWorld(r, { u0: 0, u1: r.len, v0: -E.bufferDepth, v1: 0, y0: 0, y1: 0, ma: r.mA, mb: r.mB }, 0);
+    out.push({ t: 'rect', side: 'traffic', id: 'buffer', role: 'buffer', fill: 'none', dash: 'hidden', x0: bq.x0, x1: bq.x1, z0: bq.z0, z1: bq.z1, pts: bq.quad || null });
+  });
   return out;
 };
 // The Plan's enclosure layer (renderPlanView, and ENC.fastApply on its own): c = the Plan's {K, DK, U, LODn}
@@ -3516,6 +3652,12 @@ ENC.planSVGInner = function(DM, c) {
   ENC.planPrims(DM).forEach(function(q) {
     var a = worldToPlan(q.x0, q.z0), b = worldToPlan(q.x1, q.z1), x = Math.min(a.px, b.px), y = Math.min(a.py, b.py), w = Math.abs(b.px - a.px), h = Math.abs(b.py - a.py);
     if (q.t === 'line') { s += "<line x1='" + f(a.px) + "' y1='" + f(a.py) + "' x2='" + f(b.px) + "' y2='" + f(b.py) + "'" + K('edge') + " data-enc='" + q.side + "'/>"; return; }
+    if (q.pts) {   // an oblique or mitred part (Brief 30 §11)
+      var pp = q.pts.map(function(p) { var w2 = worldToPlan(p[0], p[1]); return f(w2.px) + ',' + f(w2.py); }).join(' ');
+      if (q.role === 'post') { if (c.LODn >= 1) s += "<polygon points='" + pp + "' fill='" + DK.T.ink + "' data-enc-post='1'/>"; return; }
+      var fl = q.fill === 'planter' ? DK.T.fill.planting : q.fill === 'poche' || q.fill === 'ink' ? DK.T.ink : q.fill === 'furn' ? DK.T.fill.furniture : 'none';
+      s += "<polygon points='" + pp + "' fill='" + fl + "'" + (q.fill === 'poche' ? " fill-opacity='0.55'" : '') + (q.dash ? K('fine', { dash: 'hidden' }) : K('edge')) + " data-enc='" + q.side + "'/>"; return;
+    }
     if (q.role === 'post') { if (c.LODn >= 1) s += "<rect x='" + f(x) + "' y='" + f(y) + "' width='" + f(Math.max(0.6 * U, w)) + "' height='" + f(Math.max(0.6 * U, h)) + "' fill='" + DK.T.ink + "' data-enc-post='1'/>"; return; }
     var fill = q.fill === 'planter' ? DK.T.fill.planting : q.fill === 'poche' || q.fill === 'ink' ? DK.T.ink : q.fill === 'furn' ? DK.T.fill.furniture : 'none';
     s += "<rect x='" + f(x) + "' y='" + f(y) + "' width='" + f(w) + "' height='" + f(h) + "' fill='" + fill + "'" + (q.fill === 'poche' ? " fill-opacity='0.55'" : '') + (q.dash ? K('fine', { dash: 'hidden' }) : K('edge')) + " data-enc='" + q.side + "' data-enc-role='" + q.role + "'/>";
@@ -3529,7 +3671,20 @@ ENC.meshes3D = function(DM, base) {
   ENC.worldParts(DM, base).forEach(function(q) { var k = q.side + '|' + q.mat + '|' + (q.op < 1 ? q.op.toFixed(2) : '1'); if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(q); });
   var box = new THREE.BoxGeometry(1, 1, 1), bp = box.attributes.position.array, bn = box.attributes.normal.array, bi = box.index.array, nv = bp.length / 3, ni = bi.length;
   var out = order.map(function(k) {
-    var list = groups[k], q0 = list[0], n = list.length, pos = new Float32Array(n * nv * 3), nor = new Float32Array(n * nv * 3), idx = n * nv > 65535 ? new Uint32Array(n * ni) : new Uint16Array(n * ni);
+    var list = groups[k], q0 = list[0], n = list.length;
+    if (list.some(function(q) { return q.quad; })) {   // (Brief 30 §11) oblique or mitred parts: every part as triangles
+      var P = [], N = [];
+      list.forEach(function(q) {
+        var g0 = q.quad ? ENC.quadGeom(q) : (function() { var b0 = new THREE.BoxGeometry(Math.max(0.001, q.x1 - q.x0), Math.max(0.001, q.y1 - q.y0), Math.max(0.001, q.z1 - q.z0)).toNonIndexed(); b0.translate((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2); return b0; })();
+        P.push.apply(P, g0.attributes.position.array); N.push.apply(N, g0.attributes.normal.array); g0.dispose();
+      });
+      var gq = new THREE.BufferGeometry(); gq.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); gq.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); gq.computeBoundingBox(); gq.computeBoundingSphere();
+      var miq = ENC.matInfo(q0.mat), mq = new THREE.Mesh(gq, new THREE.MeshStandardMaterial({ color: parseInt(String(miq.color || '#A8B0B2').slice(1), 16), roughness: miq.rough != null ? miq.rough : 0.7 }));
+      mq.castShadow = q0.op >= 1; mq.receiveShadow = true; mq.userData.label = 'Enclosure (' + q0.side + ')'; mq.userData.enc = q0.side; mq.userData.expLayer = 'Parklet'; mq.userData.encParts = n;
+      if (q0.op < 1) { mq.material.transparent = true; mq.material.opacity = q0.op; mq.material.depthWrite = false; }
+      return mq;
+    }
+    var pos = new Float32Array(n * nv * 3), nor = new Float32Array(n * nv * 3), idx = n * nv > 65535 ? new Uint32Array(n * ni) : new Uint16Array(n * ni);
     list.forEach(function(q, i) {
       var sx = Math.max(0.001, q.x1 - q.x0), sy = Math.max(0.001, q.y1 - q.y0), sz = Math.max(0.001, q.z1 - q.z0), cx = (q.x0 + q.x1) / 2, cy = (q.y0 + q.y1) / 2, cz = (q.z0 + q.z1) / 2, o = i * nv * 3;
       for (var v = 0; v < nv; v++) { pos[o + v * 3] = bp[v * 3] * sx + cx; pos[o + v * 3 + 1] = bp[v * 3 + 1] * sy + cy; pos[o + v * 3 + 2] = bp[v * 3 + 2] * sz + cz; nor[o + v * 3] = bn[v * 3]; nor[o + v * 3 + 1] = bn[v * 3 + 1]; nor[o + v * 3 + 2] = bn[v * 3 + 2]; }
@@ -3548,8 +3703,9 @@ ENC.meshes3D = function(DM, base) {
 // one enclosure part as a 3D box (renderMassView, ENC.fastApply): its material's colour; a part with an opacity translucent
 ENC.mesh3D = function(q) {
   var mi = ENC.matInfo(q.mat), col = parseInt(String(mi.color || '#A8B0B2').slice(1), 16);
-  var m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.001, q.x1 - q.x0), Math.max(0.001, q.y1 - q.y0), Math.max(0.001, q.z1 - q.z0)), new THREE.MeshStandardMaterial({ color: col, roughness: mi.rough != null ? mi.rough : 0.7 }));
-  m.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2); m.castShadow = q.op >= 1; m.receiveShadow = true;
+  var m = q.quad ? new THREE.Mesh(ENC.quadGeom(q), new THREE.MeshStandardMaterial({ color: col, roughness: mi.rough != null ? mi.rough : 0.7 }))   // (Brief 30 §11)
+    : new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.001, q.x1 - q.x0), Math.max(0.001, q.y1 - q.y0), Math.max(0.001, q.z1 - q.z0)), new THREE.MeshStandardMaterial({ color: col, roughness: mi.rough != null ? mi.rough : 0.7 }));
+  if (!q.quad) m.position.set((q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.z0 + q.z1) / 2); m.castShadow = q.op >= 1; m.receiveShadow = true;
   m.userData.label = 'Enclosure (' + q.side + ')'; m.userData.enc = q.side; m.userData.expLayer = 'Parklet';
   if (q.op < 1) { m.material.transparent = true; m.material.opacity = q.op; m.material.depthWrite = false; }
   return m;
@@ -3931,12 +4087,14 @@ function buildDesignModel() {
   (function() {
     var LM = DESIGN_MODEL.landmarks, L = DESIGN_MODEL.parklet.length, x0 = LM.deckX0, x1 = LM.deckX1;
     var cx = (x0 + x1) / 2, hw = Math.min(1.8, Math.max(0.2, x1 - x0 - 0.2)) / 2, br = 0.1;
+    // (Brief 30 §11) from the outline's extent along the street (a cut corner keeps the curb side's full length)
+    var _ol = typeof ENC !== 'undefined' && ENC.outlinePts ? ENC.outlinePts(DESIGN_MODEL) : null, _zs = _ol ? _ol.map(function(p) { return p[1]; }) : [0, L], zLo = Math.min.apply(null, _zs), zHi = Math.max.apply(null, _zs);
     var item = function(type, end, z) {
       var ws = type === 'wheelStop';
       return { type: type, end: end, provenance: 'city-supplied', nominal: true, label: ws ? 'Wheel stop' : 'Flexible bollard', x: cx, z: z,
         x0: ws ? cx - hw : cx - br, x1: ws ? cx + hw : cx + br, z0: z - (ws ? 0.075 : br), z1: z + (ws ? 0.075 : br), y0: 0, y1: ws ? 0.10 : 0.90 };
     };
-    DESIGN_MODEL.cityItems = [item('wheelStop', 'A', -0.35), item('flexBollard', 'A', -1.05), item('wheelStop', 'B', L + 0.35), item('flexBollard', 'B', L + 1.05)];
+    DESIGN_MODEL.cityItems = [item('wheelStop', 'A', zLo - 0.35), item('flexBollard', 'A', zLo - 1.05), item('wheelStop', 'B', zHi + 0.35), item('flexBollard', 'B', zHi + 1.05)];
     delete DESIGN_MODEL.parklet.ends;
     // the deck levels every view and the report's drawings read; the enclosure (Brief 21 §12), resolved on this deck
     DESIGN_MODEL.parklet.levels = Object.assign({}, PARKLET_LEVELS);
@@ -6569,6 +6727,7 @@ function _drawSection(svgEl, o) {
       if (!isTech) { var bb = ENC.toWorld(r, { u0: 0, u1: r.len, v0: 0, v1: r.depth, y0: 0, y1: r.top }, 0); el += rectXY(X(bb.x0), X(bb.x1), pkSurface, pkSurface - Y(r.top), " fill='" + T.mid + "' fill-opacity='" + (0.5 * (1 - r.transparency)).toFixed(3) + "' stroke='none' data-enc-band='" + r.side + "'"); }
       r.parts.forEach(function(q) {
         var w = ENC.toWorld(r, q, 0), isCut = cutMode && w.z0 <= z + 1e-6 && w.z1 >= z - 1e-6;
+        if (isCut && w.quad) { var wz = ENC.atZ(w, z); if (wz) w = wz; else isCut = false; }   // an oblique part where the plane cuts it (Brief 30 §11)
         if (!isCut && (w.z1 < lo - 1e-6 || w.z0 > hi + 1e-6)) return;
         var key = [w.x0, w.x1, w.y0, w.y1].map(function(v) { return v.toFixed(4); }).join('|') + (isCut ? 'c' : 'e'); if (seen[key]) return; seen[key] = 1;
         var xa = X(w.x0), xb = X(w.x1), ya = pkSurface - Y(w.y0), yb = pkSurface - Y(w.y1);
@@ -20520,6 +20679,10 @@ RX.build = async function(opts) {
   // each, its definition at the member's bottom centre, with an instance per member; a member of its own is a polysurface
   var encGroups = {}, encOrder = [], encTop = 0, encStats = { objects: 0, blocks: 0, instances: 0 };
   ENC.worldParts(DM, LV.deckTop).forEach(function(q) {
+    if (q.quad) {   // (Brief 30 §11) an oblique or mitred member: its own polysurface, the quad extruded
+      var miq = flMatInfo(q.mat) || {}, colq = q.role === 'planting' ? FILL.planting : (miq.color || '#6E6E6E');
+      addB(extB(q.quad, q.y0, q.y1 - q.y0), 'Parklet::Enclosure', ENC.SIDE_LABEL[q.side] + (q.kind === 'chamfer' ? ' cut corner ' : ' ') + (q.what || q.role), colq); encStats.objects++; encTop = Math.max(encTop, q.y1); return;
+    }
     var key = [q.role, q.mat, (q.x1 - q.x0).toFixed(4), (q.z1 - q.z0).toFixed(4), (q.y1 - q.y0).toFixed(4)].join('|');
     if (!encGroups[key]) { encGroups[key] = []; encOrder.push(key); }
     encGroups[key].push(q); encTop = Math.max(encTop, q.y1);
@@ -20540,7 +20703,7 @@ RX.build = async function(opts) {
   });
   var EN = DM.enclosure;
   stats.enclosure = { objects: encStats.objects, blocks: encStats.blocks, instances: encStats.instances, archetype: EN.archetype,
- sides: EN.runs.map(function(r) { return r.side + ':' + r.id; }), posts: EN.runs[0].parts.filter(function(q) { return q.role === 'post'; }).length, height: +EN.height.toFixed(3), top: +encTop.toFixed(3), buffer: EN.bufferDepth };
+ sides: EN.runs.map(function(r) { return r.side + ':' + r.id; }), posts: EN.runs.reduce(function(t, r) { return t + r.parts.filter(function(q) { return q.role === 'post'; }).length; }, 0), height: +EN.height.toFixed(3), top: +encTop.toFixed(3), buffer: EN.bufferDepth };
   // ── CONTEXT_CITY (Brief 21 §13): the City-supplied wheel stops and flexible bollards, at their nominal places; not the
   // parklet's (a top-level layer of its own)
   (DM.cityItems || []).forEach(function(c) {
@@ -23971,8 +24134,10 @@ RPT.encBlocks = function(d) {
   var ml = function(id) { return String((flMatInfo(id) || {}).label || id); };
   var rows = E.runs.map(function(r) {
     var mats = Array.from(new Set(r.parts.map(function(q) { return q.mat; }))).map(ml).join(', ');
-    return [{ t: ENC.SIDE_LABEL[r.side], b: true }, r.name + (r.id === 'bench-back' ? ' (' + (r.bench ? RPT.fx(r.bench.len, 2) + ' m bench, ' : '') + 'elsewhere ' + ENCLOSURE_ARCHETYPES[r.params.fallback].name.toLowerCase() + ')' : ''), RPT.fx(r.top, 2) + ' m', RPT.fx(r.len, 2) + ' x ' + RPT.fx(r.depth, 3), mats, Math.round(r.transparency * 100) + ' %'];
+    return [{ t: ENC.runLabel(r), b: true }, r.name + (r.id === 'bench-back' ? ' (' + (r.bench ? RPT.fx(r.bench.len, 2) + ' m bench, ' : '') + 'elsewhere ' + ENCLOSURE_ARCHETYPES[r.params.fallback].name.toLowerCase() + ')' : ''), RPT.fx(r.top, 2) + ' m', RPT.fx(r.len, 2) + ' x ' + RPT.fx(r.depth, 3), mats, Math.round(r.transparency * 100) + ' %'];
   });
+  var _tot = E.runs.reduce(function(t, r) { return t + (r.len || 0); }, 0);   // (Brief 30 §11) the enclosed edges, every run
+  rows = rows.filter(function(row, i) { return E.runs[i].len > 0; }).concat([[{ t: 'All runs', b: true }, E.runs.filter(function(r) { return r.len > 0; }).length + ' runs', '', RPT.fx(_tot, 2) + ' m', '', '']]);
   return [{ h2: 'Enclosure' }, { table: { cols: [{ t: 'Side', w: 0.12 }, { t: 'Archetype', w: 0.28 }, { t: 'Height', w: 0.09, num: true }, { t: 'Run x depth', w: 0.14, num: true }, { t: 'Materials', w: 0.25 }, { t: 'See-through', w: 0.12, num: true }], rows: rows } },
     { p: 'Buffer ' + RPT.fx(E.bufferDepth, 2) + ' m inside the deck\'s traffic-side edge (unusable: planting or void); usable width ' + RPT.fx(E.usableW, 2) + ' m of ' + RPT.fx(d.DM.parklet.width, 2) + ' m. Heights above the deck; a planter\'s is the top of its planting (E2, Parklet Manual p. 64). In section on A-202.' + (E.flags.length ? ' ' + E.flags.map(function(f) { return f.t; }).join(' ') : '') }];
 };
@@ -26691,7 +26856,8 @@ RVZ.build = function(o) {
   ENC.worldParts(DM, DT).forEach(function(q) {
     var oid = encObj(q.side), mt = q.role === 'planting' ? M('foliage', '#5E8A4A') : RVZ.mat(q.mat);
     if (q.op < 1 && q.role !== 'planting') { mt = mt.clone(); mt.transparent = true; mt.opacity = q.op; mt.depthWrite = false; }
-    box(q.x0, q.y0, q.z0, q.x1, q.y1, q.z1, mt, { ao: q.role === 'post' || q.role === 'body' || q.role === 'wall' ? [0.2, 0.3] : null, y0: DT, design: true, obj: oid });
+    if (q.quad) add(new THREE.Mesh(ENC.quadGeom(q), mt), { ao: q.role === 'post' || q.role === 'body' || q.role === 'wall' ? [0.2, 0.3] : null, y0: DT, design: true, obj: oid, x0: q.x0 });   // (Brief 30 §11)
+    else box(q.x0, q.y0, q.z0, q.x1, q.y1, q.z1, mt, { ao: q.role === 'post' || q.role === 'body' || q.role === 'wall' ? [0.2, 0.3] : null, y0: DT, design: true, obj: oid });
     objL[oid] = oid === 'railing' ? 'railing' : 'enclosure (' + ENC.SIDE_LABEL[q.side].toLowerCase() + ')';
   });
   // the City-supplied wheel stops and flexible bollards (Brief 21 §13): street context at their nominal places, not design
@@ -32735,6 +32901,14 @@ RPT.encPlan = function(P, F, d, o) {
     if (o.zA != null && (q.z1 < o.zA - 1e-6 || q.z0 > o.zB + 1e-6)) return;
     var za = o.zA != null ? Math.max(q.z0, o.zA) : q.z0, zb = o.zB != null ? Math.min(q.z1, o.zB) : q.z1;
     if (q.t === 'line') { P.line(F.sx(za), F.sy(q.x0), F.sx(zb), F.sy(q.x1), { cls: 'edge', data: " data-enc='" + q.side + "'" }); at[q.side] = at[q.side] || [F.sx((za + zb) / 2), F.sy(q.x0)]; return; }
+    if (q.pts) {   // an oblique or mitred part (Brief 30 §11)
+      var pp = q.pts.map(function(p) { return [F.sx(p[1]), F.sy(p[0])]; });
+      if (q.role === 'post') { if (o.posts) P.poly(pp, { fill: RPT.INK, w: 0, data: " data-enc-post='1'" }); return; }
+      if (q.role === 'buffer') { P.poly(pp, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-enc-buffer='1'" }); return; }
+      var flp = q.fill === 'planter' ? FI.planter : q.fill === 'poche' || q.fill === 'ink' ? RPT.INK : q.fill === 'furn' ? FI.furn : 'none';
+      P.poly(pp, { fill: flp, fop: q.fill === 'poche' ? 0.55 : null, cls: 'edge', data: " data-enc='" + q.side + "' data-enc-role='" + q.role + "'" });
+      return;
+    }
     var x = F.sx(zb), y = F.sy(Math.min(q.x0, q.x1)), w = Math.max(0, (zb - za) * k), h = Math.abs(q.x1 - q.x0) * k;
     if (q.role === 'post') { if (o.posts) P.rect(x, y, Math.max(w, 0.3), Math.max(h, 0.3), { fill: RPT.INK, w: 0, data: " data-enc-post='1'" }); return; }
     if (q.role === 'buffer') { P.rect(x, y, w, h, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-enc-buffer='1'" }); return; }
@@ -32768,6 +32942,7 @@ RPT.encSection = function(c, it, cutMode) {
   if (!c.tech) { var bb = ENC.toWorld(r, { u0: 0, u1: r.len, v0: 0, v1: r.depth, y0: 0, y1: r.top }, base); c.rectXY(bb.x0, bb.x1, bb.y0, bb.y1, { fill: RPT.MID, fop: +(0.5 * (1 - r.transparency)).toFixed(3), w: 0, data: " data-enc-band='" + r.side + "'" }); }
   r.parts.forEach(function(q) {
     var w = ENC.toWorld(r, q, base), isCut = cutMode && w.z0 <= z + 1e-6 && w.z1 >= z - 1e-6;
+    if (isCut && w.quad) { var wz = ENC.atZ(w, z); if (wz) w = wz; else isCut = false; }   // (Brief 30 §11)
     if (!isCut && (w.z1 < lo - 1e-6 || w.z0 > hi + 1e-6)) return;
     var key = [w.x0, w.x1, w.y0, w.y1].map(function(v) { return v.toFixed(4); }).join('|') + (isCut ? 'c' : 'e'); if (seen[key]) return; seen[key] = 1;
     if (isCut) cuts.push([w, q]);
@@ -32956,7 +33131,7 @@ P101.qty = function(DM) {
     else if (A2.family === 'wall') screens += r.len;
     else encRun += r.len;
     posts += np;
-    q.push({ k: 'enc-' + r.side, item: 'Enclosure: ' + ENC.SIDE_LABEL[r.side] + ', ' + r.name.toLowerCase(), n: r2(r.len), u: 'm', f: 'the run along the ' + ENC.SIDE_LABEL[r.side].toLowerCase() + ' (DESIGN_MODEL.enclosure); ' + np + ' post' + (np === 1 ? '' : 's') + ' at its own spacing', posts: np, sub: true });
+    q.push({ k: 'enc-' + r.side, item: 'Enclosure: ' + ENC.runLabel(r) + ', ' + r.name.toLowerCase(), n: r2(r.len), u: 'm', f: 'the run along the ' + ENC.SIDE_LABEL[r.side].toLowerCase() + ' (DESIGN_MODEL.enclosure); ' + np + ' post' + (np === 1 ? '' : 's') + ' at its own spacing', posts: np, sub: true });
   });
   q.push({ k: 'railrun', item: 'Enclosure run (railing types)', n: r2(encRun), u: 'm', f: 'the runs of the rail and bench types above' });
   q.push({ k: 'posts', item: 'Enclosure posts', n: posts, u: 'ea', f: 'the posts the 3D view draws, every run' });
