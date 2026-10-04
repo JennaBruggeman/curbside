@@ -800,6 +800,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <label class='px-chk'><input type='checkbox' id='rptOpt_schedule' checked> Furniture schedule (S-001)</label>
     <label class='px-chk'><input type='checkbox' id='rptOpt_sources' checked> Sources (X-001)</label>
     <label class='px-chk'><input type='checkbox' id='rptOpt_compliance' checked> Compliance detail (C-001)</label>
+    <label class='px-chk'><input type='checkbox' id='rptOpt_route'> Accessible route (A-104); printed anyway when C16 fails</label>
     <label class='px-chk'><input type='checkbox' id='rptOpt_renders' checked> Renders (cover and V-101 ...)</label>
     <span class='hint'>A sheet left out drops from the drawing list and the page numbers.</span>
   </fieldset>
@@ -2200,8 +2201,8 @@ function sheetCrops(DM) {
   var a1 = sheetAlong(DM, SHEET_CROP.A101.w, 0.85 * SHEET_CROP.A101.w), lay = sheetLayoutCrop(DM), M = SHEET_CROP.A103.margin;
   // A-103: 3 m round the deck, its ends' margin trimmed (never under 2 m) where that lets the next larger scale hold it, so
   // the deck fills its sheet (RPT.deckScale: 1:50, 1:75, 1:100, the dimension rows' 30 mm along and 90 mm across)
-  var DA = sheetDA(), Hm = (LM.deckX1 - LM.deckX0 + 2 * M) * 1000, Mz = M;
-  [50, 75, 100].some(function(s) { var mw = (DA.w - 30) * s / 1000; if (L + 4 <= mw && Hm / s + 90 <= DA.y + DA.h) { Mz = Math.min(M, Math.floor(((mw - L) / 2) * 2) / 2); return true; } return false; });
+  var DA = sheetDA(), Hm = (LM.deckX1 - LM.deckX0 + 2 * M) * 1000, Mz = M, SWw = typeof RPT !== 'undefined' && RPT.SW ? RPT.SW : 407.8;
+  [20, 25, 50, 75, 100, 200, 250].some(function(s) { var mw = (SWw - 30) * s / 1000; if (L + 4 <= mw && Hm / s + 110 <= DA.y + DA.h) { Mz = Math.min(M, Math.floor(((mw - L) / 2) * 2) / 2); return true; } return false; });   // (Brief 31 §11) the ladder, the whole width
   var dflt = { A101: { z0: a1.z0, z1: a1.z1, x0: sheetSnap(sx - SHEET_CROP.A101.h / 2), x1: sheetSnap(sx + SHEET_CROP.A101.h / 2) }, A102: lay.crop,
     A103: { z0: sheetSnap(-Mz), z1: sheetSnap(L + Mz), x0: sheetSnap(LM.deckX0 - M), x1: sheetSnap(LM.deckX1 + M) } };
   var out = {};
@@ -25364,20 +25365,49 @@ RPT.sheetLayout = function(d) {
 // one sheet; 1:100 is the floor. Only a crop too long even at 1:100 is split, at the enclosure grid line nearest each
 // equal division, with a match line on both sheets.
 RPT.DECK_SCALES = [50, 75, 100];
+// (Brief 31 §11) the standard scales, largest first: every drawing sheet takes the first that fits
+RPT.LADDER = [20, 25, 50, 75, 100, 200, 250];
+RPT.ladder = function(fits, from) { var L = RPT.LADDER.filter(function(s) { return s >= (from || 0); }); for (var i = 0; i < L.length; i++) if (fits(L[i])) return L[i]; return L[L.length - 1]; };
 RPT.deckScale = function(d) {
-  var cr = d.DM.site.sheets.A103.crop, fits = function(s) { return (cr.z1 - cr.z0) * 1000 / s + 30 <= RPT.DA.w && (cr.x1 - cr.x0) * 1000 / s + 90 <= RPT.DA.y + RPT.DA.h; };
-  for (var i = 0; i < RPT.DECK_SCALES.length; i++) if (fits(RPT.DECK_SCALES[i])) return RPT.DECK_SCALES[i];
-  return 100;
+  var cr = d.DM.site.sheets.A103.crop, fits = function(s) { return (cr.z1 - cr.z0) * 1000 / s + 30 <= RPT.SW && (cr.x1 - cr.x0) * 1000 / s + 110 <= RPT.DA.y + RPT.DA.h; };   // (Brief 31 §11) the whole width, the notes in a strip under it
+  return RPT.ladder(fits);   // (Brief 31 §11) the largest that fits: this deck 1:50, a 30 m deck 1:100
 };
 RPT.deckParts = function(cr, sc, posts) {
   sc = sc || 100; posts = posts || [];
-  var W = cr.z1 - cr.z0, n = Math.max(1, Math.ceil((W * 1000 / sc + 30) / RPT.DA.w)), cuts = [cr.z0];
+  var W = cr.z1 - cr.z0, n = Math.max(1, Math.ceil((W * 1000 / sc + 30) / RPT.SW)), cuts = [cr.z0];
   for (var i = 1; i < n; i++) { var z = cr.z0 + W * i / n, g = posts.filter(function(p) { return p > cuts[cuts.length - 1] + 1 && p < cr.z1 - 1; }).sort(function(a, b) { return Math.abs(a - z) - Math.abs(b - z); })[0]; cuts.push(g != null && Math.abs(g - z) < W / n / 3 ? g : z); }
   cuts.push(cr.z1);
   return cuts.slice(1).map(function(z, i) { return [cuts[i], z]; });
 };
 RPT.deckPosts = function(DM) { var r = DM.enclosure && DM.enclosure.runs && DM.enclosure.runs[0]; return r ? r.parts.filter(function(q) { return q.role === 'post'; }).map(function(q) { return (q.u0 + q.u1) / 2; }) : []; };
-RPT.sheetDeck = function(d, part, idx, nParts) {
+// (Brief 31 §11B) the route on paper: the corridor's dashed outline over a stipple, dashed turning circles, a pinch
+// dimensioned across with the piece in the way outlined (the accent, the one colour a drawing keeps) and named
+RPT.routePaper = function(P, d, F, o) {
+  if (typeof ENC === 'undefined' || typeof GEN === 'undefined') return null;
+  var c = ENC.c16(), a = c.acc || {}, RW = GEN.ROUTE_W, T = GEN.TURN, k = o.k, at = null, acc = DRAW_STYLE.UI.accent;
+  (a.paths || []).forEach(function(rt) {
+    var band = ACC.band(rt.pts, RW).map(o.toS); if (band.length < 3) return;
+    var poly = "<polygon points='" + band.map(function(q) { return q[0].toFixed(2) + ',' + q[1].toFixed(2); }).join(' ') + "'/>";
+    P.hatch(poly, [o.xa, o.ya, o.xb, o.yb], 'stipple');
+    P.poly(band, { cls: 'general', dash: 'hidden', fill: 'none', data: " data-route='" + rt.entry + "'" });
+    if (!at) at = o.toS(rt.pts[Math.min(1, rt.pts.length - 1)]);
+    (rt.turns || []).concat(rt.pts.length ? [{ x: rt.pts[rt.pts.length - 1][0], z: rt.pts[rt.pts.length - 1][1] }] : []).forEach(function(t) { var q = o.toS([t.x, t.z]); P.circle(q[0], q[1], T / 2 * k, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-turn='1'" }); });
+  });
+  if (!c.ok && !c.unknown && typeof ACCTAB !== 'undefined') {
+    var bk = ACCTAB.analyse().blocks[0];
+    if (bk) {
+      var w = Math.max(bk.w, 0.05), q0 = o.toS([bk.x - w / 2, bk.z]), q1 = o.toS([bk.x + w / 2, bk.z]);
+      P.line(q0[0], q0[1], q1[0], q1[1], { cls: 'general', data: " data-pinch='1'" }); [q0, q1].forEach(function(e) { P.line(e[0] - 1.6, e[1], e[0] + 1.6, e[1], { cls: 'general' }); P.line(e[0] - 0.9, e[1] + 0.9, e[0] + 0.9, e[1] - 0.9, { cls: 'general' }); });
+      P.text(Math.max(q0[0], q1[0]) + 2, (q0[1] + q1[1]) / 2 + 1, (bk.w > 0.05 ? RPT.fmt(bk.w) : 'closed') + ' · min ' + RPT.fmt(RW), RPT.TX.tag, { c: RPT.INK, bold: true, data: " data-pinch-t='1'" });
+      var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(o.toS);
+      P.poly(cs, { w: 0.5, c: acc, fill: 'none', data: " data-obstruction='1'" });
+      var tg = ACCTAB.tagOf(bk.it), nm = (tg ? tg + ' ' : '') + ((FL_ARCHETYPES[bk.it.type] || {}).label || 'piece').toLowerCase() + ' in the way';
+      P.line(cs[2][0], cs[2][1], cs[2][0] + 6, cs[2][1] + 5, { w: 0.25, c: acc }); P.text(cs[2][0] + 7, cs[2][1] + 6, nm, RPT.TX.tag, { c: acc, data: " data-obstruction-t='1'" });
+    }
+  }
+  return at;
+};
+RPT.sheetDeck = function(d, part, idx, nParts, opt) {
   var G = RPT.geo(d), LM = G.LM, P = RPT.pen(), sc = RPT.SCALE_OF.deck(d), k = 1000 / sc, FI = RPT.fills(d.mode), L = G.L, cr = G.DM.site.sheets.A103.crop;
   var za = part[0], zb = part[1], zA = za, zB = zb;   // this part of the sheet's crop
   var xTop = cr.x0, F = RPT.pframe(sc, zA, zB, xTop, 20, 70);
@@ -25387,27 +25417,16 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   // sidewalk edge, curb, the road side
 
   var b = RPT.planBase(P, G, F, d.mode, { boards: true, labels: false, deckOnly: true });   // A-103: the deck, furniture, grid, dimensions only (Brief 19b)
-  // the accessible route (Brief 25 item 21b, C16): from each entry a band GEN.ROUTE_W wide along the route the access model
-  // found, hatched and outlined, its width dimensioned once; the entry's turning square (dashed, "Entry"); a GEN.TURN
-  // circle where the route turns or ends
-  var RWm = typeof GEN !== 'undefined' ? GEN.ROUTE_W : 1.1, TT = typeof GEN !== 'undefined' ? GEN.TURN : 1.5, dimDone = false;
-  var toS = function(p) { return [sx(p[1]), sy(LM.deckX0 + p[0])]; };
-  ((d.gm && d.gm.paths) || []).forEach(function(rt) {
-    var band = ACC.band(rt.pts, RWm).map(toS); if (band.length < 3) return;
-    var poly = "<polygon points='" + band.map(function(q) { return q[0].toFixed(2) + ',' + q[1].toFixed(2); }).join(' ') + "'/>";
-    P.hatch(poly, [xa, ya, xb, yb], 'route');
-    P.poly(band, { cls: 'general', fill: 'none', data: " data-route='" + rt.entry + "'" });
-    if (!routeAt) { var m0 = toS(rt.pts[Math.min(1, rt.pts.length - 1)]); routeAt = m0; }
-    if (!dimDone) {   // across the band at the middle of its longest leg
-      var lg = 0, li = 0; for (var q = 1; q < rt.pts.length; q++) { var ll = Math.hypot(rt.pts[q][0] - rt.pts[q - 1][0], rt.pts[q][1] - rt.pts[q - 1][1]); if (ll > lg) { lg = ll; li = q; } }
-      if (li) { var A = rt.pts[li - 1], B = rt.pts[li], ux = (B[0] - A[0]) / lg, uz = (B[1] - A[1]) / lg, mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2;
-        var e0 = toS([mx - uz * RWm / 2, mz + ux * RWm / 2]), e1 = toS([mx + uz * RWm / 2, mz - ux * RWm / 2]);
-        P.line(e0[0], e0[1], e1[0], e1[1], { cls: 'context', data: " data-route-dim='1'" }); [e0, e1].forEach(function(e) { P.line(e[0] - 0.9, e[1] + 0.9, e[0] + 0.9, e[1] - 0.9, { cls: 'general' }); });
-        P.text((e0[0] + e1[0]) / 2 + 1.4, (e0[1] + e1[1]) / 2 + 0.9, RPT.fmt(RWm) + ' clear', RPT.TX.tag, { c: RPT.INK }); dimDone = true; }
-    }
-    (rt.turns || []).forEach(function(t) { var c = toS([t.x, t.z]); P.circle(c[0], c[1], TT / 2 * k, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-turn='" + (t.w >= TT - 1e-9 ? 'ok' : 'short') + "'" }); });
+  // (Brief 31 §11) the accessible route is A-104's (and the Access step's); here the entries only, labelled outside the deck
+  // on the sidewalk side, moved along the edge where the label would cross the section line
+  var RWm = typeof GEN !== 'undefined' ? GEN.ROUTE_W : 1.5, TT = typeof GEN !== 'undefined' ? GEN.TURN : 1.5, ROUTE = !!(opt && opt.route), toS = function(p) { return [sx(p[1]), sy(LM.deckX0 + p[0])]; };
+  if (ROUTE) entryAt = RPT.routePaper(P, d, F, { xa: xa, ya: ya, xb: xb, yb: yb, toS: toS, k: k }) || null;
+  (d.gm && d.gm.entryZ || []).forEach(function(ez) {
+    if (ez == null || ez < zA || ez > zB) return; var ex = sx(ez), half = 5.5;
+    if (G.sec.z >= zA && G.sec.z <= zB) { var sxs = sx(G.sec.z); if (Math.abs(ex - sxs) < half + 2) ex = sxs + (ex <= sxs ? -(half + 2) : half + 2); }
+    P.line(sx(ez), sy(LM.deckX0) - 0.4, sx(ez), sy(LM.deckX0) + 1.6, { cls: 'general', data: " data-entry-tick='1'" });
+    P.text(ex, sy(LM.deckX0) - 1.4, 'Entry', RPT.TX.tag, { anchor: 'middle', c: RPT.MID, data: " data-entry='1'" });
   });
-  (d.gm && d.gm.entryZ || []).forEach(function(ez) { if (ez == null || ez < zA || ez > zB) return; P.rect(sx(ez + TT / 2), sy(LM.deckX0), TT * k, TT * k, { cls: 'general', dash: 'hidden' }); P.text(sx(ez), sy(LM.deckX0) - 1.2, 'Entry', RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); if (!entryAt) entryAt = [sx(ez) + TT * k / 2 + 4, sy(LM.deckX0) + 3]; });
   // the wheel stops; the enclosure (Brief 21 §12): each side's plan symbol with its posts, a grid line through each
   // traffic-side post
   var EN = G.enc, rT = EN.runs[0];
@@ -25443,13 +25462,15 @@ RPT.sheetDeck = function(d, part, idx, nParts) {
   var keys = [
     { t: 'Grid lines 1, 2, 3 ... at the enclosure posts on the traffic side' + (posts.length > 1 ? ', ' + (posts[1] - posts[0]).toFixed(2) + ' m apart, the first at ' + posts[0].toFixed(2) + ' m' : '') + '.', at: null },
     { t: 'Enclosure: ' + ENC.describe(G.DM) + ': in section on A-202.', at: encAt.traffic || null },
-    { t: 'Accessible route (C16), hatched: ' + RPT.fmt(RWm) + ' m clear from each entry to an accessible seat; dashed circles: ' + RPT.fmt(TT) + ' m turning space where it turns and ends.', at: routeAt },
-    { t: 'Entry: ' + RPT.fmt(TT) + ' m turning square at the sidewalk edge (C16).', at: entryAt },
+    ROUTE ? { t: 'Accessible route (C16): the ' + RPT.fmt(RWm) + ' m corridor from each entry to an accessible seat, dashed and dotted; dashed circles: the ' + RPT.fmt(TT) + ' m turning spaces; a pinch dimensioned, the piece in the way outlined.', at: entryAt } : null,
+    sc > 50 ? { t: 'Drawn at 1:' + sc + ': the deck is too long for 1:50 on one sheet.', at: null } : null,
     { t: 'End enclosure: ' + EN.runs[1].name.toLowerCase() + ', ' + EN.runs[1].depth.toFixed(2) + ' m deep, ' + EN.runs[1].top.toFixed(2) + ' m high' + (EN.runs[2].id !== EN.runs[1].id ? '; far end ' + EN.runs[2].name.toLowerCase() : '') + '.', at: plAt },
     { t: RPT.tagNote(d), at: null }
   ];
-  var id = nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103';
-  return RPT.dsheet(d, id, 'Deck plan' + (nParts > 1 ? ' (' + (idx + 1) + ' of ' + nParts + ')' : ''), sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: cr.x1, north: true });
+  if (ROUTE && typeof ACCTAB !== 'undefined') { var an = ACCTAB.analyse(); if (an.state === 'fail') keys.unshift({ t: 'C16: ' + an.verdict + (an.fixes.length ? '. ' + an.fixes.slice(0, 2).join(' ') : ''), at: entryAt }); }   // (Brief 31 §11B) why it fails, on the sheet
+  keys = keys.filter(Boolean);
+  var id = ROUTE ? 'A-104' : nParts > 1 ? 'A-103-' + (idx + 1) : 'A-103';
+  return RPT.dsheet(d, id, ROUTE ? 'Accessible route' : 'Deck plan' + (nParts > 1 ? ' (' + (idx + 1) + ' of ' + nParts + ')' : ''), sc, P, keys, { zA: zA, zB: zB, xTop: xTop, xBot: cr.x1, north: true, notesStrip: true });
 };
 
 // ── A-201 Section A-A, 1:50 (1:100 when it does not fit): sidewalk to the first travel lane, datum at the top of the curb ──
@@ -25638,14 +25659,16 @@ RPT.sheetSection = function(d, opt) {
 RPT.SHEETS = {
   // (Brief 25 items 22d, 22e: two sections, A-201 the street and A-202 the parklet; A-301 Details is no longer printed)
   // (Brief 25 item 33: G-001 What to do next, right after the cover)
-  schematic: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'budget', 'compliance', 'survey', 'sources'],
-  technical: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'budget', 'compliance', 'survey', 'sources']   // (Brief 30 §6, Brief 31 §9: G-002 Cost estimate; was Construction and budget)
+  schematic: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'route', 'section', 'section2', 'schedule', 'budget', 'compliance', 'survey', 'sources'],
+  technical: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'route', 'section', 'section2', 'schedule', 'budget', 'compliance', 'survey', 'sources']   // (Brief 30 §6, Brief 31 §9: G-002 Cost estimate; was Construction and budget)
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 // Report options (Brief 22 item 7): the Export tab's Include boxes; a sheet left out is not in the list, so the drawing
 // list and the page numbers follow. Compliance detail is C-001 (with the lane envelope, once C-002); Renders are the render sheets and the cover's image.
 RPT.OPT_KEYS = ['schedule', 'sources', 'compliance', 'renders'];
-RPT.opts = function() { var o = {}; RPT.OPT_KEYS.forEach(function(k) { var e = document.getElementById('rptOpt_' + k); o[k] = e ? !!e.checked : true; }); return o; };
+RPT.opts = function() { var o = {}; RPT.OPT_KEYS.forEach(function(k) { var e = document.getElementById('rptOpt_' + k); o[k] = e ? !!e.checked : true; }); var r = document.getElementById('rptOpt_route'); o.route = !!(r && r.checked); return o; };
+// A-104 (Brief 31 §11B): ticked in Export, or printed anyway when C16 fails
+RPT.routeOn = function(d) { var o = (d && d.opts) || RPT._opts || {}; if (o.route) return true; var r = (d && d.rows || []).find(function(q) { return q.id === 'c16'; }); return !!(r && r.status === 'fail'); };
 RPT.OPT_SHEETS = { schedule: ['schedule'], sources: ['sources'], compliance: ['compliance'], renders: ['renders'] };
 RPT.on = function(k, d) { var o = (d && d.opts) || RPT._opts; return !o || o[k] !== false; };
 // the plans' tag note: the schedule, or with the schedule left out, each tag's item
@@ -25661,6 +25684,7 @@ RPT.sheetList = function(d) {
     if (off.indexOf(k) >= 0 || (d.only && d.only.indexOf(k) < 0)) return;
     if (k === 'renders') { (d.renders || []).forEach(function(r, i) { out.push({ k: 'render', r: r, i: i, id: 'V-' + (101 + i), title: 'Render: ' + (RPT.PRESET_LBL[r.preset] || r.preset), scale: 'NTS' }); }); return; }
     // (Brief 19b: each drawing's scale from RPT.SCALE_OF, the value its sheet draws at and its title block prints)
+    if (k === 'route') { if (!RPT.routeOn(d)) return; out.push({ k: 'route', id: 'A-104', title: 'Accessible route', scale: '1:' + RPT.SCALE_OF.deck(d) }); return; }   // (Brief 31 §11B)
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop, RPT.SCALE_OF.deck(d), RPT.deckPosts(d.DM)); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
     var M = { cover: ['V-000', 'Cover', 'NTS'], next: ['G-001', 'What to do next', '-'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
       section: ['A-201', 'Street section', '1:' + RPT.SCALE_OF.section(d)], section2: ['A-202', 'Parklet section', '1:' + RPT.SCALE_OF.parklet(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
@@ -25678,6 +25702,7 @@ RPT.BUILDERS = {
   site: function(d) { return RPT.sheetSite(d); },
   layout: function(d) { return RPT.sheetLayout(d); },
   deck: function(d, drw, s) { return RPT.sheetDeck(d, s.part, s.i, s.n); },
+  route: function(d) { var cr = d.DM.site.sheets.A103.crop; return RPT.sheetDeck(d, [cr.z0, cr.z1], 0, 1, { route: true }); },
   section: function(d) { return RPT.sheetSection(d, { kind: 'street' }); },
   section2: function(d) { return RPT.sheetSection(d, { kind: 'parklet' }); },
   details: function(d) { return RPT.sheetDetails(d); },
