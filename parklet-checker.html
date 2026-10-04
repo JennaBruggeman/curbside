@@ -28221,8 +28221,13 @@ SM.open = async function() {
     SM.map.on('load', function() {
       SM.map.addSource('smWay', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       SM.map.addLayer({ id: 'smWay', type: 'line', source: 'smWay', paint: { 'line-color': '#3AA8E4', 'line-width': 6, 'line-opacity': 0.75 } });
+      // the street under the pointer while the pick waits (Brief 30 §1): one accent, 3 px, under the picked street
+      SM.map.addSource('smHover', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      SM.map.addLayer({ id: 'smHover', type: 'line', source: 'smHover', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': DRAW_STYLE.MAP.sel, 'line-width': 3 } }, 'smWay');
       if (typeof GIS !== 'undefined') GIS.mapInit(SM.map);   // the city layers under the picked street (Brief 24)
     });
+    SM.map.on('mousemove', function(e) { SM.hoverAt(e.lngLat.lat, e.lngLat.lng); });
+    SM.map.on('mouseout', function() { SM.hoverAt(null); });
     // a click on a point of a city layer opens its popup; any other click picks the street, then the side
     // a data dot is information only while Layers is open, never during the side pick (Brief 25 item 10)
     SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && (!GIS.inspecting || GIS.inspecting()) && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
@@ -28276,12 +28281,44 @@ SM.onClick = async function(lat, lon) {
     if (!sn) { SM.status('No street within 30 m of that point. Click on a street.'); return; }
     var t = sn.way.tags || {};
     SM.pick = { snap: sn, wayId: sn.way.id, name: t.name || '', highway: t.highway || '', tags: t, fetchedAt: at, via: 'cells' };
+    SM.hoverAt(null);   // the hover highlight gives way to the picked street
     SM.map.getSource('smWay').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: sn.way.geometry.map(function(p) { return [p.lon, p.lat]; }) } });
     if (SM._mk) SM._mk.remove(); if (SM._mkS) { SM._mkS.remove(); SM._mkS = null; }
     SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([sn.lon, sn.lat]).addTo(SM.map);
     document.getElementById('smUse').disabled = true;
     SM.status('<b>' + SM.esc(SM.pick.name || 'Unnamed street') + '</b> (' + SM.esc(SM.pick.highway) + ', OSM way ' + sn.way.id + '), axis ' + Math.round(sn.bearing) + '&deg; from north. Now <b>click the side of the street</b> the parklet is on.');
   } catch (e) { SM.status(e.offline ? SM.offlineText : SM.esc(e.message)); }
+};
+// ── The street under the pointer while a street pick is awaited (Brief 30 §1) ─────────────────────────────────────────
+// The same rule as the click (SM.snap: the nearest way within 30 m, a named street before a service way), over the
+// streets already in the resident cells (no request per move); once a frame at most. Off once the street is picked.
+SM.hoverWays = function() {
+  if (typeof GIS === 'undefined') return [];
+  if (SM._hw && SM._hwK === GIS.frames) return SM._hw;
+  SM._hwK = GIS.frames;
+  SM._hw = GIS.ways().map(function(w) {
+    var la = w.geometry.map(function(p) { return p.lat; }), lo = w.geometry.map(function(p) { return p.lon; });
+    w.bb = [Math.min.apply(null, lo), Math.min.apply(null, la), Math.max.apply(null, lo), Math.max.apply(null, la)]; return w;
+  });
+  return SM._hw;
+};
+SM.hoverAt = function(lat, lon) {
+  SM._hovArg = lat == null ? null : [lat, lon];
+  if (SM._hovPend) return; SM._hovPend = true;
+  requestAnimationFrame(function() {
+    SM._hovPend = false;
+    var src = SM.map && SM.map.getSource('smHover'); if (!src) return;
+    var a = SM._hovArg, waiting = !(SM.pick && SM.pick.snap), sn = null;
+    if (a && waiting) {
+      var dLa = 40 / 110574, dLo = 40 / (111320 * Math.cos(a[0] * Math.PI / 180));
+      var near = SM.hoverWays().filter(function(w) { return w.bb[0] - dLo <= a[1] && w.bb[2] + dLo >= a[1] && w.bb[1] - dLa <= a[0] && w.bb[3] + dLa >= a[0]; });
+      sn = SM.snap(near.filter(function(w) { var s = SM.snap([w], a[0], a[1]); return s && s.dist <= 30; }), a[0], a[1]);
+    }
+    var id = sn ? sn.way.id + ':' + sn.way.geometry.length : null; if (id === SM._hovId) return; SM._hovId = id;
+    src.setData(sn ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: sn.way.geometry.map(function(p) { return [p.lon, p.lat]; }) } } : { type: 'FeatureCollection', features: [] });
+    SM.hovered = sn ? { wayId: sn.way.id, name: (sn.way.tags || {}).name || '' } : null;
+    SM.map.getCanvas().style.cursor = sn ? 'pointer' : '';
+  });
 };
 SM.setSide = function(lat, lon) {
   var sn = SM.pick.snap, T = SM.enu(sn.lat, sn.lon), v = T.to(lat, lon);
@@ -28687,7 +28724,7 @@ GIS.mapInit = function(map) {
     var f = (!GIS.inspecting || GIS.inspecting()) ? GIS.hit(e.point, true) : null;   // no hover state on the dots while picking (Brief 25 item 10)
     if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; GIS.hoverLabel(null); }
     if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); GIS.hoverLabel(f, e.lngLat); }
-    map.getCanvas().style.cursor = f ? 'pointer' : '';
+    map.getCanvas().style.cursor = f || SM.hovered ? 'pointer' : '';   // a hovered street keeps its pointer (SM.hoverAt)
   });
   map.on('mouseout', function() { if (hovered) { map.setFeatureState(hovered, { hover: false }); hovered = null; } GIS.hoverLabel(null); });
   map.on('zoomend', GIS.zoomNote);
@@ -28798,9 +28835,11 @@ GIS.buildRows = function() {
   p.dataset.built = '1';
   p.innerHTML = Object.keys(GIS.GROUPS).map(function(g) {
     return "<div class='gis-grp' role='group' aria-label='" + GIS.GROUPS[g] + "'><div class='gis-grp-h'>" + GIS.GROUPS[g] + '</div>' + GIS.LAYERS.filter(function(l) { return l.group === g; }).map(function(L) {
-      var sw = L.geometry === 'point' ? 'border-radius:50%;width:9px;height:9px;' : L.geometry === 'line' ? 'height:3px;width:16px;' : 'width:14px;height:10px;opacity:.6;';
+      // the swatch is the map's own mark (Brief 30 §1): grey dot (trees green), dashed grey line, light grey footprint
+      var MS = DRAW_STYLE.MAP, sw = L.geometry === 'point' ? 'border-radius:50%;width:9px;height:9px;box-shadow:0 0 0 1px #FFF;background:' + (L.id === 'trees' ? MS.tree : MS.dot) + ';'
+        : L.geometry === 'line' ? 'height:0;width:16px;border-top:2px dashed ' + MS.line + ';background:transparent;' : 'width:14px;height:10px;border:1px solid ' + MS.dot + ';background:' + MS.footprint + ';';
       return "<div class='gis-row' data-l='" + L.id + "'><label class='gis-lab' title='" + SM.esc(L.legend) + "'><input type='checkbox' id='gisChk_" + L.id + "' data-l='" + L.id + "'" + (GIS.on[L.id] ? ' checked' : '') + " onchange='GIS.toggle(this.dataset.l, this.checked)'>" +
-        "<span class='gis-sw' style='" + sw + 'background:' + L.style.colour + "'></span><span class='gis-name'>" + SM.esc(L.label) + "</span></label><span class='gis-n' id='gisN_" + L.id + "'></span>" +
+        "<span class='gis-sw' style='" + sw + "'></span><span class='gis-name'>" + SM.esc(L.label) + "</span></label><span class='gis-n' id='gisN_" + L.id + "'></span>" +
         (L.live ? "<button type='button' class='gis-live' id='gisLive_" + L.id + "' onclick='GIS.live(\"" + L.id + "\")' title='Fetches this layer for the view from OpenStreetMap now (Overpass). The site facts change only when you import again.'>&#8635; live</button>" : '') +
         "<span class='gis-src' id='gisSrc_" + L.id + "'></span></div>";
     }).join('') + '</div>';
@@ -29144,8 +29183,10 @@ INTX.search = async function(q) {
   return out.slice(0, 5).map(function(h) { return { display_name: h.a + ' & ' + h.b + ', Vancouver', lat: h.lat, lon: h.lon, intersection: true }; });
 };
 
-// ── Item 10: the map's data dots are information while the Layers tab is open, and never while a side is being picked ─
-GIS.inspecting = function() { var p = document.getElementById('smLayers'); return !!(p && !p.hidden) && !(SM.pick && SM.pick.snap); };
+// ── Item 10: the map's data dots are information while the Layers tab is open, never during the pick ──────────────────
+// Brief 30 §1: not while the street is awaited either (a click on the street beside a tree opened the tree's popup); once
+// the street and the side are picked, the popups return.
+GIS.inspecting = function() { var p = document.getElementById('smLayers'); return !!(p && !p.hidden) && !!(SM.pick && SM.pick.side); };
 </script>
 <script>
 // ════════════════════════════════════════════════════════════════════════════════════════════
