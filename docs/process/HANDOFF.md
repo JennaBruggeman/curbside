@@ -16,8 +16,11 @@ Right-click `parklet-checker.html` in the VS Code Explorer → **Open with Live 
 URL: `http://127.0.0.1:5500/parklet-checker.html`
 Do NOT open as a `file://` URL — Supabase network requests will fail.
 
-## Current state (v0.4 candidate, branch local-run)
-Branches stack: `photoreal` -> `programme` -> `local-run` (each holds the one before). None is merged into master yet; the merge (photoreal, then programme, then local-run into master, tag `v0.4-photoreal`, delete the three) waits until all four photoreal views hold framing and design fidelity. The history of how each part got here is in the dated sections further down.
+## Current state
+v0.17.2 on master, tagged and live on GitHub Pages. Code freeze until after 9 October 2026: README edits only, anything found is logged for Brief 30 (see "Review period" and "v0.17.1: My designs" below). Where things stand, the open questions and the order from here: `docs/process/HANDOFF_SESSION_7.md`.
+
+## Photoreal notes (from the v0.4 candidate)
+Kept for reference; the branch plan these were written under is superseded by the releases above.
 
 ### Photoreal providers and defaults
 | Provider (`RVZP.o.provider`) | Kind | Inputs sent | Output | Notes |
