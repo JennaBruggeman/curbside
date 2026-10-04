@@ -30491,6 +30491,15 @@ SMP.syncButton = function() {
   // (Brief 29 item 3: once located, the paragraph on what is imported sits behind an (i))
   if (h) { if (ok) { var tx = 'Lanes, bike lane, route type and buildings from OpenStreetMap; hydrants, trees and bikeways from the City of Vancouver; bus stops and routes from TransLink (the site data, rebuilt weekly). Within ' + SMP.R + ' m; nothing imported is authoritative.'; if (h.dataset.tx !== tx) { h.dataset.tx = tx; h.innerHTML = "<button type='button' class='site-info' aria-expanded='false' aria-label='What the import brings in' onclick='var t=this.nextElementSibling;t.hidden=!t.hidden;this.setAttribute(\"aria-expanded\",String(!t.hidden))'>ⓘ</button><span class='site-info-t' hidden></span>"; h.querySelector('.site-info-t').textContent = tx; } } else { h.dataset.tx = ''; h.textContent = 'Locate on map first: the import needs the street the parklet is on.'; } }
 };
+// (Brief 30 §8C, triage row 29) a blank street imported onto a real site kept the name 'Blank street' and the address
+// 'Generic street (not a real location)' in the header, on every sheet and in the file name: both go back to the defaults
+// (the file name then carries the address); a name the user gave stays
+SMP.unblank = function() {
+  var pn = document.getElementById('projectName'), sa = document.getElementById('streetAddress'), sm = state.__siteMap || {};
+  if (pn && /^blank street$/i.test(pn.value.trim())) { pn.value = 'Untitled parklet'; state.__projectName = pn.value; }
+  if (sa && /^generic street/i.test(sa.value.trim())) { sa.value = SM._addr || sm.address || sm.name || ''; state.__streetAddress = sa.value; }
+  try { if (typeof pkUpdateAccountUI === 'function') pkUpdateAccountUI(); if (typeof saveSettings === 'function') saveSettings(); } catch (e) {}
+};
 SMP.importContext = async function(opt) {
   var sm = state.__siteMap;
   if (!sm) { SMP.syncButton(); SMP.msg('Locate on map first.'); return null; }
@@ -30524,7 +30533,7 @@ SMP.importContext = async function(opt) {
     SITEF.fromImport(P.way, cov['right-of-way-widths'], data.osm.at, rep);   // the existing street, before any design change
     if (typeof window.seClearHistory === 'function') window.seClearHistory();   // the Section's Undo starts from the imported street (Brief 30 §8B)
     SMP._via = null; SMP._truck = null;
-    SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString(); state.__generic = null; state.__siteMap.via = 'cells'; state.__siteMap.cellsBuild = A.build;
+    SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString(); state.__generic = null; SMP.unblank(); state.__siteMap.via = 'cells'; state.__siteMap.cellsBuild = A.build;
     // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import
     cur = 'city'; st.city = 'run'; show();
     try { var oc = await SMP.importOuter({ noOverpass: true }); st.city = 'ok'; if (oc) rep.notes.push('city context to ' + oc.R + ' m: ' + oc.counts.bldg + ' footprints, ' + oc.counts.streets + ' streets, ' + oc.counts.parks + ' parks, ' + oc.counts.waterRings + ' water rings (' + (oc.ms / 1000).toFixed(1) + ' s)'); }
@@ -32383,7 +32392,7 @@ function uiEmpty(hostId, on, text, btn, onclick, before) {
   el.innerHTML = '<p>' + text + "</p><button type='button' class='ui-empty-btn' onclick='" + onclick + "'>" + btn + '</button>';
 }
 function uiEmptyStates() {
-  var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.length : 0, located = typeof state !== 'undefined' && !!state.__siteMap;
+  var placed = (window.FL3D && FL3D.placed) ? FL3D.placed.length : 0, located = typeof state !== 'undefined' && (!!state.__siteMap || !!state.__generic);   // the blank street exports too, its sheets marked generic (Brief 30 §8C, row 29)
   uiEmpty('libraryCanvas', placed === 0, 'Nothing is placed on the deck yet. Place furniture from the library &mdash; go to Design.', 'Go to Design', 'appSetMode("design")', true);
   uiEmpty('expReportHost', !located, 'Locate a site first: the report is drawn from the street the parklet is on.', 'Locate the site', 'appSetMode("site");setTimeout(function(){SM.open()},50)', true);
 }
