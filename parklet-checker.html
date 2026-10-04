@@ -260,6 +260,13 @@ var CONFIG = {
 #planTabShape .ske-sp { flex: 1 1 auto; }
 #planTabShape .ske-opt { display: none; align-items: center; gap: 10px; margin-left: 8px; }
 #planTabShape .ske-opt.on { display: inline-flex; }
+/* Brief 30 §3: the corner cuts and the older-shape notice */
+#planTabShape .ske-cuts { flex-wrap: wrap; gap: 6px 10px; }
+#planTabShape .ske-cuts > b { font-size: 12px; font-weight: 600; color: var(--muted); }
+#planTabShape .ske-cut span { color: var(--muted); opacity: .8; }
+#planTabShape .ske-cut input { width: 54px; }
+#planTabShape .ske-legacy { display: inline-flex; align-items: center; gap: 8px; margin-left: 8px; font-size: 12px; color: var(--ink); }
+#planTabShape .ske-legacy[hidden] { display: none; }
 #planTabShape .ske-msg { font-size: 12px; padding: 4px 10px; min-height: 24px; color: var(--muted); flex-shrink: 0; border-bottom: 1px solid var(--rule); background: var(--card); }
 #planTabShape .ske-msg.bad { color: var(--fail); font-weight: 600; }
 #planTabShape .ske-msg.note { color: var(--ink); }
@@ -774,7 +781,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
 <div id='viewportGrid' data-layout='max-3d'>
 <div class="drw-panel" id="csPanel" data-vp="section">      <div class="vp-hdr"><span class="vp-lbl" title="Street cross-section at the A-A cut; lane compliance per C02">Section A&ndash;A</span><span class="vp-tools" id="csTools"></span><button class="vp-max" data-vp="section" onclick="toggleViewportMax('section')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="seRoot"></div>    </div>    <!-- Drawing 02: Plan -->    
-<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' data-pv-fit='design' aria-pressed='false' onclick='_pvFit("design")' title='Fits the Plan to the deck and 1 m around it.'>Fit design</button><button class='drw-tb-toggle active' data-pv-fit='sheet' aria-pressed='true' onclick='_pvFit("sheet")' title='Fits the Plan to the site sheet (A-101), as the report draws it.'>Fit sheet</button><button class='drw-tb-toggle' data-pv-fit='context' aria-pressed='false' onclick='_pvFit("context")' title='Fits the Plan to everything imported for the site.'>Fit context</button><button class='drw-tb-toggle sw-tg' id='secTogglePV' aria-pressed='true' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button><details class='pv-ctx' id='pvCtx'><summary class='ptb-btn' title='Shows or hides the site context in the Plan and the 3D view. The checks and the report are not affected.'>Context</summary><div class='pv-ctx-menu' role='group' aria-label='Context'><label><input type='checkbox' id='pvCtx_trees' checked onchange='PVCTX.set("trees", this.checked)'> Trees</label><label><input type='checkbox' id='pvCtx_objects' checked onchange='PVCTX.set("objects", this.checked)'> Street objects</label><label><input type='checkbox' id='pvCtx_buildings' checked onchange='PVCTX.set("buildings", this.checked)'> Buildings</label><label><input type='checkbox' id='pvCtx_stops' checked onchange='PVCTX.set("stops", this.checked)'> Stops &amp; hydrants</label></div></details></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle sw-tg' id='dimTogglePV' aria-pressed='true' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>Dims</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active sw-tg' aria-pressed='true' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active sw-tg' aria-pressed='true' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id='planTabShape' style='display:none'><div class='ske-head'><span class='ske-title' title='The deck outline, drawn on the parking segment between the curb and the lane edge. Nothing in the design changes until you press Apply.'>Shape editor</span><span class='ske-read' id='skeReadout' title='The outline being edited: its area, and its length along the curb by its width across.'></span><label class='ske-fld' title='The grid step the editor snaps to: the app grid step, shared with the Plan.'>Grid <select id='skeGrid' onchange='cadSetSpacing(this);skeRender()'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></label><button type='button' class='ske-btn' id='skeUndo' onclick='skeUndo()' title='Undoes the last change in the editor (Ctrl+Z).'>Undo</button><button type='button' class='ske-btn' id='skeRedo' onclick='skeRedo()' title='Redoes the change just undone (Ctrl+Y).'>Redo</button><button type='button' class='ske-btn' id='skeFit' onclick='skeFit()' title='Fits the whole parking segment in the canvas. The mouse wheel zooms; Shift+wheel or the middle button pans.'>Fit</button><span class='ske-sp'></span><button type='button' class='ske-btn' id='skeCancel' onclick='skeClose()' title='Closes the editor and discards the changes made in it.'>Cancel</button><button type='button' class='ske-btn ske-apply' id='skeApply' onclick='skeApply()' title='Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'>Apply</button></div><div class='ske-tools' id='skeTools' role='toolbar' aria-label='Shape tools'><button type='button' class='ske-tool' data-tool='rect' onclick='skeSetTool(&quot;rect&quot;)' title='Rectangle: drag across the parking segment. The length and width show as you drag; type them in the fields to set them exactly.'><svg viewBox='0 0 16 16' aria-hidden='true'><rect x='2.5' y='4.5' width='11' height='7'/></svg><span>Rectangle</span></button><button type='button' class='ske-tool' data-tool='poly' onclick='skeSetTool(&quot;poly&quot;)' title='Polygon: click each corner; click the first corner or press Enter to close. Corners snap to the grid; hold Shift for 90&deg; and 45&deg; edges. Esc cancels.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 12.5 L4 4 L10 2.5 L13.5 8 L8 13.5 Z'/></svg><span>Polygon</span></button><button type='button' class='ske-tool' data-tool='edit' onclick='skeSetTool(&quot;edit&quot;)' title='Edit: drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected corner. Hover an edge to read its length; click the length to type one.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.5 2.5 L3.5 12.5 L6.2 10 L8.2 13.8 L10 12.9 L8 9.2 L11.8 8.9 Z'/></svg><span>Edit</span></button><button type='button' class='ske-tool' data-tool='notch' onclick='skeSetTool(&quot;notch&quot;)' title='Notch: press on a corner of the outline and drag inward to cut a rectangular notch.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M2.5 4.5 H13.5 V11.5 H6.5 V8 H2.5 Z'/></svg><span>Notch</span></button><button type='button' class='ske-tool' id='skeReset' onclick='skeReset()' title='Reset to rectangle: the deck&rsquo;s length, the full width of the parking segment. Undo brings the outline back.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.6 8.5 A4.6 4.6 0 1 0 5.2 4.4'/><path d='M3 2.6 V5.2 H5.6'/></svg><span>Reset to rectangle</span></button><span class='ske-opt' id='skeOptRect'><label title='The rectangle&rsquo;s length along the curb, m. Type a value to set it exactly.'>Length <input id='skeRL' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label><label title='The rectangle&rsquo;s width across, from the curb side, m. Type a value to set it exactly.'>Width <input id='skeRW' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label></span><span class='ske-opt' id='skeOptEdge'><label title='The selected edge&rsquo;s length, m. Type a value to set it: the edge&rsquo;s end corner moves along it, and a square next edge moves with it.'>Edge <b id='skeEdgeNo'>-</b> <input id='skeEL' type='number' step='0.05' min='0.25' onchange='skeSetEdgeLen()'></label></span></div><div class='ske-msg' id='skeMsg' role='status' aria-live='polite'></div><div class='ske-canvas'><svg id='skeSVG' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='The parking segment and the deck outline'></svg></div></div>    </div>    <!-- Drawing 03: 3D View -->    
+<div class="drw-panel" id="pvPanel" data-vp="plan">      <div class="vp-hdr"><span class="vp-lbl" title="Site plan: setback zones update live; H/P/S/M = clearance indicators">Plan</span><span class="vp-tools" id="pvTools"><button class='drw-tb-toggle' onclick='_pvZoomStep(1.35)' title='Zoom out'>&#8722;</button><button class='drw-tb-toggle' onclick='_pvZoomStep(1/1.35)' title='Zoom in'>+</button><button class='drw-tb-toggle' data-pv-fit='design' aria-pressed='false' onclick='_pvFit("design")' title='Fits the Plan to the deck and 1 m around it.'>Fit design</button><button class='drw-tb-toggle active' data-pv-fit='sheet' aria-pressed='true' onclick='_pvFit("sheet")' title='Fits the Plan to the site sheet (A-101), as the report draws it.'>Fit sheet</button><button class='drw-tb-toggle' data-pv-fit='context' aria-pressed='false' onclick='_pvFit("context")' title='Fits the Plan to everything imported for the site.'>Fit context</button><button class='drw-tb-toggle sw-tg' id='secTogglePV' aria-pressed='true' title='Shows or hides the section cut line A&ndash;A on the Plan.' onclick='_pvSectionOn=!_pvSectionOn;syncToolbarStates();renderPlanView()'>Section cut</button><button class='ptb-btn' id='pvMeasureBtn' onclick='_pvToggleMeasure()' title='Measures the distance between two points you click on the Plan.'>Measure</button><button class='ptb-btn' id='pvExtentsBtn' onclick='_pvToggleExtents()' title='Shows the report sheets&rsquo; crops on the Plan: drag a label to move a crop, its corner square to resize it (0.5 m steps).'>Sheet extents</button><details class='pv-ctx' id='pvCtx'><summary class='ptb-btn' title='Shows or hides the site context in the Plan and the 3D view. The checks and the report are not affected.'>Context</summary><div class='pv-ctx-menu' role='group' aria-label='Context'><label><input type='checkbox' id='pvCtx_trees' checked onchange='PVCTX.set("trees", this.checked)'> Trees</label><label><input type='checkbox' id='pvCtx_objects' checked onchange='PVCTX.set("objects", this.checked)'> Street objects</label><label><input type='checkbox' id='pvCtx_buildings' checked onchange='PVCTX.set("buildings", this.checked)'> Buildings</label><label><input type='checkbox' id='pvCtx_stops' checked onchange='PVCTX.set("stops", this.checked)'> Stops &amp; hydrants</label></div></details></span><button class="vp-max" data-vp="plan" onclick="toggleViewportMax('plan')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="planTabPlan">        <div class="svg-wrap">          <svg id="planView" viewBox="0 0 760 215" xmlns="http://www.w3.org/2000/svg"></svg>        </div>        <div class="drw-toolbar" id="pvToolbar"><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Nav</span><div style='display:flex;gap:2px;'></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Docs</span><div style='display:flex;gap:2px;align-items:center;'><button class='drw-tb-toggle sw-tg' id='dimTogglePV' aria-pressed='true' onclick='_pvDimsOn=!_pvDimsOn;syncToolbarStates();renderPlanView()'>Dims</button></div></div><div style='display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:4px 10px;border-right:1px solid var(--rule);gap:3px;'><span style='font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1;'>Precision</span><div style='display:flex;gap:2px;align-items:center;'><button class='ptb-btn active sw-tg' aria-pressed='true' id='pvGridBtn' onclick='if(typeof cadToggleGrid==="function")cadToggleGrid();else{_gridEnabled=!_gridEnabled;this.classList.toggle("active",_gridEnabled);if(typeof renderPlanView==="function")renderPlanView();}' title='Toggle grid'>Grid</button><button class='ptb-btn active sw-tg' aria-pressed='true' id='pvSnapBtn' onclick='if(typeof cadToggleSnap==="function")cadToggleSnap();else{_snapEnabled=!_snapEnabled;this.classList.toggle("active",_snapEnabled);}' title='Snaps moved and placed pieces to the grid.'>Snap</button><select onchange='if(typeof cadSetSpacing==="function")cadSetSpacing(this);else{_gridSpacing=parseFloat(this.value);if(typeof renderPlanView==="function")renderPlanView();try{if(typeof renderCrossSection==="function")renderCrossSection();}catch(_e){}if(typeof updateWorldGrid3D==="function")updateWorldGrid3D();}' style='font-size:11px;padding:2px 4px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink);height:24px;'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></div></div><div style='display:flex;flex-direction:column;align-self:stretch;align-items:center;justify-content:flex-start;padding:5px 6px;border-right:1px solid var(--rule);background:var(--bg);'><span style='font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;line-height:1;margin-top:4px;'>Site Objects</span></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="9" stroke-width="1.5"/><line x1="14" y1="5" x2="14" y2="23" stroke-width="1"/><line x1="5" y1="14" x2="23" y2="14" stroke-width="1"/><circle cx="14" cy="14" r="3.5" stroke-width="1" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Access Chamber</div><div class="drw-tb-desc">Manholes, valves &amp; grates must stay accessible. Parklet must clear by 1 m min. (C09)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceMH" onclick="togglePlaceMH()">+ Place</button><button class="ptb-btn" onclick="clearManholes()">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="16" width="8" height="8" rx="1" stroke-width="1.5"/><rect x="8" y="11" width="12" height="6" rx="2" stroke-width="1.5"/><rect x="11" y="7" width="6" height="5" rx="1" stroke-width="1.5"/><line x1="8" y1="14" x2="5" y2="14" stroke-width="1.5"/><line x1="20" y1="14" x2="23" y2="14" stroke-width="1.5"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Fire Hydrant</div><div class="drw-tb-desc">1.5 m clearance required at each end of the parklet from any hydrant. (C05)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceH" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="H" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="14" y1="2" x2="14" y2="22" stroke-width="2"/><rect x="11" y="2" width="6" height="5" rx="1" stroke-width="1.2"/><ellipse cx="14" cy="22" rx="3.5" ry="2" stroke-width="1.2"/><line x1="7" y1="9" x2="11" y2="9" stroke-width="1.2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Utility Pole</div><div class="drw-tb-desc">1.0 m clearance min; 2.4 m if trolley wires are present on this block. (C07)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceP" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="P" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="4" width="14" height="18" rx="1.5" stroke-width="1.5"/><circle cx="14" cy="10" r="2.2" stroke-width="1.2"/><rect x="10" y="14.5" width="8" height="4.5" rx="0.5" stroke-width="1" opacity="0.5"/><line x1="9" y1="7.5" x2="19" y2="7.5" stroke-width="0.8" opacity="0.4"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Signal Controller</div><div class="drw-tb-desc">Traffic signal boxes &amp; electrical kiosks need 1.5 m clearance from the parklet. (C08)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceS" onclick="togglePlaceCurb(this)">+ Place</button><button class="ptb-btn" data-t="S" onclick="clearCurbType(this.dataset.t)">Clear</button></div></div><div class="drw-tb-section" style="border-right:none"><div class="drw-tb-icon"><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="9" x2="9" y2="9" stroke-width="2"/><line x1="19" y1="9" x2="26" y2="9" stroke-width="2"/><line x1="9" y1="9" x2="9" y2="13.5" stroke-width="1.2"/><line x1="19" y1="9" x2="19" y2="13.5" stroke-width="1.2"/><path d="M10,13.5 Q14,11 18,13.5" stroke-width="1.2"/><line x1="14" y1="13.5" x2="14" y2="18" stroke-width="1.5"/><line x1="10" y1="18" x2="18" y2="18" stroke-width="2"/><line x1="14" y1="18" x2="14" y2="26" stroke-width="2"/></svg></div><div class="drw-tb-text"><div class="drw-tb-name">Driveway / Lane</div><div class="drw-tb-desc">Parklet must maintain 1.5 m setback from any driveway or lane opening at each end. (C06)</div></div><div class="drw-tb-btns"><button class="ptb-btn" id="btnPlaceD" onclick="togglePlaceDriveway()">+ Place</button><button class="ptb-btn" onclick="clearDriveways()">Clear</button></div></div><span class='ptb-hint' id='mhHint' style='padding:0 12px;align-self:center'></span></div>      </div>      <div id='planTabShape' style='display:none'><div class='ske-head'><span class='ske-title' title='The deck outline, drawn on the parking segment between the curb and the lane edge. Nothing in the design changes until you press Apply.'>Shape editor</span><span class='ske-read' id='skeReadout' title='The outline being edited: its area, and its length along the curb by its width across.'></span><label class='ske-fld' title='The grid step the editor snaps to: the app grid step, shared with the Plan.'>Grid <select id='skeGrid' onchange='cadSetSpacing(this);skeRender()'><option value='0.1'>0.10 m</option><option value='0.25' selected>0.25 m</option><option value='0.5'>0.50 m</option><option value='1.0'>1.00 m</option></select></label><button type='button' class='ske-btn' id='skeUndo' onclick='skeUndo()' title='Undoes the last change in the editor (Ctrl+Z).'>Undo</button><button type='button' class='ske-btn' id='skeRedo' onclick='skeRedo()' title='Redoes the change just undone (Ctrl+Y).'>Redo</button><button type='button' class='ske-btn' id='skeFit' onclick='skeFit()' title='Fits the whole parking segment in the canvas. The mouse wheel zooms; Shift+wheel or the middle button pans.'>Fit</button><span class='ske-sp'></span><button type='button' class='ske-btn' id='skeCancel' onclick='skeClose()' title='Closes the editor and discards the changes made in it.'>Cancel</button><button type='button' class='ske-btn ske-apply' id='skeApply' onclick='skeApply()' title='Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'>Apply</button></div><div class='ske-tools' id='skeTools' role='toolbar' aria-label='Shape tools'><span class='ske-tool on' title='Rectangle: drag across the parking segment for a new one; the length and width show as you drag. Type them in the fields to set them exactly.'><svg viewBox='0 0 16 16' aria-hidden='true'><rect x='2.5' y='4.5' width='11' height='7'/></svg><span>Rectangle</span></span><button type='button' class='ske-tool' id='skeReset' onclick='skeReset()' title='Reset to rectangle: the deck&rsquo;s length, the full width of the parking segment, no corner cuts. Undo brings the outline back.'><svg viewBox='0 0 16 16' aria-hidden='true'><path d='M3.6 8.5 A4.6 4.6 0 1 0 5.2 4.4'/><path d='M3 2.6 V5.2 H5.6'/></svg><span>Reset to rectangle</span></button><span class='ske-opt on' id='skeOptRect'><label title='The rectangle&rsquo;s length along the curb, m. Type a value to set it exactly.'>Length <input id='skeRL' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label><label title='The rectangle&rsquo;s width across, from the curb side, m. Type a value to set it exactly.'>Width <input id='skeRW' type='number' step='0.05' min='0.25' onchange='skeSetRect()'></label></span><span class='ske-opt on ske-cuts' id='skeOptCuts' role='group' aria-label='Corner cuts at 45 degrees, m'><b>Corner cuts (45&deg;)</b><label class='ske-cut' title='The cut at the start, curb side corner: the length along each edge (m), at 45&deg;. 0 is a square corner. Or drag the corner&rsquo;s diamond handle inward.'>start <span>curb side</span> <input id='skeCut0' type='number' step='0.05' min='0' onchange='skeSetCut(0, this.value)'></label><label class='ske-cut' title='The cut at the end, curb side corner: the length along each edge (m), at 45&deg;. 0 is a square corner. Or drag the corner&rsquo;s diamond handle inward.'>end <span>curb side</span> <input id='skeCut1' type='number' step='0.05' min='0' onchange='skeSetCut(1, this.value)'></label><label class='ske-cut' title='The cut at the start, traffic side corner: the length along each edge (m), at 45&deg;. 0 is a square corner. Or drag the corner&rsquo;s diamond handle inward.'>start <span>traffic side</span> <input id='skeCut3' type='number' step='0.05' min='0' onchange='skeSetCut(3, this.value)'></label><label class='ske-cut' title='The cut at the end, traffic side corner: the length along each edge (m), at 45&deg;. 0 is a square corner. Or drag the corner&rsquo;s diamond handle inward.'>end <span>traffic side</span> <input id='skeCut2' type='number' step='0.05' min='0' onchange='skeSetCut(2, this.value)'></label></span><span class='ske-legacy' id='skeLegacy' hidden><span>This shape was drawn with an older tool.</span><button type='button' class='ske-btn' onclick='skeConvert()' title='Replaces the shape with its bounding rectangle, which you can then cut at the corners. Undo brings the older shape back; Cancel keeps the design as it was.'>Convert to rectangle</button></span></div><div class='ske-msg' id='skeMsg' role='status' aria-live='polite'></div><div class='ske-canvas'><svg id='skeSVG' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='The parking segment and the deck outline'></svg></div></div>    </div>    <!-- Drawing 03: 3D View -->    
 <div class="drw-panel" id="mvPanel" data-vp="3d">      <div class="vp-hdr"><span class="vp-lbl" title="Drag to orbit, scroll to zoom, shift+drag to pan">3D</span><span class="vp-tools" id="mvTools"><button class='drw-tb-toggle sw-tg' id='secToggle3D' title='Shows or hides the section box, its cut plane and fill in the 3D view.' aria-pressed='false' onclick='_3dSectionOn=!_3dSectionOn;syncToolbarStates();_3dSectionHelper()'>Section box</button></span><button class="vp-max" data-vp="3d" onclick="toggleViewportMax('3d')" title="Maximize" aria-label="Maximize"><svg width='12' height='12' viewBox='0 0 12 12' aria-hidden='true' fill='none' stroke='currentColor' stroke-width='1.3'><path d='M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5'/></svg></button></div>      <div id="threeWrap"></div><div id='fl3DTray'><div id='fl3DTrayHdr'><span id='fl3DPlacingLbl'></span><div id='fl3DSelActions'><span id='fl3DSelLbl'></span></div><span class='fl3d-tip'>click floor to place · click object to select · Esc cancel</span></div><div id='fl3DItems'></div></div>    </div>    <!-- Verdict Banner -->    
 </div>
 <div id='workspaceVisualize' style='display:none'><div id='rvzView'><p class='rvz-info' id='rvzViewInfo' aria-live='polite'></p></div><aside id='rvzRail' aria-label='Render controls'></aside></div>
@@ -10212,19 +10219,22 @@ syncRouteToggle();
 renderVerdictCompact();
 
 // =====================================================================
-// SHAPE EDITOR (Brief 21 §5b). The deck outline, drawn on the whole parking segment: curb to lane
-// edge, as long as the host frontage (else the block between the corners). The editor works on a
-// copy of the outline; nothing reaches the design until Apply. Sketch vertex {x, y} = world
+// SHAPE EDITOR (Brief 21 §5b; Brief 30 §3: a rectangle with optional 45° corner cuts, nothing else). The deck outline,
+// drawn on the whole parking segment: curb to lane edge, as long as the host frontage (else the block between the
+// corners). Real parklets are rectangles in a parking lane; the one non-rectangular move worth having is a 45° cut at a
+// corner. The editor holds the rectangle (SKE.r) and four cut legs (SKE.ch, corners in the outline's order: start-curb,
+// end-curb, end-traffic, start-traffic) and draws the outline from them (skeShapeOf: a polygon of 4-8 corners, the same
+// {verts, segs} DESIGN_MODEL.parklet reads); nothing reaches the design until Apply. An outline drawn with the older tools
+// (free polygon, notch, arcs) opens as it is, read-only, with "Convert to rectangle". Sketch vertex {x, y} = world
 // {z: x, x: y}: x along the curb from the deck's start, y across from the curb (world x).
 // =====================================================================
-var SKE = { open: false, tool: 'edit', shape: null, base: '', applied: null, undo: [], redo: [], sel: null, hover: null,
+var SKE = { open: false, tool: 'rect', shape: null, r: null, ch: [0, 0, 0, 0], legacy: false, base: '', applied: null, undo: [], redo: [], sel: null, hover: null,
   drag: null, draft: null, zoom: 1, pan: 0, layout: null, bound: false, issues: null, note: '', unapplied: false };
 var SKE_MIN_EDGE = 0.25, SKE_WS = 1.1;
+var SKE_CORNER = ['start, curb side', 'end, curb side', 'end, traffic side', 'start, traffic side'];
 var SKE_HINT = {
-  rect: 'Drag across the parking segment. Type the length and width to set them exactly.',
-  poly: 'Click each corner; click the first corner or press Enter to close. Shift keeps edges at 90° or 45°. Esc cancels.',
-  edit: 'Drag a corner, or drag an edge to move it parallel. Double-click an edge to add a corner; Delete removes the selected one. Hover an edge for its length; click the length to type one.',
-  notch: 'Press on a corner of the outline and drag inward to cut a rectangular notch.'
+  rect: 'Drag across the parking segment for a new rectangle, or type its length and width. Drag a corner handle inward (or type a cut) for a 45° corner.',
+  legacy: 'This shape was drawn with an older tool. It stays as it is until you change it: Convert to rectangle makes its bounding rectangle, which you can then cut at the corners.'
 };
 
 function setPlanTab(tab) {
@@ -10338,7 +10348,7 @@ function skeExtent() {
 }
 
 // what is wrong with the outline, edge by edge: shown in red with one line each, never fixed silently
-function skeIssues(sh, E) {
+function skeIssues(sh, E, old) {
   var res = { edge: {}, list: [] }, n = sh && sh.verts ? sh.verts.length : 0, eps = 1e-6, i, j;
   var bad = function(k, why) { if (!res.edge[k]) res.edge[k] = why; if (res.list.indexOf(why) < 0) res.list.push(why); };
   if (n < 3) { res.list.push('The outline needs at least three corners.'); return res; }
@@ -10352,6 +10362,11 @@ function skeIssues(sh, E) {
   for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) {
     if (j === i + 1 || (i === 0 && j === n - 1)) continue;   // neighbours share a corner
     if (skePolyCross(skeEdgePts(sh, i), skeEdgePts(sh, j))) { var w = 'The outline crosses itself: edges ' + (i + 1) + ' and ' + (j + 1) + '.'; bad(i, w); bad(j, w); }
+  }
+  if (!old) for (i = 0; i < n; i++) {   // Brief 30 §3: only 0, 45, 90 and 135 degree edges can be drawn now; an older outline may have others
+    if (skeArc(sh, i)) { bad(i, 'Edge ' + (i + 1) + ' is curved: only straight edges at 0°, 45°, 90° or 135° to the curb can be drawn now.'); continue; }
+    var va = sh.verts[i], vb = sh.verts[(i + 1) % n], an = Math.abs(Math.atan2(vb.y - va.y, vb.x - va.x) * 180 / Math.PI) % 45;
+    if (Math.min(an, 45 - an) > 0.5) bad(i, 'Edge ' + (i + 1) + ' runs at ' + (Math.atan2(Math.abs(vb.y - va.y), Math.abs(vb.x - va.x)) * 180 / Math.PI).toFixed(0) + '° to the curb: only 0°, 45°, 90° and 135° can be drawn now.');
   }
   if (!res.list.length && pkShapeArea(sh) < 0.5) res.list.push('The outline has almost no area.');
   return res;
@@ -10398,18 +10413,49 @@ function skeSnap(p, V) {
   return { x: skeR4(x), y: skeR4(y) };
 }
 
+// the outline of a rectangle r = {z0, z1, y0, y1} with 45° cuts of leg ch[k] at its corners (k in the outline's order)
+function skeShapeOf(r, ch) {
+  var R = skeRect(r.z0, r.z1, r.y0, r.y1), v = R.verts, out = [];
+  v.forEach(function(c, k) {
+    var c2 = +ch[k] || 0, p = v[(k + 3) % 4], q = v[(k + 1) % 4];
+    if (c2 < 1e-6) { out.push({ x: c.x, y: c.y }); return; }
+    var lp = Math.hypot(p.x - c.x, p.y - c.y), lq = Math.hypot(q.x - c.x, q.y - c.y);
+    out.push({ x: skeR4(c.x + (p.x - c.x) / lp * c2), y: skeR4(c.y + (p.y - c.y) / lp * c2) });
+    out.push({ x: skeR4(c.x + (q.x - c.x) / lq * c2), y: skeR4(c.y + (q.y - c.y) / lq * c2) });
+  });
+  return { closed: true, verts: out, segs: out.map(function() { return { arc: false, sag: 0 }; }) };
+}
+// a stored outline as a rectangle and four cuts, when it is one (else null: an older tool's shape)
+function skeParse(sh) {
+  if (!sh || !sh.verts || sh.verts.length < 4 || sh.verts.length > 8 || (sh.segs || []).some(function(s) { return s && s.arc && Math.abs(s.sag || 0) > 0.001; })) return null;
+  var b = skeBBox(sh), r = { z0: b.z0, z1: b.z1, y0: b.y0, y1: b.y1 }, eq = function(a, c) { return Math.abs(a - c) < 2e-4; };
+  var C = [[r.z0, r.y0], [r.z1, r.y0], [r.z1, r.y1], [r.z0, r.y1]], ch = C.map(function(c) {
+    if (sh.verts.some(function(v) { return eq(v.x, c[0]) && eq(v.y, c[1]); })) return 0;
+    var on = sh.verts.filter(function(v) { return (eq(v.y, c[1]) || eq(v.x, c[0])) && Math.abs(v.x - c[0]) < (r.z1 - r.z0) / 2 + 1e-6 && Math.abs(v.y - c[1]) < (r.y1 - r.y0) / 2 + 1e-6; });
+    var d = on.map(function(v) { return Math.hypot(v.x - c[0], v.y - c[1]); }).sort(function(a, b2) { return a - b2; })[0];
+    return d > 0 ? +d.toFixed(4) : 0;
+  });
+  var g = skeShapeOf(r, ch), key = function(s) { return s.verts.map(function(v) { return v.x.toFixed(3) + ',' + v.y.toFixed(3); }).sort().join(' '); };
+  return key(g) === key(sh) && g.verts.length === sh.verts.length ? { r: r, ch: ch } : null;
+}
+// the largest cut corner k takes: each of its two edges keeps 0.25 m clear of the neighbouring cut
+function skeMaxCut(k, r, ch) {
+  var Lz = r.z1 - r.z0, Ly = r.y1 - r.y0, along = Lz - (+ch[k === 0 ? 1 : k === 1 ? 0 : k === 2 ? 3 : 2] || 0), across = Ly - (+ch[k === 0 ? 3 : k === 3 ? 0 : k === 1 ? 2 : 1] || 0);
+  return Math.max(0, Math.min(along, across) - SKE_MIN_EDGE);
+}
+function skeSync() { SKE.shape = SKE.legacy ? SKE.shape : skeShapeOf(SKE.r, SKE.ch); }
 function skeOpen() {
   var DM = _dmCurrent(), LM = DM.landmarks, L = DM.parklet.length, sh = state.pkShape;
-  var ok = sh && sh.closed && sh.verts && sh.verts.length >= 3;
-  // a stored outline opens as it is -- arcs, corners and all
-  SKE.shape = ok ? { closed: true, verts: sh.verts.map(function(v) { return { x: +v.x, y: +v.y }; }),
-    segs: sh.verts.map(function(v, i) { var s = (sh.segs && sh.segs[i]) || {}; return { arc: !!s.arc, sag: +s.sag || 0 }; }) }
-    : skeRect(0, L, LM.deckX0, LM.deckX1);
+  var ok = sh && sh.closed && sh.verts && sh.verts.length >= 3, stored = ok ? { closed: true, verts: sh.verts.map(function(v) { return { x: +v.x, y: +v.y }; }),
+    segs: sh.verts.map(function(v, i) { var s = (sh.segs && sh.segs[i]) || {}; return { arc: !!s.arc, sag: +s.sag || 0 }; }) } : null;
+  var p = stored ? skeParse(stored) : { r: { z0: 0, z1: L, y0: LM.deckX0, y1: LM.deckX1 }, ch: [0, 0, 0, 0] };
+  SKE.legacy = !p; SKE.r = p ? p.r : null; SKE.ch = p ? p.ch : [0, 0, 0, 0];
+  SKE.shape = p ? skeShapeOf(SKE.r, SKE.ch) : stored;   // an older tool's outline opens as it is -- arcs, notches and all
   SKE.unapplied = !!(ok && !sh.active);
   SKE.applied = pkAppliedOutline();
-  SKE.base = JSON.stringify(SKE.shape);
+  SKE.base = skeSnapState();
   SKE.undo = []; SKE.redo = []; SKE.sel = null; SKE.hover = null; SKE.drag = null; SKE.draft = null; SKE.note = '';
-  SKE.zoom = 1; SKE.pan = 0; SKE.tool = 'edit'; SKE.open = true;
+  SKE.zoom = 1; SKE.pan = 0; SKE.tool = 'rect'; SKE.open = true;
 }
 function skeVisible() { var e = document.getElementById('planTabShape'); return SKE.open && !!e && e.style.display !== 'none' && e.offsetWidth > 0; }
 function skeClose() {
@@ -10418,119 +10464,59 @@ function skeClose() {
   if (lay) { if (lay.mode === 'max' && lay.max) setViewportLayout('max', lay.max); else setViewportLayout('three'); }
 }
 
-function skePush(snap) { SKE.undo.push(snap || JSON.stringify(SKE.shape)); if (SKE.undo.length > 200) SKE.undo.shift(); SKE.redo = []; }
+function skeSnapState() { return JSON.stringify({ r: SKE.r, ch: SKE.ch, legacy: SKE.legacy, shape: SKE.legacy ? SKE.shape : null }); }
+function skeLoadState(t) { var o = JSON.parse(t); SKE.r = o.r; SKE.ch = o.ch; SKE.legacy = o.legacy; if (o.legacy) SKE.shape = o.shape; skeSync(); }
+function skePush(snap) { SKE.undo.push(snap || skeSnapState()); if (SKE.undo.length > 200) SKE.undo.shift(); SKE.redo = []; }
 function skeUndo() {
   if (SKE.draft) { SKE.draft = null; skeRender(); return; }
   if (!SKE.undo.length) return;
-  SKE.redo.push(JSON.stringify(SKE.shape)); SKE.shape = JSON.parse(SKE.undo.pop()); SKE.sel = null; SKE.note = ''; skeRender();
+  SKE.redo.push(skeSnapState()); skeLoadState(SKE.undo.pop()); SKE.sel = null; SKE.note = ''; skeRender();
 }
 function skeRedo() {
   if (!SKE.redo.length) return;
-  SKE.undo.push(JSON.stringify(SKE.shape)); SKE.shape = JSON.parse(SKE.redo.pop()); SKE.sel = null; SKE.note = ''; skeRender();
-}
-function skeSetTool(t) {
-  if (t === SKE.tool) return;
-  SKE.tool = t; SKE.draft = null; SKE.drag = null; SKE.hover = null; SKE.note = '';
-  if (t !== 'edit') SKE.sel = null;
-  skeRender();
+  SKE.undo.push(skeSnapState()); skeLoadState(SKE.redo.pop()); SKE.sel = null; SKE.note = ''; skeRender();
 }
 function skeFit() { SKE.zoom = 1; SKE.pan = 0; skeRender(); }
 function skeReset() {
   var DM = _dmCurrent(), LM = DM.landmarks;
-  skePush(); SKE.shape = skeRect(0, DM.parklet.length, LM.deckX0, LM.deckX1); SKE.sel = null; SKE.draft = null; SKE.note = ''; skeRender();
+  skePush(); SKE.legacy = false; SKE.r = { z0: 0, z1: DM.parklet.length, y0: LM.deckX0, y1: LM.deckX1 }; SKE.ch = [0, 0, 0, 0]; skeSync(); SKE.sel = null; SKE.draft = null; SKE.note = ''; skeRender();
 }
-
-// Rectangle: the typed length along the curb and width across, from the outline's corner nearest the
-// deck start and the curb
+// an older tool's shape becomes its bounding rectangle (the user's choice; Undo brings the shape back)
+function skeConvert() {
+  if (!SKE.legacy) return;
+  var b = skeBBox(SKE.shape); skePush(); SKE.legacy = false; SKE.r = { z0: skeR4(b.z0), z1: skeR4(b.z1), y0: skeR4(b.y0), y1: skeR4(b.y1) }; SKE.ch = [0, 0, 0, 0]; skeSync();
+  SKE.note = 'Converted to its bounding rectangle, ' + (b.z1 - b.z0).toFixed(2) + ' × ' + (b.y1 - b.y0).toFixed(2) + ' m. Undo brings the older shape back.'; skeRender();
+}
+// Rectangle: the typed length along the curb and width across, from the corner nearest the deck start and the curb; the
+// cuts are kept where they still fit
 function skeSetRect() {
   var l = parseFloat((document.getElementById('skeRL') || {}).value), w = parseFloat((document.getElementById('skeRW') || {}).value);
   if (!(l >= SKE_MIN_EDGE) || !(w >= SKE_MIN_EDGE)) { SKE.note = 'The length and width must each be at least ' + SKE_MIN_EDGE.toFixed(2) + ' m.'; skeRender(); return; }
-  var b = skeBBox(SKE.shape);
-  skePush(); SKE.shape = skeRect(b.z0, b.z0 + l, b.y0, b.y0 + w); SKE.sel = null; SKE.note = ''; skeRender();
+  var b = SKE.legacy ? skeBBox(SKE.shape) : SKE.r;
+  skePush(); SKE.legacy = false; SKE.r = { z0: b.z0, z1: skeR4(b.z0 + l), y0: b.y0, y1: skeR4(b.y0 + w) }; skeClampCuts(); skeSync(); SKE.sel = null; SKE.note = ''; skeRender();
 }
-// Edit: the typed length of edge i. Its end corner moves along the edge; when the next edge is
-// square to it, that edge moves with it (so a rectangle stays a rectangle).
-function skeSetEdgeLen(i, len) {
-  var sh = SKE.shape, n = sh.verts.length;
-  if (i == null) { if (!SKE.sel || SKE.sel.kind !== 'edge') return; i = SKE.sel.i; }
-  if (len == null) len = parseFloat((document.getElementById('skeEL') || {}).value);
-  if (!(len >= SKE_MIN_EDGE)) { SKE.note = 'An edge must be at least ' + SKE_MIN_EDGE.toFixed(2) + ' m long.'; skeRender(); return; }
-  var a = sh.verts[i], j = (i + 1) % n, b = sh.verts[j], L0 = Math.hypot(b.x - a.x, b.y - a.y); if (L0 < 1e-9) return;
-  var ux = (b.x - a.x) / L0, uy = (b.y - a.y) / L0, dl = len - L0, k = (i + 2) % n, c = sh.verts[k];
-  var nx = c.x - b.x, ny = c.y - b.y, ln = Math.hypot(nx, ny), square = n >= 4 && ln > 1e-9 && Math.abs((nx * ux + ny * uy) / ln) < 1e-6;
-  skePush();
-  sh.verts[j] = { x: skeR4(b.x + ux * dl), y: skeR4(b.y + uy * dl) };
-  if (square) sh.verts[k] = { x: skeR4(c.x + ux * dl), y: skeR4(c.y + uy * dl) };
-  SKE.note = ''; skeRender();
+function skeClampCuts() { for (var k = 0; k < 4; k++) SKE.ch[k] = skeR4(Math.min(+SKE.ch[k] || 0, skeMaxCut(k, SKE.r, SKE.ch))); }
+// a corner's cut, typed (m, the leg along each edge) or dragged; on the grid step, held inside its edges
+function skeSetCut(k, v) {
+  if (SKE.legacy) return;
+  var c = parseFloat(v); if (!isFinite(c) || c < 0) { SKE.note = 'A corner cut is a length of 0 m or more.'; skeRender(); return; }
+  var mx = skeMaxCut(k, SKE.r, SKE.ch);
+  if (c > mx + 1e-6) { SKE.note = 'The ' + SKE_CORNER[k] + ' corner takes a cut of at most ' + mx.toFixed(2) + ' m here.'; c = mx; }
+  else SKE.note = '';
+  skePush(); SKE.ch[k] = skeR4(c); skeSync(); SKE.sel = { kind: 'corner', i: k }; skeRender();
 }
-function skeDeleteVert(i) {
-  var sh = SKE.shape;
-  if (sh.verts.length <= 3) { SKE.note = 'The outline needs at least three corners.'; skeRender(); return; }
-  skePush(); sh.verts.splice(i, 1); sh.segs.splice(i, 1); SKE.sel = null; SKE.hover = null; skeRender();
+// corner k of the rectangle, and its inward diagonal (unit)
+function skeCorner(k) {
+  var r = SKE.r, C = [[r.z0, r.y0], [r.z1, r.y0], [r.z1, r.y1], [r.z0, r.y1]][k], s = [[1, 1], [-1, 1], [-1, -1], [1, -1]][k];
+  return { x: C[0], y: C[1], dx: s[0] * Math.SQRT1_2, dy: s[1] * Math.SQRT1_2 };
 }
-// a corner on edge i at parameter t (an arc splits into two arcs on the same curve)
-function skeInsertVert(i, t, pt) {
-  var sh = SKE.shape, n = sh.verts.length, v1 = sh.verts[i], v2 = sh.verts[(i + 1) % n], nv, s1 = { arc: false, sag: 0 }, s2 = { arc: false, sag: 0 };
-  if (skeArc(sh, i)) {
-    var c = shapeArcCtrl(v1, v2, sh.segs[i].sag), q1 = { x: (1 - t) * v1.x + t * c.x, y: (1 - t) * v1.y + t * c.y }, q3 = { x: (1 - t) * c.x + t * v2.x, y: (1 - t) * c.y + t * v2.y };
-    nv = { x: skeR4((1 - t) * q1.x + t * q3.x), y: skeR4((1 - t) * q1.y + t * q3.y) };
-    var sag = function(a, cp, b) { var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1; return (cp.x - mx) * (-dy / l) + (cp.y - my) * (dx / l); };
-    var g1 = sag(v1, q1, nv), g2 = sag(nv, q3, v2);
-    s1 = { arc: Math.abs(g1) > 0.001, sag: +g1.toFixed(4) }; s2 = { arc: Math.abs(g2) > 0.001, sag: +g2.toFixed(4) };
-  } else nv = pt;
-  skePush(); sh.verts.splice(i + 1, 0, nv); sh.segs.splice(i, 1, s1, s2);
-  SKE.sel = { kind: 'vert', i: i + 1 }; skeRender();
-}
-
-// Polygon: the next corner (grid; with Shift, the edge from the last corner at 0/45/90 degrees)
-function skePolyPoint(D, p, V, shift) {
-  var last = D.pts.length ? D.pts[D.pts.length - 1] : null;
-  if (!shift || !last) return skeSnap(p, V);
-  var dx = p.x - last.x, dy = p.y - last.y, a = Math.atan2(dy, dx), k = Math.round(a / (Math.PI / 4)) * Math.PI / 4, g = cadStep();
-  var r = Math.hypot(dx, dy) * Math.cos(a - k), cx = Math.round(Math.cos(k) * 1e6) / 1e6, cy = Math.round(Math.sin(k) * 1e6) / 1e6;
-  if (cx === 0 || cy === 0) { var m = Math.round(r / g) * g; return { x: skeR4(last.x + cx * m), y: skeR4(last.y + cy * m) }; }
-  var m2 = Math.round(Math.abs(r) * Math.SQRT1_2 / g) * g * Math.sign(r);
-  return { x: skeR4(last.x + Math.sign(cx) * m2), y: skeR4(last.y + Math.sign(cy) * m2) };
-}
-function skeClosePoly() {
-  var D = SKE.draft; if (!D || D.kind !== 'poly') return;
-  if (D.pts.length < 3) { SKE.note = 'Place at least three corners, then close the outline.'; skeRender(); return; }
-  skePush(); SKE.shape = { closed: true, verts: D.pts.map(function(p) { return { x: p.x, y: p.y }; }), segs: D.pts.map(function() { return { arc: false, sag: 0 }; }) };
-  SKE.draft = null; SKE.tool = 'edit'; SKE.sel = null; skeRender();
-}
-
-// Notch: from corner i, a rectangle cut back along both of its edges (both straight, the corner convex)
-function skeNotchStart(i) {
-  var sh = SKE.shape, n = sh.verts.length, ip = (i - 1 + n) % n, c = sh.verts[i], p = sh.verts[ip], q = sh.verts[(i + 1) % n];
-  if (skeArc(sh, ip) || skeArc(sh, i)) return { err: 'A notch needs straight edges on both sides of the corner.' };
-  var lu = Math.hypot(p.x - c.x, p.y - c.y), lw = Math.hypot(q.x - c.x, q.y - c.y);
-  if (lu < 2 * SKE_MIN_EDGE || lw < 2 * SKE_MIN_EDGE) return { err: 'The edges at this corner are too short for a notch.' };
-  var A2 = 0; for (var k = 0; k < n; k++) { var a = sh.verts[k], b = sh.verts[(k + 1) % n]; A2 += a.x * b.y - b.x * a.y; }
-  var turn = (c.x - p.x) * (q.y - c.y) - (c.y - p.y) * (q.x - c.x);
-  if (turn * A2 <= 0) return { err: 'Pick an outside corner: a notch cuts into the deck.' };
-  return { kind: 'notch', i: i, c: { x: c.x, y: c.y }, u: { x: (p.x - c.x) / lu, y: (p.y - c.y) / lu }, w: { x: (q.x - c.x) / lw, y: (q.y - c.y) / lw }, lu: lu, lw: lw, a: 0, b: 0 };
-}
-function skeNotchMove(D, p) {
-  var dx = p.x - D.c.x, dy = p.y - D.c.y;
-  D.a = skeR4(Math.max(0, Math.min(D.lu - SKE_MIN_EDGE, dx * D.u.x + dy * D.u.y)));
-  D.b = skeR4(Math.max(0, Math.min(D.lw - SKE_MIN_EDGE, dx * D.w.x + dy * D.w.y)));
-}
-function skeNotchPts(D) {
-  var c = D.c, u = D.u, w = D.w;
-  return [{ x: skeR4(c.x + u.x * D.a), y: skeR4(c.y + u.y * D.a) }, { x: skeR4(c.x + u.x * D.a + w.x * D.b), y: skeR4(c.y + u.y * D.a + w.y * D.b) }, { x: skeR4(c.x + w.x * D.b), y: skeR4(c.y + w.y * D.b) }];
-}
-function skeNotchApply(D) {
-  var sh = SKE.shape, s = function() { return { arc: false, sag: 0 }; };
-  sh.verts.splice.apply(sh.verts, [D.i, 1].concat(skeNotchPts(D)));
-  sh.segs.splice(D.i, 1, s(), s(), s());
-}
-// "1.50 x 1.00 m": along the curb first
-function skeNotchDims(D) { var alongU = Math.abs(D.u.x) >= Math.abs(D.u.y); return (alongU ? D.a : D.b).toFixed(2) + ' × ' + (alongU ? D.b : D.a).toFixed(2) + ' m'; }
+// the handle sits on the cut's midpoint (on the corner when uncut)
+function skeHandle(k) { var c = skeCorner(k), h = (+SKE.ch[k] || 0) * Math.SQRT1_2; return { x: c.x + c.dx * h, y: c.y + c.dy * h }; }
 
 // Apply: the outline into the design. A deck that starts or ends somewhere new takes that length and
 // place along the curb: the street stays put, the deck frame (and everything placed on it) follows.
 function skeApply() {
-  var E = skeExtent(), iss = skeIssues(SKE.shape, E);
+  var E = skeExtent(), iss = skeIssues(SKE.shape, E, SKE.legacy);
   if (iss.list.length) { SKE.issues = iss; skeSyncUI(); return false; }
   var sh = SKE.shape, b = skeBBox(sh), L = designParkletLength, dz0 = b.z0, newL = b.z1 - b.z0;
   var out = { active: true, closed: true, verts: sh.verts.map(function(v) { return { x: skeR4(v.x - dz0), y: skeR4(v.y) }; }),
@@ -10563,6 +10549,7 @@ function skeReanchor(dz0, newL) {
   var ls = document.querySelector("[oninput*='onLengthSlider']"); if (ls) ls.value = designParkletLength;
 }
 
+
 // ── the canvas ──
 function skeRender() {
   var svg = document.getElementById('skeSVG'); if (!svg || !SKE.open || !SKE.shape) return;
@@ -10573,7 +10560,7 @@ function skeRender() {
   var rect = function(x, y, w, h, fill, extra) { return "<rect x='" + r1(x) + "' y='" + r1(y) + "' width='" + r1(Math.max(0, w)) + "' height='" + r1(Math.max(0, h)) + "' fill='" + fill + "'" + (extra || '') + '/>'; };
   var line = function(x1, y1, x2, y2, st, w, extra) { return "<line x1='" + r1(x1) + "' y1='" + r1(y1) + "' x2='" + r1(x2) + "' y2='" + r1(y2) + "' stroke='" + st + "' stroke-width='" + w + "'" + (extra || '') + '/>'; };
   var text = function(x, y, t, sz, fill, anchor, extra) { return "<text x='" + r1(x) + "' y='" + r1(y) + "' font-size='" + sz + "' fill='" + fill + "' text-anchor='" + (anchor || 'start') + "'" + FT + (extra || '') + '>' + esc(t) + '</text>'; };
-  var iss = SKE.issues = skeIssues(sh, E);
+  var iss = SKE.issues = skeIssues(sh, E, false);
   svg.setAttribute('viewBox', '0 0 ' + r1(V.W) + ' ' + r1(V.H));
   var yc = Y(E.xc), yl = Y(E.xl), mY = V.m * s, zs = X(E.z1), ze = X(E.z0);
   o.push("<defs><pattern id='skeWS' patternUnits='userSpaceOnUse' width='7' height='7' patternTransform='rotate(45)'><rect width='7' height='7' fill='#f4f2ee'/><line x1='0' y1='0' x2='0' y2='7' stroke='#d6d1c7' stroke-width='1.2'/></pattern></defs>");
@@ -10610,8 +10597,7 @@ function skeRender() {
     if (major) { var lb = zt === 0 ? '0 m' : String(zt); o.push(text(tx, yc - mY - 9, lb, 10, '#6b6a66', 'middle', " data-ske='ruler'"), text(tx, yl + mY + 17, lb, 10, '#6b6a66', 'middle', " data-ske='ruler'")); }
   }
   // the applied outline, when the copy has moved away from it
-  var cur = JSON.stringify(sh);
-  if (SKE.applied && cur !== SKE.base) o.push("<path d='" + buildPlanShapePath(SKE.applied, f) + "' fill='none' stroke='#a3a29d' stroke-width='1' stroke-dasharray='4 3' data-ske='applied'/>");
+  if (SKE.applied && skeSnapState() !== SKE.base) o.push("<path d='" + buildPlanShapePath(SKE.applied, f) + "' fill='none' stroke='#a3a29d' stroke-width='1' stroke-dasharray='4 3' data-ske='applied'/>");
   // the outline
   o.push("<path d='" + buildPlanShapePath(sh, f) + "' fill='rgba(58,168,228,.13)' data-ske='deck'/>");
   // the accessible route: a dashed lane GEN.ROUTE_W wide down the middle of the deck, between the wheel-stop zones;
@@ -10638,42 +10624,24 @@ function skeRender() {
     var bad = iss.edge[i], on = (SKE.hover && SKE.hover.kind === 'edge' && SKE.hover.i === i) || (SKE.sel && SKE.sel.kind === 'edge' && SKE.sel.i === i);
     o.push("<path d='" + d + "' fill='none' stroke='" + (bad ? '#c03030' : '#1f6f99') + "' stroke-width='" + (on ? 3.2 : 2) + "' stroke-linejoin='round' data-ske-edge='" + i + "'" + (bad ? " data-bad='1'" : '') + '>' + (bad ? '<title>' + esc(bad) + '</title>' : '') + '</path>');
   }
-  // Edit: corner handles, and the length of the edge under the pointer (or selected), clickable to type
-  if (SKE.tool === 'edit' || SKE.tool === 'notch') sh.verts.forEach(function(v, k) {
-    var p = P(v), sel = SKE.sel && SKE.sel.kind === 'vert' && SKE.sel.i === k, hov = SKE.hover && SKE.hover.kind === 'vert' && SKE.hover.i === k;
-    if (SKE.tool === 'notch') { var ok2 = !skeNotchStart(k).err; o.push("<circle cx='" + r1(p.px) + "' cy='" + r1(p.py) + "' r='" + (hov && ok2 ? 6 : 4) + "' fill='" + (ok2 ? (hov ? '#1f6f99' : '#fff') : '#e4e3df') + "' stroke='" + (ok2 ? '#1f6f99' : '#a3a29d') + "' stroke-width='1.3' data-ske-vert='" + k + "'/>"); return; }
-    var h = sel || hov ? 5 : 4;
-    o.push(rect(p.px - h, p.py - h, 2 * h, 2 * h, sel ? '#1f6f99' : '#ffffff', " stroke='#1f6f99' stroke-width='1.4' data-ske-vert='" + k + "' style='cursor:move'"));
-  });
-  var lenEdge = SKE.tool === 'edit' ? (SKE.hover && SKE.hover.kind === 'edge' ? SKE.hover.i : (SKE.sel && SKE.sel.kind === 'edge' ? SKE.sel.i : null)) : null;
-  if (lenEdge != null && lenEdge < n) {
-    var EP = skeEdgePts(sh, lenEdge), mp = EP.length > 2 ? EP[Math.floor(EP.length / 2)] : { x: (EP[0].x + EP[1].x) / 2, y: (EP[0].y + EP[1].y) / 2 };
-    var m1 = P(mp), e0 = P(EP[0]), e1 = P(EP[EP.length - 1]), ex = e1.px - e0.px, ey = e1.py - e0.py, el = Math.hypot(ex, ey) || 1, nx = ey / el, ny = -ex / el;
-    var inside = skeInsidePx(V, m1.px + nx * 4, m1.py + ny * 4); if (inside) { nx = -nx; ny = -ny; }
-    var lx = m1.px + nx * 16, ly = m1.py + ny * 16, lt = skeEdgeLen(sh, lenEdge).toFixed(2) + ' m', lw = lt.length * 6.4 + 12;
-    o.push("<g data-ske-len='" + lenEdge + "' style='cursor:text'><title>Edge " + (lenEdge + 1) + ': click to type its length</title>' + rect(lx - lw / 2, ly - 9, lw, 18, '#ffffff', " stroke='" + (iss.edge[lenEdge] ? '#c03030' : '#1f6f99') + "' stroke-width='1' rx='2'") + text(lx, ly + 4, lt, 11, '#1f2a30', 'middle', " data-ske='len-text'") + '</g>');
+  // the corner handles: a diamond on each cut's midpoint (on the corner when uncut), dragged inward along the diagonal
+  if (!SKE.legacy) for (var hk = 0; hk < 4; hk++) {
+    var hp = P(skeHandle(hk)), sel2 = SKE.sel && SKE.sel.kind === 'corner' && SKE.sel.i === hk, hov2 = SKE.hover && SKE.hover.kind === 'corner' && SKE.hover.i === hk, hs = sel2 || hov2 ? 7 : 5.5;
+    o.push("<path d='M " + r1(hp.px) + ' ' + r1(hp.py - hs) + ' L ' + r1(hp.px + hs) + ' ' + r1(hp.py) + ' L ' + r1(hp.px) + ' ' + r1(hp.py + hs) + ' L ' + r1(hp.px - hs) + ' ' + r1(hp.py) + " Z' fill='" + (sel2 ? '#1f6f99' : '#ffffff') + "' stroke='#1f6f99' stroke-width='1.4' data-ske-corner='" + hk + "' style='cursor:nwse-resize'><title>Corner " + SKE_CORNER[hk] + ': drag inward for a 45° cut' + (SKE.ch[hk] ? ' (now ' + (+SKE.ch[hk]).toFixed(2) + ' m)' : '') + '</title></path>');
+    if (SKE.ch[hk] > 0 && (sel2 || hov2 || (SKE.drag && SKE.drag.kind === 'corner' && SKE.drag.i === hk))) {
+      var lt2 = 'cut ' + (+SKE.ch[hk]).toFixed(2) + ' m', lw2 = lt2.length * 6.4 + 12, cc = skeCorner(hk), out2 = P({ x: cc.x - cc.dx * 0.6, y: cc.y - cc.dy * 0.6 });
+      o.push(rect(out2.px - lw2 / 2, out2.py - 9, lw2, 18, '#ffffff', " stroke='#1f6f99' stroke-width='1' rx='2'") + text(out2.px, out2.py + 4, lt2, 11, '#1f2a30', 'middle', " data-ske='cut-text'"));
+    }
   }
-  // drafts: the rectangle, the polygon, the notch -- each with its live readout
+  // the rectangle being drawn, with its live readout
   var D = SKE.draft, rd = function(x, y, t) { var w = t.length * 6.3 + 12; return rect(x + 12, y - 26, w, 18, '#1f2a30', " rx='2' opacity='.88'") + text(x + 12 + w / 2, y - 13, t, 11, '#ffffff', 'middle', " data-ske='readout'"); };
   if (D && D.kind === 'rect') {
     var ra = P(D.a), rb = P(D.b);
     o.push(rect(Math.min(ra.px, rb.px), Math.min(ra.py, rb.py), Math.abs(rb.px - ra.px), Math.abs(rb.py - ra.py), 'rgba(31,111,153,.10)', " stroke='#1f6f99' stroke-width='1.4' stroke-dasharray='5 3'"));
     o.push(rd(rb.px, rb.py, Math.abs(D.b.x - D.a.x).toFixed(2) + ' × ' + Math.abs(D.b.y - D.a.y).toFixed(2) + ' m'));
   }
-  if (D && D.kind === 'poly' && D.pts.length) {
-    var pts = D.pts.map(P), pl = pts.map(function(p) { return r1(p.px) + ',' + r1(p.py); });
-    o.push("<polyline points='" + pl.join(' ') + "' fill='none' stroke='#1f6f99' stroke-width='2'/>");
-    if (D.cur) { var cq = P(D.cur), lp = pts[pts.length - 1]; o.push(line(lp.px, lp.py, cq.px, cq.py, '#1f6f99', 1.3, " stroke-dasharray='5 3'"));
-      var last = D.pts[D.pts.length - 1]; o.push(rd(cq.px, cq.py, Math.hypot(D.cur.x - last.x, D.cur.y - last.y).toFixed(2) + ' m')); }
-    pts.forEach(function(p, k) { o.push("<circle cx='" + r1(p.px) + "' cy='" + r1(p.py) + "' r='" + (k === 0 && D.pts.length >= 3 ? 7 : 3.5) + "' fill='" + (k === 0 ? '#ffffff' : '#1f6f99') + "' stroke='#1f6f99' stroke-width='1.4'" + (k === 0 ? " data-ske='first'" : '') + '/>'); });
-  }
-  if (D && D.kind === 'notch' && D.a > 0 && D.b > 0) {
-    var nq = [D.c].concat(skeNotchPts(D)).map(P);
-    o.push("<polygon points='" + nq.map(function(p) { return r1(p.px) + ',' + r1(p.py); }).join(' ') + "' fill='rgba(192,48,48,.14)' stroke='#c03030' stroke-width='1.4' stroke-dasharray='4 3'/>");
-    o.push(rd(nq[2].px, nq[2].py, skeNotchDims(D)));
-  }
   svg.innerHTML = o.join('');
-  svg.style.cursor = SKE.drag ? (SKE.drag.kind === 'pan' ? 'grabbing' : 'move') : (SKE.tool === 'edit' ? (SKE.hover ? (SKE.hover.kind === 'vert' ? 'move' : 'grab') : 'default') : 'crosshair');
+  svg.style.cursor = SKE.drag ? (SKE.drag.kind === 'pan' ? 'grabbing' : 'nwse-resize') : (SKE.hover ? 'nwse-resize' : (SKE.legacy ? 'default' : 'crosshair'));
   skeSyncUI();
 }
 // is a canvas point inside the outline (even-odd over its screen polyline)
@@ -10688,21 +10656,18 @@ function skeSyncUI() {
   var sh = SKE.shape; if (!sh) return;
   var iss = SKE.issues || { list: [] }, b = skeBBox(sh), A = pkShapeArea(sh), el = function(id) { return document.getElementById(id); };
   var rr = el('skeReadout'); if (rr) rr.textContent = 'Area ' + A.toFixed(2) + ' m² · ' + (b.z1 - b.z0).toFixed(2) + ' × ' + (b.y1 - b.y0).toFixed(2) + ' m';
-  document.querySelectorAll('#skeTools [data-tool]').forEach(function(t) { var on = t.getAttribute('data-tool') === SKE.tool; t.classList.toggle('on', on); t.setAttribute('aria-pressed', on ? 'true' : 'false'); });
-  var oR = el('skeOptRect'), oE = el('skeOptEdge'), edge = SKE.tool === 'edit' && SKE.sel && SKE.sel.kind === 'edge' ? SKE.sel.i : null;
-  if (oR) oR.classList.toggle('on', SKE.tool === 'rect');
-  if (oE) oE.classList.toggle('on', edge != null);
-  var D = SKE.draft, rl = el('skeRL'), rw = el('skeRW'), eL = el('skeEL'), eN = el('skeEdgeNo');
+  var D = SKE.draft, rl = el('skeRL'), rw = el('skeRW');
   if (rl && document.activeElement !== rl) rl.value = (D && D.kind === 'rect' ? Math.abs(D.b.x - D.a.x) : b.z1 - b.z0).toFixed(2);
   if (rw && document.activeElement !== rw) rw.value = (D && D.kind === 'rect' ? Math.abs(D.b.y - D.a.y) : b.y1 - b.y0).toFixed(2);
-  if (edge != null) { if (eN) eN.textContent = String(edge + 1); if (eL && document.activeElement !== eL) eL.value = skeEdgeLen(sh, edge).toFixed(2); }
+  for (var k = 0; k < 4; k++) { var ci = el('skeCut' + k); if (ci) { ci.disabled = SKE.legacy; if (document.activeElement !== ci) ci.value = (+SKE.ch[k] || 0).toFixed(2); } }
+  var lg = el('skeLegacy'); if (lg) lg.hidden = !SKE.legacy;
   var u = el('skeUndo'), r = el('skeRedo'), ap = el('skeApply');
   if (u) u.disabled = !SKE.undo.length && !D; if (r) r.disabled = !SKE.redo.length;
   if (ap) { ap.disabled = iss.list.length > 0 || !!D; ap.title = iss.list.length ? 'Fix the outline first: ' + iss.list[0] : 'Writes the outline to the design: Plan, 3D, the schedule and the checks all read it.'; }
   var gsel = el('skeGrid'); if (gsel) { var gv = cadStep(); [].forEach.call(gsel.options, function(o) { if (Math.abs(parseFloat(o.value) - gv) < 1e-9) gsel.value = o.value; }); }
   var msg = el('skeMsg'); if (msg) {
-    var bad = iss.list.length > 0, t = bad ? iss.list[0] + (iss.list.length > 1 ? ' (+' + (iss.list.length - 1) + ' more)' : '') : (SKE.note || SKE_HINT[SKE.tool] || '');
-    if (!bad && !SKE.note && SKE.unapplied && JSON.stringify(sh) === SKE.base) t = 'This outline was saved but never applied: the design still uses the plain rectangle. ' + t;
+    var bad = iss.list.length > 0, t = bad ? iss.list[0] + (iss.list.length > 1 ? ' (+' + (iss.list.length - 1) + ' more)' : '') : (SKE.note || SKE_HINT[SKE.legacy ? 'legacy' : 'rect']);
+    if (!bad && !SKE.note && SKE.unapplied && skeSnapState() === SKE.base) t = 'This outline was saved but never applied: the design still uses the plain rectangle. ' + t;
     msg.textContent = t; msg.classList.toggle('bad', bad); msg.classList.toggle('note', !bad && !!SKE.note);
   }
 }
@@ -10710,86 +10675,47 @@ function skeSyncUI() {
 // ── pointer and keys ──
 function skeBind() {
   if (SKE.bound) return; var svg = document.getElementById('skeSVG'); if (!svg) return; SKE.bound = true;
-  svg.addEventListener('mousedown', skeDown); svg.addEventListener('dblclick', skeDbl);
+  svg.addEventListener('mousedown', skeDown);
   svg.addEventListener('wheel', skeWheel, { passive: false });
-  svg.addEventListener('mouseleave', function() { if (!SKE.drag && SKE.open) { SKE.hover = null; if (SKE.draft && SKE.draft.kind === 'poly') SKE.draft.cur = null; skeRender(); } });
+  svg.addEventListener('mouseleave', function() { if (!SKE.drag && SKE.open) { SKE.hover = null; skeRender(); } });
   document.addEventListener('mousemove', skeMove); document.addEventListener('mouseup', skeUp);
   window.addEventListener('keydown', skeKey, true);
   window.addEventListener('resize', function() { if (skeVisible()) skeRender(); });
 }
+// the corner handle under the pointer (9 px)
 function skeHit(V, x, y) {
-  var sh = SKE.shape, n = sh.verts.length, best = null, i;
-  for (i = 0; i < n; i++) { var p = skePx(V, sh.verts[i]), d = Math.hypot(x - p.px, y - p.py); if (d < 9 && (!best || d < best.d)) best = { kind: 'vert', i: i, d: d }; }
-  if (best) return best;
-  for (i = 0; i < n; i++) {
-    var P = skeEdgePts(sh, i).map(function(q) { return skePx(V, q); });
-    for (var k = 0; k < P.length - 1; k++) {
-      var ax = P[k].px, ay = P[k].py, bx = P[k + 1].px, by = P[k + 1].py, l2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay); if (l2 < 1e-9) continue;
-      var t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l2)), dd = Math.hypot(x - (ax + t * (bx - ax)), y - (ay + t * (by - ay)));
-      if (dd < 7 && (!best || dd < best.d)) best = { kind: 'edge', i: i, d: dd, t: (k + t) / (P.length - 1) };
-    }
-  }
+  if (SKE.legacy) return null;
+  var best = null;
+  for (var k = 0; k < 4; k++) { var p = skePx(V, skeHandle(k)), d = Math.hypot(x - p.px, y - p.py); if (d < 9 && (!best || d < best.d)) best = { kind: 'corner', i: k, d: d }; }
   return best;
 }
 function skeDown(ev) {
   if (!SKE.open) return;
-  var V = skeView(), e = skeEvt(ev, V), sh = SKE.shape;
+  var V = skeView(), e = skeEvt(ev, V);
   if (ev.button === 1) { ev.preventDefault(); SKE.drag = { kind: 'pan', px0: e.px, pan0: SKE.pan, moved: true }; return; }
   if (ev.button !== 0) return;
   ev.preventDefault(); SKE.note = '';
-  var lab = ev.target && ev.target.closest ? ev.target.closest('[data-ske-len]') : null;
-  if (lab) { SKE.sel = { kind: 'edge', i: +lab.getAttribute('data-ske-len') }; skeRender(); var fe = document.getElementById('skeEL'); if (fe) { fe.focus(); fe.select(); } return; }
-  if (SKE.tool === 'rect') { var a = skeSnap(e.p, V); SKE.draft = { kind: 'rect', a: a, b: a }; skeRender(); return; }
-  if (SKE.tool === 'poly') {
-    var D = SKE.draft && SKE.draft.kind === 'poly' ? SKE.draft : (SKE.draft = { kind: 'poly', pts: [], cur: null });
-    if (D.pts.length >= 3) { var p0 = skePx(V, D.pts[0]); if (Math.hypot(e.px - p0.px, e.py - p0.py) < 10) { skeClosePoly(); return; } }
-    var q = skePolyPoint(D, e.p, V, ev.shiftKey), lst = D.pts[D.pts.length - 1];
-    if (!lst || Math.hypot(q.x - lst.x, q.y - lst.y) > 1e-6) D.pts.push(q);
-    D.cur = q; skeRender(); return;
-  }
   var h = skeHit(V, e.px, e.py);
-  if (SKE.tool === 'notch') {
-    if (!h || h.kind !== 'vert') { SKE.note = 'Press on a corner of the outline, then drag inward.'; skeRender(); return; }
-    var nd = skeNotchStart(h.i); if (nd.err) { SKE.note = nd.err; skeRender(); return; }
-    SKE.draft = nd; skeRender(); return;
-  }
-  if (!h) { SKE.sel = null; skeRender(); return; }
-  SKE.sel = { kind: h.kind, i: h.i };
-  var orig = JSON.stringify(sh);
-  if (h.kind === 'vert') SKE.drag = { kind: 'vert', i: h.i, orig: orig, px0: e.px, py0: e.py, moved: false };
-  else {
-    var n = sh.verts.length, va = sh.verts[h.i], vb = sh.verts[(h.i + 1) % n], L2 = Math.hypot(vb.x - va.x, vb.y - va.y) || 1;
-    SKE.drag = { kind: 'edge', i: h.i, orig: orig, a: { x: va.x, y: va.y }, b: { x: vb.x, y: vb.y }, nx: -(vb.y - va.y) / L2, ny: (vb.x - va.x) / L2, p0: e.p, px0: e.px, py0: e.py, moved: false };
-  }
-  skeRender();
+  if (h) { SKE.sel = { kind: 'corner', i: h.i }; SKE.drag = { kind: 'corner', i: h.i, orig: skeSnapState(), px0: e.px, py0: e.py, moved: false }; skeRender(); return; }
+  var a = skeSnap(e.p, V); SKE.draft = { kind: 'rect', a: a, b: a }; SKE.sel = null; skeRender();
 }
 function skeMove(ev) {
   if (!SKE.open) return;
   var svg = document.getElementById('skeSVG'); if (!svg) return;
   var inSvg = svg.contains(ev.target);
   if (!SKE.drag && !SKE.draft && !inSvg) return;
-  var V = skeView(), e = skeEvt(ev, V), sh = SKE.shape, D = SKE.draft, G = SKE.drag;
+  var V = skeView(), e = skeEvt(ev, V), D = SKE.draft, G = SKE.drag;
   if (D && D.kind === 'rect') { D.b = skeSnap(e.p, V); skeRender(); return; }
-  if (D && D.kind === 'poly') { D.cur = skePolyPoint(D, e.p, V, ev.shiftKey); skeRender(); return; }
-  if (D && D.kind === 'notch') { skeNotchMove(D, skeSnap(e.p, V)); skeRender(); return; }
   if (G) {
     if (G.kind === 'pan') { SKE.pan = G.pan0 + (e.px - G.px0) / V.s; skeRender(); return; }
     if (!G.moved && Math.hypot(e.px - G.px0, e.py - G.py0) < 3) return;
     if (!G.moved) { G.moved = true; skePush(G.orig); }
-    var n = sh.verts.length;
-    if (G.kind === 'vert') { var q = skeSnap(e.p, V); sh.verts[G.i] = { x: q.x, y: q.y }; }
-    else {
-      var g = cadStep(), dd = Math.round(((e.p.x - G.p0.x) * G.nx + (e.p.y - G.p0.y) * G.ny) / g) * g, tol = 8 / V.s;
-      if (Math.abs(Math.abs(G.ny) - 1) < 1e-9) [V.E.xc, V.E.xl].forEach(function(t) { var raw = G.a.y + G.ny * ((e.p.x - G.p0.x) * G.nx + (e.p.y - G.p0.y) * G.ny), gy = G.a.y + G.ny * dd; if (Math.abs(raw - t) < tol && Math.abs(raw - t) < Math.abs(raw - gy)) dd = (t - G.a.y) / G.ny; });
-      sh.verts[G.i] = { x: skeR4(G.a.x + G.nx * dd), y: skeR4(G.a.y + G.ny * dd) };
-      sh.verts[(G.i + 1) % n] = { x: skeR4(G.b.x + G.nx * dd), y: skeR4(G.b.y + G.ny * dd) };
-    }
-    skeRender(); return;
+    // the cut's leg from the pointer's distance along the inward diagonal (the cut's midpoint is leg / sqrt 2 in), on the grid
+    var c = skeCorner(G.i), t = (e.p.x - c.x) * c.dx + (e.p.y - c.y) * c.dy, g = cadStep(), leg = Math.max(0, Math.round(t * Math.SQRT2 / g) * g);
+    SKE.ch[G.i] = skeR4(Math.min(leg, skeMaxCut(G.i, SKE.r, SKE.ch))); skeSync(); skeRender(); return;
   }
-  var h = SKE.tool === 'edit' || SKE.tool === 'notch' ? skeHit(V, e.px, e.py) : null;
-  if (h && SKE.tool === 'notch' && h.kind !== 'vert') h = null;
-  var k1 = h ? h.kind + h.i : '', k0 = SKE.hover ? SKE.hover.kind + SKE.hover.i : '';
-  if (k1 !== k0) { SKE.hover = h ? { kind: h.kind, i: h.i } : null; skeRender(); }
+  var h = skeHit(V, e.px, e.py), k1 = h ? 'c' + h.i : '', k0 = SKE.hover ? 'c' + SKE.hover.i : '';
+  if (k1 !== k0) { SKE.hover = h ? { kind: 'corner', i: h.i } : null; skeRender(); }
 }
 function skeUp() {
   if (!SKE.open) return;
@@ -10797,33 +10723,13 @@ function skeUp() {
   if (D && D.kind === 'rect') {
     SKE.draft = null;
     if (Math.abs(D.b.x - D.a.x) >= SKE_MIN_EDGE - 1e-9 && Math.abs(D.b.y - D.a.y) >= SKE_MIN_EDGE - 1e-9) {
-      skePush(); SKE.shape = skeRect(Math.min(D.a.x, D.b.x), Math.max(D.a.x, D.b.x), Math.min(D.a.y, D.b.y), Math.max(D.a.y, D.b.y)); SKE.sel = null;
-    } else SKE.note = 'Drag to draw the rectangle: at least ' + SKE_MIN_EDGE.toFixed(2) + ' m each way.';
-    skeRender(); return;
-  }
-  if (D && D.kind === 'notch') {
-    SKE.draft = null;
-    if (D.a >= SKE_MIN_EDGE - 1e-9 && D.b >= SKE_MIN_EDGE - 1e-9) { skePush(); skeNotchApply(D); SKE.sel = null; }
-    else SKE.note = 'Drag inward from the corner: a notch is at least ' + SKE_MIN_EDGE.toFixed(2) + ' m each way.';
+      skePush(); SKE.legacy = false; SKE.r = { z0: Math.min(D.a.x, D.b.x), z1: Math.max(D.a.x, D.b.x), y0: Math.min(D.a.y, D.b.y), y1: Math.max(D.a.y, D.b.y) }; skeClampCuts(); skeSync(); SKE.sel = null;
+    } else if (Math.abs(D.b.x - D.a.x) > 1e-9 || Math.abs(D.b.y - D.a.y) > 1e-9) SKE.note = 'Drag to draw the rectangle: at least ' + SKE_MIN_EDGE.toFixed(2) + ' m each way.';
     skeRender(); return;
   }
   if (SKE.drag) { SKE.drag = null; skeRender(); }
 }
-function skeDbl(ev) {
-  if (!SKE.open || SKE.tool !== 'edit') return;
-  var V = skeView(), e = skeEvt(ev, V), h = skeHit(V, e.px, e.py);
-  if (!h || h.kind !== 'edge') return;
-  ev.preventDefault();
-  var sh = SKE.shape, n = sh.verts.length, a = sh.verts[h.i], b = sh.verts[(h.i + 1) % n], pt = null, t = h.t;
-  if (!skeArc(sh, h.i)) {   // the point on the edge, on the grid along it when the edge runs square to the street
-    var g = cadStep(), px = a.x + t * (b.x - a.x), py = a.y + t * (b.y - a.y);
-    if (Math.abs(a.y - b.y) < 1e-9) px = Math.round(px / g) * g; else if (Math.abs(a.x - b.x) < 1e-9) py = Math.round(py / g) * g;
-    pt = { x: skeR4(px), y: skeR4(py) };
-    t = Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? (pt.x - a.x) / (b.x - a.x) : (pt.y - a.y) / (b.y - a.y);
-    if (!(t > 1e-6 && t < 1 - 1e-6)) return;
-  }
-  skeInsertVert(h.i, t, pt);
-}
+
 function skeWheel(ev) {
   if (!SKE.open) return;
   ev.preventDefault();
@@ -10843,17 +10749,13 @@ function skeKey(ev) {
   if (mod && !typing && (k === 'y' || k === 'Y')) { stop(); skeRedo(); return; }
   if (typing) return;
   var D = SKE.draft, G = SKE.drag;
-  if (k === 'Enter' && D && D.kind === 'poly') { stop(); skeClosePoly(); return; }
   if (k === 'Escape' && (D || G)) {
     stop();
-    if (G && G.moved && G.orig) { SKE.shape = JSON.parse(G.orig); SKE.undo.pop(); }
+    if (G && G.moved && G.orig) { skeLoadState(G.orig); SKE.undo.pop(); }
     SKE.draft = null; SKE.drag = null; skeRender(); return;
   }
-  if (k === 'Delete' || k === 'Backspace') {
-    if (D && D.kind === 'poly' && D.pts.length) { stop(); D.pts.pop(); if (!D.pts.length) SKE.draft = null; skeRender(); return; }
-    if (SKE.tool === 'edit' && SKE.sel && SKE.sel.kind === 'vert') { stop(); skeDeleteVert(SKE.sel.i); return; }
-  }
 }
+
 
 // ===== FURNITURE LIBRARY TAB =====
 function switchMode(mode) {
@@ -31600,7 +31502,7 @@ var UI_SHORTCUTS = [
   ['Ctrl+Z', 'Undoes the last change in the Section editor (while it is on screen).'],
   ['Ctrl+Y, Ctrl+Shift+Z', 'Redoes it.'],
   ['&larr; &rarr; in the Section', 'Narrows or widens the selected segment by 5 cm (Shift: 10 cm).'],
-  ['Delete, Backspace', 'Removes the selected Section segment, or the selected vertex in the shape editor.'],
+  ['Delete, Backspace', 'Removes the selected Section segment.'],
   ['Enter', 'Confirms a dialog; opens the focused check; sends a message to the Assistant (Shift+Enter: a new line).'],
   ['Mouse wheel', 'Zooms the Plan, Section or 3D view about the pointer.'],
   ['Shift+D', 'Shows or hides the model&rsquo;s debug overlay (for developers).']
