@@ -28354,7 +28354,7 @@ RVZP._gallery = async function() {
     <div class='sm-body'><div id='smMap'></div><p class='sm-zoom-note' id='smZoomNote' hidden>Zoom in to see site features</p>
       <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><p class='gis-note gis-zoom' id='gisZoomNote' hidden>Zoom in to see site features (hydrants, stops, trees show from zoom 15).</p><div id='smLayersList'></div></aside></div>
     <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
-      <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' disabled>Use this location</button></div>
+      <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' aria-describedby='smStatus' title='Click the street, then the side of it the parklet is on' disabled>Use this location</button></div>
   </div>
 </div>
 <script>
@@ -28383,7 +28383,10 @@ var SM = {
   map: null, pick: null, _last: {}
 };
 SM.contact = function() { try { return (localStorage.getItem('pkt_osm_contact') || '').trim(); } catch (e) { return ''; } };
-SM.status = function(html) { var el = document.getElementById('smStatus'); if (el) el.innerHTML = html; };
+SM.status = function(html) { var el = document.getElementById('smStatus'); if (el) el.innerHTML = html;
+  // (Brief 30 §8C, triage S8) the disabled button says what it waits for; enabled, it says nothing more
+  var u = document.getElementById('smUse'); if (u) u.title = u.disabled ? (SM.pick && SM.pick.snap ? 'Now click the side of the street the parklet is on' : 'Click the street, then the side of it the parklet is on') : '';
+};
 SM.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); };
 
 // ── Cache (IndexedDB, 7 days) ────────────────────────────────────────────────────────────────
@@ -28526,7 +28529,10 @@ SM.styleTune = function(s) {
 SM.open = async function() {
   var m = document.getElementById('smModal'); m.classList.add('open');
   SM.pick = null; document.getElementById('smUse').disabled = true;
-  document.getElementById('smQuery').focus();
+  // (Brief 30 §8C, triage S9 / row 35) the search starts from the design's street address (the Site panel's field), not
+  // from the last search's text, which a new search appended to
+  var q = document.getElementById('smQuery'), sa = document.getElementById('streetAddress'), a0 = sa ? sa.value.trim() : '';
+  q.value = a0 && !/^generic street/i.test(a0) ? a0 : ''; q.focus(); try { q.select(); } catch (e) {}
   SM.status('Loading the map...');
   try { await SM.loadLib(); }
   catch (e) {
