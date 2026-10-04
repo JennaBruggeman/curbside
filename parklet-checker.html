@@ -547,13 +547,14 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button type='button' class='tb-btn' id='helpBtn' onclick='uiShowHelp()' aria-label='Help and keyboard shortcuts' title='Keyboard shortcuts and what this tool checks (press ?).'>?</button>
   </div>
 </div>
-<nav class='step-strip' id='stepStrip' aria-label='The four steps' hidden>
+<nav class='step-strip' id='stepStrip' aria-label='The steps' hidden>
   <span class='ss-lbl'>Steps</span>
   <button type='button' class='ss-step' data-step='site' onclick='appSetMode("site")'><b>1</b> Site</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='design' onclick='appSetMode("design")'><b>2</b> Design</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='accessibility' onclick='appSetMode("accessibility")'><b>3</b> Accessibility</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='check' onclick='appSetMode("check")'><b>4</b> Check</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
-  <button type='button' class='ss-step' data-step='export' onclick='appSetMode("export")'><b>5</b> Export</button>
+  <button type='button' class='ss-step' data-step='facts' onclick='appSetMode("facts")'><b>2</b> Site facts</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='design' onclick='appSetMode("design")'><b>3</b> Design</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='accessibility' onclick='appSetMode("accessibility")'><b>4</b> Access</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='check' onclick='appSetMode("check")'><b>5</b> Check</button><span class='ss-arr' aria-hidden='true'>&rarr;</span>
+  <button type='button' class='ss-step' data-step='export' onclick='appSetMode("export")'><b>6</b> Export</button>
   <span class='ss-note'>Generate, Furniture and Visualize are in the tabs above when you want them.</span>
 </nav>
 <div class='app-body'>
@@ -695,7 +696,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <p class='hint chk-counts' id='chkCounts' aria-live='polite'></p>
 </div>
-<div class='sb-section' id='chkSide' hidden><button type='button' class='ctx-btn ctx-btn-full' id='chkConfirmBtn' onclick='SBX.drawer(true)' aria-haspopup='dialog' aria-controls='chkDrawer'>Confirm imported items</button></div>
+<div class='sb-section' id='chkSide' hidden><button type='button' class='ctx-btn ctx-btn-full' id='chkConfirmBtn' onclick='SFG.review(false)'>Review site facts</button></div>
 </div><div class='ctx-section' id='ctxSettings' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Settings</span></div>
 <nav style='padding:4px 0 8px;'>
   <button class='sw-nav-btn' onclick='swScrollTo("swGeneral")'>General</button>
@@ -713,6 +714,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <div style='font-size:11px;color:var(--sb-muted);line-height:1.5;'>Use search and categories in the main view. Click Place on any card to switch to Design and start placement.</div>
 </div>
 </div>
+<div class='ctx-section' id='ctxFacts' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site facts</span></div><nav id='sfcSide' aria-label='Site facts'></nav></div>
 <div class='ctx-section' id='ctxLearn' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Parklets 101</span></div><nav class='p101-nav' aria-label='Parklets 101'><button type='button' data-s='build' onclick='P101.go("build")'>Build-up</button><button type='button' data-s='qty' onclick='P101.go("qty")'>Quantities</button><button type='button' data-s='cost' onclick='P101.go("cost")'>Cost estimate</button><button type='button' data-s='mats' onclick='P101.go("mats")'>Materials</button><button type='button' data-s='src' onclick='P101.go("src")'>Sources</button></nav><p class='p101-side'>A reference beside the steps: it reads the design and changes nothing in it, except the rates you enter here.</p></div>
 <div class='ctx-section' id='ctxExport' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Export</span></div>
 <div class='ctx-group' id='px3dGroup'>
@@ -800,6 +802,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   </div>
   <div class='summary-section' id='summaryBox'></div>
 </div>
+<div id='workspaceFacts' style='display:none;flex:1;overflow:auto;'></div>
 <div id='workspaceLearn' style='display:none;flex:1;overflow:auto;'></div>
 <div id='workspaceExport' style='display:none;flex:1;overflow:hidden;'>
 <div class='exp-body'>
@@ -1374,14 +1377,18 @@ var CHK = {
   WEAK: { estimate: 3, imported: 2, missing: 1 },
   facts: function(c) { var f = CHK.FACTS[c.id] || {}; return { prov: f.prov || [], inputs: f.inputs || [c.inputId, c.inputId2].filter(Boolean), objects: f.objects || [], design: f.design || [] }; }
 };
-// one fact's source class: 'estimate' | 'imported' | 'confirmed' | 'survey' | 'override' | 'entered' | 'placed' | 'design' | 'missing'
+// one fact's source class (Brief 30 §9: how the fact is known, the one store state.__prov): 'measured' | 'estimate' |
+// 'unknown' | 'imported', and for values with no record 'placed' | 'entered' | 'design' | 'missing'. A value you type is an
+// estimate until you say it was measured (Site facts); a survey's values load as measured.
 CHK.provClass = function(k) {
   var P = typeof SMP !== 'undefined' ? SMP.prov() : {}, p = P[k], ex = typeof SITEF !== 'undefined' ? SITEF.ex() : null;
-  if (ex && ex.over && ex.over[k]) return { cls: 'override', src: 'overridden by you' };
+  if (ex && ex.over && ex.over[k]) return { cls: 'estimate', src: 'overridden by you, an estimate until measured' };
   if (!p) return null;
-  if (p.source === 'estimate') return { cls: 'estimate', src: 'estimate' };
-  if (p.source === 'user') return p.from ? { cls: 'confirmed', src: 'confirmed by you (was ' + (SMP.SRC[p.from] || p.from) + ')' } : { cls: 'entered', src: 'entered by you' };
-  if (p.source === 'survey') return { cls: 'survey', src: 'site survey' };
+  var was = p.from && SMP.SRC[p.from] && p.from !== 'estimate' ? ' (first from ' + SMP.SRC[p.from] + ')' : '';
+  if (p.source === 'measured' || p.source === 'survey') return { cls: 'measured', src: 'measured on site' + (p.at ? ', ' + SMP.day(p.at) : '') + was };
+  if (p.source === 'unknown') return { cls: 'unknown', src: 'not known yet' + was };
+  if (p.source === 'estimate') return { cls: 'estimate', src: (p.card ? 'your estimate' : 'estimate') + was };
+  if (p.source === 'user') return { cls: 'estimate', src: (p.from ? 'confirmed by you (was ' + (SMP.SRC[p.from] || p.from) + ')' : 'entered by you') + ', an estimate until measured' };
   return { cls: 'imported', src: (SMP.SRC[p.source] || p.source) + (p.via === 'cells' ? ', data ' : ', fetched ') + SMP.day(p.fetchedAt) };
 };
 CHK.inputs = function(c) {
@@ -1396,9 +1403,11 @@ CHK.inputs = function(c) {
   F.inputs.forEach(function(id) {
     if (CHK.INPUT_FACT[id] && out.some(function(i) { return i.key === CHK.INPUT_FACT[id]; })) return;   // the imported fact stands for it
     var I = DM.inputs && DM.inputs[id]; if (!I) return;
-    var sv = (P[id] && P[id].source === 'survey') || surveyed.indexOf(id) >= 0;   // the survey records the inputs it set (SURV.applyTemplate)
-    var cls = !I.entered ? 'missing' : sv ? 'survey' : I.source === 'placed site objects' ? 'placed' : 'entered';
-    out.push({ key: id, label: I.label, cls: cls, src: cls === 'missing' ? 'not entered' : cls === 'placed' ? 'measured from placed site objects' : cls === 'survey' ? 'site survey' : 'entered by you' });
+    var pq = P[id] ? CHK.provClass(id) : null;   // (Brief 30 §9) the answer in Site facts, when there is one
+    if (pq) { out.push({ key: id, label: I.label, cls: pq.cls, src: pq.src }); return; }
+    var sv = surveyed.indexOf(id) >= 0;   // the survey records the inputs it set (SURV.applyTemplate): measured
+    var cls = !I.entered ? 'missing' : sv ? 'measured' : I.source === 'placed site objects' ? 'placed' : 'entered';
+    out.push({ key: id, label: I.label, cls: cls, src: cls === 'missing' ? 'not entered' : cls === 'placed' ? 'measured from placed site objects' : cls === 'measured' ? 'site survey' : 'entered by you' });
   });
   if (typeof SMP !== 'undefined') F.objects.forEach(function(kind) {
     var all = SMP.objects().filter(function(o) { return o.kind === kind; }); if (!all.length) return;
@@ -1410,25 +1419,27 @@ CHK.inputs = function(c) {
   // confirmed or overridden), or every travel lane's width was typed in the Section, the street as drawn is yours: the
   // tool's assumptions about how it divides (lane count, far-side parking or bike lane) no longer make C02 wait
   if (c.id === 'c2') {
-    var MEAS = { entered: 1, confirmed: 1, survey: 1, override: 1 }, rw = out.find(function(i) { return i.key === 'roadWidth'; });
+    var MEAS = { measured: 1 }, rw = out.find(function(i) { return i.key === 'roadWidth'; });   // (Brief 30 §9: measured, not merely typed)
     var lanes = (DM.crossSection || []).filter(function(sg) { return sg.type === 'travel-lane'; });
     var typed = lanes.length > 0 && lanes.every(function(sg) { return sg.typed; });
-    if ((rw && MEAS[rw.cls]) || typed) out.forEach(function(i) {
-      if (i.cls === 'estimate') { i.cls = 'entered'; i.src = i.key === 'roadWidth' ? 'the lanes you typed in the Section' : 'as drawn in the Section, on your measured width'; }
+    if (rw && MEAS[rw.cls]) out.forEach(function(i) {
+      if (i.cls === 'estimate' && !(SMP.prov()[i.key] || {}).card) { i.cls = 'measured'; i.src = 'as drawn in the Section, on your measured width'; }
     });
   }
   return out;
 };
 // the result: base 'pass' | 'fail' | 'await' | 'unclear', provisional, the inputs, and (await) what to measure
+// (Brief 30 §9) a fact not known yet -> Awaiting measurement, whatever the number; an estimate or imported data ->
+// Pass / Fail, provisional (shown as an estimate where one is read); measured -> Pass / Fail
 CHK.state = function(c) {
-  var raw = getCriterionStatus(c), ins = CHK.inputs(c), est = ins.filter(function(i) { return i.cls === 'estimate'; });
-  var prov = raw !== 'unclear' && !est.length && (ins.some(function(i) { return i.cls === 'imported'; }) || (typeof SMP !== 'undefined' && SMP.isProvisional(c.id)));
-  var base = raw === 'unclear' ? 'unclear' : est.length ? 'await' : raw;
-  return { id: c.id, raw: raw, base: base, provisional: base !== 'await' && base !== 'unclear' && prov, inputs: ins, estimates: est, hint: base === 'await' ? CHK.hint(c, est) : '' };
+  var raw = getCriterionStatus(c), ins = CHK.inputs(c), est = ins.filter(function(i) { return i.cls === 'estimate'; }), unk = ins.filter(function(i) { return i.cls === 'unknown'; });
+  var base = unk.length ? 'await' : raw;
+  var prov = (base === 'pass' || base === 'fail') && (est.length > 0 || ins.some(function(i) { return i.cls === 'imported'; }) || (typeof SMP !== 'undefined' && SMP.isProvisional(c.id)));
+  return { id: c.id, raw: raw, base: base, provisional: prov, estimate: prov && est.length > 0, inputs: ins, estimates: est, unknowns: unk, hint: base === 'await' ? CHK.hint(c, unk) : '' };
 };
-CHK.hint = function(c, est) {
-  if (c.id === 'c2') return 'Measure curb to curb: ' + CHK.c2Line(true);
-  return 'Measure ' + est.map(function(i) { return i.label.toLowerCase(); }).join(', ') + ' (the value is an estimate)';
+CHK.hint = function(c, unk) {
+  if (c.id === 'c2' && unk.some(function(i) { return i.key === 'roadWidth'; })) return 'Measure curb to curb: ' + CHK.c2Line(true);
+  return 'Measure ' + unk.map(function(i) { return i.label.toLowerCase(); }).join(', ') + ' (not known yet)';
 };
 // C02 in one line: "4 lanes × 3.138 m: an even split of the estimated 17.60 m curb to curb less the parklet; needs ≥ 3.2 m"
 CHK.c2Line = function(estimated) {
@@ -1667,7 +1678,7 @@ function buildCriterion(c) {
       `<div class="detail-row"><span class="detail-label">Site condition</span><span class="detail-value" id="cond_${c.id}">${siteCondText}</span></div>` +
       ((c.id === 'c2' && typeof SMP !== 'undefined' && SMP.widthAdvisory && SMP.widthAdvisory()) ? `<div class="detail-row chk-adv" id="adv_c2"><span class="detail-label">Advisory</span><span class="detail-value">${SMP.widthAdvisory().text} (Manual p. 20)</span></div>` : '') +   // (Brief 30 §8C, triage row 16)
       (c.note ? `<div class="detail-row"><span class="detail-label">Note</span><span class="detail-value">${c.note}</span></div>` : '') +
-      buildInput(c) +
+      (typeof SFG !== 'undefined' && SFG.cardsFor(c.id).length ? SFG.rowHTML(c) : buildInput(c)) +   // (Brief 30 §9)
       (c.resolutionFn ? `<div class="resolution-box" id="resolution_${c.id}">${c.resolutionFn(state[c.inputId] || '')}</div>` : '') +
       `<button type="button" class="chk-show" onclick="chkShowMe('${c.id}')">${c.id === 'c16' ? 'Open Accessibility' : 'Show me in the Plan'} &rsaquo;</button>` +
     `</div>` +
@@ -1832,8 +1843,8 @@ function renderSummary() {
     else g.pass.push(t + (s.provisional ? ' (provisional)' : ''));
   });
   const col = (cls, h, list) => list.length ? `<div class="summary-col ${cls}"><h3>${h} (${list.length})</h3><ul>` + list.map(p => `<li>${p}</li>`).join('') + '</ul></div>' : '';
-  const html = '<h2>Plain-language summary</h2>' + col('problems', 'Already failing', g.fail) + col('problems', 'Failing on imported data, not yet verified', g.provFail) +
-    col('unconfirmed', 'Awaiting measurement (estimates)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('passing', 'Passing', g.pass);
+  const html = '<h2>Plain-language summary</h2>' + col('problems', 'Already failing', g.fail) + col('problems', 'Failing on an estimate or imported data, not yet measured', g.provFail) +
+    col('unconfirmed', 'Awaiting measurement (not known yet)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('passing', 'Passing', g.pass);
   const el = document.getElementById('summaryBox'); if (el) el.innerHTML = html;
 }
 
@@ -4089,7 +4100,7 @@ function complianceRows() {
       if (!msg) msg = ins.filter(function(i) { return i.entered; }).map(function(i) { return i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : ''); }).join('; ');
     }
     if (status === 'await') msg = cs.hint;
-    return { id: c.id, num: c.num, title: c.title, page: c.page, src: c.src, status: status, raw: cs.raw, provisional: cs.provisional, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
+    return { id: c.id, num: c.num, title: c.title, page: c.page, src: c.src, status: status, raw: cs.raw, provisional: cs.provisional, estimate: !!cs.estimate, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
   });
 }
 
@@ -9662,7 +9673,7 @@ function manholeMinDist() { const mhs = state['manholes'] || []; return mhs.leng
 function updateDrivewayDist() {
   const L = designParkletLength;
   const dist = drivewayMinDist(L);
-  if (dist === null) { saveSettings(); return; }
+  if (dist === null || (typeof SFG !== 'undefined' && SFG.typed('driveway_dist'))) { saveSettings(); return; }
   state[`driveway_dist`] = dist;
   const el = document.getElementById(`driveway_dist`);
   if (el) el.value = dist;
@@ -9677,6 +9688,7 @@ function updateCurbFeatureDists() {
     const def = defs[sym];
     const dist = curbFeatureMinDist(sym, L);
     if (dist === null) continue;
+    if (typeof SFG !== 'undefined' && SFG.typed(def.key)) continue;   // your number from Site facts (Brief 30 §9)
     state[def.key] = dist;
     const el = document.getElementById(def.key);
     if (el) el.value = dist;
@@ -9687,7 +9699,7 @@ function updateCurbFeatureDists() {
 
 function updateManholeCrit() {
   const dist = manholeMinDist();
-  if (dist === null) { saveSettings(); return; }
+  if (dist === null || (typeof SFG !== 'undefined' && SFG.typed('manhole_dist'))) { saveSettings(); return; }
   state['manhole_dist'] = dist;
   const el = document.getElementById('manhole_dist');
   if (el) el.value = dist;
@@ -13964,12 +13976,12 @@ function appSetMode(mode) {
   if (mode === 'export' && window.RPT && RPT.syncCard) setTimeout(RPT.syncCard, 0);   // the Report card lists this design's renders
   // Top nav tabs
   document.querySelectorAll('.ttab').forEach(function(t) { t.classList.remove('active'); });
-  var tab = document.querySelector('.ttab[onclick*="' + mode + '"]');
+  var tab = document.querySelector('.ttab[onclick*="' + (mode === 'facts' ? 'site' : mode) + '"]');   // Site facts is a step of the Site tab (Brief 30 §9)
   if (tab) tab.classList.add('active');
 
 
   // LHS context sections
-  var sections = ['ctxSite', 'ctxDesign', 'ctxAccessibility', 'ctxVisualize', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport', 'ctxLearn'];
+  var sections = ['ctxSite', 'ctxFacts', 'ctxDesign', 'ctxAccessibility', 'ctxVisualize', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport', 'ctxLearn'];
   sections.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -13994,6 +14006,9 @@ function appSetMode(mode) {
   if (lc) lc.style.display = (mode === 'furniture') ? 'flex' : 'none';
   if (sw) sw.style.display = (mode === 'settings') ? 'flex' : 'none';
   if (ex) ex.style.display = (mode === 'export') ? 'flex' : 'none';
+  var fw = document.getElementById('workspaceFacts');   // Site facts (Brief 30 §9)
+  if (fw) fw.style.display = (mode === 'facts') ? 'block' : 'none';
+  if (mode === 'facts' && typeof SFG !== 'undefined') SFG.render();
   var lw = document.getElementById('workspaceLearn');   // Parklets 101 (Brief 30 §6)
   if (lw) lw.style.display = (mode === 'learn') ? 'block' : 'none';
   if (mode === 'learn' && typeof P101 !== 'undefined') P101.render();
@@ -14811,7 +14826,7 @@ function pkAfterMove(why) {
   if (typeof SMP !== 'undefined' && SMP.stopNote) SMP.stopNote();   // C01's bus stop at its new position (Brief 27 item 10)
   if (typeof SMP !== 'undefined' && SMP.busZone && (state.__siteMap || {}).importedAt) SMP.busZone(null);   // C01 follows the deck (Brief 30 §8C, triage row 25)
   var cd = pkCornerDist();
-  if (cd) { var v = Math.abs(cd.d).toFixed(2); state['intersection_dist'] = v; var ie = document.getElementById('intersection_dist'); if (ie) ie.value = v; try { handleInput('c3', 'intersection_dist', v); } catch (e) {} }
+  if (cd && !(typeof SFG !== 'undefined' && SFG.typed('intersection_dist'))) { var v = Math.abs(cd.d).toFixed(2); state['intersection_dist'] = v; var ie = document.getElementById('intersection_dist'); if (ie) ie.value = v; try { handleInput('c3', 'intersection_dist', v); } catch (e) {} }
   try { renderBldgControls(); } catch (e) {}
   try { updateCurbFeatureDists(); } catch (e) {}
   try { updateDrivewayDist(); } catch (e) {}
@@ -18658,6 +18673,7 @@ function pkSerialize() {
       survey:       (typeof state !== 'undefined' && state['__survey'])      ? JSON.parse(JSON.stringify(state['__survey']))      : null,
       existing:     (typeof state !== 'undefined' && state['__existing'])    ? JSON.parse(JSON.stringify(state['__existing']))    : null,   // Brief 22 item 3: the street as imported
       surveyMap:    (typeof state !== 'undefined' && state['__surveyMap'])   ? JSON.parse(JSON.stringify(state['__surveyMap']))   : null,
+      sfc:          (typeof state !== 'undefined' && state['__sfc'])         ? JSON.parse(JSON.stringify(state['__sfc']))         : null,   // Brief 30 §9: the site facts step
       gallery:      (typeof state !== 'undefined' && state['__gallery'])     ? { id: state['__gallery'].id }                       : null    // Brief 29 item 8: the renders' gallery
     },
     furniture: {
@@ -18853,6 +18869,7 @@ function pkApplyDesignState(raw) {
       state['__survey']      = data.siteObjects.survey        || null;
       state['__existing']    = data.siteObjects.existing      || null;
       state['__surveyMap']   = data.siteObjects.surveyMap     || null;
+      state['__sfc']         = data.siteObjects.sfc           || null;   // Brief 30 §9 (none: a design from before, migrated on load)
       state['__gallery']     = data.siteObjects.gallery       || null;
     }
   }
@@ -22526,7 +22543,10 @@ GEN.withScratch = function(ds, fn) {
 GEN.evaluate = function(ds) {
   return GEN.withScratch(ds, function() {
     var out = { status: {}, pass: 0 };
-    criteria.forEach(function(c) { var st = getCriterionStatus(c); out.status[c.id] = st; if (st === 'pass') out.pass++; });
+    // (Brief 30 §9) a check left open only by a site fact answered 'not known yet' does not reject a layout: the design
+    // cannot decide it, and Check shows it Awaiting measurement
+    var open = function(c) { return typeof SFG !== 'undefined' && SFG.active() && SFG.cardsFor(c.id).length > 0 && SFG.critDone(c.id); };
+    criteria.forEach(function(c) { var st = getCriterionStatus(c); out.status[c.id] = st; if (st === 'pass' || (st === 'unclear' && open(c))) out.pass++; });
     return out;
   });
 };
@@ -23379,7 +23399,7 @@ GEN.generate = function() {
   var facts = GEN.facts(), missing = facts.filter(function(f) { return !f.ok; }), blocked = facts.filter(function(f) { return f.blocks; });
   var res = { seed: P.seed, n: P.n, bias: GEN.biasText(), prog: Object.assign({}, P.prog), schemes: [], stats: { sampled: 0, built: 0, passed: 0, layoutRejects: 0, checkRejects: 0, why: {} }, notes: [] };
   if (blocked.length) { res.error = 'This site cannot pass whatever the design: ' + blocked.map(function(f) { return f.label + ' = ' + f.value; }).join('; ') + '.'; res.first = { crit: blocked[0].crit, label: blocked[0].label }; return GEN.finish(res, t0); }
-  if (missing.length) { res.error = 'Set these site facts first (the checks cannot pass without them): ' + missing.map(function(f) { return f.label; }).join('; ') + '.'; res.first = { crit: missing[0].crit, label: missing[0].label }; res.missing = true; return GEN.finish(res, t0); }
+  if (missing.length) { res.error = 'Answer these site facts first (Site facts tab): ' + missing.map(function(f) { return f.label; }).filter(function(l, i, a) { return a.indexOf(l) === i; }).join('; ') + '.'; res.first = { crit: missing[0].crit, label: missing[0].label }; res.missing = true; return GEN.finish(res, t0); }
   var env = GEN.envelope(S, base);
   res.envelope = env;
   if (!env.ok) { res.error = 'No compliant envelope. ' + env.why.join(' '); return GEN.finish(res, t0); }
@@ -23813,7 +23833,7 @@ RPT.treeFetched = function(list) {
 // Each builder returns blocks (RPT.flow): {h2}, {kv: [[label, value]]} (the value right-aligned in a 40 mm column),
 // {table: {cols, rows}}, {p}. Every list is a table; nothing is a wrapped sentence of items.
 RPT.RES = { pass: ['PASS', '#1A1A1A'], fail: ['FAIL', '#C62828'], unclear: ['NOT CONFIRMED', '#6E6E6E'], await: ['AWAITING MEASUREMENT', '#6E6E6E'] };
-RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear; return { t: a[0] + (r.provisional ? ' (provisional)' : ''), c: a[1], b: true, s: RPT.TX.tag }; };
+RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear; return { t: a[0] + (r.estimate ? ' (estimate)' : r.provisional ? ' (provisional)' : ''), c: a[1], b: true, s: RPT.TX.tag }; };
 // ── Brief 25 item 22f: the sheets list only what the drawings use ───────────────────────────────────────────────
 // Listed by name: the street trees beside the deck (the tree advisory's reach), the nearest hydrant each side and any
 // beside the deck, the nearest bus stop each side and any within 15 m of it (the bus-zone rule). The rest of each kind
@@ -24084,7 +24104,11 @@ RPT.sources = function(d) {
   var brands = {}; d.placed.forEach(function(p) { var pr = flPreset(p.objId); if (pr) brands[pr.brand] = (brands[pr.brand] || []).concat([pr.name + (pr.src ? ' - ' + pr.src : '')]); });
   Object.keys(brands).forEach(function(b) { std.push([b + ' product data', Array.from(new Set(brands[b])).join('; ')]); });
   std.push(['DM Sans (SIL Open Font License 1.1)', 'the report\'s typeface, embedded'], ['jsPDF, svg2pdf.js (MIT)', 'the PDF engine (tools/vendor)']);
-  var ins = Object.keys(DM.inputs).map(function(k) { return DM.inputs[k]; });
+  var sfr = typeof SFG !== 'undefined' && SFG.st() ? SFG.rows() : [], sfIn = {};   // Brief 30 §9: the site facts, with how each is known
+  sfr.forEach(function(r) { [r.card.input, r.card.input2].filter(Boolean).forEach(function(k) { sfIn[k] = 1; }); });
+  var _mOn = typeof SFG !== 'undefined' ? SFG.measuredOn() : '';
+  if (_mOn) std.push(['Measured on site by the applicant', _mOn + ': the site facts marked measured in Site facts']);
+  var ins = Object.keys(DM.inputs).map(function(k) { return DM.inputs[k]; }).filter(function(i) { return !sfIn[i.id]; });
   var entered = ins.filter(function(i) { return i.entered; }).map(function(i) { return [i.label, (i.text || i.value) + (i.unit ? ' ' + i.unit : '') + (i.source === 'placed site objects' ? ' (measured from placed site objects)' : '')]; });
   if (typeof SITEF !== 'undefined') entered = entered.concat(SITEF.overRows());   // Brief 22 item 3: the overridden facts of the existing street
   var hr = RPT.hostRaw(DM), hImp = hr && hr.b.__prov && ['use', 'name'].some(function(k) { return hr.b.__prov[k] && hr.b.__prov[k].source !== 'user'; });
@@ -24100,7 +24124,9 @@ RPT.sources = function(d) {
   if (hr && !hr.entered) assume.push(['Host building programme', 'not entered: the default (' + hr.b.use + ', ' + hr.b.frontage + ' frontage) is used for the renders, the prompts and the Generate bias']);
   assume.push(['Library dimensions', 'those marked DI are interpreted, not source data'], ['Drawings', 'schematic, for the pre-application: not construction drawings; no structural or construction feasibility is assessed']);
   var two = function(a, b) { return [{ t: a, w: 0.36 }, { t: b, w: 0.64 }]; };
-  var blocks = [{ h2: 'Standards and data' }, { table: { cols: two('Source', 'Used for'), rows: std } }, { h2: 'Entered inputs' }, entered.length ? { table: { cols: two('Input', 'Value'), rows: entered } } : { p: 'None entered.' }];
+  var blocks = [{ h2: 'Standards and data' }, { table: { cols: two('Source', 'Used for'), rows: std } }];
+  if (sfr.length) blocks.push({ h2: 'Site facts' }, { table: { cols: [{ t: 'Fact', w: 0.4 }, { t: 'Value', w: 0.36 }, { t: 'How it is known', w: 0.24 }], rows: sfr.map(function(r) { return [r.rid + ' ' + r.fact, r.value, r.how]; }) } });
+  blocks.push({ h2: 'Entered inputs' }, entered.length ? { table: { cols: two('Input', 'Value'), rows: entered } } : { p: 'None entered.' });
   if (imp.length) blocks.push({ h2: 'Imported site data (verify on site)' }, { table: { cols: two('Item', 'Source'), rows: imp } }, { p: 'Nothing imported is authoritative: each imported value is a starting point to verify on site, and the checks that depend on one stay provisional until it is confirmed.' });
   if (typeof SITEF !== 'undefined') blocks = blocks.concat(SITEF.xBlocks());   // the existing street (Brief 22 item 3)
 
@@ -25696,7 +25722,7 @@ RPT.sheetCover = function(d, drw, op) {
     P.text(x + 48, sy + 7.6, 'Preliminary: not for construction', TX.body, { anchor: 'middle', bold: true, data: " data-cover='1'" });
     P.text(x + 102, sy + 4.8, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail,', TX.body, { data: " data-cover='1'" });
     P.text(x + 102, sy + 9.8, (d.n.await ? d.n.await + ' to measure, ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? ' (provisional)' : ''), TX.body, { data: " data-cover='1'" });
-    var sv = typeof SURV !== 'undefined' && SURV.summary ? SURV.summary() : null;   // Brief 21 §11
+    var sv = typeof SFG !== 'undefined' ? SFG.coverLine() : '';   // Brief 30 §9: how many site facts were measured
     if (sv) P.text(x + 102, sy + 14.8, sv, TX.body, { data: " data-cover='1'" });
   } };
 };
@@ -28778,7 +28804,7 @@ var SITER = {
       var el = document.getElementById(k); if (el && 'value' in el) el.value = '';
     });
     SITER.OBJECTS.forEach(function(k) { state[k] = []; });
-    state.__prov = {}; state.__survey = null; state.__surveyMap = null; state.__existing = null;
+    state.__prov = {}; state.__survey = null; state.__surveyMap = null; state.__existing = null; state.__sfc = null;
     if (state.__siteMap) { delete state.__siteMap.importedAt; delete state.__siteMap.importItems; delete state.__siteMap.via; }
     if (typeof BLDG_L !== 'undefined') BLDG_L.buildings = []; if (typeof BLDG_R !== 'undefined') BLDG_R.buildings = [];
     if (typeof CTX_OUTER !== 'undefined') CTX_OUTER = null; state.__outer = null;   // the old city context ring too
@@ -29595,6 +29621,7 @@ BLANK.apply = function() {
   try { SMP.refresh(); } catch (e) {}
   try { syncDesignModel('blank-street'); } catch (e) {}
   try { render(); } catch (e) {}
+  if (typeof SFG !== 'undefined') setTimeout(function() { SFG.start({ blank: true }); }, 0);   // (Brief 30 §9)
   console.log('[blank] a generic street: ' + BLANK.ROAD + ' m curb to curb, 1 + 1 lanes of ' + lane.toFixed(3) + ' m, parking ' + BLANK.PARK + ' m, sidewalks ' + BLANK.SIDEWALK + ' m, 2 + 2 buildings');
 };
 
@@ -30064,7 +30091,7 @@ SMP.objects = function() {
   return o;
 };
 SMP.unconfirmed = function() { return SMP.objects().filter(function(o) { return !o.obj.confirmed; }); };
-SMP.fieldPending = function(keys) { var P = SMP.prov(); return keys.filter(function(k) { return P[k] && P[k].source !== 'user' && P[k].source !== 'survey'; }); };   // a surveyed value is confirmed (Brief 21 §11)
+SMP.fieldPending = function(keys) { var P = SMP.prov(); return keys.filter(function(k) { return P[k] && ['osm', 'cov', 'cell', 'gtfs', 'osm-live'].indexOf(P[k].source) >= 0; }); };   // imported, not yet answered (Brief 30 §9)   // a surveyed value is confirmed (Brief 21 §11)
 // A check is provisional while an import it depends on is unconfirmed
 SMP.isProvisional = function(critId) {
   var un = SMP.unconfirmed();
@@ -30574,6 +30601,7 @@ SMP.importContext = async function(opt) {
       (same ? '. Nothing changed: the same data as the design already holds.' : '. Tags mark each value; confirm them in the Check tab.') + (rep.notes.length ? ' Notes: ' + rep.notes.join('; ') + '.' : '')) + '</span>');
     SMP.highlight();
     console.log('[site-map] import: ' + SMP.reportLine(rep) + (same ? ' | no change' : ''));
+    if (typeof SFG !== 'undefined') SFG.start();   // the site facts, one card at a time (Brief 30 §9)
     return rep;
   } catch (e) {
     if (cur && st[cur] === 'run') st[cur] = 'fail';
@@ -31314,12 +31342,14 @@ SEED.tabTips = function() {
   var s0 = PK_NOSTREET, ut = window.uiApplyTips;
   // the tooltip table (defined later in the page) must not undo the stage-0 reason: re-applied after it, once it exists
   if (typeof ut === 'function' && !ut._stage) { window.uiApplyTips = function() { var r = ut.apply(this, arguments); try { SEED.tabTips(); } catch (e) {} return r; }; window.uiApplyTips._stage = true; }
-  SEED.GATED.forEach(function(m) {
+  var lk = !s0 && typeof SFG !== 'undefined' && SFG.locked(), lt = lk ? SFG.TIP() : '';   // (Brief 30 §9) the site facts gate
+  SEED.GATED.concat(['furniture']).forEach(function(m) {
     var t = document.querySelector('.ttab[onclick*="' + m + '"]'); if (!t) return;
-    t.classList.toggle('ttab-off', s0); t.setAttribute('aria-disabled', s0 ? 'true' : 'false');
+    var off = s0 ? SEED.GATED.indexOf(m) >= 0 : lk && SFG.GATED.indexOf(m) >= 0, tip = s0 ? SEED.TIP : lt;
+    t.classList.toggle('ttab-off', off); t.setAttribute('aria-disabled', off ? 'true' : 'false');
     if (t.hasAttribute('title')) { if (!t.hasAttribute('data-tip')) t.setAttribute('data-tip', t.getAttribute('title')); t.removeAttribute('title'); }
     var cur = t.getAttribute('data-tip') || '';
-    if (s0) { if (cur !== SEED.TIP) t.dataset.tip0 = cur; t.setAttribute('data-tip', SEED.TIP); }
+    if (off) { if (t.dataset.tip0 === undefined) t.dataset.tip0 = cur; t.setAttribute('data-tip', tip); }
     else if (t.dataset.tip0 !== undefined) { t.setAttribute('data-tip', t.dataset.tip0); delete t.dataset.tip0; }
   });
 };
@@ -32284,7 +32314,7 @@ function chkAfterRender() {
     var m = document.getElementById('meas_' + r.id), p = document.getElementById('prov_' + r.id), el = document.getElementById('crit_' + r.id);
     var prov = !!r.provisional;
     if (m) { m.textContent = r.missing && r.missing.length && r.status === 'unclear' ? 'not entered' : (r.msg || 'not entered'); m.classList.toggle('chk-none', m.textContent === 'not entered'); }
-    if (p) p.hidden = !prov;
+    if (p) { p.hidden = !prov; p.textContent = r.estimate ? 'estimate' : 'provisional'; }   // (Brief 30 §9)
     if (el) { el.dataset.prov = prov ? '1' : ''; var show = CHECK_VIEW[r.id], b = el.querySelector('.chk-show'); if (b) b.hidden = !show; }
     n[r.status] = (n[r.status] || 0) + 1; if (prov) n.prov++;
   });
@@ -32299,8 +32329,8 @@ function chkAfterRender() {
   if (typeof SBX !== 'undefined' && SBX.openCount) {
     var oc = SBX.openCount(), side = document.getElementById('chkSide'), cb = document.getElementById('chkConfirmBtn');
     if (side) side.hidden = !oc.any;
-    if (cb) cb.textContent = oc.open ? 'Confirm imported items (' + oc.open + ')' : 'Imported items: all confirmed';
-    rows.forEach(function(r) { var b = document.getElementById('conf_' + r.id); if (b) b.hidden = !(r.provisional && SBX.pendingFor(r.id).length); });
+    if (cb) cb.textContent = 'Review site facts';   // the cards confirm imported data now (Brief 30 §9)
+    rows.forEach(function(r) { var b = document.getElementById('conf_' + r.id); if (b) b.hidden = true; });   // the Site facts cards confirm now (Brief 30 §9)
   }
   CHKG.group();
   chkFilter(_chkF);
@@ -33549,5 +33579,476 @@ RPT.sheetBudget = function(d) {
     { p: 'City of Vancouver fees: enter from the current fee schedule (' + P101.FEE_URL + '). Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). An estimate to plan a budget, not a quote.' }
   ], true);
 };
+</script>
+<style>
+/* Site facts (Brief 30 §9) */
+#workspaceFacts { background: var(--c-bg, #17191C); color: var(--c-text, #E8EAED); }
+.sfc { max-width: 1120px; padding: 18px 28px 48px; font: 13px/1.5 var(--font-ui, sans-serif); }
+.sfc h1 { font-size: 20px; margin: 0 0 8px; }
+.sfc-prog { display: flex; justify-content: space-between; font-size: 12px; color: var(--c-text-dim, #9AA0A6); margin-bottom: 4px; }
+.sfc-bar { height: 4px; background: var(--c-rule, #2E3338); border-radius: 2px; margin-bottom: 14px; overflow: hidden; }
+.sfc-bar i { display: block; height: 100%; background: var(--accent-ui, #3AA8E4); }
+.sfc-card { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.sfc-main { flex: 1 1 380px; max-width: 620px; }
+.sfc-rid { margin: 0; font-size: 12px; color: var(--c-text-dim, #9AA0A6); }
+.sfc-q { font-size: 18px; line-height: 1.3; margin: 2px 0 6px; font-weight: 600; }
+.sfc-src { margin: 0 0 12px; color: var(--c-text, #E8EAED); padding: 6px 10px; border-left: 3px solid var(--accent-ui, #3AA8E4); background: rgba(58, 168, 228, .08); }
+.sfc-in { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; }
+.sfc-in > span:first-child { min-width: 180px; color: var(--c-text-dim, #9AA0A6); }
+.sfc-in[hidden] { display: none; }
+.sfc-in input, .sfc-in select { font: 14px var(--font-ui, sans-serif); padding: 6px 8px; min-height: 36px; background: var(--c-bg2, #202428); color: var(--c-text, #E8EAED); border: 1px solid var(--c-rule, #3A4046); border-radius: 3px; }
+.sfc-in input { width: 110px; }
+.sfc-num { display: inline-flex; align-items: center; gap: 6px; } .sfc-num i { font-style: normal; color: var(--c-text-dim, #9AA0A6); }
+.sfc-prov { border: 1px solid var(--c-rule, #3A4046); border-radius: 4px; padding: 8px 12px 10px; margin: 6px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.sfc-prov legend { padding: 0 4px; font-weight: 600; font-size: 12px; }
+.sfc-ch { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; }
+.sfc-ch input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent-ui, #3AA8E4); }
+.sfc-why { color: var(--c-text-dim, #9AA0A6); margin: 0 0 8px; max-width: 64ch; }
+.sfc-why b { color: var(--c-text, #E8EAED); font-weight: 600; }
+.sfc-err { color: #F28B82; min-height: 1.5em; margin: 0 0 6px; }
+.sfc-nav { display: flex; gap: 8px; }
+.sfc-btn { font: 600 13px var(--font-ui, sans-serif); padding: 8px 16px; min-height: 36px; border-radius: 4px; border: 1px solid var(--c-rule, #3A4046); background: transparent; color: var(--c-text, #E8EAED); cursor: pointer; }
+.sfc-btn.sfc-pri { background: var(--accent-ui, #3AA8E4); border-color: var(--accent-ui, #3AA8E4); color: #0E1114; }
+.sfc-btn[disabled] { opacity: .4; cursor: default; }
+.sfc-btn:focus-visible, .sfc-item:focus-visible, .sfc-link:focus-visible { outline: 2px solid var(--accent-ui, #3AA8E4); outline-offset: 2px; }
+.sfc-crop { flex: 1 1 340px; max-width: 460px; margin: 0; }
+.sfc-crop .sfc-plan { width: 100%; height: auto; max-height: 340px; background: #fff; border-radius: 3px; display: block; }
+.sfc-crop figcaption { font-size: 12px; color: var(--c-text-dim, #9AA0A6); margin-top: 4px; }
+.sfc-grp-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.sfc-grp { list-style: none; margin: 0 0 10px; padding: 0; max-height: 260px; overflow: auto; border: 1px solid var(--c-rule, #3A4046); border-radius: 3px; }
+.sfc-grp li label { display: flex; gap: 8px; align-items: center; padding: 4px 8px; min-height: 30px; }
+.sfc-dim { color: var(--c-text-dim, #9AA0A6); font-size: 12px; }
+.sfc-sum { border-collapse: collapse; width: 100%; font-size: 12px; margin: 8px 0 14px; }
+.sfc-sum th, .sfc-sum td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--c-rule, #2E3338); vertical-align: top; }
+.sfc-sum th { color: var(--c-text-dim, #9AA0A6); font-weight: 600; }
+.sfc-link { background: none; border: 0; padding: 0; color: var(--accent-ui, #3AA8E4); font: inherit; cursor: pointer; text-align: left; }
+.sfc-chip { font: 600 11px var(--font-ui, sans-serif); border-radius: 3px; padding: 1px 6px; white-space: nowrap; }
+.sfc-chip.sfc-measuredonsite, .sfc-chip.sfc-checkedonsite { color: #1E6B3A; background: #E3F2E8; }
+.sfc-chip.sfc-estimate, .sfc-chip.sfc-imported { color: #8A5A00; background: #FEF7E4; }
+.sfc-chip.sfc-notknownyet, .sfc-chip.sfc-notcheckedyet { color: #5F6368; background: #ECEDEF; }
+#ctxFacts .sfc-side-n { margin: 8px 12px 4px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); }
+.sfc-list { list-style: none; margin: 0; padding: 0 6px 10px; }
+.sfc-item { display: grid; grid-template-columns: 34px 1fr; gap: 0 4px; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 3px; padding: 5px 6px; color: var(--c-text, #E8EAED); font: 12px/1.35 var(--font-ui, sans-serif); cursor: pointer; }
+.sfc-item:hover { background: rgba(255, 255, 255, .05); }
+.sfc-item.on { background: rgba(58, 168, 228, .14); }
+.sfc-item-id { color: var(--c-text-dim, #9AA0A6); }
+.sfc-item-a { grid-column: 2; font-size: 11px; color: var(--c-text-dim, #9AA0A6); }
+.sfc-item.done .sfc-item-id::after { content: ' \2713'; color: var(--accent-ui, #3AA8E4); }
+.sfc-site { margin: 8px 12px; padding: 8px 10px; border: 1px solid var(--c-rule, #2E3338); border-radius: 4px; }
+.sfc-site[hidden] { display: none; }
+.sfc-site-t { margin: 0; font-weight: 600; font-size: 12px; } .sfc-site-n { margin: 2px 0 6px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); }
+.sfc-site-b { display: flex; flex-wrap: wrap; gap: 6px; }
+/* the Check rows: the facts with how they are known, and their card in the row */
+.sfc-rowf { margin: 6px 0 4px; }
+.sfc-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 3px 0; }
+.sfc-line-l { min-width: 160px; color: var(--d-mid, #666); }
+.sfc-in-row { background: var(--c-bg, #17191C); color: var(--c-text, #E8EAED); border-radius: 4px; padding: 12px 14px; margin: 6px 0; }
+.sfc-in-row .sfc-q { font-size: 14px; }
+@media (forced-colors: active) { .sfc-item.on, .sfc-btn.sfc-pri { outline: 2px solid Highlight; } .sfc-chip { border: 1px solid CanvasText; } }
+</style>
+<script>
+// ── Site facts (Brief 30 §9) ────────────────────────────────────────────────────────────────────────────────────────────
+// After the import the facts the checks read were spread over Check rows and the Site panel, typed mid-design, and
+// nothing said whether a number was measured or guessed, so a guess could pass. Now a step between Site and Design asks
+// for them one card at a time, in rule order: the question in plain words, the value the import found and where it came
+// from, and one required answer to how it is known: measured on site, an estimate, or not known yet. Imported objects
+// (hydrants, stops, trees) get one card per group. The answer is the fact's provenance (state.__prov, the one store):
+// measured -> Pass / Fail; an estimate or imported data -> provisional; not known -> Awaiting measurement. Until every
+// card has an answer, Design and the tabs after it stay locked (state.__sfc holds the progress, saved with the design).
+var SFG = {
+  GATED: ['generate', 'design', 'furniture', 'accessibility', 'check', 'visualize', 'export'],
+  CHOICE: { measured: 'Measured on site', estimate: 'Estimate', unknown: `Don't know yet` },
+  GCHOICE: { measured: 'Checked on site', unknown: 'Not checked yet' },
+  IMPORT: { osm: 1, cov: 1, cell: 1, gtfs: 1, 'osm-live': 1 },
+  NOUN: { H: 'fire hydrant', P: 'pole', S: 'signal box or kiosk', D: 'driveway or lane', M: 'manhole, valve or grate' },
+  GROUP: { hydrant: 'fire hydrants', transit: 'bus stops', tree: 'street trees' },
+  CARDS: [
+    { id: 'c1', crit: 'c1', kind: 'select', input: 'parking_restrictions', prov: ['parkingRestrictions'], q: 'Is parking allowed here all day?',
+      why: 'A parklet replaces parking spaces, so it goes only where parking is allowed all day: not in a rush-hour lane or a bus, taxi or loading zone.' },
+    { id: 'c2w', crit: 'c2', kind: 'num', unit: 'm', key: 'roadWidth', prov: ['roadWidth'], label: 'Curb to curb', q: 'How wide is the street from curb to curb?',
+      why: 'The deck takes its width out of the street: the travel lane beside it must keep 3.0 m, or 3.2 m on a bus or truck route.' },
+    { id: 'c2l', crit: 'c2', kind: 'lanes', label: 'Travel lanes', q: 'Which way does traffic run, and how many travel lanes are there?',
+      why: 'The lanes share what is left once the deck and the parking are taken out; the narrowest lane decides C02.' },
+    { id: 'c2r', crit: 'c2', kind: 'select', input: 'route_type', prov: ['routeType'], q: 'Do buses or trucks use the lane beside the parklet?',
+      why: 'On a bus or truck route that lane must keep 3.2 m instead of 3.0 m.' },
+    { id: 'c3', crit: 'c3', kind: 'num', unit: 'm', input: 'intersection_dist', q: 'How far is the deck from the nearest intersection or crosswalk edge?',
+      why: 'Drivers need to see the crossing: the deck stays at least 6 m from the nearest edge of an intersecting sidewalk.' },
+    { id: 'c4', crit: 'c4', kind: 'num', unit: '%', input: 'slope', q: 'How steep is the street along the curb?',
+      why: 'A parklet is not allowed on a street steeper than 5 %; close to 5 %, level access and ramps need care.' },
+    { id: 'c5', crit: 'c5', kind: 'num', unit: 'm', input: 'hydrant_dist', obj: 'H', q: 'How far is the nearest fire hydrant from the deck?',
+      why: 'Fire crews need room at a hydrant: the deck stays 5 m clear of it on either side.' },
+    { id: 'c6', crit: 'c6', kind: 'num', unit: 'm', input: 'driveway_dist', obj: 'D', q: 'How far is the nearest driveway or lane from the deck?',
+      why: 'Cars turning in need room: the deck stays 1.5 m from a driveway or a lane.' },
+    { id: 'c7', crit: 'c7', kind: 'num', unit: 'm', input: 'pole_dist', input2: 'pole_trolley', obj: 'P', q: 'How far is the nearest pole from the deck, and does it carry trolley wires?',
+      why: 'Poles need 1 m clear around them, 2.4 m when trolley wires are attached.' },
+    { id: 'c8', crit: 'c8', kind: 'num', unit: 'm', input: 'signal_box_dist', obj: 'S', q: 'How far is the nearest traffic signal box or electrical kiosk?',
+      why: 'Crews open these boxes: the deck stays 2 m clear of them.' },
+    { id: 'c9', crit: 'c9', kind: 'num', unit: 'm', input: 'manhole_dist', obj: 'M', q: 'How far is the nearest manhole, valve or grate?',
+      why: 'Lids and grates must stay reachable: the deck stays 1 m clear of their edge.' },
+    { id: 'c10', crit: 'c10', kind: 'select', input: 'fire_exit_block', q: 'Would the deck block a Fire Department or utility connection, or a fire exit?',
+      why: 'Connections for fire hoses, water, gas and sewer, and the exits from the buildings, must stay open.' },
+    { id: 'c11', crit: 'c11', kind: 'select', input: 'drainage_clear', q: 'Are the street drains beside the deck kept clear?',
+      why: 'Rain runs along the curb to the drains: the deck must leave that path and the drains open.' },
+    { id: 'c12', crit: 'c12', kind: 'select', input: 'boulevard_clear', q: 'Does the parklet use the boulevard strip next to the curb?',
+      why: 'The deck may reach onto the boulevard only if people can still walk past and the utilities stay clear.' },
+    { id: 'c13', crit: 'c13', kind: 'num', unit: 'm', input: 'parking_setback', q: 'How far is the deck from the next parking space or meter at each end?',
+      why: 'Cars parking next to the deck need room: it stays 1.5 m from the next space, measured from the meter.' },
+    { id: 'g_hydrant', kind: 'group', grp: 'hydrant', q: 'Are the fire hydrants on the map where they stand on the street?',
+      why: 'C05 measures from them. Untick any that is not there; the ticked ones count as checked on site.' },
+    { id: 'g_transit', kind: 'group', grp: 'transit', q: 'Are the bus stops on the map where they are on the street?',
+      why: 'A bus stop beside the deck makes a bus zone, where a parklet cannot go (C01). Untick any that is not there.' },
+    { id: 'g_tree', kind: 'group', grp: 'tree', q: 'Are the street trees on the map where they stand?',
+      why: 'Trees are not a numbered check, but the drawings show them and the Park Board confirms the clearance of one near the deck.' }
+  ]
+};
+SFG.st = function() { return typeof state !== 'undefined' && state.__sfc && typeof state.__sfc === 'object' ? state.__sfc : null; };
+SFG.active = function() { var s = SFG.st(); return !!(s && !s.legacy); };
+SFG.site = function() { return typeof state !== 'undefined' && !(typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET) && !!(state.__siteMap || state.__generic); };
+SFG.crit = function(id) { return typeof criteria === 'undefined' ? null : criteria.find(function(c) { return c.id === id; }); };
+SFG.objs = function(grp) { return typeof SMP !== 'undefined' ? SMP.objects().filter(function(o) { return o.kind === grp; }) : []; };
+SFG.cards = function() { return SFG.CARDS.filter(function(c) { return c.kind !== 'group' || SFG.objs(c.grp).length > 0; }); };
+SFG.cardsFor = function(crit) { return SFG.CARDS.filter(function(c) { return c.crit === crit; }); };
+SFG.answered = function(card) { var s = SFG.st(); return !!(s && s.ans && s.ans[card.id]); };
+SFG.left = function() { return SFG.cards().filter(function(c) { return !SFG.answered(c); }); };
+SFG.locked = function() { return SFG.active() && SFG.site() && SFG.left().length > 0; };
+SFG.critDone = function(crit) { return !SFG.active() || SFG.cardsFor(crit).every(SFG.answered); };
+SFG.short = function(card) { var c = card.crit && SFG.crit(card.crit), s = typeof CHECK_SHORT !== 'undefined' && card.crit && CHECK_SHORT[card.crit];
+  var t = card.label || (s ? s[0] : card.kind === 'group' ? 'Imported ' + SFG.GROUP[card.grp] : card.q); return String(t).replace(/&[a-z]+;/g, ' '); };
+SFG.rid = function(card) { var c = card.crit && SFG.crit(card.crit); return c ? 'C' + String(c.num).padStart(2, '0') : 'Map'; };
+SFG.keys = function(card) {
+  if (card.prov) return card.prov;
+  if (card.kind === 'lanes') return typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'twoway' ? ['roadDir', 'lanesA', 'lanesB'] : ['roadDir', 'lanes'];
+  return [card.input, card.input2].filter(Boolean);
+};
+SFG.P = function() { return typeof SMP !== 'undefined' ? SMP.prov() : {}; };
+SFG.typed = function(k) { var p = SFG.P()[k]; return !!(p && p.card && p.typed !== undefined && p.typed !== null); };
+SFG.esc = function(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;'); };
+// the value the card shows now
+SFG.value = function(card) {
+  if (card.key === 'roadWidth') return typeof TOTAL_ROAD !== 'undefined' ? (+TOTAL_ROAD).toFixed(2) : '';
+  if (card.kind === 'lanes') return { dir: ROAD_DIR, a: LANES_A, b: LANES_B, n: NUM_LANES };
+  var v = state[card.input]; return v === undefined || v === null ? '' : String(v);
+};
+SFG.text = function(card) {   // the value in words (the Check rows, the summary, the report)
+  var c = card.crit && SFG.crit(card.crit), v = SFG.value(card);
+  if (card.kind === 'lanes') return v.dir === 'twoway' ? v.a + ' near + ' + v.b + ' far (two-way)' : v.n + ' (one-way)';
+  if (card.kind === 'group') { var all = SFG.objs(card.grp), ok = all.filter(function(o) { return o.obj.confirmed; }).length; return ok + ' of ' + all.length + ' checked'; }
+  var w = function(val, opts, unit) { if (val === '' || val == null) return 'not entered'; if (opts) { var o = opts.find(function(q) { return String(q.value) === String(val); }); return o ? o.label : String(val); } return String(val) + (unit ? ' ' + unit : ''); };
+  var t = w(v, card.kind === 'select' && c ? c.selectOptions : null, card.unit);
+  if (card.input2 && c) t += '; ' + w(state[card.input2], c.selectOptions2, '').replace(/^not entered$/, 'trolley wires not entered');
+  return t;
+};
+// how it is known, from the one store
+SFG.how = function(card) {
+  if (card.kind === 'group') { var s = SFG.st(); return s && s.ans && s.ans[card.id] ? SFG.GCHOICE[s.ans[card.id]] || '' : ''; }
+  var P = SFG.P(), cls = SFG.keys(card).map(function(k) { var q = typeof CHK !== 'undefined' ? CHK.provClass(k) : null; return q ? q.cls : null; }).filter(Boolean);
+  if (cls.indexOf('unknown') >= 0) return 'not known yet';
+  if (cls.indexOf('estimate') >= 0) return 'estimate';
+  if (cls.indexOf('imported') >= 0) return 'imported';
+  if (cls.length && cls.every(function(x) { return x === 'measured'; })) return 'measured on site';
+  return '';
+};
+// the nearest imported or placed object a card measures from
+SFG.objInfo = function(card) {
+  if (!card.obj) return null;
+  var L = typeof designParkletLength !== 'undefined' ? designParkletLength : 20, d = null, list = [];
+  try {
+    if (/^[HPS]$/.test(card.obj)) { d = curbFeatureMinDist(card.obj, L); list = (state.curb_features || []).filter(function(f) { return f.type === card.obj; }); }
+    else if (card.obj === 'D') { d = drivewayMinDist(L); list = state.driveways || []; }
+    else if (card.obj === 'M') { d = manholeMinDist(); list = state.manholes || []; }
+  } catch (e) { d = null; }
+  if (d === null || d === undefined || !list.length) return null;
+  var src = list.some(function(f) { return f.prov && f.prov.source === 'cov'; }) ? `the City's open data` : list.some(function(f) { return f.prov && f.prov.source === 'osm'; }) ? 'OpenStreetMap' : 'the Plan (placed by hand)';
+  return { d: (+d).toFixed(1), src: src, n: list.length };
+};
+SFG.srcLine = function(card) {
+  var s = SFG.st();
+  if (s && s.blank && !SFG.answered(card)) return 'A blank street: nothing is known about it yet. Measure it on site, or leave it as not known yet.';
+  if (card.kind === 'group') { var all = SFG.objs(card.grp), p = all[0] && all[0].obj.prov, src = p && p.source ? (SMP.SRC[p.source] || p.source) : 'the import';
+    return all.length + ' ' + SFG.GROUP[card.grp] + ' within reach of the deck, from ' + src + '.'; }
+  var P = SFG.P(), k0 = SFG.keys(card)[0], p0 = k0 && P[k0];
+  if (p0 && p0.card) return 'Your answer: ' + (SFG.CHOICE[p0.source] || p0.source).toLowerCase() + (p0.from && SMP.SRC[p0.from] ? '; first from ' + SMP.SRC[p0.from] : '') + '.';
+  var oi = SFG.objInfo(card);
+  if (oi) return 'From ' + oi.src + ': the nearest ' + SFG.NOUN[card.obj] + ' is ' + oi.d + ' m from the deck' + (oi.n > 1 ? ' (' + oi.n + ' in the data)' : '') + '.';
+  if (p0) {
+    var note = p0.note ? ': ' + String(p0.note).replace(/<[^>]+>/g, '') : '';
+    if (SFG.IMPORT[p0.source]) return 'From ' + (SMP.SRC[p0.source] || p0.source) + note + '.';
+    if (p0.source === 'estimate') return `Curbside's estimate` + note + '. Not measured.';
+    if (p0.source === 'user') return 'Entered by you earlier' + (p0.from && SMP.SRC[p0.from] ? ' (first from ' + SMP.SRC[p0.from] + ')' : '') + '.';
+  }
+  var v = SFG.value(card);
+  if (card.input === 'intersection_dist' && v !== '' && typeof pkPlace === 'function' && (pkPlace().corners || []).length) return `From the street corners in the City's data: ` + v + ' m from the deck.';
+  if (card.kind !== 'lanes' && v !== '') return 'Entered earlier.';
+  return 'Not in the data: measure it on site.';
+};
+// a crop of the Plan around the deck (the objects the card is about are drawn on it)
+SFG.crop = function() {
+  try {
+    var svg = document.getElementById('planView'); if (!svg || !svg.childNodes.length || typeof worldToPlan !== 'function') return '';
+    var LM = _dmCurrent().landmarks, L = typeof designParkletLength !== 'undefined' ? designParkletLength : 20;
+    var xs = [LM.sidewalkL && isFinite(LM.sidewalkL.x0) ? LM.sidewalkL.x0 : LM.deckX0 - 4, isFinite(LM.roadRight) ? LM.roadRight : LM.deckX1 + 8], zs = [-8, L + 8], pts = [];
+    xs.forEach(function(x) { zs.forEach(function(z) { var q = worldToPlan(x, z); pts.push([q.px, q.py]); }); });
+    var x0 = Math.min.apply(null, pts.map(function(p) { return p[0]; })), x1 = Math.max.apply(null, pts.map(function(p) { return p[0]; }));
+    var y0 = Math.min.apply(null, pts.map(function(p) { return p[1]; })), y1 = Math.max.apply(null, pts.map(function(p) { return p[1]; }));
+    if (!(x1 > x0) || !(y1 > y0)) return '';
+    var c = svg.cloneNode(true); c.removeAttribute('id'); c.removeAttribute('style'); c.querySelectorAll('[id]').forEach(function(n) { n.removeAttribute('id'); });
+    c.querySelectorAll('[onmousedown],[onclick],title').forEach(function(n) { if (n.tagName === 'title') n.remove(); else { n.removeAttribute('onmousedown'); n.removeAttribute('onclick'); } });
+    c.setAttribute('viewBox', [x0, y0, x1 - x0, y1 - y0].map(function(v) { return v.toFixed(1); }).join(' ')); c.setAttribute('class', 'sfc-plan'); c.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    c.setAttribute('role', 'img'); c.setAttribute('aria-label', 'The Plan around the deck');
+    return c.outerHTML;
+  } catch (e) { return ''; }
+};
+// the inputs of one card, then the required answer to how it is known
+SFG.form = function(card, pre) {
+  var c = card.crit && SFG.crit(card.crit), s = SFG.st(), blank = s && s.blank && !SFG.answered(card), v = SFG.value(card), h = '';
+  var opt = function(list, cur) { return (list || []).map(function(o) { return `<option value='${SFG.esc(o.value)}'${String(o.value) === String(cur) ? ' selected' : ''}>${SFG.esc(String(o.label).replace(/^— select —$/, 'Choose…'))}</option>`; }).join(''); };
+  if (card.kind === 'num') {
+    var lbl = card.label || (c && c.inputLabel) || 'Value';
+    h += `<label class='sfc-in'><span>${SFG.esc(lbl)}</span><span class='sfc-num'><input id='sfcV' type='text' inputmode='decimal' autocomplete='off' value='${blank ? '' : SFG.esc(v)}'><i>${SFG.esc(card.unit)}</i></span></label>`;
+    if (card.input2 && c) h += `<label class='sfc-in'><span>${SFG.esc(c.inputLabel2)}</span><select id='sfcV2'>${opt(c.selectOptions2, blank ? '' : state[card.input2])}</select></label>`;
+  } else if (card.kind === 'select') {
+    h += `<label class='sfc-in'><span>${SFG.esc((c && c.inputLabel) || 'Answer')}</span><select id='sfcV'>${opt(c ? c.selectOptions : [], blank ? '' : v)}</select></label>`;
+  } else if (card.kind === 'lanes') {
+    h += `<label class='sfc-in'><span>Traffic</span><select id='sfcDir'><option value='twoway'${v.dir === 'twoway' ? ' selected' : ''}>Both ways (two-way)</option><option value='oneway'${v.dir !== 'twoway' ? ' selected' : ''}>One way</option></select></label>`;
+    h += `<label class='sfc-in sfc-two'><span>Lanes on the parklet's side</span><input id='sfcLA' type='text' inputmode='numeric' value='${blank ? '' : v.a}'></label>`;
+    h += `<label class='sfc-in sfc-two'><span>Lanes on the far side</span><input id='sfcLB' type='text' inputmode='numeric' value='${blank ? '' : v.b}'></label>`;
+    h += `<label class='sfc-in sfc-one'><span>Lanes</span><input id='sfcLN' type='text' inputmode='numeric' value='${blank ? '' : v.n}'></label>`;
+  } else if (card.kind === 'group') {
+    var all = SFG.objs(card.grp);
+    h += `<div class='sfc-grp-h'><span>${all.length} ${SFG.esc(SFG.GROUP[card.grp])}</span><button type='button' class='sfc-btn sfc-all' data-sfc='all'>Confirm all (${all.length})</button></div><ul class='sfc-grp' id='sfcGrp'>` +
+      all.map(function(o, i) { var f = o.obj, where = typeof SMP.where === 'function' && isFinite(+f.xM) ? SMP.where(f) : ''; return `<li><label><input type='checkbox' data-i='${i}'${f.confirmed === false && f.confirmedAt ? '' : ' checked'}> ${SFG.esc(o.label)}${where ? ` <span class='sfc-dim'>${SFG.esc(where)}</span>` : ''}</label></li>`; }).join('') + '</ul>';
+  }
+  var ch = card.kind === 'group' ? SFG.GCHOICE : SFG.CHOICE, cur = pre || (s && s.ans && s.ans[card.id]) || (blank ? 'unknown' : '') || (s && s.mode === 'measured' && card.kind !== 'group' ? 'measured' : '');
+  h += `<fieldset class='sfc-prov'><legend>How do you know it?</legend>` + Object.keys(ch).map(function(k) { return `<label class='sfc-ch'><input type='radio' name='sfcP' value='${k}'${cur === k ? ' checked' : ''}> ${SFG.esc(ch[k])}</label>`; }).join('') + '</fieldset>';
+  return h;
+};
+SFG.syncLanes = function(root) { var d = root.querySelector('#sfcDir'); if (!d) return; var two = d.value === 'twoway'; root.querySelectorAll('.sfc-two').forEach(function(e) { e.hidden = !two; }); root.querySelectorAll('.sfc-one').forEach(function(e) { e.hidden = two; }); };
+SFG.read = function(root) {
+  var q = function(s) { return root.querySelector(s); }, ch = root.querySelector(`input[name='sfcP']:checked`);
+  var r = { choice: ch ? ch.value : '', v: q('#sfcV') ? q('#sfcV').value : null, v2: q('#sfcV2') ? q('#sfcV2').value : null };
+  if (q('#sfcDir')) r.lanes = { dir: q('#sfcDir').value, a: q('#sfcLA').value, b: q('#sfcLB').value, n: q('#sfcLN').value };
+  if (q('#sfcGrp')) r.ticks = [].map.call(root.querySelectorAll('#sfcGrp input[type=checkbox]'), function(b) { return b.checked; });
+  return r;
+};
+// apply one card's answer: the value (as the field or the Check row would), then the provenance of each fact it holds
+SFG.answer = function(card, r) {
+  if (!r.choice) return 'Choose how you know it: ' + (card.kind === 'group' ? 'checked on site, or not checked yet.' : 'measured on site, an estimate, or not known yet.');
+  var P = SFG.P(), now = new Date().toISOString(), known = r.choice !== 'unknown', typed = {}, c = card.crit && SFG.crit(card.crit);
+  var need = function(what) { return 'Enter the ' + (r.choice === 'measured' ? 'measured ' : '') + what + (r.choice === 'estimate' ? ' you estimate' : '') + `, or choose Don't know yet.`; };
+  if (card.kind === 'num') {
+    var q = pkReadNum(r.v, card.unit); if (q.err) return q.err;
+    if (q.empty && known) return need(card.unit === '%' ? 'slope' : card.key === 'roadWidth' ? 'width' : 'distance');
+    if (!q.empty && q.v < 0) return 'A ' + (card.unit === '%' ? 'slope' : 'distance') + ' here is 0 or more.';
+    if (card.input2 && known && !r.v2) return 'Say whether the pole carries trolley wires, or choose ' + `Don't know yet.`;
+    if (!q.empty) {
+      if (card.key === 'roadWidth') {
+        if (q.v < 3.5) return 'A street is at least 3.5 m from curb to curb.';
+        if (Math.abs(q.v - TOTAL_ROAD) > 0.0005) { var el = document.getElementById('roadWidth'); if (el) el.value = q.v; onRoadWidthChange(); if (Math.abs(TOTAL_ROAD - q.v) > 0.0005) return (document.getElementById('roadWidthMsg') || {}).textContent || 'That width does not fit the street as recorded.'; }
+      } else if (String(state[card.input]) !== String(q.v)) {
+        var oi = SFG.objInfo(card); if (oi && Math.abs(+oi.d - q.v) > 0.05) typed[card.input] = q.v;   // your number, not the distance from the object on the map
+        state[card.input] = String(q.v); var ie = document.getElementById(card.input); if (ie) ie.value = q.v; handleInput(card.crit, card.input, String(q.v));
+      }
+    }
+    if (card.input2 && r.v2 !== null && String(state[card.input2] || '') !== String(r.v2)) { state[card.input2] = r.v2; handleInput(card.crit, card.input2, r.v2); }
+  } else if (card.kind === 'select') {
+    if (!r.v && known) return need('answer');
+    if (r.v && String(state[card.input] || '') !== String(r.v)) { if (card.input === 'route_type' && typeof onRouteTypeToggle === 'function') onRouteTypeToggle(r.v); else { state[card.input] = r.v; var se = document.getElementById(card.input); if (se) se.value = r.v; handleInput(card.crit, card.input, r.v); } }
+  } else if (card.kind === 'lanes') {
+    var L = r.lanes, two = L.dir === 'twoway', n = function(s, hi) { var x = parseInt(String(s).trim(), 10); return String(s).trim() === '' ? null : x >= 1 && x <= hi && String(x) === String(s).trim() ? x : NaN; };
+    var a = n(L.a, 4), b = n(L.b, 4), m = n(L.n, 6);
+    if (two ? (isNaN(a) || isNaN(b)) : isNaN(m)) return two ? 'Lanes on each side: a whole number from 1 to 4.' : 'Lanes: a whole number from 1 to 6.';
+    if (known && (two ? a === null || b === null : m === null)) return need('lane count');
+    if ((ROAD_DIR === 'twoway') !== two) onRoadDirChange(two ? 'twoway' : 'oneway');
+    if (two) { if (a !== null && a !== LANES_A) { document.getElementById('lanesA').value = a; onLanesAChange(); } if (b !== null && b !== LANES_B) { document.getElementById('lanesB').value = b; onLanesBChange(); } }
+    else if (m !== null && m !== NUM_LANES) { document.getElementById('laneCount').value = m; onLaneCountChange(); }
+  } else if (card.kind === 'group') {
+    var all = SFG.objs(card.grp);
+    if (r.choice === 'measured') all.forEach(function(o, i) { var on = !r.ticks || r.ticks[i] !== false; o.obj.confirmed = on; o.obj.confirmedAt = now; });
+  }
+  if (card.kind !== 'group') SFG.keys(card).forEach(function(k) {
+    var o = P[k] || {}, from = SFG.IMPORT[o.source] || (o.source === 'estimate' && !o.card) ? o.source : (o.from || null);
+    P[k] = Object.assign({}, o, { source: r.choice, from: from, at: now, card: card.id, typed: typed[k] !== undefined ? typed[k] : (o.card && o.typed !== undefined && known ? o.typed : null) });
+    if (!P[k].fetchedAt) P[k].fetchedAt = now;
+  });
+  var s = SFG.st(); if (s) { s.ans = s.ans || {}; s.ans[card.id] = r.choice; s.at = now; }
+  try { if (typeof SMP !== 'undefined') SMP.refresh(); } catch (e) {}
+  try { syncDesignModel('site-facts'); } catch (e) {}
+  try { if (typeof saveSettings === 'function') saveSettings(); } catch (e) {}
+  SFG.sync();
+  return '';
+};
+// ── the step (the Site facts tab) ──
+SFG.start = function(o) {
+  o = o || {};
+  state.__sfc = { v: 1, i: 0, ans: {}, blank: !!o.blank, at: new Date().toISOString() };
+  try { saveSettings(); } catch (e) {}
+  SFG.sync(); appSetMode('facts');
+};
+SFG.review = function(measured) {
+  var s = SFG.st(); if (!s) { state.__sfc = s = { v: 1, i: 0, ans: {}, at: new Date().toISOString() }; }
+  s.i = 0; s.mode = measured ? 'measured' : '';
+  SFG.sync(); appSetMode('facts');
+};
+SFG.go = function(i) { var s = SFG.st(); if (!s) return; s.i = Math.max(0, Math.min(i, SFG.cards().length)); try { saveSettings(); } catch (e) {} SFG.render(); };
+SFG.say = function(t) { var e = document.getElementById('sfcErr'); if (e) e.textContent = t || ''; };
+SFG.next = function() {
+  var host = document.getElementById('sfcCard'), s = SFG.st(); if (!host || !s) return;
+  var C = SFG.cards(), card = C[s.i]; if (!card) return;
+  var err = SFG.answer(card, SFG.read(host)); if (err) { SFG.say(err); var f = host.querySelector('#sfcV, input, select'); if (f) f.focus(); return; }
+  // the next card still to answer after this one, else the end
+  var j = s.i + 1; while (j < C.length && SFG.answered(C[j]) && !s.mode) j++;
+  SFG.go(j);
+  var nf = document.querySelector('#sfcCard #sfcV, #sfcCard input, #sfcDone button'); if (nf) nf.focus();
+};
+SFG.back = function() { var s = SFG.st(); if (s && s.i > 0) SFG.go(s.i - 1); };
+SFG.TIP = function() { var L = SFG.left(), n = SFG.cards().length, nx = L[0]; return 'Answer the site facts first: ' + (n - L.length) + ' of ' + n + ' answered' + (nx ? '; next: ' + SFG.short(nx) : '') + '.'; };
+SFG.render = function() {
+  SFG.renderSide();
+  var host = document.getElementById('workspaceFacts'); if (!host || host.style.display === 'none') return;
+  var C = SFG.cards(), s = SFG.st();
+  if (!SFG.site()) { host.innerHTML = `<div class='sfc'><h1>Site facts</h1><p class='sfc-src'>Choose a site first: Locate on map in the Site tab, then Import street context (or start from the blank street).</p></div>`; return; }
+  if (!s) { host.innerHTML = `<div class='sfc'><h1>Site facts</h1><p class='sfc-src'>The facts the checks read, one at a time.</p><button type='button' class='sfc-btn sfc-pri' data-sfc='review'>Review site facts</button></div>`; return; }
+  var i = Math.max(0, Math.min(s.i || 0, C.length)), done = C.filter(SFG.answered).length;
+  var prog = `<div class='sfc-prog'><span>Site facts</span><span>${i < C.length ? (i + 1) + ' of ' + C.length : 'All ' + C.length + ' answered'}</span></div><div class='sfc-bar' role='progressbar' aria-label='Site facts answered' aria-valuemin='0' aria-valuemax='${C.length}' aria-valuenow='${done}'><i style='width:${Math.round(100 * done / Math.max(1, C.length))}%'></i></div>`;
+  if (i >= C.length) {
+    var left = SFG.left();
+    host.innerHTML = `<div class='sfc'>${prog}<div id='sfcDone' class='sfc-card sfc-done'><div class='sfc-main'><h2 class='sfc-q'>${left.length ? left.length + ' still to answer' : 'Every site fact has an answer'}</h2>` +
+      `<table class='sfc-sum'><thead><tr><th>Fact</th><th>Value</th><th>How it is known</th></tr></thead><tbody>` +
+      C.map(function(c, k) { return `<tr><td><button type='button' class='sfc-link' data-sfc-go='${k}'>${SFG.esc(SFG.rid(c))} ${SFG.esc(SFG.short(c))}</button></td><td>${SFG.esc(SFG.text(c))}</td><td>${SFG.chip(c)}</td></tr>`; }).join('') + '</tbody></table>' +
+      `<div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='back'>Back</button>${left.length ? `<button type='button' class='sfc-btn sfc-pri' data-sfc-go='${C.indexOf(left[0])}'>Answer the next one</button>` : `<button type='button' class='sfc-btn sfc-pri' data-sfc='design'>Go to Design</button>`}</div></div></div></div>`;
+    return;
+  }
+  var card = C[i], cr = SFG.crop();
+  host.innerHTML = `<div class='sfc'>${prog}<div class='sfc-card' id='sfcCard' role='group' aria-labelledby='sfcQ'><div class='sfc-main'>` +
+    `<p class='sfc-rid'>${SFG.esc(SFG.rid(card))}</p><h2 class='sfc-q' id='sfcQ'>${SFG.esc(card.q)}</h2><p class='sfc-src'>${SFG.esc(SFG.srcLine(card))}</p>` +
+    SFG.form(card) + `<p class='sfc-why'><b>Why it matters.</b> ${SFG.esc(card.why)}</p><p class='sfc-err' id='sfcErr' role='alert'></p>` +
+    `<div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='back'${i ? '' : ' disabled'}>Back</button><button type='button' class='sfc-btn sfc-pri' data-sfc='next'>${i === C.length - 1 ? 'Finish' : 'Next'}</button></div></div>` +
+    (cr ? `<figure class='sfc-crop'>${cr}<figcaption>The Plan around the deck</figcaption></figure>` : '') + '</div></div>';
+  SFG.syncLanes(host);
+};
+SFG.chip = function(c) { var h = SFG.how(c); return h ? `<span class='sfc-chip sfc-${h.replace(/[^a-z]/g, '')}'>${SFG.esc(h)}</span>` : `<span class='sfc-dim'>not answered</span>`; };
+SFG.renderSide = function() {
+  var side = document.getElementById('sfcSide'); if (!side) return;
+  var C = SFG.cards(), s = SFG.st(), i = s ? s.i : -1;
+  if (!SFG.site() || !s) { side.innerHTML = ''; return; }
+  side.innerHTML = `<p class='sfc-side-n'>${C.filter(SFG.answered).length} of ${C.length} answered</p><ol class='sfc-list'>` + C.map(function(c, k) {
+    return `<li><button type='button' class='sfc-item${k === i ? ' on' : ''}${SFG.answered(c) ? ' done' : ''}' data-sfc-go='${k}'${k === i ? ` aria-current='step'` : ''}><span class='sfc-item-id'>${SFG.esc(SFG.rid(c))}</span> ${SFG.esc(SFG.short(c))}<span class='sfc-item-a'>${SFG.answered(c) ? SFG.esc(SFG.how(c) || 'answered') : ''}</span></button></li>`; }).join('') + '</ol>';
+};
+// the Check rows: a site fact is shown with how it is known and a Change that opens its card in the row
+SFG.rowHTML = function(c) {
+  var cards = SFG.cardsFor(c.id); if (!cards.length) return '';
+  return `<div class='sfc-rowf'>` + cards.map(function(card) { return `<div class='sfc-line'><span class='sfc-line-l'>${SFG.esc(SFG.short(card))}</span><b>${SFG.esc(SFG.text(card))}</b>${SFG.chip(card)}<button type='button' class='chk-edit sfc-chg' data-sfc-card='${card.id}'>Change</button></div>`; }).join('') +
+    `<div class='sfc-inline' id='sfcIn_${c.id}'></div></div>`;
+};
+SFG.inline = function(id) {
+  var card = SFG.CARDS.find(function(q) { return q.id === id; }); if (!card) return;
+  var host = document.getElementById('sfcIn_' + card.crit); if (!host) return;
+  host.innerHTML = `<div class='sfc-card sfc-in-row' data-card='${card.id}'><div class='sfc-main'><p class='sfc-q'>${SFG.esc(card.q)}</p><p class='sfc-src'>${SFG.esc(SFG.srcLine(card))}</p>` + SFG.form(card) +
+    `<p class='sfc-err' role='alert'></p><div class='sfc-nav'><button type='button' class='sfc-btn' data-sfc='cancel'>Cancel</button><button type='button' class='sfc-btn sfc-pri' data-sfc='save'>Save</button></div></div></div>`;
+  SFG.syncLanes(host); var f = host.querySelector('input, select'); if (f) f.focus();
+};
+SFG.saveInline = function(box) {
+  var card = SFG.CARDS.find(function(q) { return q.id === box.dataset.card; }); if (!card) return;
+  var err = SFG.answer(card, SFG.read(box)); if (err) { box.querySelector('.sfc-err').textContent = err; return; }
+  if (!SFG.st()) state.__sfc = { v: 1, i: 0, ans: {}, legacy: true };
+  try { if (typeof render === 'function') render(); } catch (e) {}
+  var b = document.querySelector(`.sfc-chg[data-sfc-card='${card.id}']`); if (b) b.focus();
+};
+// the Site panel: Review site facts, I've measured on site
+SFG.mountSite = function() {
+  var host = document.getElementById('ctxSite'); if (!host) return;
+  var el = document.getElementById('sfcSite');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'sfcSite'; el.className = 'sfc-site';
+    el.innerHTML = `<p class='sfc-site-t'>Site facts</p><p class='sfc-site-n' id='sfcSiteN'></p><div class='sfc-site-b'><button type='button' class='ctx-btn' data-sfc='review'>Review site facts</button><button type='button' class='ctx-btn' data-sfc='measured'>I've measured on site</button></div>`;
+    var at = document.getElementById('sbxSteps'); if (at && at.parentNode === host) host.insertBefore(el, at.nextSibling); else host.insertBefore(el, host.children[1] || null);
+  }
+  el.hidden = !SFG.site();
+  var n = document.getElementById('sfcSiteN');
+  if (n) { var C = SFG.cards(), m = C.filter(function(c) { return SFG.how(c) === 'measured on site' || SFG.how(c) === 'Checked on site'; }).length; n.textContent = SFG.st() ? m + ' of ' + C.length + ' measured or checked on site' + (SFG.locked() ? '; ' + SFG.left().length + ' still to answer' : '') : ''; }
+};
+SFG.sync = function() {
+  try { if (typeof SEED !== 'undefined' && SEED.tabTips) SEED.tabTips(); } catch (e) {}
+  try { if (typeof STEPS !== 'undefined') STEPS.sync(window.APP_MODE); } catch (e) {}
+  SFG.mountSite(); SFG.renderSide();
+};
+// the report: one line for the cover, the rows for X-001 and S-002
+SFG.rows = function() { return SFG.cards().filter(function(c) { return c.kind !== 'group'; }).map(function(c) { return { card: c, rid: SFG.rid(c), fact: SFG.short(c), value: SFG.text(c), how: SFG.how(c) || 'not answered' }; }); };
+SFG.coverLine = function() { if (!SFG.st() || !SFG.site()) return ''; var R = SFG.rows(), m = R.filter(function(r) { return r.how === 'measured on site'; }).length; return 'Site facts: ' + m + ' of ' + R.length + ' measured on site'; };
+SFG.measuredOn = function() { var P = SFG.P(), d = Object.keys(P).map(function(k) { return P[k]; }).filter(function(p) { return p.source === 'measured' || p.source === 'survey'; }).map(function(p) { return p.at || p.fetchedAt || ''; }).sort(); return d.length ? SMP.day(d[d.length - 1]) : ''; };
+// a design from before the site facts: its imported values stay imported, values typed then count as estimates (the
+// safer reading), a survey's as measured; the user is told once; it is not locked
+SFG.migrate = function() {
+  if (SFG.st() || !SFG.site()) return;
+  var P = SFG.P(), n = 0, sv = 0, now = new Date().toISOString();
+  SFG.CARDS.forEach(function(card) {
+    if (card.kind === 'group') return;
+    [card.input, card.input2].filter(Boolean).forEach(function(k) {
+      if (P[k]) return;
+      var v = state[k]; if (v === undefined || v === null || String(v).trim() === '') return;
+      var placed = card.obj && SFG.objInfo(card) && k === card.input; if (placed) return;   // a distance from the objects on the map: theirs
+      if (CHK.INPUT_FACT[k] && P[CHK.INPUT_FACT[k]]) return;
+      P[k] = { source: 'estimate', note: 'typed before the site facts step', fetchedAt: now, legacy: true }; n++;
+    });
+  });
+  Object.keys(P).forEach(function(k) { if (P[k] && P[k].source === 'survey') sv++; });
+  state.__sfc = { v: 1, legacy: true, i: 0, ans: {}, at: now };
+  try { saveSettings(); } catch (e) {}
+  var said = n && SFG._told && Date.now() - SFG._told < 10000; if (n) SFG._told = Date.now();   // told once (a local copy restored right after the load would repeat it)
+  if (n && !said && typeof pkToast === 'function') pkToast('This design was made before the site facts step: the ' + n + ' value' + (n > 1 ? 's' : '') + ' typed then count as estimates. Review site facts (Site tab) to mark what you measured.');
+  if (n && !said) console.info('[site-facts] ' + n + ' typed value(s) from before the site facts step load as estimates');
+  if (sv && !said) console.info('[site-facts] ' + sv + ' value(s) from a site survey load as measured');
+};
+SFG.afterLoad = function() {
+  SFG.migrate(); SFG.sync();
+  if (SFG.locked()) setTimeout(function() { if (SFG.locked() && window.APP_MODE !== 'facts') appSetMode('facts'); }, 0);   // a reload mid-sequence returns to the same card
+};
+(function() {
+  // the gate: the tabs past Site facts open only once every card has an answer
+  var f = window.appSetMode;
+  if (typeof f === 'function' && !f._sfg) {
+    var w = function(mode) {
+      if (SFG.locked() && SFG.GATED.indexOf(mode) >= 0) { var r = f.call(this, 'facts'); SFG.say(SFG.TIP()); return r; }
+      var r2 = f.apply(this, arguments); if (mode === 'facts') SFG.render(); return r2;
+    };
+    w._sfg = true; w._stage = f._stage; window.appSetMode = w;
+  }
+  // a design opened or loaded
+  var ap = window.pkApplyDesignState;
+  if (typeof ap === 'function' && !ap._sfg) { window.pkApplyDesignState = function() { var r = ap.apply(this, arguments); try { SFG.afterLoad(); } catch (e) {} return r; }; window.pkApplyDesignState._sfg = true; }
+  // the generator asks for the facts in plain words, and only while a card is unanswered
+  if (typeof GEN !== 'undefined' && GEN.facts && !GEN.facts._sfg) {
+    var gf = GEN.facts;
+    GEN.facts = function() {
+      var rows = gf.apply(this, arguments); if (!SFG.active()) return rows;
+      return rows.map(function(r) {
+        var c = SFG.crit(r.crit), card = SFG.cardsFor(r.crit)[0], o = c && (r.id === c.inputId ? c.selectOptions : r.id === c.inputId2 ? c.selectOptions2 : null), ol = o && o.find(function(q) { return String(q.value) === String(state[r.id]); });
+        return Object.assign({}, r, { ok: SFG.critDone(r.crit), label: card ? SFG.short(card) : r.label, value: ol ? ol.label : r.value });
+      });
+    };
+    GEN.facts._sfg = true;
+  }
+  // clicks in the step, the Site panel and the Check rows
+  document.addEventListener('click', function(e) {
+    var b = e.target.closest && e.target.closest('[data-sfc], [data-sfc-go], [data-sfc-card]'); if (!b) return;
+    if (b.dataset.sfcGo !== undefined) { SFG.go(+b.dataset.sfcGo); var f1 = document.querySelector('#sfcCard input, #sfcCard select'); if (f1) f1.focus(); return; }
+    if (b.dataset.sfcCard) { SFG.inline(b.dataset.sfcCard); return; }
+    var a = b.dataset.sfc, box = b.closest('.sfc-in-row');
+    if (a === 'next') SFG.next(); else if (a === 'back') SFG.back();
+    else if (a === 'review') SFG.review(false); else if (a === 'measured') SFG.review(true);
+    else if (a === 'design') { var s = SFG.st(); if (s) s.mode = ''; appSetMode('design'); }
+    else if (a === 'save' && box) SFG.saveInline(box);
+    else if (a === 'cancel' && box) box.parentNode.innerHTML = '';
+    else if (a === 'all') { var root = b.closest('.sfc-card'); root.querySelectorAll('#sfcGrp input[type=checkbox]').forEach(function(x) { x.checked = true; }); var m = root.querySelector(`input[name='sfcP'][value='measured']`); if (m) m.checked = true; if (box) SFG.saveInline(box); else SFG.next(); }
+  });
+  document.addEventListener('change', function(e) { if (e.target && e.target.id === 'sfcDir') SFG.syncLanes(e.target.closest('.sfc-card') || document); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || !e.target || !e.target.closest) return;
+    var card = e.target.closest('#sfcCard, .sfc-in-row'); if (!card || /^(BUTTON|TEXTAREA)$/.test(e.target.tagName)) return;
+    e.preventDefault(); if (card.id === 'sfcCard') SFG.next(); else SFG.saveInline(card);
+  });
+  var go = function() { try { SFG.afterLoad(); } catch (e) {} };
+  if (document.readyState === 'complete') setTimeout(go, 0); else window.addEventListener('load', function() { setTimeout(go, 0); });
+})();
 </script>
 </body></html>
