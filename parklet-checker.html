@@ -5355,7 +5355,9 @@ document.addEventListener('mouseup', function() {
     var _rsMaxW   = Math.round(Math.max(0, _rsEnv - _rsOtherW) * 1000) / 1000;
     var _why = c > newW + 0.0005 ? (env ? 'EDM 2026 Table 8-10 abs. min ' + lo + ' m' : 'minimum ' + lo + ' m')
              : c < newW - 0.0005 ? (env ? 'EDM Table 8-10 note 8 exception cap ' + hi + ' m' : 'maximum ' + hi + ' m') : '';
-    if (c > _rsMaxW) { c = _rsMaxW; _why = 'remaining roadway ' + _rsMaxW.toFixed(2) + ' m'; }
+    // the sidewalk is outside curb to curb: the roadway's remaining width does not cap it (Brief 30 §8C, triage row 20:
+    // 'Sidewalk: requested 4.00 m, set to 0.00 m (remaining roadway 0.00 m)')
+    if (s.type !== 'sidewalk' && c > _rsMaxW) { c = _rsMaxW; _why = 'remaining roadway ' + _rsMaxW.toFixed(2) + ' m'; }
     _laneNotes = _why ? [(def.label || s.type) + (env ? ' ' + (li + 1) : '') + ': requested ' + newW.toFixed(2) + ' m, set to ' + c.toFixed(2) + ' m (' + _why + ')'] : [];
     if (c < (lo || 0)) {
       // Segment minimum cannot fit in remaining space â€” keep current width, show status.
