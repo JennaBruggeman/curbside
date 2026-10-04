@@ -24109,7 +24109,7 @@ RPT.hostRaw = function(DM) {
   return { b: b, entered: ['use', 'frontage', 'name', 'storeys'].some(function(k) { return raw[k] !== undefined && raw[k] !== ''; }) };
 };
 RPT.hostLine = function(DM) {
-  var h = DM.site.host; if (!h) return 'No building on the parklet side';
+  var h = DM.site.host; if (!h) return (typeof state !== 'undefined' && state.__generic) ? 'No building entered' : 'No building on the parklet side';
   return (h.name || 'Unnamed') + ', ' + h.use + (RPT.hostRaw(DM).entered ? '' : ' (default)');
 };
 // Street trees from the City inventory (the imported DESIGN_MODEL.vegetation entries): the Summary's one
@@ -29882,7 +29882,7 @@ IMP.render = function() {
 };
 
 // ── Item 8: the Blank street. A generic two-way street: one travel lane each way and a parking lane each side, sidewalks
-// both sides, two buildings each side of different heights, no trees or site objects. Every fact is entered (source
+// both sides and curbs; no buildings, trees or site objects (Brief 31 §13: buildings are added by hand, Design › Context). Every fact is entered (source
 // 'user'); the sheets say "Generic street - not a real location". A disclaimer with Continue comes first. ──────────
 var BLANK = { ROAD: 11.4, LANE: 3.3, PARK: 2.4, SIDEWALK: 3.0,
   NOTE: 'Generic street — not a real location',
@@ -29910,8 +29910,7 @@ BLANK.apply = function() {
   ds.project = { name: (ds.project && ds.project.name && ds.project.name !== 'Untitled parklet') ? ds.project.name : 'Blank street', streetAddress: 'Generic street (not a real location)' };
   Object.assign(ds.site, { totalRoad: BLANK.ROAD, sidewalkW: BLANK.SIDEWALK, numLanes: 2, roadDir: 'twoway', lanesA: 1, lanesB: 1, parkletWidth: SEED.DECK_W, parkletLength: SEED.DECK_L, bufferEnabled: false,
     streetBearing: 0, parkletSide: 'east',
-    bldgL: { buildings: [BLANK.bldg('Building 1', 'cafe', 2, 22, -6, 14), BLANK.bldg('Building 2', 'retail', 4, 24, 16, 16)] },
-    bldgR: { buildings: [BLANK.bldg('Building 3', 'mixed', 3, 20, -10, 15), BLANK.bldg('Building 4', 'residential', 5, 26, 10, 18)] } });
+    bldgL: { buildings: [] }, bldgR: { buildings: [] } });   // (Brief 31 §13) the street only
   ds.crossSection = [{ type: 'sidewalk', width: BLANK.SIDEWALK }, { type: 'parklet', width: SEED.DECK_W }, { type: 'travel-lane', width: lane }, { type: 'travel-lane', width: lane }, { type: 'parking', width: BLANK.PARK }];
   Object.keys(ds.compliance || {}).forEach(function(k) { ds.compliance[k] = ''; });
   ds.compliance.route_type = 'standard';
@@ -29928,7 +29927,7 @@ BLANK.apply = function() {
   try { syncDesignModel('blank-street'); } catch (e) {}
   try { render(); } catch (e) {}
   if (typeof SFG !== 'undefined') setTimeout(function() { SFG.start({ blank: true }); }, 0);   // (Brief 30 §9)
-  console.log('[blank] a generic street: ' + BLANK.ROAD + ' m curb to curb, 1 + 1 lanes of ' + lane.toFixed(3) + ' m, parking ' + BLANK.PARK + ' m, sidewalks ' + BLANK.SIDEWALK + ' m, 2 + 2 buildings');
+  console.log('[blank] a generic street: ' + BLANK.ROAD + ' m curb to curb, 1 + 1 lanes of ' + lane.toFixed(3) + ' m, parking ' + BLANK.PARK + ' m, sidewalks ' + BLANK.SIDEWALK + ' m, no buildings');
 };
 
 // ── Item 9: intersections ("Main St & 20th Ave", "Main and 20th"): curbside-data's intersections.json (every node where
@@ -31687,7 +31686,7 @@ function pkStageSync() {
         "<div class='pk-s0-acts'>" + (sm ? "<button type='button' class='ctx-btn pk-s0-go' id='pkS0Import' onclick='SMP.importContext()'" + (busy ? ' disabled' : '') + ">" + bt + "</button><button type='button' class='txt-btn' onclick='appSetMode(\"site\"); SM.open()'>Locate again</button>"
           : "<button type='button' class='ctx-btn pk-s0-go' onclick='appSetMode(\"site\"); SM.open()'>Locate on map</button>") + "</div>" +
         "<p class='pk-s0-msg' id='pkS0Msg' role='status' aria-live='polite'>" + (sm ? SEED.msgCopy() : '') + "</p></section>" +
-      "<section class='pk-s0-path' aria-labelledby='pkS0BlankH'><h3 id='pkS0BlankH'>Blank street</h3><p>A generic two-way street with parking, sidewalks and buildings, to sketch a parklet before choosing a site. It is not a real location, and every width is a placeholder.</p>" +
+      "<section class='pk-s0-path' aria-labelledby='pkS0BlankH'><h3 id='pkS0BlankH'>Blank street</h3><p>A generic two-way street with parking and sidewalks, to sketch a parklet before choosing a site; add buildings in Design if you want them. It is not a real location, and every width is a placeholder.</p>" +
         "<div class='pk-s0-acts'><button type='button' class='ctx-btn' id='pkS0Blank' onclick='BLANK.ask()'>Start a blank street</button></div></section>" +
       "</div><p class='pk-s0-foot'>Either way a deck of the default length is placed at the host frontage, and the checks run on the street's facts.</p></div>";
   }
@@ -34258,7 +34257,15 @@ SFG.migrate = function() {
   if (n && !said) console.info('[site-facts] ' + n + ' typed value(s) from before the site facts step load as estimates');
   if (sv && !said) console.info('[site-facts] ' + sv + ' value(s) from a site survey load as measured');
 };
+// (Brief 31 §13) a blank street saved before: the buildings it seeded are kept as the user's own (said once)
+BLANK.migrate = function() {
+  if (typeof state === 'undefined' || !state.__generic) return 0;
+  var n = 0; [BLDG_L, BLDG_R].forEach(function(B) { (B.buildings || []).forEach(function(b) { var pr = b.__prov || {}; Object.keys(pr).forEach(function(k) { if (pr[k] && pr[k].note === 'blank street placeholder') { pr[k].note = 'added by you'; n++; } }); }); });
+  if (n) console.info('[blank] ' + [BLDG_L, BLDG_R].reduce(function(a, B) { return a + (B.buildings || []).length; }, 0) + ' building(s) from an earlier blank street kept as yours (Design › Context)');
+  return n;
+};
 SFG.afterLoad = function() {
+  try { BLANK.migrate(); } catch (e) {}
   SFG.migrate(); SFG.sync();
   if (SFG.locked()) setTimeout(function() { if (SFG.locked() && window.APP_MODE !== 'facts') appSetMode('facts'); }, 0);   // a reload mid-sequence returns to the same card
 };
