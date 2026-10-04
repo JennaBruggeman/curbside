@@ -14151,6 +14151,7 @@ var NAV = {
     var st = NAV.step(mode);
     document.querySelectorAll('.ttab').forEach(function(t) { var on = t.dataset.step === st; t.classList.toggle('active', on); if (on) t.setAttribute('aria-current', 'step'); else t.removeAttribute('aria-current'); });
     if (st === 'design') { NAV.sub = mode; NAV.mountSub(mode); }
+    if (typeof DK !== 'undefined') DK.onMode(mode);   // the left panel's sections reset on a step change
   },
   mountSub: function(mode) {
     var host = document.getElementById('ctx' + mode.charAt(0).toUpperCase() + mode.slice(1)); if (!host) return;
@@ -16650,9 +16651,7 @@ function _dkWrap(el, pid, title, startCollapsed) {
   body.appendChild(el);
   wrap.appendChild(body);
   _dkPanels[pid] = { el: wrap, body: body, title: title, collapsed: startCollapsed, hidden: false, floating: false };
-  // a panel built after the design's open set was applied (the Site tab's sections): open it if the design has it open
-  // (Brief 30 §8C, triage S18: Street widths folded on every reload)
-  if (startCollapsed && typeof state !== 'undefined' && Array.isArray(state.__dockOpen) && state.__dockOpen.indexOf(pid) >= 0) setTimeout(function() { _dkSetOpen(pid, true); }, 0);
+  el.setAttribute('aria-hidden', 'false'); hdr.setAttribute('aria-expanded', startCollapsed ? 'false' : 'true');
 }
 
 function dkToggle(pid) {
@@ -16660,8 +16659,8 @@ function dkToggle(pid) {
   _dkSetOpen(pid, p.collapsed);
   _dkSave();
 }
-// Open/close one panel. The open set lives in state.__dockOpen, so it is saved with the design
-// (saveSettings) and restored on load; every panel is closed unless it is in that list.
+// Open/close one panel. (Brief 31 §1) Nothing about the panels is stored: every step opens on its first section
+// (DK.reset), and within a step what you open stays open until you leave it.
 function _dkSetOpen(pid, open) {
   var p = _dkPanels[pid]; if (!p) return;
   p.collapsed = !open;
@@ -16730,30 +16729,24 @@ function _dkMakeDraggable(el, pid) {
   });
 }
 
-function _dkSave() {
-  try {
-    var s = {};
-    Object.keys(_dkPanels).forEach(function(pid) {
-      var p = _dkPanels[pid];
-      s[pid] = { h: p.hidden };
-    });
-    localStorage.setItem('_dkSt', JSON.stringify(s));
-  } catch(e) {}
-  state.__dockOpen = Object.keys(_dkPanels).filter(function(pid) { return !_dkPanels[pid].collapsed; });
-  saveSettings();
-}
-
-function _dkLoad() {
-  var open = Array.isArray(state.__dockOpen) ? state.__dockOpen : [];
-  Object.keys(_dkPanels).forEach(function(pid) { _dkSetOpen(pid, open.indexOf(pid) >= 0); });
-  try {
-    var s = JSON.parse(localStorage.getItem('_dkSt') || '{}');
-    Object.keys(s).forEach(function(pid) {
-      var p = _dkPanels[pid]; if (!p) return;
-      if (s[pid].h && !p.hidden) { p.hidden = true; p.el.classList.add('dk-hidden'); }
-    });
-  } catch(e) {}
-}
+function _dkSave() {}   // (Brief 31 §1) the panels' state is this session's only
+function _dkLoad() { DK.reset(); }
+// (Brief 31 §1) the reset: every collapsible section closes except the step's first; a closed (hidden) panel comes back;
+// a floating one docks. On a step change, a Design sub-tab change, a new design, an opened design and on loading.
+var DK = {
+  key: null,
+  first: function(host) { var a = host ? [].filter.call(host.querySelectorAll('.dk-panel'), function(e) { return !e.classList.contains('dk-hidden'); }) : []; return a.length ? a[0].id : null; },
+  reset: function() {
+    var m = window.APP_MODE || 'site', host = document.getElementById('ctx' + m.charAt(0).toUpperCase() + m.slice(1)), keep = DK.first(host);
+    Object.keys(_dkPanels).forEach(function(pid) { var p = _dkPanels[pid]; if (p.floating) _dkDock(pid); if (p.hidden) { p.hidden = false; p.el.classList.remove('dk-hidden'); } _dkSetOpen(pid, pid === keep); });
+    var k = document.getElementById('pvKey'); if (k) k.open = false;   // the floating Plan key
+    if (typeof GIS !== 'undefined' && GIS.togglePanel && document.getElementById('smLayers') && !document.getElementById('smLayers').hidden) GIS.togglePanel(false);   // the map's Layers panel
+    var d = document.getElementById('dkMenuDrop'); if (d) d.style.display = 'none';
+    if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate();
+  },
+  // a step (or Design sub-tab) change resets; the same step again does not
+  onMode: function(mode) { var k = NAV.step(mode) + (NAV.step(mode) === 'design' ? ':' + mode : ''); if (k === DK.key) return; DK.key = k; setTimeout(DK.reset, 0); }
+};
 
 function _dkMenuUpdate() {
   var list = document.getElementById('dkMenuList'); if (!list) return;
@@ -18965,6 +18958,7 @@ function bufFromSegs(segs) {
 }
 // ─── Apply design state ───────────────────────────────────────────
 function pkApplyDesignState(raw) {
+  if (typeof DK !== 'undefined') setTimeout(DK.reset, 0);   // (Brief 31 §1) every panel to its default
   if (!raw) return;
   if (typeof _pvExtent !== 'undefined') { _pvExtent = 'sheet'; _pvUserMod = false; }   // a design opens at Fit sheet (Brief 22)
   var data = pkMigrate(raw);
@@ -19334,6 +19328,7 @@ function pkDefaultState(name, address) {
 }
 // apply a blank design: everything outside the saved state that a design leaves behind goes back to its start as well
 function pkApplyBlank(s) {
+  if (typeof DK !== 'undefined') setTimeout(DK.reset, 0);   // (Brief 31 §1) every panel to its default
   if (typeof state !== 'undefined') Object.keys(state).forEach(function(k) { delete state[k]; });   // keys the blank lacks are deleted
   if (typeof CTX_OUTER !== 'undefined') CTX_OUTER = null;                                           // the imported city context
   if (typeof SKE !== 'undefined' && SKE.open) skeClose();                                            // the shape editor's copy is of the old design
@@ -21217,7 +21212,7 @@ AX.mount = function() {
     "<div class='ax-gate' id='axGate' hidden></div><div id='axMsgs' aria-live='polite'></div><div class='ax-chips' id='axChips'></div>" +
     "<div id='axInputRow'><textarea id='axInput' rows='2' placeholder='Describe a change, or ask why a check fails'></textarea><button type='button' id='axSend' onclick='AX.send()'>Send</button></div></div>";
   host.appendChild(sec);
-  if (typeof _dkWrap === 'function') { _dkWrap(sec, 'dkcgAx', 'Design assistant', false); if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate(); }
+  if (typeof _dkWrap === 'function') { _dkWrap(sec, 'dkcgAx', 'Design assistant', true); if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate(); }
   var inp = document.getElementById('axInput');
   inp.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); AX.send(); } });
   AX.loadSettingsUI();
@@ -28866,7 +28861,7 @@ SM.open = async function() {
     // a data dot is information only while Layers is open, never during the side pick (Brief 25 item 10)
     SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && (!GIS.inspecting || GIS.inspecting()) && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
   } else { SM.map.resize(); if (typeof GIS !== 'undefined') GIS.onMove(); }
-  try { if (typeof GIS !== 'undefined' && localStorage.getItem('pkt_gis_panel') === '1') GIS.togglePanel(true); } catch (e) {}
+
   SM.status('Search an address or pan the map, then <b>click the street</b> where the parklet goes.');
 };
 SM.close = function() { document.getElementById('smModal').classList.remove('open'); document.getElementById('smResults').hidden = true; };
@@ -29578,7 +29573,6 @@ GIS.countInView = function(lid) {
 GIS.togglePanel = function(v) {
   var p = document.getElementById('smLayers'), b = document.getElementById('smLayersBtn'); if (!p) return;
   var open = v == null ? p.hidden : !!v; p.hidden = !open; if (b) b.setAttribute('aria-pressed', open ? 'true' : 'false');
-  try { localStorage.setItem('pkt_gis_panel', open ? '1' : '0'); } catch (e) {}
   if (open) GIS.buildRows();
   if (GIS.map) setTimeout(function() { GIS.map.resize(); }, 0);
 };
