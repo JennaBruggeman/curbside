@@ -856,6 +856,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <div id='swConn' class='sw-section'>
       <h2 class='sw-sh'>Connections</h2>
       <p class='conn-intro'>Photoreal renders, the Assistant and street context photos each use your own account with the service. Add a key for the ones you want; nothing else needs one.</p>
+      <p class='conn-intro' id='connWhere'>Keys live only in this browser, at this address: signing out, a new design or clearing your data keeps them; another browser, a private window, or the same app at another address (the live site and a local copy) starts with none.</p>
       <div class='conn-row'>
         <div class='conn-hd'><b>Replicate</b><span>Photoreal renders</span><span class='conn-st' id='connSt_replicate' role='status'></span></div>
         <div class='conn-ctl'><input type='text' data-secret='1' data-1p-ignore='true' data-lpignore='true' data-bwignore='true' id='connKey_replicate' class='sett-input' autocomplete='off' spellcheck='false' aria-label='Replicate API token' title='Your Replicate API token. Press Enter to save it. Stored only in this browser; never sent to Curbside&rsquo;s servers or saved with your design.' onchange='CONN.save("replicate")'><button type='button' class='ctx-btn' id='connTest_replicate' onclick='CONN.runTest("replicate")' title='Makes one free call to Replicate with this key and says whether it works.'>Test</button><button type='button' class='ctx-btn' id='connRm_replicate' onclick='CONN.remove("replicate")' title='Deletes the key from this browser.'>Remove</button></div>
@@ -912,8 +913,8 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 
     <div id='swData' class='sw-section'>
       <h2 class='sw-sh'>Data</h2>
-      <div style='font-size:12px;color:var(--muted);margin-bottom:12px;'>Clear all locally stored data including profile info and saved state. This cannot be undone.</div>
-      <button class='ctx-btn' style='color:#f87171;border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08);' onclick='if(confirm("Clear all saved data? This cannot be undone.")){localStorage.clear();alert("Data cleared.");}'>Clear all saved data</button>
+      <div style='font-size:12px;color:var(--muted);margin-bottom:12px;'>Clear all locally stored data including profile info and saved state. This cannot be undone. Your keys in Connections are kept; remove one there.</div>
+      <button class='ctx-btn' style='color:#f87171;border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08);' onclick='pkClearLocal()'>Clear all saved data</button>
     </div>
   </div>
 </div>
@@ -21015,6 +21016,13 @@ document.addEventListener('DOMContentLoaded', PX.updateNote);
    forwards it and keeps nothing; the Anthropic key goes straight to Anthropic from the browser.
    ================================================================ */
 var CONN = { LS: 'pkt_connections' };
+// (Brief 31 §4) every reset keeps the keys: the one place that clears this browser's storage puts them back
+function pkClearLocal() {
+  if (!confirm('Clear all saved data in this browser? This cannot be undone. Your keys in Connections are kept.')) return;
+  var keep = null; try { keep = localStorage.getItem(CONN.LS); } catch (e) {}
+  try { localStorage.clear(); if (keep) localStorage.setItem(CONN.LS, keep); } catch (e) {}
+  alert('Data cleared. Your keys in Connections were kept.');
+}
 CONN.ROWS = {
   replicate: { name: 'Replicate', what: 'Photoreal renders', get: 'https://replicate.com/account/api-tokens', price: 'https://replicate.com/pricing', ph: 'r8_…',
     gate: 'Photoreal renders use your own Replicate account.' },
@@ -32073,7 +32081,7 @@ var UI_TIPS = [
   // settings
   ['#swGrid select', 'The grid step, also the step the arrow keys move by.'],
   ['.ctx-btn[onclick*="appSetMode(\\"site\\")"]', 'Goes to the Site tab to set this.'],
-  ['[onclick*="localStorage.clear()"]', 'Deletes everything this browser has saved for Curbside; it cannot be undone.']
+  ['[onclick*="pkClearLocal"]', 'Deletes everything this browser has saved for Curbside except your keys in Connections; it cannot be undone.']
 ];
 function uiApplyTips(root) {
   root = root || document;
