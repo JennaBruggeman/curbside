@@ -1380,6 +1380,13 @@ CHK.provClass = function(k) {
   if (p.source === 'user') return { cls: 'estimate', src: (p.from ? 'confirmed by you (was ' + (SMP.SRC[p.from] || p.from) + ')' : 'entered by you') + ', an estimate until measured' };
   return { cls: 'imported', src: (SMP.SRC[p.source] || p.source) + (p.via === 'cells' ? ', data ' : ', fetched ') + SMP.day(p.fetchedAt) };
 };
+// (Brief 30 follow-up) the most direct provenance wins: when every value a check reads from you (C01 the parking
+// restriction, C03 the corner, C05 the hydrant, C06 the driveway, C07 the pole ...) was measured on site, the check is
+// settled by those measurements; the imported objects on the map (stops, hydrants) are context and make it provisional no more
+CHK.direct = function(c) {
+  var ids = CHK.facts(c).inputs; if (!ids.length) return false;
+  return ids.every(function(id) { var q = CHK.provClass(CHK.INPUT_FACT[id] || id); return !!q && q.cls === 'measured'; });
+};
 CHK.inputs = function(c) {
   var F = CHK.facts(c), out = [], DM = _dmCurrent(), P = typeof SMP !== 'undefined' ? SMP.prov() : {}, two = typeof ROAD_DIR !== 'undefined' && ROAD_DIR === 'twoway';
   var surveyed = (typeof state !== 'undefined' && state.__survey && state.__survey.inputs) || [];
@@ -1398,10 +1405,11 @@ CHK.inputs = function(c) {
     var cls = !I.entered ? 'missing' : sv ? 'measured' : I.source === 'placed site objects' ? 'placed' : 'entered';
     out.push({ key: id, label: I.label, cls: cls, src: cls === 'missing' ? 'not entered' : cls === 'placed' ? 'measured from placed site objects' : cls === 'measured' ? 'site survey' : 'entered by you' });
   });
+  var direct = CHK.direct(c);
   if (typeof SMP !== 'undefined') F.objects.forEach(function(kind) {
     var all = SMP.objects().filter(function(o) { return o.kind === kind; }); if (!all.length) return;
     var un = all.filter(function(o) { return !o.obj.confirmed; }).length;
-    out.push({ key: kind, label: kind === 'transit' ? 'Imported transit stops' : 'Imported fire hydrants', cls: un ? 'imported' : 'confirmed', src: un ? un + ' of ' + all.length + ' not yet confirmed on site' : 'all ' + all.length + ' confirmed' });
+    out.push({ key: kind, label: kind === 'transit' ? 'Imported transit stops' : 'Imported fire hydrants', cls: un ? (direct ? 'context' : 'imported') : 'confirmed', src: (un ? un + ' of ' + all.length + ' not yet confirmed on site' : 'all ' + all.length + ' confirmed') + (un && direct ? ': context only, your measurement on site settles the check' : '') });
   });
   F.design.forEach(function(l) { out.push({ key: l, label: l, cls: 'design', src: 'the design' }); });
   // (Brief 29c item 2, triage F11) a value you type is measured. Once the curb-to-curb width is yours (typed, surveyed,
@@ -30278,6 +30286,7 @@ SMP.unconfirmed = function() { return SMP.objects().filter(function(o) { return 
 SMP.fieldPending = function(keys) { var P = SMP.prov(); return keys.filter(function(k) { return P[k] && ['osm', 'cov', 'cell', 'gtfs', 'osm-live'].indexOf(P[k].source) >= 0; }); };   // imported, not yet answered (Brief 30 §9)   // a surveyed value is confirmed (Brief 21 §11)
 // A check is provisional while an import it depends on is unconfirmed
 SMP.isProvisional = function(critId) {
+  if (typeof CHK !== 'undefined' && CHK.direct) { var cc = criteria.find(function(q) { return q.id === critId; }); if (cc && CHK.direct(cc)) return false; }   // (Brief 30 follow-up) measured on site wins
   var un = SMP.unconfirmed();
   if (critId === 'c5' && un.some(function(o) { return o.kind === 'hydrant'; })) return true;
   if (critId === 'c1' && un.some(function(o) { return o.kind === 'transit'; })) return true;
