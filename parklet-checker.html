@@ -1337,11 +1337,11 @@ if (c.status === 'fail' && !c.evalFn) return 'fail';
   return c.status;
 
 }
-// ── Brief 25 §1: provenance drives the result ───────────────────────────────────────────────────────────────────────
+// ── Brief 25 §1, Brief 30 §9: provenance drives the result ────────────────────────────────────────────────────────────
 // getCriterionStatus is the rule applied to the numbers in hand. CHK.state caps it by the weakest fact the check reads:
-//   any estimate                      -> 'await' (Awaiting measurement), never Pass / Fail; the row names what to measure
-//   imported, not yet confirmed       -> Pass / Fail, provisional
-//   measured, surveyed, confirmed, overridden, entered or designed -> Pass / Fail
+//   not known yet (Site facts)        -> 'await' (Awaiting measurement), whatever the number; the row names what to measure
+//   an estimate, or imported data     -> Pass / Fail, provisional (an estimate is named as one)
+//   measured on site, or designed     -> Pass / Fail
 // The Check tab, the verdict, the summary and the report read CHK; the generator keeps the raw rule (it compares
 // candidates on one site, whatever the facts' sources).
 var CHK = {
@@ -1698,7 +1698,7 @@ function renderVerdictCompact() {
 }
 // The verdict (Brief 25 item 32): one sentence and one next action, a button to the thing itself: the failing row, the
 // survey sheet, the confirm list, the report. Under it, the pass rule (item 32b), said once where it is needed.
-var PASS_RULE = 'A check passes only on measured or confirmed values; imported data gives a provisional result, estimates don\'t count.';
+var PASS_RULE = 'A check is settled only by measured values; an estimate or imported data gives a provisional result, and a fact not known yet leaves the check awaiting measurement.';   // (Brief 30 §9)
 var VERDICT = {
   // a check's row: the Check tab, its group open, the row open and in view
   row: function(id) {
