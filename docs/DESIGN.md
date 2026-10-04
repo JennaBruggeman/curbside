@@ -3,6 +3,8 @@ name: Curbside
 description: Schematic parklet design and compliance for Vancouver streets: a dark working chrome around light drawing sheets.
 colors:
   accent: "#3AA8E4"
+  accent-ink: "#1F6FA3"
+  on-accent: "#0E1114"
   app-ground: "#17191C"
   panel: "#202328"
   raise: "#2A2E34"
@@ -58,7 +60,7 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
-    textColor: "#0E1114"
+    textColor: "{colors.on-accent}"
     rounded: "{rounded.md}"
     padding: "8px 16px"
   button-secondary:
@@ -115,7 +117,9 @@ A neutral dark-grey chrome and a neutral paper, with a single blue and three sta
 
 ### Primary
 - **Survey Blue** (#3AA8E4): the one accent. The active tab's underline, the current step, a selected list item or
-  segment, focus rings, the primary button. 6.9:1 on the panel grey, so it may also be text.
+  segment, focus rings, the primary button. 6.9:1 on the panel grey, so it may also be text there.
+- **Survey Ink** (#1F6FA3): the accent as text on paper (links, IDs, the library's Place on deck): 5.5:1 on white.
+- **On Accent** (#0E1114): text on a Survey Blue or status fill; white on the blue is 2.7:1 and is not used.
 
 ### Neutral
 - **Bench Black** (#17191C): the app ground and the inputs on the dark chrome.
