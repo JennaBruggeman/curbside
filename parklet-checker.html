@@ -680,9 +680,9 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
 </div>
 </div>
 <div class='ctx-section' id='ctxFacts' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Site facts</span></div><nav id='sfcSide' aria-label='Site facts'></nav></div>
-<div class='ctx-section' id='ctxLearn' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Parklets 101</span></div><nav class='p101-nav' aria-label='Parklets 101'><button type='button' data-s='build' onclick='P101.go("build")'>Build-up</button><button type='button' data-s='qty' onclick='P101.go("qty")'>Quantities</button><button type='button' data-s='cost' onclick='P101.go("cost")'>Cost estimate</button><button type='button' data-s='mats' onclick='P101.go("mats")'>Materials</button><button type='button' data-s='src' onclick='P101.go("src")'>Sources</button></nav><p class='p101-side'>A reference beside the steps: it reads the design and changes nothing in it, except the rates you enter here.</p></div>
 <div class='ctx-section' id='ctxExport' style='display:none'><div class='ctx-hdr'><span class='ctx-hdr-title'>Export</span></div>
-<p class='exp-lead'>The report is in the middle: choose Schematic or Technical and download the PDF. That is what the City reads.</p>
+<div class='ds-sub' id='expSub' role='tablist' aria-label='Export'><button type='button' role='tab' data-view='report' onclick='EXPV.set("report")'>Report</button><button type='button' role='tab' data-view='cost' onclick='EXPV.set("cost")'>Cost estimate</button></div>
+<p class='exp-lead' id='expLead'>The report is in the middle: choose Schematic or Technical and download the PDF. That is what the City reads.</p>
 <details class='exp-more'><summary>More formats: the 3D model, an animation</summary>
 <div class='ctx-group' id='px3dGroup'>
   <div class='ctx-label'>3D Model</div>
@@ -771,7 +771,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
   <div class='summary-section' id='summaryBox'></div>
 </div>
 <div id='workspaceFacts' style='display:none;flex:1;overflow:auto;'></div>
-<div id='workspaceLearn' style='display:none;flex:1;overflow:auto;'></div>
+<div id='workspaceCost' style='display:none;flex:1;overflow:auto;background:var(--c-bg);'></div>
 <div id='workspaceExport' style='display:none;flex:1;overflow:hidden;'>
 <div class='exp-body'>
   <div class='exp-sheet'>
@@ -14141,9 +14141,9 @@ function fl3DRenderTray() {
 // Design (modes 'generate' and 'furniture' stay, shown as step 3). The step strip of Brief 25 is gone.
 var NAV = {
   STEPS: ['site', 'facts', 'design', 'accessibility', 'check', 'visualize', 'export'],
-  NAME: { site: 'Site', facts: 'Site facts', design: 'Design', accessibility: 'Access', check: 'Check', visualize: 'Visualize', export: 'Export', generate: 'Design', furniture: 'Design', settings: 'Settings', learn: 'Export' },
+  NAME: { site: 'Site', facts: 'Site facts', design: 'Design', accessibility: 'Access', check: 'Check', visualize: 'Visualize', export: 'Export', generate: 'Design', furniture: 'Design', settings: 'Settings' },
   SUB: [['generate', 'Generate'], ['design', 'Layout'], ['furniture', 'Furniture']],
-  step: function(mode) { return mode === 'generate' || mode === 'furniture' ? 'design' : mode === 'learn' ? 'export' : mode; },
+  step: function(mode) { return mode === 'generate' || mode === 'furniture' ? 'design' : mode; },
   sub: null,   // the Design sub-tab last used in this session
   // a step's button: Design opens on the sub-tab last used, else Generate while nothing is on the deck (the quick start)
   go: function(step) {
@@ -14193,7 +14193,7 @@ function appSetMode(mode) {
 
 
   // LHS context sections
-  var sections = ['ctxSite', 'ctxFacts', 'ctxDesign', 'ctxAccessibility', 'ctxVisualize', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport', 'ctxLearn'];
+  var sections = ['ctxSite', 'ctxFacts', 'ctxDesign', 'ctxAccessibility', 'ctxVisualize', 'ctxGenerate', 'ctxCheck', 'ctxFurniture', 'ctxSettings', 'ctxExport'];
   sections.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -14217,13 +14217,13 @@ function appSetMode(mode) {
   if (da) da.style.display = isCanvas ? '' : 'none';   // '' = the stylesheet's grid
   if (lc) lc.style.display = (mode === 'furniture') ? 'flex' : 'none';
   if (sw) sw.style.display = (mode === 'settings') ? 'flex' : 'none';
-  if (ex) ex.style.display = (mode === 'export') ? 'flex' : 'none';
+  if (ex) ex.style.display = (mode === 'export' && EXPV.view !== 'cost') ? 'flex' : 'none';   // (Brief 31 §9: Export's two views)
   var fw = document.getElementById('workspaceFacts');   // Site facts (Brief 30 §9)
   if (fw) fw.style.display = (mode === 'facts') ? 'block' : 'none';
   if (mode === 'facts' && typeof SFG !== 'undefined') SFG.render();
-  var lw = document.getElementById('workspaceLearn');   // Parklets 101 (Brief 30 §6)
-  if (lw) lw.style.display = (mode === 'learn') ? 'block' : 'none';
-  if (mode === 'learn' && typeof P101 !== 'undefined') P101.render();
+  var lw = document.getElementById('workspaceCost');   // the Cost estimate (Brief 31 §9)
+  if (lw) lw.style.display = (mode === 'export' && EXPV.view === 'cost') ? 'block' : 'none';
+  if (mode === 'export') EXPV.sync();
   var gw = document.getElementById('workspaceGenerate');
   if (gw) gw.style.display = (mode === 'generate') ? 'flex' : 'none';
   if (mode === 'generate' && typeof GEN !== 'undefined') GEN.onOpen();
@@ -24357,7 +24357,8 @@ RPT.sources = function(d) {
   if (dates.GTFS) std.push(['TransLink GTFS static feed', 'bus stops and the routes that call there; data ' + day(dates.GTFS)]);
   Object.keys(dates).filter(function(k) { return /^CoV /.test(k); }).sort().forEach(function(k) { std.push(['City of Vancouver open data: ' + k.slice(4), (via[k] ? 'data ' : 'fetched ') + day(dates[k])]); });
   if (Object.keys(via).length) std.push(['curbside-data (jennabruggeman.github.io/curbside-data)', 'the sources above in 1 km cells, rebuilt weekly' + (typeof state !== 'undefined' && state.__siteMap && state.__siteMap.cellsBuild ? '; build ' + day(state.__siteMap.cellsBuild) : '')]);
-  if (typeof P101 !== 'undefined') { var _rs = P101.setById(P101.cost().set); std.push(['Rate set: ' + _rs.name, _rs.prov + ' (G-002)']); }   // Brief 30 §6
+  if (typeof P101 !== 'undefined') { var _rs = P101.setById(P101.cost().set); std.push(['Rate set: ' + _rs.name, _rs.prov + ' (G-002)']);   // Brief 30 §6
+    P101.SRC.forEach(function(q) { std.push([q.t + (q.url ? ' (' + q.url + ')' : ''), q.note]); }); }   // (Brief 31 §9) the cost and construction sources, from Parklets 101
   var mly = (d.renders || []).filter(function(r) { return r.mapillary; });
   if (mly.length) std.push(['Mapillary (CC BY-SA)', 'context photo for the photoreal renders: ' + mly.map(function(r) { return r.mapillary; }).join('; ')]);
   // the design's renders (printed on A-000 in the schematic report): listed in both reports
@@ -25479,7 +25480,7 @@ RPT.SHEETS = {
   // (Brief 25 items 22d, 22e: two sections, A-201 the street and A-202 the parklet; A-301 Details is no longer printed)
   // (Brief 25 item 33: G-001 What to do next, right after the cover)
   schematic: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'budget', 'compliance', 'survey', 'sources'],
-  technical: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'budget', 'compliance', 'survey', 'sources']   // (Brief 30 §6: G-002 Construction and budget)
+  technical: ['cover', 'next', 'renders', 'title', 'site', 'layout', 'deck', 'section', 'section2', 'schedule', 'budget', 'compliance', 'survey', 'sources']   // (Brief 30 §6, Brief 31 §9: G-002 Cost estimate; was Construction and budget)
 };
 // one row per printed sheet: id, title, scale (the title sheet's drawing list is this)
 // Report options (Brief 22 item 7): the Export tab's Include boxes; a sheet left out is not in the list, so the drawing
@@ -25504,7 +25505,7 @@ RPT.sheetList = function(d) {
     if (k === 'deck') { var parts = RPT.deckParts(d.DM.site.sheets.A103.crop, RPT.SCALE_OF.deck(d), RPT.deckPosts(d.DM)); parts.forEach(function(p, i) { out.push({ k: k, part: p, i: i, n: parts.length, id: parts.length > 1 ? 'A-103-' + (i + 1) : 'A-103', title: 'Deck plan' + (parts.length > 1 ? ' (' + (i + 1) + ' of ' + parts.length + ')' : ''), scale: '1:' + RPT.SCALE_OF.deck(d) }); }); return; }
     var M = { cover: ['V-000', 'Cover', 'NTS'], next: ['G-001', 'What to do next', '-'], title: ['A-000', 'Title sheet', 'NTS'], site: ['A-101', 'Site plan', '1:' + RPT.SCALE_OF.site(d)], layout: ['A-102', 'Layout plan', '1:' + RPT.SCALE_OF.layout(d)],
       section: ['A-201', 'Street section', '1:' + RPT.SCALE_OF.section(d)], section2: ['A-202', 'Parklet section', '1:' + RPT.SCALE_OF.parklet(d)], details: ['A-301', 'Details', '1:' + RPT.SCALE_OF.details(d)], axon: ['V-001', 'Axonometric', 'NTS'], schedule: ['S-001', 'Furniture schedule', '-'],
-      compliance: ['C-001', 'Compliance', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'], budget: ['G-002', 'Construction and budget', '-'] }[k];
+      compliance: ['C-001', 'Compliance', '-'], survey: ['S-002', 'Site survey', '-'], sources: ['X-001', 'Sources', '-'], budget: ['G-002', 'Cost estimate', '-'] }[k];
     if (M) out.push({ k: k, id: M[0], title: M[1], scale: M[2] });
   });
   // the spec cards' attachments, an appendix after X-001 (Brief 22 item 8)
@@ -32219,7 +32220,7 @@ function uiApplyTips(root) {
 .topbar-tabs::-webkit-scrollbar { display: none; }
 .ttab { flex-shrink: 0; }
 @media (max-width: 1440px) { .brand-sub { display: none; } }
-/* (Brief 30) nine tabs since Parklets 101: they tighten earlier so all of them fit from 1280 px */
+/* (Brief 30) the tabs tighten earlier so all of them fit from 1280 px (Brief 31: seven steps) */
 @media (max-width: 1700px) { .ttab { padding: 0 10px; } }
 @media (max-width: 1440px) { .ttab { padding: 0 7px; letter-spacing: .03em; } }
 @media (max-width: 1300px) {
@@ -32288,10 +32289,10 @@ function uiApplyTips(root) {
 /* Brief 30 §8B (access): forced colours drop the fills that marked the active tab, a pressed toggle, the current step and a
    chosen swatch; an outline in the system highlight marks them instead */
 @media (forced-colors: active) {
-  .ttab.active, [aria-current='step'], [aria-pressed='true'], .seg-btn.active, .vpill.active, .pkm-preset.on, .ske-tool.on, .p101-nav button.on, .dk-panel-hdr[aria-expanded='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .ttab.active, [aria-current='step'], [aria-pressed='true'], .seg-btn.active, .vpill.active, .pkm-preset.on, .ske-tool.on, .ds-sub button[aria-selected='true'], .dk-panel-hdr[aria-expanded='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
   .badge, .chk-prov, .sm-face, .ax-card { border: 1px solid CanvasText; }
   :focus-visible { outline: 2px solid Highlight !important; outline-offset: 1px; }
-  .pkm-sw button, .p101-sw, .gis-sw, .gis-leg-sw { forced-color-adjust: none; }
+  .pkm-sw button, .ce-sw, .gis-sw, .gis-leg-sw { forced-color-adjust: none; }
 }
 .cad-hd { font: 600 13px var(--font-ui); color: var(--muted); margin: 2px 0 4px; }
 .cad-pad { display: grid; grid-template-columns: 1fr 64px 1fr; gap: 2px; margin-bottom: 6px; }
@@ -32391,21 +32392,27 @@ document.addEventListener('keydown', function(e) {
 
 /* Brief 29b: a piece dragged against the deck's edge */
 body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #seStrip { cursor: crosshair !important; }
-/* Parklets 101 (Brief 30 §6) */
-#workspaceLearn { background: var(--c-bg, #17191C); color: var(--c-text, #E8EAED); }
-.p101 { max-width: 1180px; padding: 18px 28px 60px; font: 13px/1.5 var(--font-ui, sans-serif); }
-.p101 h1 { font-size: 20px; margin: 0 0 6px; } .p101 h2 { font-size: 16px; margin: 28px 0 8px; } .p101 h3 { font-size: 13px; margin: 16px 0 6px; }
-.p101-lead, .p101-note { color: var(--c-text-dim, #9AA0A6); max-width: 900px; }
-.p101-svg { width: 100%; max-width: 980px; height: auto; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; margin: 6px 0 12px; }
-.p101-t { border-collapse: collapse; width: 100%; font-size: 12px; } .p101-t th, .p101-t td { border-bottom: 1px solid var(--c-rule, #2E3338); padding: 5px 8px; text-align: left; vertical-align: top; }
-.p101-t th { color: var(--c-text-dim, #9AA0A6); font-weight: 600; } .p101-t td.num, .p101-t th.num { text-align: right; white-space: nowrap; } .p101-t tr.sub td:first-child { padding-left: 22px; color: var(--c-text-dim, #9AA0A6); }
-.p101-t tr.tot td { border-top: 2px solid var(--c-text-dim, #9AA0A6); } .p101-t tr.city td, .p101-t tr.fee td { color: var(--c-text-dim, #9AA0A6); }
-.p101 a { color: var(--accent-ui, #3AA8E4); } .p101 input[type=number] { width: 72px; } .p101 .p101-q { width: 64px; }
-.p101-banner { padding: 6px 10px; border-left: 3px solid var(--accent-ui, #3AA8E4); background: rgba(58,168,228,.08); margin: 4px 0 8px; } .p101-banner.ph { border-left-color: #E8A317; background: rgba(232,163,23,.08); }
-.p101-row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 6px 0; }
-.p101-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0,0,0,.3); }
-.p101-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; } .p101-nav button { text-align: left; background: transparent; border: 0; color: var(--c-text, #E8EAED); font: 13px var(--font-ui, sans-serif); padding: 6px 8px; border-radius: 3px; cursor: pointer; } .p101-nav button:hover, .p101-nav button.on { background: rgba(58,168,228,.12); }
-.p101-side { padding: 0 20px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); }
+/* the Cost estimate on Export (Brief 31 §9) */
+.ce { max-width: 1180px; padding: 20px 28px 64px; font: 13px/1.5 var(--font-ui); color: var(--c-text); }
+.ce-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; } .ce-state { margin: 0 0 16px; color: var(--c-text); max-width: 90ch; }
+.ce-sum { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 1px; background: var(--c-rule); border: 1px solid var(--c-rule); border-radius: 4px; margin: 0 0 16px; }
+.ce-sum > div { background: var(--c-panel); padding: 10px 14px; } .ce-sum dt { font-size: 12px; color: var(--c-text-dim); } .ce-sum dd { margin: 2px 0 0; font: 600 18px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; } .ce-sum dd.ce-dd-n { font: 400 12px/1.4 var(--font-ui); color: var(--c-text-dim); }
+.ce-ctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 0; border-top: 1px solid var(--c-rule); border-bottom: 1px solid var(--c-rule); margin-bottom: 8px; }
+.ce-ctl label { font-size: 12px; color: var(--c-text-dim); } .ce-ctl select, .ce-ctl input { margin-left: 6px; } .ce-ctl-g { display: inline-flex; gap: 8px; align-items: center; }
+.ce input[type=text] { background: var(--c-bg); color: var(--c-text); border: 1px solid var(--c-rule); border-radius: 3px; padding: 3px 6px; font: inherit; min-height: 24px; width: 120px; }
+.ce input.ce-q { width: 72px; text-align: right; }
+.ce-note { color: var(--c-text-dim); font-size: 12px; max-width: 110ch; margin: 6px 0; } .ce-range { margin: 10px 0 4px; max-width: 110ch; }
+.ce-h2 { font-size: 15px; font-weight: 600; margin: 28px 0 6px; }
+.ce-t { border-collapse: collapse; width: 100%; font-size: 12px; } .ce-t th, .ce-t td { border-bottom: 1px solid var(--c-rule); padding: 5px 8px; text-align: left; vertical-align: top; }
+.ce-t thead th { color: var(--c-text-dim); font-weight: 600; } .ce-t .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ce-t tr.ce-sec th { padding-top: 14px; color: var(--c-text); font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--c-text-dim); } .ce-sec-n { font-weight: 400; color: var(--c-text-dim); font-size: 12px; }
+.ce-t tr.ce-sub td { color: var(--c-text-dim); } .ce-t tr.ce-sub td.num { color: var(--c-text); font-weight: 600; }
+.ce-t tr.ce-tot td { border-top: 2px solid var(--c-text-dim); font-weight: 600; font-size: 13px; }
+.ce-t tr.ce-none td { color: var(--c-text-dim); } .ce-tag { display: inline-block; padding: 0 5px; border: 1px solid var(--c-rule); border-radius: 3px; font-size: 12px; color: var(--c-text-dim); }
+.ce-t tr.sub td:first-child { padding-left: 20px; } .ce a { color: var(--accent-ui); }
+.ce-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 1100px) { .ce-sum { grid-template-columns: repeat(2, 1fr); } }
 .pkm-presets { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px; }
 .pkm-preset { font: 12px var(--font-ui, sans-serif); padding: 3px 8px; border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; background: transparent; color: var(--c-text, #E8EAED); cursor: pointer; }
 .pkm-preset.on { border-color: var(--accent-ui, #3AA8E4); color: var(--accent-ui, #3AA8E4); }
@@ -33287,7 +33294,14 @@ function uiSyncBikeToggle() {}
 // reads it. Sources are paraphrased and listed; the Vancouver Parklet Manual is the authority where it speaks, the others
 // are "how other cities do it". No third-party text or image is copied into the repo.
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
-var P101 = { open: 'build' };
+var P101 = {};   // (Brief 31 §9) the cost estimate: quantities, rates, the estimate; shown on Export, printed as G-002
+var EXPV = { view: 'report',
+  set: function(v) { EXPV.view = v === 'cost' ? 'cost' : 'report'; if (window.APP_MODE !== 'export') { appSetMode('export'); return; } appSetMode('export'); },
+  sync: function() {
+    document.querySelectorAll('#expSub button').forEach(function(b) { var on = b.dataset.view === EXPV.view; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
+    var l = document.getElementById('expLead'); if (l) l.textContent = EXPV.view === 'cost' ? 'The cost estimate is in the middle: the build, the furniture and the City fees from one rate set, placed against the Parklet Manual. Export to Excel beside the rate set.' : 'The report is in the middle: choose Schematic or Technical and download the PDF. That is what the City reads.';
+    if (EXPV.view === 'cost' && typeof P101 !== 'undefined') P101.render();
+  } };
 P101.SRC = [
   { k: 'van', t: 'City of Vancouver, Vancouver Parklet Manual, version 1.0 (June 2016)', note: 'the authority: rules P1-P9 (pp. 62-63), E2 (p. 64), G15-G19 (p. 60), costs and fees (pp. 18, 37, 40), City-supplied items (pp. 48, 59)' },
   { k: 'sf', t: 'San Francisco Planning, San Francisco Parklet Manual, version 2.2 (2015)', note: 'how another city builds them: platform, drainage, railings, materials' },
@@ -33295,18 +33309,6 @@ P101.SRC = [
   { k: 'parkade', t: 'Parkade, "Complete guide to parklets - and how to build them" (2024)', url: 'https://parkade.com/parklet-guide-and-how-to-build-a-parklet', note: 'the build sequence and the itemised retail prices of the placeholder rate set (USD)' },
   { k: 'cin', t: 'City of Cincinnati, Parklet Program Guidelines (February 2025)', note: 'also consulted; no figure here is taken from it' },
   { k: 'tor', t: 'City of Toronto, CafeTO council report (2023)', note: 'also consulted; no figure here is taken from it' }
-];
-// ── A. The build-up, layer by layer (paraphrased; [page] is the Vancouver Manual's) ───────────────────────────────────
-P101.LAYERS = [
-  { k: 'road', n: 'Road and its crossfall', what: 'The street the deck stands on. It slopes down toward the curb so water reaches the gutter.', van: 'Typical roads have a 1-4 % cross slope; the platform may not exceed 2 % (P3, p. 62).', other: 'NACTO: the substructure takes up the crown so the deck can be level.', mats: '-' },
-  { k: 'level', n: 'Levelling pedestals or tapered sleepers', what: 'Make the deck level over the sloping road: adjustable pedestals set to different heights, or beams cut to the slope.', van: 'Freestanding, not anchored into the sidewalk or street (G17, p. 60); not attached to the curb, the street surface only with the City\'s approval (P4, p. 63).', other: 'Parkade: adjustable pedestals or tapered beams. NACTO: pedestals or a steel substructure for the crown. SF: no structural rebar in a concrete base.', mats: 'adjustable plastic pedestals; pressure-treated or steel sleepers' },
-  { k: 'joist', n: 'Joists', what: 'Span between the supports and carry the deck boards and the people on them.', van: 'The parklet must bear at least 7.2 kPa (P3, p. 62).', other: 'NACTO: a design load of 100 lb/sq ft (about 4.8 kPa). SF: no component may load the street with more than 200 lb/sq ft.', mats: 'treated 2x4 or 2x6 lumber; galvanized steel channel' },
-  { k: 'deck', n: 'Deck', what: 'The surface people walk and sit on.', van: 'Flush with the sidewalk, at most a 12 mm gap (a connector no higher than 13 mm where wider); slip-resistant; no loose particles such as sand; with gaps between boards, the space under it must be reachable (P3, P5, P6, pp. 62-63).', other: 'SF: flush with the sidewalk, a gap of half an inch at most. NACTO: slip-resistant, a flush transition.', mats: 'hardwood or thermowood boards, composite decking, concrete pavers on pedestals' },
-  { k: 'fascia', n: 'Fascia (the deck edge)', what: 'Closes the edge of the platform and stops litter getting under it.', van: 'Must not restrict water flowing from the street toward the curb and catch basin (P7, p. 63).', other: 'SF: the end openings screened.', mats: 'the deck material, or a painted or metal skirt' },
-  { k: 'drain', n: 'Drainage gap at the curb', what: 'A channel along the curb under the deck so the gutter keeps flowing to the catch basin, with screens at the ends.', van: 'A drainage channel along the curb (about 40 x 10 cm in the Manual\'s figure), clearable of debris, kept in the maintenance plan; 1 m clear of utility covers and catch basins (P8, P9, p. 63).', other: 'SF: drainage not impeded, the ends screened. NACTO: drainage channels between base and platform. Parkade: check the drains before anything else.', mats: 'open gap with mesh end screens' },
-  { k: 'encl', n: 'Enclosure', what: 'The edge on the traffic side and the ends: protects people from traffic and shows where the parklet ends.', van: 'A defined edge 0.75-1.0 m high on the side facing traffic and parking; a buffer of 0.3 m from a busy lane improves it (E2, p. 64).', other: 'SF: railings 36-42 in high with openings of 4 in at most.', mats: 'steel pickets, cables, timber slats, planters' },
-  { k: 'planter', n: 'Planters', what: 'Soften the edge, often as the enclosure itself; heavy when filled.', van: 'A planter can be the defined edge (E2, p. 64); pollinator plants and food growing are encouraged (G10, p. 59).', other: 'SF: weight limits apply to the street under them.', mats: 'timber, Corten or powder-coated steel, precast concrete' },
-  { k: 'city', n: 'City wheel stop and bollard', what: 'At each end, on the road: keep cars from backing into the parklet and make it visible.', van: 'Flexible bollards and wheel stops supplied and installed by the City as needed; also no-stopping signs and a parklet sign (pp. 48, 59).', other: 'NACTO: remove the parklet in winter where snow plows run.', mats: 'supplied by the City' }
 ];
 // ── B. Quantities: a take-off from DESIGN_MODEL only ────────────────────────────────────────────────────────────────
 P101.cost = function() {   // the design's cost settings (saved with it as costs)
@@ -33408,7 +33410,43 @@ P101.units = function(r, Q) {
   if (r.per === 'area') return { n: g('area'), f: g('area') + ' m² of deck' };
   return { n: 0, f: '-' };
 };
-// the estimate: rows, the range in CAD, what is unpriced, the banner
+// (Brief 31 §9) the lines a rate gives: one, or one per enclosure type present (an 'enc' rate); a rate whose low / high are
+// null has no sourced figure and shows "—" (counted as not priced)
+P101.deckFam = function() {
+  var id = typeof PKMAT !== 'undefined' ? PKMAT.eff('deck') : null;
+  if (/^(cedar|thermowood|weathered_cedar)$/.test(id)) return 'cedar';
+  if (/^(ipe|oak)$/.test(id)) return 'hardwood';
+  if (/^(composite_decking|recycled_grey|recycled_black|recycled_green|hpl_grey)$/.test(id)) return 'composite';
+  if (/^(pine|deck_timber)$/.test(id) || !id) return 'softwood';
+  return 'mineral';
+};
+P101.FAMNAME = { softwood: 'softwood (pressure-treated)', cedar: 'cedar or thermowood', hardwood: 'hardwood (ipe)', composite: 'composite', mineral: 'mineral' };
+P101.matLabel = function(id) { if (!id) return ''; try { var i = flMatInfo(id); return i && i.label ? i.label : String(id); } catch (e) { return String(id); } };
+P101.lines = function(r, Q, DM) {
+  var g = function(k) { var x = Q.find(function(q) { return q.k === k; }); return x ? +x.n || 0 : 0; }, one = function(o) { return [Object.assign({ low: r.low, high: r.high, basis: r.src }, o)]; };
+  var M = function(k) { return typeof PKMAT !== 'undefined' ? P101.matLabel(PKMAT.eff(k)) : ''; };
+  if (r.per === 'deckm2') { var fam = P101.deckFam(), fr = r.fam && r.fam[fam]; return [{ qty: g('decking'), unit: 'm²', f: g('decking') + ' m² of decking (the deck area plus waste)', mat: M('deck'), low: fr ? fr.low : null, high: fr ? fr.high : null, basis: fr ? fr.src : 'no sourced rate for ' + P101.FAMNAME[fam] + ' decking', item: r.item + ', ' + P101.FAMNAME[fam] }]; }
+  if (r.per === 'joistm') return one({ qty: g('joist'), unit: 'm', f: 'the joist run: ' + g('joist') + ' m' });
+  if (r.per === 'aream') return one({ qty: g('area'), unit: 'm²', f: g('area') + ' m² of deck' });
+  if (r.per === 'soilm3') return one({ qty: g('soil'), unit: 'm³', f: 'each planter\'s inside', mat: '' });
+  if (r.per === 'once') return one({ qty: g('area') > 0 ? 1 : 0, unit: 'allowance', f: 'once' });
+  if (r.per === 'pct') return [{ qty: r.pct || 0, unit: '% of build', f: (r.pct || 0) + ' % of the build lines above', pct: true, low: null, high: null, basis: r.src }];
+  if (r.per === 'enc' || r.per === 'planterm' || r.per === 'screenm') {
+    var E = DM.enclosure, by = {}, fam = r.per === 'planterm' ? 'planter' : r.per === 'screenm' ? 'wall' : null;
+    if (E && !(typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET)) E.runs.forEach(function(run) {
+      var A = ENCLOSURE_ARCHETYPES[run.id] || {}, f = A.family || 'rail';
+      if (fam ? f !== fam : (f === 'planter' || f === 'wall')) return;
+      var key = fam ? fam : run.id; by[key] = by[key] || { len: 0, name: fam ? null : A.name, mat: (run.parts || []).map(function(p) { return p.mat; }).filter(Boolean)[0] };
+      by[key].len += +run.len || 0;
+    });
+    return Object.keys(by).map(function(key) {
+      var b = by[key], t = fam ? { low: r.low, high: r.high, src: r.src } : (r.types && r.types[key]) || null, L = Math.round(b.len * 100) / 100;
+      return { sub: key, qty: L, unit: 'm', f: L + ' m of edge, the runs of ' + (b.name || (fam === 'planter' ? 'planter walls' : 'screens')), item: fam ? r.item : 'Edge: ' + String(b.name || key).toLowerCase(), mat: P101.matLabel(b.mat), low: t ? t.low : null, high: t ? t.high : null, basis: t ? t.src : 'no sourced rate for ' + String(b.name || key).toLowerCase() };
+    });
+  }
+  var u = P101.units(r, Q); return [{ qty: u.n, unit: r.unit, f: u.f, city: u.city, annual: u.annual, low: r.low, high: r.high, basis: r.src }];
+};
+// the estimate: rows by section (build, furniture, fee), the subtotals, what is unpriced, the one state line
 // (Brief 30 follow-up) the Manual's "typically $10,000-15,000 a parking space" is not a cost line: it is the range the
 // build cost is placed against (below / within / above); the City's fees are cost lines in every rate set
 P101.MANUAL = P101.SETS[0];
@@ -33418,108 +33456,80 @@ P101.range = function(Q) {
 };
 P101.estimate = function(DM) {
   DM = DM || _dmCurrent();
-  var C = P101.cost(), S = P101.setById(C.set), Q = P101.qty(DM), fx = S.cur === 'USD' ? C.fx : 1, rows = [], lo = 0, hi = 0, annual = null, userAll = !S.shipped;
-  var bLo = 0, bHi = 0, fLo = 0, fHi = 0, isFee = function(r) { return /^fee_/.test(r.k); };
+  var C = P101.cost(), S = P101.setById(C.set), Q = P101.qty(DM), fx = S.cur === 'USD' ? C.fx : 1, rows = [], annual = null, userAll = !S.shipped;
+  var tag0 = S.tag || (S.placeholder ? 'placeholder' : S.shipped ? 'Manual 2016' : 'entered');
+  var isFee = function(r) { return /^fee_/.test(r.k); };
   var rates = S.rates.filter(function(r) { return !r.range && r.k !== 'build'; }), manualFees = !rates.some(isFee);
   if (manualFees) rates = rates.concat(P101.MANUAL.rates.filter(isFee).map(function(r) { return Object.assign({}, r, { ext: true }); }));   // the City's fees, whoever builds it
+  var pctRates = [];
   rates.forEach(function(r) {
-    var u = P101.units(r, Q), f1 = r.ext ? 1 : fx, l = u.n * r.low * f1, h = u.n * r.high * f1;
-    if (!S.shipped && !r.ext && !(r.entered)) userAll = false;
-    rows.push({ k: r.k, item: r.item, qty: u.n, unit: r.unit, rate: r, f: u.f, lo: l, hi: h, city: u.city, annual: u.annual, src: r.src + (r.ext ? '; the City\'s fee, CAD' : ''), fee: isFee(r), ext: !!r.ext });
-    if (u.annual) annual = { lo: l, hi: h }; else if (!u.city) { lo += l; hi += h; if (isFee(r)) { fLo += l; fHi += h; } else { bLo += l; bHi += h; } }
+    if (r.per === 'pct') { pctRates.push(r); return; }
+    P101.lines(r, Q, DM).forEach(function(L) {
+      if (!isFee(r) && !(L.qty > 0)) return;   // a build line the design does not take
+      var f1 = r.ext ? 1 : fx, priced = L.low != null && L.high != null, l = priced ? L.qty * L.low * f1 : null, h = priced ? L.qty * L.high * f1 : null;
+      if (!S.shipped && !r.ext && !r.entered) userAll = false;
+      rows.push({ sec: isFee(r) ? 'fee' : 'build', k: r.k + (L.sub ? ':' + L.sub : ''), rk: r.k, item: L.item || r.item, qty: L.qty, unit: L.unit || r.unit, rate: r, rlow: priced ? L.low * f1 : null, rhigh: priced ? L.high * f1 : null, f: L.f, lo: l, hi: h, mat: L.mat || '', src: (L.basis || r.src || '') + (r.ext ? '; the City\'s fee, CAD' : ''), tag: r.ext ? 'Manual 2016' : (r.tag || tag0), city: !!L.city, annual: !!L.annual, fee: isFee(r), ext: !!r.ext, priced: priced });
+    });
   });
   var furn = P101.furniture(), unpriced = 0;
   furn.forEach(function(g) {
     var fr = C.furn[g.key], card = g.user && g.userA && g.userA.card && +g.userA.card.price > 0 ? +g.userA.card.price : null;
     var price = fr && fr.low > 0 ? fr : card ? { low: card, high: card, src: 'spec card' } : null;
-    if (!price) { unpriced += g.n; rows.push({ furn: g, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', lo: null, hi: null }); return; }
-    var l = g.n * price.low * (price.cur === 'USD' ? C.fx : 1), h = g.n * (price.high || price.low) * (price.cur === 'USD' ? C.fx : 1);
-    lo += l; hi += h; bLo += l; bHi += h; rows.push({ furn: g, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', lo: l, hi: h, price: price, suggested: !!(price.suggested) });
+    var row = { sec: 'furn', furn: g, k: 'furn:' + g.key, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', mat: g.mats || '', tag: price ? (price.suggested ? 'suggested' : 'entered') : '', priced: !!price };
+    if (!price) { unpriced += g.n; rows.push(Object.assign(row, { lo: null, hi: null, src: 'not priced: enter a quote' })); return; }
+    var c = price.cur === 'USD' ? C.fx : 1, l = g.n * price.low * c, h = g.n * (price.high || price.low) * c;
+    rows.push(Object.assign(row, { lo: l, hi: h, rlow: price.low * c, rhigh: (price.high || price.low) * c, price: price, suggested: !!price.suggested, src: price.src || 'entered' }));
   });
+  var sum = function(sec, k) { return rows.filter(function(q) { return q.sec === sec && !q.city && !q.annual && q[k] != null; }).reduce(function(a, q) { return a + q[k]; }, 0); };
+  var bLo = sum('build', 'lo') + sum('furn', 'lo'), bHi = sum('build', 'hi') + sum('furn', 'hi');
+  pctRates.forEach(function(r) {
+    var p = (r.pct || 0) / 100, priced = r.pct != null;
+    rows.push({ sec: 'build', k: r.k, rk: r.k, item: r.item, qty: r.pct, unit: '% of build', rate: r, f: r.pct + ' % of the build and furniture priced above', lo: priced ? bLo * p : null, hi: priced ? bHi * p : null, rlow: null, rhigh: null, mat: '', src: r.src, tag: r.tag || tag0, pct: true, priced: priced });
+    if (priced) { bLo *= 1 + p; bHi *= 1 + p; }
+  });
+  rows.forEach(function(q) { if (q.annual) annual = { lo: q.lo, hi: q.hi }; });
+  var fLo = sum('fee', 'lo'), fHi = sum('fee', 'hi');
+  var unpricedLines = rows.filter(function(q) { return q.sec === 'build' && !q.city && !q.priced; }).length, buildLines = rows.filter(function(q) { return q.sec === 'build' && !q.city; }).length;
   var R = P101.range(Q), cmp = !(bHi > 0) || !(R.n > 0) ? null : bHi < R.lo ? 'below' : bLo > R.hi ? 'above' : 'within';
-  var banner = S.placeholder ? 'Estimate from placeholder rates' : S.shipped ? 'Estimate from the Parklet Manual\'s 2016 figures - confirm with the City' : (userAll ? 'Estimate from your rates' : 'Estimate from your rates (some not entered yet)');
-  if (unpriced) banner += ' · Furniture not priced (' + unpriced + ' piece' + (unpriced === 1 ? '' : 's') + ')';
-  var m = P101.money, rng = m(R.lo) + ' - ' + m(R.hi), sp = R.n + ' parking space' + (R.n === 1 ? '' : 's');
-  if (R.n > 0) banner += cmp ? ' · Build ' + m(bLo) + (Math.round(bHi) !== Math.round(bLo) ? ' - ' + m(bHi) : '') + ': ' + cmp + " the Parklet Manual's typical range for " + sp + ' (' + rng + ')' : " · No build cost priced yet to place against the Parklet Manual's typical range for " + sp + ' (' + rng + ')';
-  return { set: S, rows: rows, lo: lo, hi: hi, annual: annual, unpriced: unpriced, banner: banner, fx: C.fx, Q: Q, build: { lo: bLo, hi: bHi }, fees: { lo: fLo, hi: fHi }, range: R, cmp: cmp, manualFees: manualFees };
+  var est = { set: S, rows: rows, lo: bLo + fLo, hi: bHi + fHi, annual: annual, unpriced: unpriced, unpricedLines: unpricedLines, buildLines: buildLines, fx: C.fx, Q: Q, build: { lo: bLo, hi: bHi }, fees: { lo: fLo, hi: fHi }, range: R, cmp: cmp, manualFees: manualFees, userAll: userAll, tag: tag0 };
+  est.banner = P101.state(est);
+  return est;
 };
 // a quote for a furniture group (persists in the design for every identical piece; "suggested" until confirmed)
 P101.setFurn = function(key, low, high, src, suggested) {
-  var C = P101.cost(), l = parseFloat(low), h = parseFloat(high);
+  var C = P101.cost(), rd = function(v) { var q = typeof pkReadNum === 'function' ? pkReadNum(String(v == null ? '' : v), '') : { v: parseFloat(v) }; return q && !q.err && !q.empty ? q.v : NaN; }, l = rd(low), h = rd(high);
   if (!(l > 0)) delete C.furn[key]; else C.furn[key] = { low: l, high: h > 0 ? Math.max(h, l) : l, cur: 'CAD', src: src || 'entered', suggested: !!suggested };
   P101.changed();
 };
 P101.setRate = function(k, low, high) {
   var C = P101.cost(), S = P101.setById(C.set); if (S.shipped) return;
   var r = S.rates.find(function(q) { return q.k === k; }); if (!r) return;
-  var l = parseFloat(low), h = parseFloat(high); if (l >= 0) r.low = l; if (h >= 0) r.high = Math.max(h, r.low); r.entered = true; r.src = 'entered'; P101.changed();
+  var rd = function(v) { var q = typeof pkReadNum === 'function' ? pkReadNum(String(v == null ? '' : v), '') : { v: parseFloat(v) }; return q && !q.err && !q.empty && q.v >= 0 ? q.v : null; }, l = rd(low), h = rd(high);
+  if (l != null) r.low = l; if (h != null) r.high = Math.max(h, r.low == null ? h : r.low); if (r.low != null && r.high == null) r.high = r.low; r.entered = true; r.src = 'entered'; P101.changed();
 };
 // a new rate set from the active one: "My quote - <supplier>, <date>"
 P101.newSet = function(supplier) {
   var C = P101.cost(), S = P101.setById(C.set), d = new Date(), date = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   var id = 'u' + Date.now().toString(36);
   C.sets.push({ id: id, name: 'My quote - ' + (supplier || 'supplier') + ', ' + date, cur: 'CAD', date: date, shipped: false, prov: 'Rates entered by the applicant (' + date + ').',
-    rates: S.rates.map(function(r) { return Object.assign({}, r, { low: S.cur === 'USD' ? +(r.low * C.fx).toFixed(2) : r.low, high: S.cur === 'USD' ? +(r.high * C.fx).toFixed(2) : r.high, entered: false, src: 'from ' + S.name }); }) });
+    rates: S.rates.map(function(r) { var cv = function(v) { return v == null ? null : S.cur === 'USD' ? +(v * C.fx).toFixed(2) : v; }; return Object.assign({}, r, { low: cv(r.low), high: cv(r.high), entered: false, tag: 'entered', src: 'from ' + S.name + (r.src ? ': ' + r.src : '') }); }) });
   C.set = id; P101.changed();
 };
 P101.changed = function() { try { saveSettings(); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon(); clearTimeout(P101._rt); P101._rt = setTimeout(P101.render, 0); };   // after the field's own events
 P101.money = function(v) { return v == null ? '—' : '$' + Math.round(v).toLocaleString('en-CA'); };
+// one state line: how the rates are known, what is priced, where the build stands against the Manual
+P101.state = function(est) {
+  var S = est.set, m = P101.money, R = est.range, sp = R.n + ' parking space' + (R.n === 1 ? '' : 's');
+  var how = S.placeholder ? 'Placeholder rates (not Vancouver prices)' : S.tag === 'indicative' ? 'Indicative 2026 rates' : S.shipped ? 'The Parklet Manual\'s 2016 fees only' : (est.userAll ? 'Your rates' : 'Your rates, some not entered yet');
+  var pr = est.buildLines ? (est.buildLines - est.unpricedLines) + ' of ' + est.buildLines + ' build lines priced' : 'no build lines';
+  var fu = est.unpriced ? ', ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' not priced' : '';
+  var pos = !(R.n > 0) ? '' : est.cmp ? '; the priced build is ' + est.cmp + ' the Parklet Manual\'s typical range for ' + sp : '; nothing priced yet to place against the Parklet Manual\'s typical range for ' + sp;
+  return how + ': ' + pr + fu + pos + '.';
+};
 P101.rangeLine = function(est) {
   var R = est.range, m = function(v) { return '$' + Math.round(v).toLocaleString('en-CA'); };
   return 'Parklet Manual typical range for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + ': ' + m(R.lo) + ' - ' + m(R.hi) + ', for design, construction and installation at ' + m(R.per[0]) + ' - ' + m(R.per[1]) + ' a space (Manual p. 18, 2016). ' + R.n + ' space' + (R.n === 1 ? '' : 's') + ' = ' + R.how + '. Not a cost line and not in the total: it only places the build cost' + (est.cmp ? ' (' + est.cmp + ' it)' : '') + '.';
 };
-// ── A. the exploded section, drawn from this deck's width and the curb's height (DRAW_STYLE), never a stock picture ──
-P101.svg = function(DM) {
-  DM = DM || _dmCurrent();
-  var _ol = DM.parklet.outline, _ow = _ol ? Math.max.apply(null, _ol.verts.map(function(v) { return +v.y; })) - Math.min.apply(null, _ol.verts.map(function(v) { return +v.y; })) : 0;   // the applied outline's width
-  var T = DRAW_STYLE.t(), W = Math.max(1.5, _ow || DM.parklet.width || 2.5), LV = (DM.parklet.levels) || PARKLET_LEVELS, curb = LV.curbTop || 0.15, cross = 0.02;
-  // the street across, 1 m = S px; the layers lifted ex px apart (exploded upward); the labels in a column on the right
-  var S = 140, ex = 30, x0 = 30, H = 0.9, gy = 34 + (curb + H) * S + 5 * ex;   // the enclosure, the highest layer, fits
-  var X = function(m) { return x0 + 0.8 * S + m * S; }, Y = function(m) { return gy - m * S; }, road = function(m) { return Y(m * cross); }, colX = X(W + 1.05);
-  var o = [], labels = [], f = function(v) { return (+v).toFixed(1); };
-  var line = function(a, b, c, d, st, w, dash) { o.push("<line x1='" + f(a) + "' y1='" + f(b) + "' x2='" + f(c) + "' y2='" + f(d) + "' stroke='" + st + "' stroke-width='" + w + "'" + (dash ? " stroke-dasharray='" + dash + "'" : '') + '/>'); };
-  var poly = function(pts, fill, st) { o.push("<polygon points='" + pts.map(function(p) { return f(p[0]) + ',' + f(p[1]); }).join(' ') + "' fill='" + fill + "' stroke='" + (st || T.ink) + "' stroke-width='1'/>"); };
-  var rect = function(m0, y0, m1, y1, lift, fill, st) { poly([[X(m0), Y(y0) - lift], [X(m1), Y(y0) - lift], [X(m1), Y(y1) - lift], [X(m0), Y(y1) - lift]], fill, st); };
-  var lab = function(n, ax, ay, tx) { labels.push({ n: n, ax: ax, ay: ay, tx: tx }); };
-  var deckT = LV.deckThk || 0.065, under0 = curb - deckT, under1 = curb - deckT - W * cross, joist = Math.max(0.02, Math.min(0.089, under1 - 0.01));
-  // 1 the sidewalk, the curb and the road with its crossfall (in place)
-  poly([[x0, Y(curb)], [X(0), Y(curb)], [X(0), Y(0)], [x0, Y(0)]], T.fill.sidewalk || T.paper);
-  poly([[X(0), Y(0)], [X(W + 0.75), road(W + 0.75)], [X(W + 0.75), Y(-0.12)], [X(0), Y(-0.12)]], T.fill.road || T.paper);
-  lab(1, X(W * 0.7), road(W * 0.7) + 6, 'road, ' + Math.round(cross * 100) + ' % crossfall (assumed until grade data exists)');
-  // 6 the drainage channel along the curb, under the deck (in place)
-  poly([[X(0), Y(0)], [X(0.4), road(0.4)], [X(0.4), road(0.4) - 0.10 * S], [X(0), Y(0.10)]], 'none', T.anno);
-  lab(6, X(0.2), Y(0.05), 'drainage channel at the curb, about 40 x 10 cm, ends screened');
-  // 9 the City's wheel stop and bollard, on the road beyond the deck (in place)
-  rect(W + 0.2, (W + 0.2) * cross + 0.10, W + 0.5, (W + 0.2) * cross, 0, T.mid);
-  line(X(W + 0.62), road(W + 0.62), X(W + 0.62), road(W + 0.62) - 0.75 * S, T.ink, 3);
-  lab(9, X(W + 0.62), road(W + 0.62) - 0.6 * S, 'City wheel stop and bollard (supplied by the City)');
-  // 2 pedestals (lifted 1), 3 joists (2), 4 deck (3), 5 fascia (4), 7 enclosure (5), 8 planter (6)
-  [0.08, W / 2, W - 0.08].forEach(function(c) { var h0 = curb - deckT - joist - c * cross; if (h0 > 0.004) poly([[X(c) - 7, road(c) - ex], [X(c) + 7, road(c) - ex], [X(c) + 5, Y(c * cross + h0) - ex], [X(c) - 5, Y(c * cross + h0) - ex]], T.fill.concrete || T.paper); });
-  lab(2, X(W - 0.08), road(W - 0.08) - ex - 2, 'levelling pedestals: ' + Math.round(Math.max(0, under0 - joist) * 1000) + ' mm at the curb, ' + Math.round(Math.max(0, under1 - joist) * 1000) + ' mm at the traffic edge');
-  rect(0.02, curb - deckT, W - 0.02, curb - deckT - joist, 2 * ex, T.fill.deck);
-  lab(3, X(W - 0.02), Y(curb - deckT - joist / 2) - 2 * ex, 'joists or sleepers, ' + Math.round(joist * 1000) + ' mm deep');
-  rect(0.012, curb, W, curb - deckT, 3 * ex, T.fill.deck);
-  lab(4, X(W), Y(curb - deckT / 2) - 3 * ex, 'deck ' + W.toFixed(2) + ' m wide, its top flush with the curb (gap 12 mm at most)');
-  rect(W, curb, W + 0.03, W * cross, 4 * ex, T.mid);
-  lab(5, X(W + 0.03), Y(curb * 0.5) - 4 * ex, 'fascia, the deck edge');
-  var ey = 5 * ex; line(X(W) - 3, Y(curb) - ey, X(W) - 3, Y(curb + H) - ey, T.ink, 2.2); line(X(W) - 3, Y(curb + H) - ey, X(W) - 0.5 * S, Y(curb + H) - ey, T.ink, 1.6);
-  [0.2, 0.4].forEach(function(d) { line(X(W) - d * S, Y(curb) - ey, X(W) - d * S, Y(curb + H) - ey, T.ink, 1); });
-  lab(7, X(W) - 3, Y(curb + H * 0.8) - ey, 'enclosure ' + H.toFixed(2) + ' m high (0.75-1.0 m)');
-  rect(0.15, curb + 0.6, 0.75, curb, 6 * ex, T.fill.planting || T.paper);
-  lab(8, X(0.75), Y(curb + 0.45) - 6 * ex, 'planter');
-  // the labels down the right-hand column, in height order, never closer than 17 px; a leader to each layer
-  labels.sort(function(a, b) { return a.ay - b.ay; }); var yPrev = -1e9;
-  labels.forEach(function(L) { L.y = Math.max(L.ay, yPrev + 17); yPrev = L.y; });
-  labels.forEach(function(L) {
-    line(L.ax, L.ay, colX - 12, L.y, T.anno, 0.6);
-    o.push("<circle cx='" + f(colX) + "' cy='" + f(L.y) + "' r='8' fill='" + T.paper + "' stroke='" + T.ink + "' stroke-width='1'/><text x='" + f(colX) + "' y='" + f(L.y + 3.5) + "' font-size='10' text-anchor='middle' fill='" + T.ink + "' font-family='" + DRAW_STYLE.FONT + "'>" + L.n + '</text>' +
-      "<text x='" + f(colX + 13) + "' y='" + f(L.y + 4) + "' font-size='11' fill='" + T.anno + "' font-family='" + DRAW_STYLE.FONT + "'>" + L.tx + '</text>');
-  });
-  var Wpx = colX + 470, Hpx = Math.max(gy + 50, yPrev + 30);
-  return "<svg class='p101-svg' viewBox='0 0 " + f(Wpx) + ' ' + f(Hpx) + "' role='img' aria-label='Exploded section across the parklet: road, pedestals, joists, deck, fascia, drainage channel, enclosure, planter, City wheel stop and bollard' style='background:" + T.paper + "'>" + o.join('') +
-    "<text x='" + x0 + "' y='" + f(Hpx - 14) + "' font-size='11' fill='" + T.anno + "' font-family='" + DRAW_STYLE.FONT + "'>Section across the deck, the layers lifted apart; this design's deck " + W.toFixed(2) + ' m wide on a ' + Math.round(curb * 1000) + ' mm curb. Flush with the curb assumed until grade data exists.</text></svg>';
-};
-// ── D. Materials: the palette joined to the primer ────────────────────────────────────────────────────────────────
 P101.MATS = [
   { g: 'wood', ids: ['cedar', 'thermowood', 'oak', 'ipe', 'pine', 'weathered_cedar'], dur: 'Good to very good outdoors; ipe and thermowood last longest', maint: 'Oil or stain yearly to keep the colour; boards may be replaced singly', sf: 'Visible pressure-treated lumber not allowed; tropical hardwood and virgin redwood not allowed', van: 'FSC-certified wood suggested (G10, p. 59); recycled or sustainably harvested encouraged (G15, p. 60)' },
   { g: 'other', ids: ['composite_decking', 'recycled_grey', 'recycled_black', 'recycled_green', 'hpl_grey'], dur: 'Very good; does not rot', maint: 'Wash; little else', sf: 'Plastics strongly discouraged', van: 'Recycled products encouraged (G15, p. 60)' },
@@ -33527,66 +33537,81 @@ P101.MATS = [
   { g: 'powder', ids: ['ral_7016', 'ral_9005', 'ral_6009', 'ral_9016'], dur: 'Good; chips show', maint: 'Touch-up paint', sf: '-', van: 'Low-emission paints suggested (G10, p. 59)' },
   { g: 'mineral', ids: ['concrete', 'precast_grey', 'granite', 'terrazzo', 'fibre_cement'], dur: 'Very good; heavy', maint: 'Little; heavy on the street', sf: 'Weight limits apply to the street under it', van: 'Platforms may be concrete, gravel or tiles; no loose particles such as sand (P6, p. 63)' }
 ];
-// ── the tab ────────────────────────────────────────────────────────────────────────────────────────────────────────
+// ── the block on Export ────────────────────────────────────────────────────────────────────────────────────────────────────────
 P101.esc = function(t) { return String(t == null ? '' : t).replace(/[&<>'"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]; }); };
-P101.go = function(sec) { P101.open = sec; var el = document.getElementById('p101_' + sec); if (el) el.scrollIntoView({ block: 'start' }); document.querySelectorAll('#ctxLearn .p101-nav button').forEach(function(b) { b.classList.toggle('on', b.dataset.s === sec); }); };
 P101.render = function() {
-  var host = document.getElementById('workspaceLearn'); if (!host || host.style.display === 'none') return;
-  var e = P101.esc, DM = _dmCurrent(), C = P101.cost(), est = P101.estimate(DM), Q = est.Q, h = '';
-  h += "<div class='p101'><h1>Parklets 101</h1><p class='p101-lead'>How a parklet is built, what this design takes, what it may cost, and the materials. The Vancouver Parklet Manual is the authority wherever it speaks; the other sources show how other cities do it. Nothing here changes a check.</p>";
-  // A
-  h += "<section id='p101_build'><h2>Build-up</h2>" + P101.svg(DM) + "<table class='p101-t'><thead><tr><th>#</th><th>Layer</th><th>What it does</th><th>Vancouver Manual</th><th>Other cities</th><th>Usual materials</th></tr></thead><tbody>" +
-    P101.LAYERS.map(function(L, i) { return '<tr><td>' + (i + 1) + '</td><td><b>' + e(L.n) + '</b></td><td>' + e(L.what) + '</td><td>' + e(L.van) + '</td><td>' + e(L.other) + '</td><td>' + e(L.mats) + '</td></tr>'; }).join('') + '</tbody></table></section>';
-  // B
-  h += "<section id='p101_qty'><h2>Quantities</h2><p class='p101-note'>A take-off from this design's model; hover a line for its formula. Joists every <input type='number' id='p101Sp' value='" + Math.round(C.spacing * 1000) + "' min='200' max='800' step='50' onchange='P101.cost().spacing = this.value / 1000; P101.changed()' aria-label='Joist spacing, mm'> mm; decking waste <input type='number' id='p101Waste' value='" + Math.round(C.waste * 100) + "' min='0' max='40' step='1' onchange='P101.cost().waste = this.value / 100; P101.changed()' aria-label='Decking waste, per cent'> %.</p><table class='p101-t'><tbody>" +
-    Q.map(function(q) { return "<tr title='" + e(q.f) + "' data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td></tr>'; }).join('') +
-    '</tbody></table><h3>Furniture (from the schedule)</h3><table class=\'p101-t\'><tbody>' + (P101.furniture().map(function(g) { return "<tr><td>" + e(g.item) + "</td><td class='num'>" + g.n + '</td><td>each</td><td>' + e(g.dims) + ' m</td></tr>'; }).join('') || "<tr><td colspan='4'>No furniture placed.</td></tr>") +
-    "</tbody></table><h3>Supplied by the City, no cost to the applicant</h3><table class='p101-t'><tbody>" + P101.city(DM).map(function(c) { return '<tr><td>' + e(c.item) + "</td><td class='num'>" + e(c.n) + '</td><td>Manual p. 48</td></tr>'; }).join('') + '</tbody></table></section>';
-  // C
-  var S = est.set, sets = P101.SETS.concat(C.sets);
-  h += "<section id='p101_cost'><h2>Cost estimate</h2><div class='p101-banner" + (S.shipped ? ' ph' : '') + "' id='p101Banner' role='status'>" + e(est.banner) + '</div>' +
-    "<div class='p101-row'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.changed()'>" + sets.map(function(s) { return "<option value='" + s.id + "'" + (s.id === S.id ? ' selected' : '') + '>' + e(s.name) + '</option>'; }).join('') + '</select></label>' +
-    " <label>New rate set from this one: <input type='text' id='p101Sup' placeholder='supplier' maxlength='40' autocomplete='off'></label> <button type='button' class='ctx-btn' id='p101NewSet' onclick='P101.newSet(document.getElementById(\"p101Sup\").value.trim())'>Create</button>" +
-    " <label>USD to CAD <input type='number' id='p101Fx' value='" + C.fx + "' min='0.5' max='3' step='0.01' onchange='P101.cost().fx = +this.value || 1.35; P101.changed()'></label>" +
-    " <label>Meters to remove <input type='number' id='p101Meters' value='" + C.meters + "' min='0' max='12' step='1' onchange='P101.cost().meters = Math.max(0, +this.value || 0); P101.changed()'></label></div>" +
-    "<p class='p101-note'>" + e(S.prov) + '</p>' +
-    "<table class='p101-t p101-cost'><thead><tr><th>Item</th><th class='num'>Qty</th><th>Unit</th><th class='num'>Rate (" + e(S.cur) + ', low - high)</th><th class=\'num\'>Cost, CAD</th><th>Source</th></tr></thead><tbody>' +
-    est.rows.map(function(r) {
-      if (r.furn) {
-        var g = r.furn, pr = g.preset, brandUrl = pr ? ({ Vestre: 'https://www.vestre.com', 'mmcité': 'https://www.mmcite.com' }[pr.brand] || '') : '';
-        var hint = r.lo != null ? (r.suggested ? 'suggested - confirm' : (r.price.src || 'entered')) : pr ? "Price on request - <a href='" + brandUrl + "' target='_blank' rel='noopener'>" + e(pr.brand) + ' product page</a>' : g.user ? 'Enter the price from the spec card' : 'Enter a quote, or compare a similar catalogue product';
-        return "<tr data-furn='" + e(g.key) + "'><td>" + e(r.item) + "</td><td class='num'>" + r.qty + "</td><td>each</td><td class='num'><input type='number' min='0' step='1' class='p101-q' aria-label='Quote per piece, CAD, low' value='" + (r.price ? r.price.low : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.value, this.nextElementSibling.value)'> - <input type='number' min='0' step='1' class='p101-q' aria-label='Quote per piece, CAD, high' value='" + (r.price ? r.price.high : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.previousElementSibling.value, this.value)'></td><td class='num'>" + (r.lo == null ? '—' : P101.money(r.lo) + (Math.round(r.hi) !== Math.round(r.lo) ? ' - ' + P101.money(r.hi) : '')) + '</td><td>' + hint + '</td></tr>';
-      }
-      var rate = S.shipped || r.ext ? (r.rate.low === r.rate.high ? r.rate.low : r.rate.low + ' - ' + r.rate.high) : "<input type='number' min='0' step='0.01' class='p101-q' value='" + r.rate.low + "' onchange='P101.setRate(\"" + r.k + "\", this.value, this.nextElementSibling.value)'> - <input type='number' min='0' step='0.01' class='p101-q' value='" + r.rate.high + "' onchange='P101.setRate(\"" + r.k + "\", this.previousElementSibling.value, this.value)'>";
-      return "<tr title='" + e(r.f) + "'" + (r.city ? " class='city'" : '') + '><td>' + e(r.item) + "</td><td class='num'>" + r.qty + '</td><td>' + e(r.unit) + "</td><td class='num'>" + rate + "</td><td class='num'>" + (r.city ? 'City' : P101.money(r.lo) + (Math.round(r.hi) !== Math.round(r.lo) ? ' - ' + P101.money(r.hi) : '')) + (r.annual ? ' a year' : '') + '</td><td>' + e(r.src) + (S.flag ? ' - ' + e(S.flag) : '') + '</td></tr>';
-    }).join('') +
-    "<tr class='fee'><td colspan='6'>City of Vancouver fees - enter from the current fee schedule: <a href='" + P101.FEE_URL + "' target='_blank' rel='noopener'>vancouver.ca, parklets</a>" + (S.id === 'cov2016' || est.manualFees ? ' (the 2016 fees above are the Manual\'s; confirm them)' : '') + '</td></tr>' +
-    "<tr class='sub'><td colspan='4'>Build (deck, edge, furniture priced)</td><td class='num'>" + P101.money(est.build.lo) + (Math.round(est.build.hi) !== Math.round(est.build.lo) ? ' - ' + P101.money(est.build.hi) : '') + "</td><td></td></tr><tr class='sub'><td colspan='4'>City fees</td><td class='num'>" + P101.money(est.fees.lo) + "</td><td>application, cost recovery, inspection" + (C.meters ? ', ' + C.meters + ' meter' + (C.meters === 1 ? '' : 's') : '') + '</td></tr>' +
-    "<tr class='tot'><td colspan='4'><b>Estimate, build and fees</b>" + (S.cur === 'USD' ? ' (USD at ' + C.fx + ')' : '') + "</td><td class='num'><b id='p101Total'>" + P101.money(est.lo) + ' - ' + P101.money(est.hi) + '</b></td><td>' + (est.unpriced ? est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' not priced: not counted as zero' : 'furniture priced') + "</td></tr></tbody></table><p class='p101-note' id='p101Range'>" + e(P101.rangeLine(est)) + '</p></section>';
-  // D
-  h += "<section id='p101_mats'><h2>Materials</h2><table class='p101-t'><thead><tr><th>Material</th><th>Durability</th><th>Maintenance</th><th>San Francisco (advisory)</th><th>Vancouver Manual</th><th></th></tr></thead><tbody>" +
-    P101.MATS.map(function(m) { return '<tr><td>' + m.ids.map(function(id) { var i = flMatInfo(id); return "<span class='p101-sw' style='background:" + i.color + "'></span>" + e(i.label); }).join('<br>') + '</td><td>' + e(m.dur) + '</td><td>' + e(m.maint) + '</td><td>' + e(m.sf) + '</td><td>' + e(m.van) + "</td><td><button type='button' class='txt-btn' onclick='P101.toMaterials()'>Design &rsaquo; Materials</button></td></tr>"; }).join('') + '</tbody></table></section>';
-  // Sources
-  h += "<section id='p101_src'><h2>Sources</h2><ol class='p101-src'>" + P101.SRC.map(function(s) { return '<li>' + (s.url ? "<a href='" + s.url + "' target='_blank' rel='noopener'>" + e(s.t) + '</a>' : e(s.t)) + ' - ' + e(s.note) + '</li>'; }).join('') + '</ol><p class=\'p101-note\'>Paraphrased; no text or image is reproduced from them.</p></section></div>';
+  var host = document.getElementById('workspaceCost'); if (!host || host.style.display === 'none') return;
+  var e = P101.esc, m = P101.money, DM = _dmCurrent(), C = P101.cost(), est = P101.estimate(DM), Q = est.Q, S = est.set, sets = P101.SETS.concat(C.sets), R = est.range;
+  var rg = function(lo, hi) { return lo == null ? '—' : m(lo) + (Math.round(hi) !== Math.round(lo) ? ' – ' + m(hi) : ''); };
+  var rate = function(r) {
+    if (r.pct) return r.qty != null ? r.qty + ' %' : '—';
+    if (!S.shipped && !r.ext && !r.furn && r.rate && !r.sub) return "<input type='text' inputmode='decimal' class='ce-q' aria-label='" + e(r.item) + ", rate low' value='" + (r.rate.low == null ? '' : r.rate.low) + "' onchange='P101.setRate(\"" + r.rk + "\", this.value, this.nextElementSibling.value)'> – <input type='text' inputmode='decimal' class='ce-q' aria-label='" + e(r.item) + ", rate high' value='" + (r.rate.high == null ? '' : r.rate.high) + "' onchange='P101.setRate(\"" + r.rk + "\", this.previousElementSibling.value, this.value)'>";
+    return r.rlow == null ? '—' : (Math.abs(r.rlow - r.rhigh) < 0.005 ? m2(r.rlow) : m2(r.rlow) + ' – ' + m2(r.rhigh));
+  };
+  var m2 = function(v) { return '$' + (Math.round(v * 100) / 100).toLocaleString('en-CA', { minimumFractionDigits: v < 100 ? 2 : 0, maximumFractionDigits: v < 100 ? 2 : 0 }); };
+  var line = function(r) {
+    if (r.furn) {
+      var g = r.furn, pr = g.preset, brandUrl = pr ? ({ Vestre: 'https://www.vestre.com', 'mmcité': 'https://www.mmcite.com' }[pr.brand] || '') : '';
+      var hint = r.price ? (r.suggested ? 'suggested: confirm' : (r.price.src || 'entered')) : pr && brandUrl ? "price on request: <a href='" + brandUrl + "' target='_blank' rel='noopener'>" + e(pr.brand) + '</a>' : g.user ? 'enter the price from the spec card' : 'enter a quote';
+      return "<tr data-furn='" + e(g.key) + "'><td>" + e(r.item) + "</td><td class='num'>" + r.qty + "</td><td>each</td><td class='num'><input type='text' inputmode='decimal' class='ce-q' aria-label='" + e(g.item) + ", quote per piece, low' value='" + (r.price ? r.price.low : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.value, this.nextElementSibling.value)'> – <input type='text' inputmode='decimal' class='ce-q' aria-label='" + e(g.item) + ", quote per piece, high' value='" + (r.price ? (r.price.high || '') : '') + "' onchange='P101.setFurn(this.closest(\"tr\").dataset.furn, this.previousElementSibling.value, this.value)'></td><td class='num'>" + rg(r.lo, r.hi) + '</td><td>' + e(r.mat) + '</td><td>' + hint + '</td></tr>';
+    }
+    var cost = r.city ? 'City supplies' : rg(r.lo, r.hi) + (r.annual ? ' a year' : '');
+    return "<tr title='" + e(r.f || '') + "'" + (r.priced || r.city ? '' : " class='ce-none'") + '><td>' + e(r.item) + "</td><td class='num'>" + (r.pct ? '' : r.qty) + '</td><td>' + e(r.pct ? '' : r.unit) + "</td><td class='num'>" + rate(r) + "</td><td class='num'>" + cost + '</td><td>' + e(r.mat || '') + "</td><td><span class='ce-tag'>" + e(r.tag || '') + '</span> ' + e(r.src || '') + '</td></tr>';
+  };
+  var sec = function(id, title, note) { return "<tr class='ce-sec'><th colspan='7' scope='colgroup' id='ceS_" + id + "'>" + e(title) + (note ? " <span class='ce-sec-n'>" + e(note) + '</span>' : '') + '</th></tr>'; };
+  var subtot = function(t, lo, hi) { return "<tr class='ce-sub'><td colspan='4'>" + e(t) + "</td><td class='num'>" + rg(lo, hi) + '</td><td colspan=\'2\'></td></tr>'; };
+  var B = est.rows.filter(function(r) { return r.sec === 'build'; }), FU = est.rows.filter(function(r) { return r.sec === 'furn'; }), FE = est.rows.filter(function(r) { return r.sec === 'fee'; });
+  var fsum = function(k) { return FU.reduce(function(a, r) { return a + (r[k] || 0); }, 0); };
+  var h = "<div class='ce'><header class='ce-head'><h1>Cost estimate</h1><p class='ce-state' id='ceState' role='status'>" + e(est.banner) + '</p></header>';
+  // the five-second figures
+  h += "<dl class='ce-sum'>" +
+    "<div><dt>Build</dt><dd>" + rg(est.build.lo, est.build.hi) + "</dd><dd class='ce-dd-n'>" + (est.unpricedLines || est.unpriced ? (est.unpricedLines ? est.unpricedLines + ' line' + (est.unpricedLines === 1 ? '' : 's') : '') + (est.unpricedLines && est.unpriced ? ' and ' : '') + (est.unpriced ? est.unpriced + ' piece' + (est.unpriced === 1 ? '' : 's') : '') + ' not priced' : 'every line priced') + '</dd></div>' +
+    "<div><dt>City fees</dt><dd>" + rg(est.fees.lo, est.fees.hi) + "</dd><dd class='ce-dd-n'>the Manual's 2016 figures: confirm</dd></div>" +
+    "<div><dt>Total</dt><dd>" + rg(est.lo, est.hi) + "</dd><dd class='ce-dd-n'>" + (est.annual ? 'then ' + m(est.annual.lo) + ' a year' : '') + '</dd></div>' +
+    "<div><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') : '') + '</dd></div></dl>';
+  // the controls, grouped
+  h += "<div class='ce-ctl' role='group' aria-label='Rates'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.changed()'>" + sets.map(function(q) { return "<option value='" + q.id + "'" + (q.id === S.id ? ' selected' : '') + '>' + e(q.name) + '</option>'; }).join('') + '</select></label>' +
+    "<span class='ce-ctl-g'><label>New set from this one <input type='text' id='p101Sup' placeholder='supplier' maxlength='40' autocomplete='off'></label> <button type='button' class='ctx-btn' id='p101NewSet' onclick='P101.newSet(document.getElementById(\"p101Sup\").value.trim())'>Create</button></span>" +
+    "<span class='ce-ctl-g'><label>CAD for 1 USD <input type='text' inputmode='decimal' id='p101Fx' value='" + C.fx + "' onchange='var v = pkReadNum(this.value, \"\"); P101.cost().fx = v && v.v > 0 ? v.v : 1.35; P101.changed()'></label>" +
+    " <label>Meters to remove <input type='text' inputmode='numeric' id='p101Meters' value='" + C.meters + "' onchange='var v = parseInt(this.value, 10); P101.cost().meters = v > 0 ? Math.min(12, v) : 0; P101.changed()'></label></span></div>";
+  h += "<p class='ce-note'>" + e(S.prov) + '</p>';
+  // the one table
+  h += "<table class='ce-t'><caption class='sr-only'>The estimate: build, furniture, City fees and the total</caption><thead><tr><th scope='col'>Item</th><th scope='col' class='num'>Qty</th><th scope='col'>Unit</th><th scope='col' class='num'>Rate, CAD</th><th scope='col' class='num'>Cost, CAD</th><th scope='col'>Material</th><th scope='col'>Source</th></tr></thead><tbody>" +
+    sec('b', 'Build', 'the deck, its edge and the planting, from the take-off') + B.map(line).join('') + subtot('Build lines', B.filter(function(r) { return !r.city && r.lo != null; }).reduce(function(a, r) { return a + r.lo; }, 0), B.filter(function(r) { return !r.city && r.hi != null; }).reduce(function(a, r) { return a + r.hi; }, 0)) +
+    sec('f', 'Furniture', 'the schedule; a quote per piece') + (FU.length ? FU.map(line).join('') : "<tr><td colspan='7'>No furniture placed.</td></tr>") + subtot('Furniture', fsum('lo'), fsum('hi')) +
+    sec('c', 'City fees', "the Parklet Manual's 2016 figures: confirm against the current schedule") + FE.map(line).join('') + subtot('City fees', est.fees.lo, est.fees.hi) +
+    "<tr class='ce-tot'><td colspan='4'>Total, build and fees</td><td class='num' id='p101Total'>" + rg(est.lo, est.hi) + "</td><td colspan='2'>" + (est.unpricedLines || est.unpriced ? 'what is not priced is not counted as zero' : '') + '</td></tr></tbody></table>';
+  h += "<p class='ce-range' id='p101Range'>" + e(P101.rangeLine(est)) + '</p>';
+  h += "<p class='ce-note'>Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). City fees: <a href='" + P101.FEE_URL + "' target='_blank' rel='noopener'>vancouver.ca, parklets</a>. An estimate to plan a budget, not a quote.</p>";
+  // quantities
+  h += "<h2 class='ce-h2'>Quantities</h2><p class='ce-note'>A take-off from this design's model; each line says how it is counted. Joists every <input type='text' inputmode='numeric' id='p101Sp' class='ce-q' aria-label='Joist spacing, mm' value='" + Math.round(C.spacing * 1000) + "' onchange='var v = parseInt(this.value, 10); if (v >= 200 && v <= 800) { P101.cost().spacing = v / 1000; P101.changed(); }'> mm; decking waste <input type='text' inputmode='numeric' id='p101Waste' class='ce-q' aria-label='Decking waste, percent' value='" + Math.round(C.waste * 100) + "' onchange='var v = parseInt(this.value, 10); if (v >= 0 && v <= 40) { P101.cost().waste = v / 100; P101.changed(); }'> %.</p>" +
+    "<table class='ce-t ce-qt'><thead><tr><th scope='col'>Item</th><th scope='col' class='num'>Qty</th><th scope='col'>Unit</th><th scope='col'>How it is counted</th></tr></thead><tbody>" +
+    Q.map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + '</td></tr>'; }).join('') +
+    P101.city(DM).map(function(c) { return '<tr><td>' + e(c.item) + "</td><td class='num'>" + e(c.n) + '</td><td>ea</td><td>supplied by the City (Manual p. 48)</td></tr>'; }).join('') + '</tbody></table>';
+  // materials
+  h += "<h2 class='ce-h2'>Materials</h2><table class='ce-t'><thead><tr><th scope='col'>Material</th><th scope='col'>Durability</th><th scope='col'>Maintenance</th><th scope='col'>San Francisco (advisory)</th><th scope='col'>Vancouver Manual</th></tr></thead><tbody>" +
+    P101.MATS.map(function(mm) { return '<tr><td>' + mm.ids.map(function(id) { var i = flMatInfo(id); return "<span class='ce-sw' style='background:" + i.color + "'></span>" + e(i.label); }).join('<br>') + "<br><button type='button' class='txt-btn' onclick='P101.toMaterials()'>Design › Materials</button></td><td>" + e(mm.dur) + '</td><td>' + e(mm.maint) + '</td><td>' + e(mm.sf) + '</td><td>' + e(mm.van) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   host.innerHTML = h;
 };
-P101.toMaterials = function() { appSetMode('design'); setTimeout(function() { var m = document.getElementById('dkcdMat'); if (m && m.classList.contains('dk-collapsed') && typeof dkToggle === 'function') dkToggle('dkcdMat'); if (m) m.scrollIntoView({ block: 'start' }); }, 200); };
+P101.toMaterials = function() { NAV.sub = 'design'; appSetMode('design'); setTimeout(function() { var m = document.getElementById('dkcdMat'); if (m && m.classList.contains('dk-collapsed') && typeof dkToggle === 'function') dkToggle('dkcdMat'); if (m) m.scrollIntoView({ block: 'start' }); }, 200); };
 // every sync redraws the tab when it is open (a new deck width: every quantity and the section in one sync)
-(function() { var _s = syncDesignModel; syncDesignModel = function() { var r = _s.apply(this, arguments); try { var w = document.getElementById('workspaceLearn'); if (w && w.style.display !== 'none') P101.render(); } catch (e) {} return r; }; })();
-// ── G-002 Construction and budget (both reports) ────────────────────────────────────────────────────────────────
+(function() { var _s = syncDesignModel; syncDesignModel = function() { var r = _s.apply(this, arguments); try { var w = document.getElementById('workspaceCost'); if (w && w.style.display !== 'none') P101.render(); } catch (e) {} return r; }; })();
+// ── G-002 Cost estimate (both reports) ────────────────────────────────────────────────────────────────
 RPT.sheetBudget = function(d) {
-  var est = P101.estimate(d.DM), S = est.set, fmt = function(v) { return v == null ? '-' : '$' + Math.round(v).toLocaleString('en-CA'); };
+  var est = P101.estimate(d.DM), S = est.set, fmt = function(v) { return v == null ? '-' : '$' + Math.round(v).toLocaleString('en-CA'); }, rg = function(lo, hi) { return lo == null ? '-' : fmt(lo) + (Math.round(hi) !== Math.round(lo) ? ' - ' + fmt(hi) : ''); };
+  var rt = function(r) { return r.pct ? r.qty + ' %' : r.rlow == null ? '-' : (Math.abs(r.rlow - r.rhigh) < 0.005 ? fmt(r.rlow) : fmt(r.rlow) + ' - ' + fmt(r.rhigh)); };
+  var row = function(r) { return [r.item, r.pct ? '' : String(r.qty), r.pct ? '' : r.unit, rt(r), r.city ? 'supplied by the City' : rg(r.lo, r.hi) + (r.annual ? ' a year' : ''), (r.tag ? r.tag + ': ' : '') + (r.src || '')]; };
+  var hdr = function(t) { return [{ t: t, b: true }, '', '', '', '', '']; };
+  var rows = [hdr('Build')].concat(est.rows.filter(function(r) { return r.sec === 'build'; }).map(row), [hdr('Furniture')], est.rows.filter(function(r) { return r.sec === 'furn'; }).map(row), [hdr('City fees')], est.rows.filter(function(r) { return r.sec === 'fee'; }).map(row));
+  rows.push([{ t: 'Total, build and fees', b: true }, '', '', '', { t: rg(est.lo, est.hi), b: true }, est.unpricedLines || est.unpriced ? 'what is not priced is not counted' : '']);
   var qrows = est.Q.filter(function(q) { return !q.sub; }).map(function(q) { return [q.item, String(q.n), q.u, q.f]; });
-  var crows = est.rows.map(function(r) { return [r.item, String(r.qty), r.unit, r.city ? 'supplied by the City' : r.lo == null ? '- (not priced)' : fmt(r.lo) + (Math.round(r.hi) !== Math.round(r.lo) ? ' - ' + fmt(r.hi) : '') + (r.annual ? ' a year' : ''), r.furn ? (r.price ? (r.suggested ? 'suggested' : r.price.src || 'entered') : 'not priced') : r.src || '']; });
-  var rg = function(a) { return fmt(a.lo) + (Math.round(a.hi) !== Math.round(a.lo) ? ' - ' + fmt(a.hi) : ''); };
-  crows.push(['Build (deck, edge, furniture priced)', '', '', rg(est.build), ''], ['City fees', '', '', rg(est.fees), 'application, cost recovery, inspection' + (P101.cost().meters ? ', meters' : '')]);
-  crows.push([{ t: 'Estimate, build and fees', b: true }, '', '', { t: fmt(est.lo) + ' - ' + fmt(est.hi), b: true }, est.unpriced ? est.unpriced + ' furniture piece(s) not priced, not counted' : '']);
-  return RPT.textSheet('G-002', 'Construction and budget', S.name, [
-    { p: est.banner + '. Rate set: ' + S.name + '. ' + S.prov + (S.cur === 'USD' ? ' Converted at USD 1 = CAD ' + est.fx + '.' : '') },
-    { h2: 'Quantities (from the design)' }, { table: { cols: [{ t: 'Item', w: 0.28 }, { t: 'Qty', w: 0.08, num: true }, { t: 'Unit', w: 0.06 }, { t: 'How', w: 0.58 }], rows: qrows } },
-    { h2: 'Estimate' }, { table: { cols: [{ t: 'Item', w: 0.32 }, { t: 'Qty', w: 0.06, num: true }, { t: 'Unit', w: 0.1 }, { t: 'Cost, CAD', w: 0.2, num: true }, { t: 'Source', w: 0.32 }], rows: crows } },
+  return RPT.textSheet('G-002', 'Cost estimate', S.name, [
+    { p: est.banner + ' Rate set: ' + S.name + '. ' + S.prov + (S.cur === 'USD' ? ' Converted at USD 1 = CAD ' + est.fx + '.' : '') },
+    { kv: [['Build', rg(est.build.lo, est.build.hi)], ['City fees', rg(est.fees.lo, est.fees.hi)], ['Total', rg(est.lo, est.hi)], ['Against the Manual', est.range.n > 0 ? (est.cmp || 'nothing priced') + ', ' + fmt(est.range.lo) + ' - ' + fmt(est.range.hi) + ' for ' + est.range.n + ' spaces' : '-']] },
+    { h2: 'Estimate' }, { table: { cols: [{ t: 'Item', w: 0.27 }, { t: 'Qty', w: 0.06, num: true }, { t: 'Unit', w: 0.07 }, { t: 'Rate, CAD', w: 0.12, num: true }, { t: 'Cost, CAD', w: 0.14, num: true }, { t: 'Where the number comes from', w: 0.34 }], rows: rows } },
     { p: P101.rangeLine(est) },
-    { p: 'City of Vancouver fees: the Manual\'s 2016 figures above; confirm them against the current fee schedule (' + P101.FEE_URL + '). Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). An estimate to plan a budget, not a quote.' }
+    { h2: 'Quantities (from the design)' }, { table: { cols: [{ t: 'Item', w: 0.28 }, { t: 'Qty', w: 0.08, num: true }, { t: 'Unit', w: 0.06 }, { t: 'How it is counted', w: 0.58 }], rows: qrows } },
+    { p: 'City of Vancouver fees: the Manual\'s 2016 figures; confirm them against the current fee schedule (' + P101.FEE_URL + '). Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). An estimate to plan a budget, not a quote.' }
   ], true);
 };
 </script>
