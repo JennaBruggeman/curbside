@@ -1000,7 +1000,7 @@ const criteria = [  {
       const list = la.map(function(a){ return a.width.toFixed(3) + ' m ' + a.role; }).join(', ');
       const bandNote = { 'abs-min': 'EDM Table 8-10 note 4 (absolute minimum, City Engineer approval)', exception: 'EDM Table 8-10 note 8 (exception only)' };
       const bands = Object.keys(bandNote).map(function(b) { const ix = la.filter(function(a){ return a.band === b; }).map(function(a){ return a.index + 1; }); return ix.length ? bandNote[b] + ' applies to lane' + (ix.length > 1 ? 's ' : ' ') + ix.join(', ') + '.' : ''; }).filter(Boolean).join(' ');
-      return `Travel lane${la.length > 1 ? 's' : ''}: ${list} — ${la.every(function(a){ return a.c02; }) ? 'passes' : 'below'} minimum for ${routeLbl}.` + (bands ? ' ' + bands : '') + (typeof CHK !== 'undefined' && CHK.c2Estimate() ? ' The curb-to-curb width is an estimate (lanes x 3.2 m + parking lanes x 2.4 m): measure it before reading these lanes as a result.' : '');
+      return `Travel lane${la.length > 1 ? 's' : ''}: ${list} — ${la.every(function(a){ return a.c02; }) ? 'passes' : 'below'} minimum for ${routeLbl}.` + (bands ? ' ' + bands : '') + (typeof CHK === 'undefined' ? '' : CHK.rwHow() === 'estimated' ? ' The curb-to-curb width is an estimate: measure it before reading these lanes as a result.' : CHK.rwHow() === 'unknown' ? ' The curb-to-curb width is not known yet: measure it before reading these lanes as a result.' : '');
 
 }
 ,    note: 'Lane widths are the travel-lane segments of the cross-section; each lane is held within EDM 2026 Table 8-10 for its role. C02 applies the Parklet Manual minimum (3.0 m, 3.2 m bus/truck) to every lane.',    inputId: 'route_type',    inputLabel: 'Is the adjacent lane a bus or truck route?',    inputType: 'select',    selectOptions: [      {
@@ -1031,9 +1031,11 @@ const criteria = [  {
       const la = assessLanes(_dmCurrent().crossSection), req = getReqLane(), rl = req.toFixed(1);
       if (!la.length) return '';
       const slack = la.reduce(function(s, a){ return s + (a.width - req); }, 0), maxW = Math.max(0, designParkletWidth + slack).toFixed(2), road = (+TOTAL_ROAD).toFixed(2);
-      const est = typeof CHK !== 'undefined' && CHK.c2Estimate();
-      if (slack >= -1e-4) return `<strong>Lanes:</strong> every lane keeps ≥ ${rl} m with this parklet` + (est ? `, on the estimated ${road} m curb to curb: measure it to confirm.` : '.');
-      if (est) return `<strong>If the measured width confirms the estimate</strong> (${road} m curb to curb), a parklet of at most <strong>${maxW} m</strong> keeps every lane ≥ ${rl} m. The estimate assumes 3.2 m lanes and 2.4 m parking lanes, so measure first.`;
+      // (Brief 30 follow-up) the sentence says how the width is known: measured, estimated, or not known yet
+      const how = typeof CHK !== 'undefined' ? CHK.rwHow() : 'measured';
+      if (slack >= -1e-4) return `<strong>Lanes:</strong> every lane keeps ≥ ${rl} m with this parklet` + (how === 'estimated' ? `, on the estimated ${road} m curb to curb: measure it to confirm.` : how === 'unknown' ? `, on a placeholder of ${road} m curb to curb: it holds once the curb-to-curb width is measured.` : '.');
+      if (how === 'estimated') return `<strong>With the estimated ${road} m curb to curb</strong>, a parklet of at most <strong>${maxW} m</strong> keeps every lane ≥ ${rl} m; measure the width first.`;
+      if (how === 'unknown') return `<strong>Once the curb-to-curb width is measured</strong>, the widest parklet that keeps every lane ≥ ${rl} m follows from it (on the placeholder of ${road} m it would be <strong>${maxW} m</strong>).`;
       return `<strong>With the measured ${road} m curb to curb</strong>, a parklet of at most <strong>${maxW} m</strong> keeps every lane ≥ ${rl} m; a narrower lane needs the City Engineer's approval (EDM Table 8-10).`;
 
 }
@@ -1433,8 +1435,14 @@ CHK.c2Line = function(estimated) {
   var la = assessLanes(_dmCurrent().crossSection); if (!la.length) return 'no travel lane in the cross-section';
   var req = la[0].req, ws = la.map(function(a) { return a.width; }), mn = Math.min.apply(null, ws), even = Math.max.apply(null, ws) - mn < 0.0015;
   var s = la.length + ' lane' + (la.length > 1 ? 's' : '') + (even ? ' × ' + mn.toFixed(3) + ' m' : ', narrowest ' + mn.toFixed(3) + ' m');
-  if (estimated) return s + (even ? ', even split of estimated ' + (+TOTAL_ROAD).toFixed(2) + ' m less parklet' : ' on the estimated ' + (+TOTAL_ROAD).toFixed(2) + ' m') + '; needs ≥ ' + req.toFixed(1) + ' m';
+  if (estimated) { var wd = { measured: 'measured', estimated: 'estimated', unknown: 'placeholder' }[CHK.rwHow()];   // (Brief 30 follow-up: a width not known yet is a placeholder, not an estimate)
+    return s + (even ? ', even split of the ' + wd + ' ' + (+TOTAL_ROAD).toFixed(2) + ' m less parklet' : ' on the ' + wd + ' ' + (+TOTAL_ROAD).toFixed(2) + ' m') + '; needs ≥ ' + req.toFixed(1) + ' m'; }
   return s + (mn >= req - 1e-4 ? ' ≥ ' : ' < ') + req.toFixed(1) + ' m';
+};
+// how the curb-to-curb width is known, for C02's sentences: 'measured' | 'estimated' (an estimate or imported) | 'unknown'
+CHK.rwHow = function() {
+  var c = criteria.find(function(q) { return q.id === 'c2'; }), rw = c ? CHK.inputs(c).find(function(i) { return i.key === 'roadWidth'; }) : null, k = rw ? rw.cls : 'missing';
+  return k === 'measured' ? 'measured' : k === 'unknown' || k === 'missing' ? 'unknown' : 'estimated';
 };
 CHK.c2Estimate = function() { return CHK.state(criteria.find(function(c) { return c.id === 'c2'; })).base === 'await'; };
 CHK.counts = function() {
