@@ -19,7 +19,12 @@ var CONFIG = {
   // to true after that date (docs/process/HANDOFF.md, "Review period").
   INVITE_ONLY: false,
   INVITE_CONTACT: 'bangpowjenna@gmail.com',     // whom to ask for a code
-  REPO_URL: 'https://github.com/JennaBruggeman/curbside'   // the public repository
+  REPO_URL: 'https://github.com/JennaBruggeman/curbside',  // the public repository
+  // The site picker's basemap (Brief 30 §1): a MapLibre vector style, keyless. OpenFreeMap's "positron" (free for any
+  // use, no key, no view limit); CARTO's hosted Positron tiles are for CARTO enterprise customers only. SM.styleTune
+  // quiets it further (no shields or icons); unreachable, the picker falls back to OpenStreetMap's raster tiles.
+  MAP_STYLE: 'https://tiles.openfreemap.org/styles/positron',
+  MAP_ATTRIBUTION: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors</a>'
 };
 </script><script>
 // The sample report page (?sample=schematic|technical) runs on in-memory storage: it can never read or write the
@@ -7161,6 +7166,15 @@ var DRAW_STYLE = {
   },
   UI: { sel: '#0696D7', accent: '#3AA8E4', guide: '#0696D7', snapGrid: '#0696D7', snapPk: '#C03030', snap: '#E68A00', measure: '#FF6B00',
         axisX: '#C03030', axisZ: '#0696D7', halo: '#FFFFFF', chip: 'rgba(50,50,50,0.68)', chipInk: '#FFFFFF', secFill: 'rgba(58,168,228,0.07)', handle: '#3AA8E4', grid: 'rgba(0,0,0,0.10)', gridMaj: 'rgba(0,0,0,0.20)' }
+};
+// The site picker's map (Brief 30 §1): the basemap's tones, and one marker style for every point layer, from the drawing
+// palette (the technical mid grey; trees the schematic planting green; the accent only for the one selected or picked)
+DRAW_STYLE.MAP = {
+  building: '#E2E2DF', buildingEdge: '#CDCDC9', park: '#E6ECE2',
+  dot: DRAW_STYLE.technical.mid, tree: DRAW_STYLE.schematic.fill.planting, halo: '#FFFFFF', sel: DRAW_STYLE.UI.accent,
+  line: DRAW_STYLE.technical.mid, lineW: 1.5, lineDash: [3, 2], footprint: DRAW_STYLE.technical.light,
+  // radius by zoom: 4 px to zoom 15, 6 px at 16-17, 8 px above; point layers are hidden below zoom 15
+  minZoom: 15, radius: ['step', ['zoom'], 4, 16, 6, 18, 8], hoverGrow: 2
 };
 DRAW_STYLE.mode = function(m) {
   if (m === 'technical' || m === 'schematic') return m;
@@ -28025,7 +28039,7 @@ RVZP._gallery = async function() {
 <script>
 // ════════════════════════════════════════════════════════════════════════════════════════════
 // SITE FROM MAP (Brief 13) - Phase 1: the map picker
-// A MapLibre GL map (OSM raster tiles, attribution shown), an address search (Nominatim), a
+// A MapLibre GL map (CONFIG.MAP_STYLE, a vector basemap, Brief 30 §1; attribution shown), an address search (Nominatim), a
 // click on a street that snaps to the nearest OSM highway way (Overpass), a second click for the
 // parklet's side. "Use this location" writes the site orientation through siteSet (lat, lon,
 // streetBearing from the way's segment at the snapped point, parkletSide) and the street address.
@@ -28163,6 +28177,31 @@ SM.loadLib = function() {
   });
   return SM._libp;
 };
+// ── The basemap (Brief 30 §1): CONFIG.MAP_STYLE, a monochrome vector style, made quieter still ───────────────────────
+// The old picker drew OpenStreetMap's general raster tiles (every POI and land-use fill, soft at fractional zooms and on
+// high-DPI screens), so the street to click was buried. Vector tiles draw sharp at any zoom and pixel ratio.
+SM.RASTER = { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' } },
+  layers: [{ id: 'osm', type: 'raster', source: 'osm' }] };
+SM.loadStyle = async function() {
+  try {
+    var r = await fetch(CONFIG.MAP_STYLE, { cache: 'force-cache' }); if (!r.ok) throw new Error('HTTP ' + r.status);
+    SM.styleFrom = 'vector'; return SM.styleTune(await r.json());
+  } catch (e) { console.warn('[site-map] the basemap style (' + CONFIG.MAP_STYLE + ') could not be read (' + e.message + '): OpenStreetMap raster tiles instead'); SM.styleFrom = 'raster'; return SM.RASTER; }
+};
+// building footprints light grey, roads thin grey casings (the style's own), parks the palest green-grey; labels only:
+// no road shields, no airport or place icons
+SM.styleTune = function(s) {
+  var M = DRAW_STYLE.MAP;
+  s.layers = (s.layers || []).filter(function(l) { return !/shield|^airport$/.test(l.id); });
+  s.layers.forEach(function(l) {
+    if (l.layout && l.layout['icon-image'] !== undefined) { delete l.layout['icon-image']; delete l.layout['icon-size']; }
+    if (l.id === 'building') l.paint = { 'fill-antialias': true, 'fill-color': M.building, 'fill-outline-color': M.buildingEdge };
+    if (l.id === 'park') l.paint = { 'fill-color': M.park };
+  });
+  var src = s.sources && s.sources.openmaptiles; if (src) src.attribution = CONFIG.MAP_ATTRIBUTION;
+  return s;
+};
 SM.open = async function() {
   var m = document.getElementById('smModal'); m.classList.add('open');
   SM.pick = null; document.getElementById('smUse').disabled = true;
@@ -28174,11 +28213,9 @@ SM.open = async function() {
     SM.status('The map library could not be loaded.'); return;
   }
   if (!SM.map) {
-    var so = SITE_ORIENT, c = so && so.lat ? [so.lon, so.lat] : [SM.VAN.lon, SM.VAN.lat];
-    SM.map = new maplibregl.Map({ container: 'smMap', center: c, zoom: 16, attributionControl: false,
-      style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' } },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }] } });
+    var so = SITE_ORIENT, c = so && so.lat ? [so.lon, so.lat] : [SM.VAN.lon, SM.VAN.lat], style = await SM.loadStyle();
+    SM.map = new maplibregl.Map({ container: 'smMap', center: c, zoom: 16, attributionControl: false, style: style });
+    // the vector style's sources name OpenFreeMap / OpenMapTiles / OpenStreetMap from their TileJSON; the raster fallback names OSM
     SM.map.addControl(new maplibregl.AttributionControl({ compact: false }), 'bottom-right');
     SM.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     SM.map.on('load', function() {
