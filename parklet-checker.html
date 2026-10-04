@@ -7552,9 +7552,11 @@ DRAW_STYLE.MAP = {
   building: '#E2E2DF', buildingEdge: '#CDCDC9', park: '#E6ECE2',
   dot: DRAW_STYLE.technical.mid, tree: DRAW_STYLE.schematic.fill.planting, halo: '#FFFFFF', sel: DRAW_STYLE.UI.accent,
   line: DRAW_STYLE.technical.mid, lineW: 1.5, lineDash: [3, 2], footprint: DRAW_STYLE.technical.light,
-  // radius by zoom: 4 px to zoom 15, 6 px at 16-17, 8 px above; point layers are hidden below zoom 15
+  // a dot's size ACROSS by zoom, its 0.75 px white halo included: 4 px to zoom 15, 6 px at 16-17, 8 px above; point layers
+  // are hidden below zoom 15. (Brief 31 §3A: Brief 30 wrote these as MapLibre's circle-radius, a radius drawn outside a
+  // 1 px halo, so every dot was twice as wide: 10 / 14 / 18 px, and 3,700 trees at zoom 15 merged into green ribbons.)
   bandOk: '#7FA36B', bandOut: '#9A9A96', bandMeasure: '#9A9A96',
-  minZoom: 15, radii: [[0, 4], [16, 6], [18, 8]], hoverGrow: 2
+  minZoom: 15, sizes: [[0, 4], [16, 6], [18, 8]], haloW: 0.75, hoverGrow: 1, treeOpacity: 0.8
 };
 DRAW_STYLE.mode = function(m) {
   if (m === 'technical' || m === 'schematic') return m;
@@ -29317,7 +29319,7 @@ GIS.mapInit = function(map) {
     map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' });
     var spec = L.id === 'blockfaces' ? GIS.bandSpec() : L.geometry === 'polygon' ? { type: 'fill', paint: { 'fill-color': M.footprint, 'fill-opacity': hov(0.55, 0.3), 'fill-outline-color': M.dot } }
       : L.geometry === 'line' ? { type: 'line', layout: { 'line-join': 'round' }, paint: { 'line-color': M.line, 'line-width': hov(M.lineW + 1.5, M.lineW), 'line-dasharray': M.lineDash, 'line-opacity': 0.85 } }
-      : { type: 'circle', minzoom: M.minZoom, paint: { 'circle-radius': GIS.radiusExpr(hov), 'circle-color': sel(M.sel, dot), 'circle-stroke-width': 1, 'circle-stroke-color': M.halo } };
+      : { type: 'circle', minzoom: M.minZoom, paint: { 'circle-radius': GIS.radiusExpr(hov), 'circle-color': sel(M.sel, dot), 'circle-stroke-width': M.haloW, 'circle-stroke-color': M.halo, 'circle-opacity': L.id === 'trees' ? sel(1, M.treeOpacity) : 1, 'circle-stroke-opacity': L.id === 'trees' ? sel(1, M.treeOpacity) : 1 } };
     var lay = { id: id, type: spec.type, source: id, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, spec.layout || {}), paint: spec.paint };
     if (spec.minzoom) lay.minzoom = spec.minzoom; if (spec.filter) lay.filter = spec.filter;
     map.addLayer(lay, map.getLayer('smHover') ? 'smHover' : map.getLayer('smWay') ? 'smWay' : undefined);
@@ -29364,7 +29366,7 @@ GIS.flat = function(o) {
 // the marker radius by zoom, hovered ones larger (MapLibre allows one zoom step, and only at the top of the expression)
 GIS.radiusExpr = function(hov) {
   var M = DRAW_STYLE.MAP, e = ['step', ['zoom']];
-  M.radii.forEach(function(r, i) { if (i) e.push(r[0]); e.push(hov(r[1] + M.hoverGrow, r[1])); });
+  M.sizes.forEach(function(r, i) { var rad = r[1] / 2 - M.haloW; if (i) e.push(r[0]); e.push(hov(rad + M.hoverGrow, rad)); });   // across = 2 (radius + halo)
   return e;
 };
 // the visible layers' feature under a point (points first, then lines, then buildings); all: any geometry
