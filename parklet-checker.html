@@ -1618,12 +1618,22 @@ const CHECK_SHORT = {
   c18: ['Openings to the sidewalk', 'Two or more, each &ge; 1.8 m'],
   c19: ['Overhead clearance', '&ge; 2.1 m clear, within the footprint']
 };
+// the Site condition line from the state (Brief 30 §8C, triage row 28): a static "Unknown ..." stays only while nothing is
+// entered; with a value it says what was entered
+function chkCondText(c) {
+  var t = typeof c.siteCondition === 'function' ? c.siteCondition() : c.siteCondition, v = c.inputId ? state[c.inputId] : undefined;
+  if (typeof t === 'string' && /^Unknown\b/.test(t) && v !== undefined && v !== null && String(v).trim() !== '') {
+    var o = (c.selectOptions || []).find(function(q) { return q.value === v; }), lbl = o ? o.label : String(v) + (c.inputUnit ? ' ' + c.inputUnit : '');
+    return 'Entered: ' + lbl + '.';
+  }
+  return t;
+}
 function buildCriterion(c) {
   const cs = CHK.state(c), st = cs.base === 'await' ? 'unclear await' : cs.base, B = CHK.BADGE[cs.base];   // Brief 25 §1
   const badgeClass = B[0] + (cs.provisional ? ' badge-prov' : '');
   const badgeText = B[1];
   const bodyClass = cs.base === 'pass' ? 'pass-body' : cs.base === 'fail' ? 'fail-body' : '';
-  const siteCondText = typeof c.siteCondition === 'function' ? c.siteCondition() : c.siteCondition;
+  const siteCondText = chkCondText(c);
   const sh = CHECK_SHORT[c.id] || [String(c.title), ''], rid = 'C' + String(c.num).padStart(2, '0');
   return `<div class="criterion chk-row ${st}" id="crit_${c.id}" role="row">` +
     `<div class="criterion-header chk-hdr" role="button" tabindex="0" aria-expanded="false" onclick="toggleCrit('${c.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrit('${c.id}')}">` +
@@ -1634,6 +1644,7 @@ function buildCriterion(c) {
     `<div class="criterion-body ${bodyClass}" id="body_${c.id}">` +
       `<div class="chk-rule">${c.requirement}</div>` +
       `<div class="detail-row"><span class="detail-label">Site condition</span><span class="detail-value" id="cond_${c.id}">${siteCondText}</span></div>` +
+      ((c.id === 'c2' && typeof SMP !== 'undefined' && SMP.widthAdvisory && SMP.widthAdvisory()) ? `<div class="detail-row chk-adv" id="adv_c2"><span class="detail-label">Advisory</span><span class="detail-value">${SMP.widthAdvisory().text} (Manual p. 20)</span></div>` : '') +   // (Brief 30 §8C, triage row 16)
       (c.note ? `<div class="detail-row"><span class="detail-label">Note</span><span class="detail-value">${c.note}</span></div>` : '') +
       buildInput(c) +
       (c.resolutionFn ? `<div class="resolution-box" id="resolution_${c.id}">${c.resolutionFn(state[c.inputId] || '')}</div>` : '') +
@@ -1818,6 +1829,7 @@ function handleInput(critId, inputId, value) {
 // Update just this criterion  
 const c = criteria.find(x => x.id === critId);
   if (!c) return;
+  { const ce = document.getElementById('cond_' + critId); if (ce) ce.textContent = chkCondText(c); }   // (Brief 30 §8C)
   const st = typeof CHK !== 'undefined' ? CHK.state(c).base : getCriterionStatus(c);
   
 // Update badge  
@@ -4046,7 +4058,7 @@ function complianceRows() {
   return criteria.map(function(c) {
     var cs = CHK.state(c), status = cs.base, ins = [DM.inputs[c.inputId], c.inputId2 ? DM.inputs[c.inputId2] : null].filter(Boolean);   // Brief 25 §1: the capped result
     var missing = ins.filter(function(i) { return !i.entered; });
-    var cond = typeof c.siteCondition === 'function' ? c.siteCondition() : (c.siteCondition || '');
+    var cond = chkCondText(c) || '';   // (Brief 30 §8C: what was entered, not the static Unknown)
     var msg = '';
     if (!(status === 'unclear' && missing.length)) {
       try { msg = c.evalMsg ? c.evalMsg(state[c.inputId], c.inputId2 ? state[c.inputId2] : undefined) : ''; } catch (e) { msg = ''; }
@@ -5265,9 +5277,15 @@ document.addEventListener('mouseup', function() {
         _aw.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--st-fail-ink);color:#fff;padding:8px 18px;border-radius:4px;font:500 var(--fs-12)/1.6 var(--font-ui);z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.4);';
         document.body.appendChild(_aw);
       }
-      _aw.textContent = 'Cannot add ' + addW.toFixed(2) + '\u202fm ' + (def.label || type) + ': only ' + Math.max(0, _addRem).toFixed(2) + '\u202fm remains.';
+      // (Brief 30 §8C, triage row 32) why, and an offer: the widest travel lane narrowed by the shortfall, while it stays
+      // within the EDM's absolute minimum for its route; else only why
+      var _need = +(addW - Math.max(0, _addRem)).toFixed(3), _lanes = _segs.filter(function(x) { return x.type === 'travel-lane'; }).sort(function(a, b) { return b.width - a.width; }), _wl = _lanes[0];
+      var _min = LANE_ENVELOPE[laneRouteKey()].other.absMin, _can = _wl && _wl.width - _need >= _min - 1e-6;
+      _aw.textContent = 'No width left for a ' + addW.toFixed(2) + '\u202fm ' + (def.label || type).toLowerCase() + ': ' + Math.max(0, _addRem).toFixed(2) + '\u202fm remains. ' + (_can ? '' : 'Narrow a segment first.');
+      if (_can) { var _bt = document.createElement('button'); _bt.type = 'button'; _bt.textContent = 'Narrow a ' + _wl.width.toFixed(2) + ' m lane to ' + (_wl.width - _need).toFixed(2) + ' m and add it'; _bt.style.cssText = 'margin-left:10px;background:#fff;color:#1a1a1a;border:0;border-radius:3px;padding:2px 8px;font:inherit;cursor:pointer';
+        _bt.onclick = function() { _aw.hidden = true; _push(); _wl.width = +(_wl.width - _need).toFixed(3); _seAdd(type, atIdx); }; _aw.appendChild(_bt); }
       _aw.hidden = false;
-      setTimeout(function(){ if (_aw) _aw.hidden = true; }, 3500);
+      clearTimeout(_aw._t); _aw._t = setTimeout(function(){ if (_aw) _aw.hidden = true; }, _can ? 8000 : 4000);
       return;
     }
     _push();
@@ -10647,6 +10665,7 @@ function skeApply() {
   state.pkShape = plain ? null : out;
   skeClose();
   syncDesignModel('shape-apply');
+  if (typeof pkAfterMove === 'function') pkAfterMove('shape-apply');   // C01, C03 and the clearances at the new deck (Brief 30 §8C)
   try { if (typeof uiDesignDims === 'function') uiDesignDims(); } catch (e) {}
   try { if (typeof pkPanelRefresh === 'function') pkPanelRefresh(); } catch (e) {}
   saveSettings();
@@ -14723,6 +14742,7 @@ function pkMove(dz, why) {
 // the model and every view
 function pkAfterMove(why) {
   if (typeof SMP !== 'undefined' && SMP.stopNote) SMP.stopNote();   // C01's bus stop at its new position (Brief 27 item 10)
+  if (typeof SMP !== 'undefined' && SMP.busZone && (state.__siteMap || {}).importedAt) SMP.busZone(null);   // C01 follows the deck (Brief 30 §8C, triage row 25)
   var cd = pkCornerDist();
   if (cd) { var v = Math.abs(cd.d).toFixed(2); state['intersection_dist'] = v; var ie = document.getElementById('intersection_dist'); if (ie) ie.value = v; try { handleInput('c3', 'intersection_dist', v); } catch (e) {} }
   try { renderBldgControls(); } catch (e) {}
@@ -24150,7 +24170,14 @@ RPT.HATCH = {
 // (the pen's text boxes: collisions are detected). Extension lines from the model edge: a 1.5 mm gap, 2 mm past the
 // dimension line. Compliance clearances read "1.62 (>=1.50 C13)", in the zone colour (red when failing).
 RPT.DIM = { first: 10, step: 8, rows: 3, gap: 1.5, over: 2, size: 2.5, clear: 4 };   // clear: a value fits its span with 2 mm past each tick
-RPT.fmt = DRAW_STYLE.fmt; RPT.fmtClear = DRAW_STYLE.fmtClear;   // one formatter: the Plan's DIM strings are the report's
+RPT.fmt = DRAW_STYLE.fmt; RPT.fmtClear = DRAW_STYLE.fmtClear;
+// a chain's values, each to 2 decimals, adding up to the overall rounded once (Brief 30 §8C, triage row 30: 27.97 against 28.00)
+RPT.fmtClose = function(vs) {
+  if (vs.some(function(v) { return !(v >= 0); })) return vs.map(function(v) { return RPT.fmt(v); });   // a negative or odd run: each as it is
+  var c = vs.map(function(v) { return Math.floor(v * 100 + 1e-9); }), r = vs.map(function(v, i) { return v * 100 - c[i]; }), tot = Math.round(vs.reduce(function(a, b) { return a + b; }, 0) * 100), need = tot - c.reduce(function(a, b) { return a + b; }, 0);
+  r.map(function(x, i) { return [x, i]; }).sort(function(a, b) { return b[0] - a[0] || a[1] - b[1]; }).slice(0, Math.max(0, need)).forEach(function(q) { c[q[1]]++; });
+  return c.map(function(x) { return (x / 100).toFixed(2); });
+};   // one formatter: the Plan's DIM strings are the report's
 // a value's place: in its span when it fits and is free, else outside on a leader. h: a horizontal dimension line at
 // p (text above it); otherwise a vertical line at p (text beside it on the outer side, out = -1 left / +1 right).
 // end: -1 / +1 the span is the chain's first / last (outside goes beyond that end first). -> 'in' | 'leader' | 'lost'
@@ -24629,7 +24656,7 @@ RPT.sheetSite = function(d) {
   RPT.secMarker(P, F.sx(G.sec.z), F.sy(G.sec.x0), F.sy(G.sec.x1), G.sec.dir === 1, [ya, yb]);   // the section's box across, x0 .. x1 (Brief 21 §5), within the crop
   // across, right of the drawing: the sidewalk and curb to curb; along, under the deck: its length
   var ax = RPT.cropStops([LM.sidewalkL.x0, 0, LM.roadRight], xTop, xBot);
-  if (ax.length > 1) RPT.chain(P, { side: 'right', edge: xb, row: 0, at: ax.map(function(x) { return F.sy(x); }), from: xb, vals: ax.slice(1).map(function(x, i) { return RPT.fmt(x - ax[i]); }) });
+  if (ax.length > 1) RPT.chain(P, { side: 'right', edge: xb, row: 0, at: ax.map(function(x) { return F.sy(x); }), from: xb, vals: RPT.fmtClose(ax.slice(1).map(function(x, i) { return x - ax[i]; })) });
   if (zA <= 0 && zB >= G.L) RPT.chain(P, { side: 'bottom', edge: F.sy(LM.deckX1), row: 0, at: [F.sx(G.L), F.sx(0)], vals: [RPT.fmt(G.L)] });
   var inCrop = G.trees.filter(function(v) { return v.genus && v.z >= zA && v.z <= zB && v.x >= xTop && v.x <= xBot; }), tree = inCrop.length ? [F.sx(inCrop[0].z), F.sy(inCrop[0].x)] : null;
   var tkey = TREE_TAGS.groups(inCrop.map(function(v) { return { x: v.x, z: v.z, r: v.canopyR, genus: v.genus }; })).key;
@@ -24714,14 +24741,14 @@ RPT.sheetLayout = function(d) {
   G.segs.forEach(function(sg) { if (sg.type === 'sidewalk') return; stops.push(sg.x1); m.push(sg.x1 - sg.x0); });
   if (LM.roadRight - stops[stops.length - 1] > 0.005) { m.push(LM.roadRight - stops[stops.length - 1]); stops.push(LM.roadRight); }
   stops = RPT.cropStops(stops, xTop, xBot); m = stops.slice(1).map(function(x, i) { return x - stops[i]; });   // the ones the crop shows
-  if (stops.length > 1) RPT.chain(P, { side: 'left', edge: xa, row: 0, at: stops.map(function(x) { return F.sy(x); }), from: xa, vals: m.map(function(v) { return RPT.fmt(v); }) });
+  if (stops.length > 1) RPT.chain(P, { side: 'left', edge: xa, row: 0, at: stops.map(function(x) { return F.sy(x); }), from: xa, vals: RPT.fmtClose(m) });
   if (stops.length > 2) RPT.chain(P, { side: 'left', edge: xa, row: 1, at: [F.sy(stops[0]), F.sy(stops[stops.length - 1])], from: xa, vals: [RPT.fmt(stops[stops.length - 1] - stops[0])] });
   // along, over the deck: the deck from the host building's frontage line (the nearer end of its frontage), and its length
   var host = G.DM.site.host && G.DM.buildings.L[G.DM.site.host.index], hz = host && host.footprint ? (Math.abs(host.footprint.z0) <= Math.abs(host.footprint.z1 - G.L) ? host.footprint.z0 : host.footprint.z1) : null;
   var zs = [0, G.L], dTop = F.sy(LM.deckX0), ay = dTop - RPT.DIM.first;
   if (hz != null && hz >= zA && hz <= zB && Math.abs(hz) > 0.05 && Math.abs(hz - G.L) > 0.05) { zs.push(hz); }
   zs.sort(function(a, b) { return b - a; });
-  RPT.chain(P, { side: 'top', edge: dTop, row: 0, at: zs.map(function(z) { return F.sx(z); }), vals: zs.slice(1).map(function(z, i) { return RPT.fmt(zs[i] - z); }) });
+  RPT.chain(P, { side: 'top', edge: dTop, row: 0, at: zs.map(function(z) { return F.sx(z); }), vals: RPT.fmtClose(zs.slice(1).map(function(z, i) { return zs[i] - z; })) });
   // under the deck: the compliance clearances as dimensions, in the zone colour: row 0 C13 and C03 at both ends; row 1
   // (and 2) the site objects' clearances from the nearer deck end (hydrant C05, pole C07, signal C08)
   var dBot = F.sy(LM.deckX1), zc = function(id) { var z = DRAW_STYLE.zone(P.ctx, zst(id)); return { c: z.c, op: z.op }; };
@@ -25021,7 +25048,7 @@ RPT.sheetSection = function(d, opt) {
   if (mir) { xs.reverse(); m.reverse(); }
   stops.slice(0, -1).forEach(function(x, i) { var sg = i === 0 ? { type: 'sidewalk' } : G.segs.find(function(s) { return Math.abs(s.x0 - x) < 1e-6 && s.type !== 'sidewalk'; }); if (!sg) return;
     var cx = (X(x) + X(stops[i + 1])) / 2; P.text(cx, gb + RPT.DIM.first + RPT.DIM.step * 2 + 3, RPT.SEG[sg.type] || sg.type, RPT.TX.tag, { anchor: 'middle', c: RPT.MID }); });
-  RPT.chain(P, { side: 'bottom', edge: gb, row: 0, at: xs, vals: m.map(function(v) { return RPT.fmt(v); }) });
+  RPT.chain(P, { side: 'bottom', edge: gb, row: 0, at: xs, vals: RPT.fmtClose(m) });
   RPT.chain(P, { side: 'bottom', edge: gb, row: 1, at: [xs[0], xs[xs.length - 1]], vals: [RPT.fmt(stops[stops.length - 1] - stops[0])] });
   // the keyed notes (Brief 19 E): generated from the model and the archetypes (sectionNotes, as the screen's Section), in a
   // strip under the section; the section's own note first, how the beyond reads last
@@ -30367,6 +30394,7 @@ SMP.importContext = async function(opt) {
     if (PK_NOSTREET && typeof SEED !== 'undefined') SEED.parklet(rep);   // stage 0 -> 1: the deck at the host frontage (Brief 22 item 5)
     SMP.busZone(rep); pkAfterMove('import');   // C01, C03 and the clearances at the deck's place
     SITEF.fromImport(P.way, cov['right-of-way-widths'], data.osm.at, rep);   // the existing street, before any design change
+    if (typeof window.seClearHistory === 'function') window.seClearHistory();   // the Section's Undo starts from the imported street (Brief 30 §8B)
     SMP._via = null; SMP._truck = null;
     SMP.lastReport = rep; state.__siteMap.importedAt = new Date().toISOString(); state.__generic = null; state.__siteMap.via = 'cells'; state.__siteMap.cellsBuild = A.build;
     // the outer ring (Brief 19 B): footprints, streets, parks and water to the context radius; its failure is a note, not a failed import
@@ -32771,7 +32799,7 @@ ENC.refreshChecks = function(now) {
       if (b) { b.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : 'badge-unclear'); b.textContent = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered'; }
       if (el) { var op = el.classList.contains('open'); el.className = 'criterion chk-row ' + st + (op ? ' open' : ''); }
       if (bd) bd.className = 'criterion-body ' + (st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '');
-      if (cd) cd.textContent = typeof c.siteCondition === 'function' ? c.siteCondition() : c.siteCondition;
+      if (cd) cd.textContent = chkCondText(c);   // (Brief 30 §8C)
     });
     try { renderVerdict(); renderSummary(); renderVerdictCompact(); if (typeof chkAfterRender === 'function') chkAfterRender(); } catch (e) {}
   };
