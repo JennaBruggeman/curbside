@@ -1443,9 +1443,34 @@ CHK.counts = function() {
   return n;
 };
 CHK.BADGE = { pass: ['badge-pass', 'Pass'], fail: ['badge-fail', 'Fail'], await: ['badge-await', 'Awaiting measurement'], unclear: ['badge-unclear', 'Not entered'] };
+// (Brief 30 follow-up) a pass or fail that rests on an estimate is "Provisional pass (estimate)" / "Provisional fail
+// (estimate)" wherever it is shown, never the bare word; on imported data not yet checked, "(imported)"
+CHK.label = function(s) {
+  if (s && s.provisional && (s.base === 'pass' || s.base === 'fail')) return 'Provisional ' + s.base + ' (' + (s.estimate ? 'estimate' : 'imported') + ')';
+  return (CHK.BADGE[s && s.base] || CHK.BADGE.unclear)[1];
+};
+// a check's own result text ("7.0 m ≥ 5 m minimum. Passes.") said the same way
+CHK.msgFor = function(s, msg) {
+  if (!msg || !s || !s.provisional || (s.base !== 'pass' && s.base !== 'fail')) return msg;
+  var w = s.estimate ? 'estimate' : 'imported';
+  return String(msg).replace(/\b(Passes|passes|Fails|fails)\b/g, function(m) { return (m.charAt(0) === m.charAt(0).toUpperCase() ? 'Provisional ' : 'provisional ') + (/^f/i.test(m) ? 'fail' : 'pass') + ' (' + w + ')'; });
+};
+// counts by how the result stands: [{base, provisional, estimate}] -> n; n -> ["2 fail", "1 provisional pass (estimate)", ...]
+CHK.tally = function(list) {
+  var n = { pass: 0, fail: 0, await: 0, unclear: 0, ppE: 0, ppI: 0, pfE: 0, pfI: 0 };
+  list.forEach(function(q) { if (q.provisional && (q.base === 'pass' || q.base === 'fail')) n[(q.base === 'pass' ? 'pp' : 'pf') + (q.estimate ? 'E' : 'I')]++; else n[q.base in n ? q.base : 'unclear']++; });
+  return n;
+};
+CHK.tallyParts = function(n, unclearWord) {
+  return [n.fail + ' fail', n.pfE ? n.pfE + ' provisional fail (estimate)' : '', n.pfI ? n.pfI + ' provisional fail (imported)' : '',
+    n.await ? n.await + ' awaiting measurement' : '', n.unclear + ' ' + (unclearWord || 'not entered'), n.pass + ' pass',
+    n.ppE ? n.ppE + ' provisional pass (estimate)' : '', n.ppI ? n.ppI + ' provisional pass (imported)' : ''].filter(Boolean);
+};
+CHK.tallyNow = function() { return CHK.tally(criteria.map(function(c) { return CHK.state(c); })); };
+CHK.tallyRows = function(rows) { return CHK.tally(rows.map(function(r) { return { base: r.status, provisional: r.provisional, estimate: r.estimate }; })); };
 CHK.paint = function(c) {
   var s = CHK.state(c), B = CHK.BADGE[s.base], b = document.getElementById('badge_' + c.id), el = document.getElementById('crit_' + c.id), bd = document.getElementById('body_' + c.id);
-  if (b) { b.className = 'badge ' + B[0] + (s.provisional ? ' badge-prov' : ''); b.textContent = B[1]; b.title = s.provisional ? 'Provisional: depends on imported site data not yet verified on site' : s.base === 'await' ? s.hint : ''; }
+  if (b) { b.className = 'badge ' + B[0] + (s.provisional ? ' badge-prov' : ''); b.textContent = CHK.label(s); b.title = s.provisional ? 'Provisional: depends on imported site data not yet verified on site' : s.base === 'await' ? s.hint : ''; }
   if (el) { var op = el.classList.contains('open'); el.className = 'criterion chk-row ' + (s.base === 'await' ? 'unclear await' : s.base) + (op ? ' open' : ''); }
   if (bd) bd.className = 'criterion-body ' + (s.base === 'pass' ? 'pass-body' : s.base === 'fail' ? 'fail-body' : '');
   return s;
@@ -1458,7 +1483,7 @@ CHK.userEdit = function(inputId) {
 };
 // the audit (VERIFY §1.5): one row per check, its inputs with their sources, the resulting state
 CHK.audit = function() {
-  return criteria.map(function(c) { var s = CHK.state(c); return { check: 'C' + c.num, inputs: s.inputs.map(function(i) { return i.label + ': ' + i.src; }), state: (s.base === 'await' ? 'Awaiting measurement' : CHK.BADGE[s.base][1]) + (s.provisional ? ' (provisional)' : ''), raw: s.raw, hint: s.hint }; });
+  return criteria.map(function(c) { var s = CHK.state(c); return { check: 'C' + c.num, inputs: s.inputs.map(function(i) { return i.label + ': ' + i.src; }), state: CHK.label(s), raw: s.raw, hint: s.hint }; });
 };
 
 // ─────────────────────────────────────────────
@@ -1650,7 +1675,7 @@ function chkCondText(c) {
 function buildCriterion(c) {
   const cs = CHK.state(c), st = cs.base === 'await' ? 'unclear await' : cs.base, B = CHK.BADGE[cs.base];   // Brief 25 §1
   const badgeClass = B[0] + (cs.provisional ? ' badge-prov' : '');
-  const badgeText = B[1];
+  const badgeText = CHK.label(cs);
   const bodyClass = cs.base === 'pass' ? 'pass-body' : cs.base === 'fail' ? 'fail-body' : '';
   const siteCondText = chkCondText(c);
   const sh = CHECK_SHORT[c.id] || [String(c.title), ''], rid = 'C' + String(c.num).padStart(2, '0');
@@ -1692,12 +1717,13 @@ function buildCriterion(c) {
 }
 function renderVerdictCompact() {
   // Brief 25 §1: by CHK's states; "Fails" only when a measured or confirmed value fails
-  const n = CHK.counts(), pend = n.await + n.unclear, passing = n.pass + n.provPass;
+  const n = CHK.counts(), pend = n.await + n.unclear, t = CHK.tallyNow(), parts = CHK.tallyParts(t).join(' · ');
   let cls, icon, lbl, detail;
-  if (n.fail > 0) { cls = 'vc-fail'; icon = '✗'; lbl = 'Fails'; detail = `${n.fail} failing` + (n.provFail ? ` · ${n.provFail} provisional` : '') + ` · ${pend} pending`; }
-  else if (n.provFail > 0) { cls = 'vc-partial'; icon = '◎'; lbl = 'Provisional'; detail = `${n.provFail} failing on an estimate or imported data · ${pend} pending`; }
-  else if (pend > 0) { cls = 'vc-partial'; icon = '◎'; lbl = 'Incomplete'; detail = `${passing} passing · ${pend} pending`; }
-  else { cls = 'vc-pass'; icon = '✓'; lbl = 'All pass'; detail = `${passing} of ${criteria.length} checks pass`; }
+  if (n.fail > 0) { cls = 'vc-fail'; icon = '✗'; lbl = 'Fails'; detail = parts; }
+  else if (n.provFail > 0) { cls = 'vc-partial'; icon = '◎'; lbl = t.pfE ? 'Provisional fail (estimate)' : 'Provisional fail (imported)'; detail = parts; }
+  else if (pend > 0) { cls = 'vc-partial'; icon = '◎'; lbl = 'Incomplete'; detail = parts; }
+  else if (t.ppE || t.ppI) { cls = 'vc-partial'; icon = '◎'; lbl = t.ppE ? 'Provisional pass (estimate)' : 'Provisional pass (imported)'; detail = parts; }
+  else { cls = 'vc-pass'; icon = '✓'; lbl = 'All pass'; detail = `${n.pass} of ${criteria.length} checks pass on measured values`; }
   const el = document.getElementById('verdictCompact');
   if (el) el.innerHTML = `<div class="vc ${cls}">    <span class="vc-icon">${icon}</span>    <div><div class="vc-lbl">${lbl}</div><div class="vc-detail">${detail}</div></div>  </div>`;
 }
@@ -1737,10 +1763,12 @@ function renderVerdict() {
     cls = 'partial-verdict'; icon = '⚠'; sentence = `Can't be judged yet: measure ${todo} ${pl(todo, 'thing', 'things')} on site.`;
     act = { t: 'Survey sheet (PDF)', on: 'RPT.printSurvey()' };
   } else if (n.provPass > 0 || unconf > 0) {
-    cls = 'partial-verdict'; icon = '◎'; sentence = `Passes provisionally: confirm ${unconf} imported ${pl(unconf, 'object', 'objects')}.`;
-    act = { t: 'Confirm list', on: 'VERDICT.confirm()' };
+    const t = CHK.tallyNow(), pe = t.ppE, pi = t.ppI;
+    cls = 'partial-verdict'; icon = '◎';
+    sentence = pe ? `Provisional pass (estimate): ${pe} ${pl(pe, 'check rests', 'checks rest')} on an estimate; measure ${pl(pe, 'it', 'them')} on site.` : `Provisional pass (imported): confirm ${unconf || pi} imported ${pl(unconf || pi, 'item', 'items')} on site.`;
+    act = pe ? { t: 'Site facts', on: 'SFG.review(true)' } : { t: 'Confirm list', on: 'VERDICT.confirm()' };
   } else {
-    cls = 'pass-verdict'; icon = '✓'; sentence = 'Passes: every check passes on measured or confirmed values. City review is still required.';
+    cls = 'pass-verdict'; icon = '✓'; sentence = 'Pass: every check passes on measured values. City review is still required.';
     act = { t: 'Download the report', on: 'RPT.print()' };
   }
   // the banner on the Check and Export tabs only (Brief 21 §3); the pass rule under it (Brief 25 item 32b)
@@ -1821,17 +1849,17 @@ var WALK = {
   }
 };
 function renderSummary() {
-  const g = { fail: [], provFail: [], await: [], unclear: [], pass: [] };
+  const g = { fail: [], provFail: [], await: [], unclear: [], pass: [], provPass: [] };
   criteria.forEach(c => {
     const s = CHK.state(c), t = `[${c.num}] ${c.title}`;
-    if (s.base === 'fail') g[s.provisional ? 'provFail' : 'fail'].push(t);
+    if (s.base === 'fail') g[s.provisional ? 'provFail' : 'fail'].push(s.provisional ? t + ': ' + CHK.label(s) : t);
     else if (s.base === 'await') g.await.push(t + ': ' + s.hint);
     else if (s.base === 'unclear') g.unclear.push(t);
-    else g.pass.push(t + (s.provisional ? ' (provisional)' : ''));
+    else if (s.provisional) g.provPass.push(t + ': ' + CHK.label(s)); else g.pass.push(t);
   });
   const col = (cls, h, list) => list.length ? `<div class="summary-col ${cls}"><h3>${h} (${list.length})</h3><ul>` + list.map(p => `<li>${p}</li>`).join('') + '</ul></div>' : '';
   const html = '<h2>Plain-language summary</h2>' + col('problems', 'Already failing', g.fail) + col('problems', 'Failing on an estimate or imported data, not yet measured', g.provFail) +
-    col('unconfirmed', 'Awaiting measurement (not known yet)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('passing', 'Passing', g.pass);
+    col('unconfirmed', 'Awaiting measurement (not known yet)', g.await) + col('unconfirmed', 'Awaiting site data', g.unclear) + col('unconfirmed', 'Provisional pass, not yet measured', g.provPass) + col('passing', 'Pass (measured)', g.pass);
   const el = document.getElementById('summaryBox'); if (el) el.innerHTML = html;
 }
 
@@ -1853,8 +1881,9 @@ const c = criteria.find(x => x.id === critId);
   
 // Update badge  
 const badge = document.getElementById('badge_' + critId);
-  badge.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : 'badge-unclear');
-  badge.textContent = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered';
+  const s0 = typeof CHK !== 'undefined' ? CHK.state(c) : null;
+  badge.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : st === 'await' ? 'badge-await' : 'badge-unclear') + (s0 && s0.provisional ? ' badge-prov' : '');
+  badge.textContent = s0 ? CHK.label(s0) : st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered';
   
 // Update criterion class  
 const critEl = document.getElementById('crit_' + critId);
@@ -1870,7 +1899,7 @@ const resultEl = document.getElementById('result_' + critId);
     const val = state[c.inputId] || '';
     const val2 = c.inputId2 ? (state[c.inputId2] || '') : undefined;
     // (Brief 27 item 1) a half-typed or empty number ("-", a distance not yet typed) is "not entered", never "NaN m … Fails"
-    const msg = c.evalMsg && !/\bNaN\b/.test(c.evalMsg(val, val2)) ? c.evalMsg(val, val2) : '';
+    const msg = c.evalMsg && !/\bNaN\b/.test(c.evalMsg(val, val2)) ? (s0 ? CHK.msgFor(s0, c.evalMsg(val, val2)) : c.evalMsg(val, val2)) : '';
     if (msg) {
       resultEl.style.display = 'inline-block';
       resultEl.style.background = st === 'pass' ? 'var(--pass-light)' : st === 'fail' ? 'var(--fail-light)' : 'var(--unclear-light)';
@@ -4244,7 +4273,7 @@ function complianceRows() {
       if (/\bNaN\b/.test(msg)) msg = '';   // (Brief 27 item 1) a half-typed number is not a result
       if (!msg) msg = ins.filter(function(i) { return i.entered; }).map(function(i) { return i.label + ': ' + (i.text || i.value) + (i.unit ? ' ' + i.unit : ''); }).join('; ');
     }
-    if (status === 'await') msg = cs.hint;
+    if (status === 'await') msg = cs.hint; else msg = CHK.msgFor(cs, msg);
     return { id: c.id, num: c.num, title: c.title, page: c.page, src: c.src, status: status, raw: cs.raw, provisional: cs.provisional, estimate: !!cs.estimate, facts: cs.inputs, msg: msg, condition: cond, inputs: ins, missing: missing };
   });
 }
@@ -4586,8 +4615,9 @@ const c = criteria.find(c => c.id === 'c2');
   const st = typeof CHK !== 'undefined' ? CHK.state(c).base : getCriterionStatus(c);
   const badge = document.getElementById('badge_c2');
   if (badge) {
-    badge.className = 'badge ' + (st==='pass'?'badge-pass':st==='fail'?'badge-fail':'badge-unclear');
-    badge.textContent = st==='pass'?'Pass':st==='fail'?'Fail':'Not entered';
+    const s2 = typeof CHK !== 'undefined' ? CHK.state(c) : null;
+    badge.className = 'badge ' + (st==='pass'?'badge-pass':st==='fail'?'badge-fail':st==='await'?'badge-await':'badge-unclear') + (s2 && s2.provisional ? ' badge-prov' : '');
+    badge.textContent = s2 ? CHK.label(s2) : st==='pass'?'Pass':st==='fail'?'Fail':'Not entered';
   
 }
   const critEl = document.getElementById('crit_c2');
@@ -21115,7 +21145,7 @@ AX.clear = function() { AX.history = []; var m = document.getElementById('axMsgs
 // check's state; never the cell data, a key or the chat
 AX.read = function() {
   var DM = buildDesignModel(), LM = DM.landmarks;
-  var checks = (typeof criteria !== 'undefined' ? criteria : []).map(function(c) { var s = CHK.state(c); return { id: 'C' + c.num, title: c.title, state: s.base + (s.provisional ? ' (provisional)' : ''), hint: s.hint || '' }; });
+  var checks = (typeof criteria !== 'undefined' ? criteria : []).map(function(c) { var s = CHK.state(c); return { id: 'C' + c.num, title: c.title, state: CHK.label(s), hint: s.hint || '' }; });
   return {
     deck: { length: +DM.parklet.length.toFixed(2), width: +DM.parklet.width.toFixed(2), area: DM.parklet.area, shape: DM.parklet.shape, corners: state.pkShape ? ((typeof skeParse === 'function' && skeParse(state.pkShape)) || { ch: 'drawn with an older tool' }).ch : [0, 0, 0, 0] },
     street: { name: (state.__siteMap || {}).name || null, side: (state.__siteMap || {}).parkletSide || null, lanes: DM.lanes.map(function(l) { return +l.width.toFixed(2); }), route: DM.street.route, bikeLane: DM.street.bikeLane, curbToCurb: +(LM.roadRight - LM.roadLeft).toFixed(2) },
@@ -21220,7 +21250,7 @@ AX.explain = function(id) {
   if (!c) return { error: 'no check ' + id };
   var s = CHK.state(c), P = typeof SMP !== 'undefined' ? SMP.prov() : {};
   var vals = (s.inputs || []).concat([c.inputId, c.inputId2]).filter(Boolean).filter(function(v, i, a) { return a.indexOf(v) === i; }).map(function(k) { return { input: k, value: state[k] === undefined ? null : state[k], source: P[k] ? P[k].source : null }; });
-  var x = { id: 'C' + c.num, title: c.title, rule: c.requirement, page: c.page, state: s.base + (s.provisional ? ' (provisional)' : ''), hint: s.hint || '', values: vals };
+  var x = { id: 'C' + c.num, title: c.title, rule: c.requirement, page: c.page, state: CHK.label(s), hint: s.hint || '', values: vals };
   if (c.id === 'c2') { var d = AX.read(); x.lanes = d.street.lanes; x.route = d.street.route; x.requiredLane = getReqLane(); }
   return x;
 };
@@ -23983,7 +24013,7 @@ RPT.treeFetched = function(list) {
 // Each builder returns blocks (RPT.flow): {h2}, {kv: [[label, value]]} (the value right-aligned in a 40 mm column),
 // {table: {cols, rows}}, {p}. Every list is a table; nothing is a wrapped sentence of items.
 RPT.RES = { pass: ['PASS', '#1A1A1A'], fail: ['FAIL', '#C62828'], unclear: ['NOT CONFIRMED', '#6E6E6E'], await: ['AWAITING MEASUREMENT', '#6E6E6E'] };
-RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear; return { t: a[0] + (r.estimate ? ' (estimate)' : r.provisional ? ' (provisional)' : ''), c: a[1], b: true, s: RPT.TX.tag }; };
+RPT.res = function(r) { var a = RPT.RES[r.status] || RPT.RES.unclear, pv = r.provisional && (r.status === 'pass' || r.status === 'fail'); return { t: pv ? CHK.label({ base: r.status, provisional: true, estimate: r.estimate }) : a[0], c: pv ? '#6E6E6E' : a[1], b: true, s: RPT.TX.tag }; };   // (Brief 30 follow-up)
 // ── Brief 25 item 22f: the sheets list only what the drawings use ───────────────────────────────────────────────
 // Listed by name: the street trees beside the deck (the tree advisory's reach), the nearest hydrant each side and any
 // beside the deck, the nearest bus stop each side and any within 15 m of it (the bus-zone rule). The rest of each kind
@@ -24175,7 +24205,7 @@ RPT.compBlocks = function(d) {
   return out;
 };
 RPT.compliance = function(d) {
-  var note = d.n.pass + ' pass  ·  ' + d.n.fail + ' fail  ·  ' + (d.n.await ? d.n.await + ' awaiting measurement  ·  ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? '  ·  provisional' : '');
+  var note = CHK.tallyParts(CHK.tallyRows(d.rows), 'not confirmed').join('  ·  ');
   return RPT.textSheet('C-001', 'Compliance', note, RPT.compBlocks(d).concat(RPT.lanes(d)), true);   // with the lane envelope (was C-002)
 };
 // C-002 (Brief 22): what the Section puts beside the parklet, read from the segments (the bike lane's one source): the
@@ -25438,7 +25468,7 @@ RPT.sheetTitle = function(d, drw) {
   P.text(x, y + 11, DM.project.name, 8, { bold: true });
   P.text(x, y + 19, RPT.addr(DM), TX.head);
   P.text(x, y + 25, (typeof state !== 'undefined' && state.__generic) ? BLANK.NOTE + ': every width is a placeholder, to be measured on site' : 'Lat ' + (+DM.site.lat).toFixed(5) + ', lon ' + (+DM.site.lon).toFixed(5) + '  -  street bearing ' + (+DM.site.streetBearing).toFixed(1) + ' deg  -  parklet on the ' + DM.site.parkletSide + ' side', TX.body, { c: RPT.MID });
-  P.text(x, y + 30.5, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail, ' + (d.n.await ? d.n.await + ' awaiting measurement, ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? '  (provisional: imported site data not yet verified on site)' : ''), TX.body, { c: RPT.MID });
+  P.text(x, y + 30.5, 'Checks: ' + CHK.tallyParts(CHK.tallyRows(d.rows), 'not confirmed').join(', '), TX.body, { c: RPT.MID });
   // status stamp
   P.rect(x, y + 36, 112, 12, { cls: 'cut' }); P.rect(x + 1.2, y + 37.2, 109.6, 9.6, { cls: 'fine' });
   P.text(x + 56, y + 44, 'Preliminary: not for construction', TX.head, { anchor: 'middle', bold: true });
@@ -25861,8 +25891,9 @@ RPT.sheetCover = function(d, drw, op) {
     var sy = oy + stampY;
     P.rect(x, sy, 96, 12, { cls: 'cut' }); P.rect(x + 1.2, sy + 1.2, 93.6, 9.6, { cls: 'fine' });
     P.text(x + 48, sy + 7.6, 'Preliminary: not for construction', TX.body, { anchor: 'middle', bold: true, data: " data-cover='1'" });
-    P.text(x + 102, sy + 4.8, 'Checks: ' + d.n.pass + ' pass, ' + d.n.fail + ' fail,', TX.body, { data: " data-cover='1'" });
-    P.text(x + 102, sy + 9.8, (d.n.await ? d.n.await + ' to measure, ' : '') + d.n.unclear + ' not confirmed' + (d.provisional ? ' (provisional)' : ''), TX.body, { data: " data-cover='1'" });
+    var cp = CHK.tallyParts(CHK.tallyRows(d.rows), 'not confirmed'), cpk = Math.ceil(cp.length / 2);   // (Brief 30 follow-up: provisional results by name)
+    P.text(x + 102, sy + 4.8, 'Checks: ' + cp.slice(0, cpk).join(', ') + ',', TX.body, { data: " data-cover='1'" });
+    P.text(x + 102, sy + 9.8, cp.slice(cpk).join(', '), TX.body, { data: " data-cover='1'" });
     var sv = typeof SFG !== 'undefined' ? SFG.coverLine() : '';   // Brief 30 §9: how many site facts were measured
     if (sv) P.text(x + 102, sy + 14.8, sv, TX.body, { data: " data-cover='1'" });
   } };
@@ -32504,12 +32535,12 @@ function chkAfterRender() {
     var m = document.getElementById('meas_' + r.id), p = document.getElementById('prov_' + r.id), el = document.getElementById('crit_' + r.id);
     var prov = !!r.provisional;
     if (m) { m.textContent = r.missing && r.missing.length && r.status === 'unclear' ? 'not entered' : (r.msg || 'not entered'); m.classList.toggle('chk-none', m.textContent === 'not entered'); }
-    if (p) { p.hidden = !prov; p.textContent = r.estimate ? 'estimate' : 'imported'; p.title = r.estimate ? 'The result rests on an estimate: measure it on site to settle it.' : 'The result rests on imported data: check it on site to settle it.'; }   // (Brief 30 §9, §12)
+    if (p) { p.hidden = true; p.textContent = r.estimate ? 'estimate' : 'imported'; p.title = r.estimate ? 'The result rests on an estimate: measure it on site to settle it.' : 'The result rests on imported data: check it on site to settle it.'; }   // (Brief 30 §9, §12)
     if (el) { el.dataset.prov = prov ? '1' : ''; var show = CHECK_VIEW[r.id], b = el.querySelector('.chk-show'); if (b) b.hidden = !show; }
     n[r.status] = (n[r.status] || 0) + 1; if (prov) n.prov++;
   });
   var cc = document.getElementById('chkCounts');
-  if (cc) cc.textContent = n.fail + ' failing · ' + (n.await ? n.await + ' awaiting measurement · ' : '') + n.unclear + ' not entered · ' + n.pass + ' passing' + (n.prov ? ' · ' + n.prov + ' provisional' : '');
+  if (cc) cc.textContent = CHK.tallyParts(CHK.tallyRows(rows)).join(' · ');   // (Brief 30 follow-up: provisional results counted by name)
   // (Brief 21c) a design saved before the enclosure (Brief 21 §12): the one line saying what changed on opening it
   var list = document.getElementById('criteriaList'), mn = document.getElementById('chkMigrated');
   if (typeof ENC !== 'undefined' && ENC.migrated() && list) { if (!mn) { mn = document.createElement('p'); mn.id = 'chkMigrated'; mn.className = 'chk-migrated'; mn.setAttribute('role', 'note'); list.parentNode.insertBefore(mn, list); } mn.textContent = ENC.MIGRATION_NOTE + '.'; }
@@ -32728,11 +32759,11 @@ RPT.nextItems = function(d) {
   var short = function(r) { return plain((typeof CHECK_SHORT !== 'undefined' && CHECK_SHORT[r.id] ? CHECK_SHORT[r.id][0] : r.title)); };
   var todo = [];
   d.rows.filter(function(r) { return r.status === 'await'; }).forEach(function(r) { var m = plain(r.msg); todo.push({ t: /^measure/i.test(m) ? m : 'Measure: ' + m, c: cid(r), s: sheet(r) }); });
-  d.rows.filter(function(r) { return r.provisional && r.status !== 'fail'; }).forEach(function(r) { todo.push({ t: 'Confirm on site: ' + short(r).toLowerCase() + ' (imported data)', c: cid(r), s: sheet(r) }); });
+  d.rows.filter(function(r) { return r.provisional && r.status !== 'fail'; }).forEach(function(r) { todo.push({ t: (r.estimate ? 'Measure on site: ' : 'Confirm on site: ') + short(r).toLowerCase() + ' (now ' + CHK.label({ base: r.status, provisional: true, estimate: r.estimate }).toLowerCase() + ')', c: cid(r), s: sheet(r) }); });
   d.rows.filter(function(r) { return r.status === 'unclear'; }).forEach(function(r) { var ne = r.missing.map(function(m) { return plain(m.label); }).join('; '); todo.push({ t: 'Measure and enter: ' + (ne || short(r).toLowerCase()), c: cid(r), s: sheet(r) }); });
   var fails = d.rows.filter(function(r) { return r.status === 'fail'; }).map(function(r) {
     var c = criteria.find(function(q) { return q.id === r.id; }), res = c && c.resolutionFn ? plain(c.resolutionFn(state[c.inputId] || '')) : '';
-    return { c: cid(r), t: short(r) + (r.provisional ? ' (on an estimate or imported data: measure it first)' : ''), res: res || plain(r.msg) };
+    return { c: cid(r), t: short(r) + (r.provisional ? ' (' + CHK.label({ base: 'fail', provisional: true, estimate: r.estimate }).toLowerCase() + ': measure it first)' : ''), res: res || plain(r.msg) };
   });
   return { todo: todo.slice(0, 5), more: Math.max(0, todo.length - 5), fails: fails };
 };
@@ -32855,8 +32886,8 @@ ENC.refreshChecks = function(now) {
     if (typeof criteria === 'undefined') return;
     ['c16', 'c17', 'c18', 'c19'].forEach(function(id) {
       var c = criteria.find(function(q) { return q.id === id; }); if (!c) return;
-      var st = getCriterionStatus(c), b = document.getElementById('badge_' + id), el = document.getElementById('crit_' + id), bd = document.getElementById('body_' + id), cd = document.getElementById('cond_' + id);
-      if (b) { b.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : 'badge-unclear'); b.textContent = st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered'; }
+      var s3 = typeof CHK !== 'undefined' ? CHK.state(c) : null, st = s3 ? s3.base : getCriterionStatus(c), b = document.getElementById('badge_' + id), el = document.getElementById('crit_' + id), bd = document.getElementById('body_' + id), cd = document.getElementById('cond_' + id);
+      if (b) { b.className = 'badge ' + (st === 'pass' ? 'badge-pass' : st === 'fail' ? 'badge-fail' : st === 'await' ? 'badge-await' : 'badge-unclear') + (s3 && s3.provisional ? ' badge-prov' : ''); b.textContent = s3 ? CHK.label(s3) : st === 'pass' ? 'Pass' : st === 'fail' ? 'Fail' : 'Not entered'; }
       if (el) { var op = el.classList.contains('open'); el.className = 'criterion chk-row ' + st + (op ? ' open' : ''); }
       if (bd) bd.className = 'criterion-body ' + (st === 'pass' ? 'pass-body' : st === 'fail' ? 'fail-body' : '');
       if (cd) cd.textContent = chkCondText(c);   // (Brief 30 §8C)
