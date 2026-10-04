@@ -3923,10 +3923,35 @@ var TREE_TAGS = {
 };
 // The schematic 3D tree: a trunk to the crown and the form's profile turned as a lathe (16 steps, so the
 // crown's box is exactly 2 canopyR across), in the season's colour. No textures. Returns the parts.
+// (Brief 31 §6B) the canopy as layered lobes: three layers up the crown, each a ring of five lobes round a centre lobe, the
+// layer's width from the form's profile (TREE_FORMS: the same profile the Plan's lobed symbol and the Section's
+// silhouette are scaled from), at unit size: canopy radius 1, crown height 1. One geometry per form and leaf type, cached
+// and shared by every tree of that form (scaled per tree): the instance of the archetype, not a drawing of its own.
+var TREE3D = { geo: {} };
+TREE3D.width = function(F, t) { var p = F.prof; for (var i = 1; i < p.length; i++) if (p[i][1] >= t) { var a = p[i - 1], b = p[i], k = (t - a[1]) / Math.max(1e-6, b[1] - a[1]); return a[0] + (b[0] - a[0]) * k; } return 0; };
+TREE3D.canopy = function(form, conifer) {
+  var key = form + (conifer ? '|c' : ''); if (TREE3D.geo[key]) return TREE3D.geo[key];
+  var F = TREE_FORMS[form] || TREE_FORMS.round, pos = [], nor = [];
+  var add = function(g, x, y, z, sx, sy, sz) { var q = g.toNonIndexed(), P = q.attributes.position.array, N = q.attributes.normal.array; for (var i = 0; i < P.length; i += 3) { pos.push(x + P[i] * sx, y + P[i + 1] * sy, z + P[i + 2] * sz); var nx = N[i] / sx, ny = N[i + 1] / sy, nz = N[i + 2] / sz, l = Math.hypot(nx, ny, nz) || 1; nor.push(nx / l, ny / l, nz / l); } q.dispose(); g.dispose(); };
+  if (conifer) {   // a conifer: three stacked cones, the profile's widths
+    [[0.0, 0.5], [0.3, 0.45], [0.58, 0.42]].forEach(function(L) { var w = Math.max(0.15, TREE3D.width(F, L[0] + 0.04)), c = new THREE.ConeGeometry(1, 1, 12, 1, true); add(c, 0, L[0] + L[1] / 2, 0, w, L[1], w); });
+  } else {
+    [0.25, 0.5, 0.78].forEach(function(t, li) {
+      var w = Math.max(0.2, TREE3D.width(F, t)), hl = 0.36 - li * 0.04, lobe = function() { return new THREE.SphereGeometry(1, 12, 7); };
+      add(lobe(), 0, t, 0, w * 0.62, hl, w * 0.62);
+      for (var m = 0; m < 5; m++) { var a = (m / 5 + li * 0.1) * Math.PI * 2; add(lobe(), Math.cos(a) * w * 0.57, t, Math.sin(a) * w * 0.57, w * 0.45, hl * 0.85, w * 0.45); }
+    });
+  }
+  var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.computeBoundingSphere(); g.computeBoundingBox();
+  g.userData = { shared: true, key: key }; TREE3D.geo[key] = g; return g;
+};
+// the schematic canopy: translucent pale green, a tint of the season's colour toward the paper
+TREE3D.mat = {};
+TREE3D.material = function(col) { var k = String(col); if (TREE3D.mat[k]) return TREE3D.mat[k]; var c = new THREE.Color(col || '#7FA36B').lerp(new THREE.Color(0xF6F3EC), 0.45); return (TREE3D.mat[k] = new THREE.MeshStandardMaterial({ color: c, roughness: 1, transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide })); };
 function treeMesh3D(v, season) {
   var F = TREE_FORMS[v.form] || TREE_FORMS.round, top = Math.max(v.heightM, v.clearH + 1), ch = top - v.clearH, g = new THREE.Group();
   var tkH = v.clearH + ch * 0.3;
-  var tk = new THREE.Mesh(new THREE.CylinderGeometry(v.trunkR * 0.7, v.trunkR, tkH, 10), new THREE.MeshStandardMaterial({ color: 0x6b4c2a, roughness: 0.9 }));
+  var tk = new THREE.Mesh(new THREE.CylinderGeometry(v.trunkR * 0.7, v.trunkR, tkH, 8), new THREE.MeshStandardMaterial({ color: 0x7a6a58, roughness: 0.9 })); tk.userData.treeTrunk = true;
   tk.position.y = tkH / 2; tk.castShadow = true; g.add(tk);
   if (treeBare(v, season)) {   // winter, deciduous: no leaves -- six branches along the crown profile at 60 % canopyR, bark colour
     var cage = new THREE.Group(), bm = new THREE.MeshStandardMaterial({ color: 0x6b4c2a, roughness: 0.9 }), br = Math.max(0.02, v.trunkR * 0.25);
@@ -3937,9 +3962,8 @@ function treeMesh3D(v, season) {
     cage.position.y = v.clearH; cage.userData.treeSeason = season; cage.userData.bare = true; g.add(cage);
     return { group: g, canopy: cage, trunk: tk };
   }
-  var pts = F.prof.map(function(p) { return new THREE.Vector2(p[0] * v.canopyR, p[1] * ch); });
-  var cn = new THREE.Mesh(new THREE.LatheGeometry(pts, 16), new THREE.MeshStandardMaterial({ color: new THREE.Color(treeColor(v, season)), roughness: 0.8, side: THREE.DoubleSide }));
-  cn.position.y = v.clearH; cn.castShadow = true; cn.userData.treeSeason = season; g.add(cn);
+  var cn = new THREE.Mesh(TREE3D.canopy(v.form || 'round', v.leaf === 'conifer'), TREE3D.material(treeColor(v, season)));
+  cn.scale.set(v.canopyR, ch, v.canopyR); cn.position.y = v.clearH; cn.castShadow = true; cn.renderOrder = 1; cn.userData.treeSeason = season; cn.userData.treeCanopy = true; g.add(cn);
   return { group: g, canopy: cn, trunk: tk };
 }
 
@@ -10260,11 +10284,9 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
       if (v.type === 'tree' && v.form) {   // imported street tree: trunk + its form's lathe crown in the season's colour
         const tm = treeMesh3D(v, _season);
         tm.group.position.set(v.x, 0, v.z); tm.canopy.userData.veg = i; tm.group.userData.label = treeTip(v); tm.group.userData.ctx = 'trees'; g.add(tm.group);
-      } else if (v.type === 'tree') {
-        const tk = new THREE.Mesh(new THREE.CylinderGeometry(v.trunkR * 0.6, v.trunkR, 1.4, 6), matTrunk);
-        tk.position.set(v.x, 0.7, v.z); tk.castShadow = true; g.add(tk);
-        const cn = new THREE.Mesh(new THREE.SphereGeometry(v.canopyR, 8, 6), matCanopy);
-        cn.position.set(v.x, 1.4 + v.canopyR * 0.8, v.z); cn.castShadow = true; cn.userData.veg = i; g.add(cn);
+      } else if (v.type === 'tree') {   // (Brief 31 §6B) a planting segment's tree: the default archetype's form, as every tree
+        const dv = Object.assign({ form: 'round', leaf: 'deciduous', clearH: 1.4, heightM: 1.4 + 1.6 * v.canopyR, trunkR: Math.max(0.04, v.trunkR || 0.06), colors: (TREE_ARCHETYPES._default || {}).colors }, v);
+        const tm = treeMesh3D(dv, _season); tm.group.position.set(v.x, 0, v.z); tm.canopy.userData.veg = i; g.add(tm.group);
       } else {
         const d = 2 * v.canopyR;
         const pb = new THREE.Mesh(new THREE.BoxGeometry(d, 0.25, d), matBox);
@@ -15232,6 +15254,11 @@ function _3dApplyTechnical() {
   _3d.group.traverse(function(obj) {
     if (!obj.isMesh||obj._techDone) return;
     if (obj.userData && obj.userData.flatGround) return;   // already drawn in the technical palette
+    if (obj.userData && obj.userData.treeCanopy) {   // (Brief 31 §6B) a tree: grey line art over a faint paper fill
+      obj._techDone = true; obj._techOrig = obj.material; obj.material = new THREE.MeshBasicMaterial({ color: DS.tokens.technical.bg3d, transparent: true, opacity: 0.35, depthWrite: false });
+      try { var tg = obj.geometry; if (!tg._techEdges) { tg._techEdges = new THREE.EdgesGeometry(tg, 25); tg._techEdges._shared = true; } var tl = new THREE.LineSegments(tg._techEdges, new THREE.LineBasicMaterial({ color: 0x7a7a7a, transparent: true, opacity: 0.8 })); tl._isTechEdge = true; obj.add(tl); _techEdges.push(tl); } catch (err) {}
+      return;
+    }
     obj._techDone = true; obj._techOrig = obj.material;
     var origC = 0xD8D7D4;
     if (obj.material&&obj.material.color) {
@@ -15256,7 +15283,7 @@ function _3dApplyTechnical() {
 function _3dApplySchematic() {
   _3d.scene.background = new THREE.Color(DS.tokens.schematic.bg3d);
   _3d.scene.fog = new THREE.Fog(DS.tokens.schematic.bg3d,40,80);
-  _techEdges.forEach(function(e){if(e.parent)e.parent.remove(e);if(e.geometry)e.geometry.dispose();});
+  _techEdges.forEach(function(e){if(e.parent)e.parent.remove(e);if(e.geometry&&!(e.parent&&e.parent.userData&&e.parent.userData.treeCanopy)&&!e.geometry._shared)e.geometry.dispose();});
   _techEdges=[];
   _3d.group.traverse(function(obj){
     if(!obj.isMesh||!obj._techOrig)return;
