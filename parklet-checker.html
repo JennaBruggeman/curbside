@@ -33313,7 +33313,8 @@ P101.SRC = [
 // ── B. Quantities: a take-off from DESIGN_MODEL only ────────────────────────────────────────────────────────────────
 P101.cost = function() {   // the design's cost settings (saved with it as costs)
   var c = (typeof state !== 'undefined' && state.__cost && typeof state.__cost === 'object') ? state.__cost : null;
-  if (!c) { c = { set: 'cov2016', fx: 1.35, spacing: 0.40, waste: 0.10, meters: 0, sets: [], furn: {} }; if (typeof state !== 'undefined') state.__cost = c; }
+  if (!c) { c = { set: 'van2026', fx: 1.35, spacing: 0.40, waste: 0.10, meters: 0, sets: [], furn: {} }; if (typeof state !== 'undefined') state.__cost = c; }
+  if (c.set === 'cov2016' && !c.setChosen) c.set = 'van2026';   // (Brief 31 §9) the default, unless the Manual set was chosen
   c.sets = c.sets || []; c.furn = c.furn || {}; if (!(c.fx > 0)) c.fx = 1.35; if (!(c.spacing > 0)) c.spacing = 0.40; if (!(c.waste >= 0)) c.waste = 0.10; if (!(c.meters >= 0)) c.meters = 0;
   return c;
 };
@@ -33394,8 +33395,40 @@ P101.SETS = [
       { k: 'delin', item: 'Traffic delineator', per: 'city', unit: 'each', low: 30, high: 30, src: 'Parkade 2024: $30; in Vancouver the City supplies bollards (Manual p. 48)' }
     ] }
 ];
+// (Brief 31 §9) Vancouver indicative 2026: unit rates from public Canadian listings and published installed ranges, read on
+// 2026-10-04. Decking is per m² of board, from a 5/4 x 6 board laid at a 0.1445 m module (5.5 in face + 3/16 in gap):
+// one 12 ft board covers 0.1445 x 3.6576 = 0.5285 m², a 14 ft one 0.6166 m². Feet to metres x 3.2808; a cubic yard
+// 0.7646 m³. Edge rates are installed (labour included); decking and soil are material only. No figure is guessed.
+P101.VAN = (function() {
+  var b12 = 0.1445 * 3.6576, b14 = 0.1445 * 4.2672, ft = 3.2808, yd = 0.764555, r2 = function(v) { return Math.round(v * 100) / 100; };
+  var R = function(lo, hi, src) { return { low: r2(lo), high: r2(hi), src: src }; };
+  return { id: 'van2026', name: 'Vancouver indicative 2026, CAD', cur: 'CAD', date: '2026-10', shipped: true, tag: 'indicative', def: true,
+    prov: 'Indicative unit rates for a Vancouver parklet, October 2026: retail material prices from Canadian suppliers\' public listings and published Canadian installed ranges, each line with its basis (retrieved 2026-10-04). A line with no credible public source shows — and is counted as not priced. Not a quote: confirm every rate with a supplier.',
+    rates: [
+      { k: 'decking', item: 'Decking', per: 'deckm2', unit: 'm²', src: 'by the deck material chosen in Design', fam: {
+        softwood: R(12.38 / b12, 13.90 / b12, 'pressure-treated 5/4 x 6 x 12 ft deck board, $12.38 (Turkstra Lumber) to $13.90 (Kent), per 0.5285 m² of board'),
+        cedar: R(32.98 / b14, 28.48 / b12, 'western red cedar 5/4 x 6 deck board, $32.98 for 14 ft (BMR) and $28.48 for 12 ft (RONA), per m² of board; thermowood priced as cedar'),
+        hardwood: R(12.95 * ft / 0.1445, 13.95 * ft / 0.1445, 'ipe 5/4 x 6 grooved deck board, $12.95 to $13.95 per linear foot (Patio Etc. Clôture Nationale), at 6.92 linear m per m²'),
+        composite: R(29.16 / b12, 39.60 / b12, 'Trex composite 1 x 6 x 12 ft deck board, $29.16 (Home Depot Canada, Enhance Basics) to $39.60 (Patio Etc. Clôture Nationale), per 0.5285 m² of board') } },
+      { k: 'joists', item: 'Joists', per: 'joistm', unit: 'm', low: null, high: null, src: 'no Canadian public listing found for a treated 2 x 6 joist that could be checked' },
+      { k: 'pedestals', item: 'Levelling pedestals', per: 'aream', unit: 'm²', low: null, high: null, src: 'no Canadian public listing found for adjustable deck pedestals at parklet heights' },
+      { k: 'labour', item: 'Deck installation labour', per: 'aream', unit: 'm²', low: null, high: null, src: 'no Vancouver deck labour rate found from a source that could be checked' },
+      { k: 'edge', item: 'Edge', per: 'enc', unit: 'm', src: 'installed, per linear foot, Ontario installers 2026 (no Vancouver figure published)', types: {
+        'steel-picket': R(70 * ft, 130 * ft, 'aluminum picket railing, installed $70-130 per linear foot (Builders Ontario 2026; DecksForLife $83-120)'),
+        'horizontal-cable': R(60 * ft, 250 * ft, 'cable railing, installed $60-150 per linear foot (Builders Ontario 2026) to $180-250 (DecksForLife)'),
+        'timber-slat-v': R(30 * ft, 75 * ft, 'wood railing, installed $30-75 per linear foot (Builders Ontario 2026; DecksForLife $55-75)'),
+        'timber-slat-h': R(30 * ft, 75 * ft, 'wood railing, installed $30-75 per linear foot (Builders Ontario 2026; DecksForLife $55-75)'),
+        glass: R(150 * ft, 300 * ft, 'glass railing, installed $150-300 per linear foot (Builders Ontario 2026; DecksForLife frameless $190-280)') } },
+      { k: 'planterwall', item: 'Planter wall (edge)', per: 'planterm', unit: 'm', low: null, high: null, src: 'no public figure for a planter wall per metre that could be checked' },
+      { k: 'screens', item: 'Screens (edge)', per: 'screenm', unit: 'm', low: null, high: null, src: 'no public figure for a screen or knee wall per metre that could be checked' },
+      { k: 'soil', item: 'Planter soil', per: 'soilm3', unit: 'm³', low: r2(44 / 0.70 / yd), high: r2(44 / 0.60 / yd), src: 'bulk garden mix from $44 per tractor scoop of about 60-70 % of a cubic yard (Arts Nursery, Metro Vancouver), material only' },
+      { k: 'design', item: 'Design and permit drawings', per: 'once', unit: 'allowance', low: null, high: null, src: 'no published Vancouver figure for parklet drawings' },
+      { k: 'contingency', item: 'Contingency', per: 'pct', pct: 20, unit: '%', src: 'NerdWallet Canada (February 2026): budget an extra 20 % on a renovation for the unexpected' }
+    ] };
+})();
 P101.FEE_URL = 'https://vancouver.ca/streets-transportation/parklets.aspx';
-P101.setById = function(id) { var C = P101.cost(); return P101.SETS.concat(C.sets).find(function(s) { return s.id === id; }) || P101.SETS[0]; };
+P101.SETS.unshift(P101.VAN);   // (Brief 31 §9) the default
+P101.setById = function(id) { var C = P101.cost(); return P101.SETS.concat(C.sets).find(function(s) { return s.id === id; }) || P101.VAN; };
 // how many of a rate's unit the design takes, and the formula
 P101.units = function(r, Q) {
   var g = function(k) { var x = Q.find(function(q) { return q.k === k; }); return x ? +x.n || 0 : 0; }, C = P101.cost();
@@ -33449,7 +33482,7 @@ P101.lines = function(r, Q, DM) {
 // the estimate: rows by section (build, furniture, fee), the subtotals, what is unpriced, the one state line
 // (Brief 30 follow-up) the Manual's "typically $10,000-15,000 a parking space" is not a cost line: it is the range the
 // build cost is placed against (below / within / above); the City's fees are cost lines in every rate set
-P101.MANUAL = P101.SETS[0];
+P101.MANUAL = P101.SETS.find(function(q) { return q.id === 'cov2016'; });
 P101.range = function(Q) {
   var r = P101.MANUAL.rates.find(function(q) { return q.range; }), u = P101.units(r, Q), sp = Q.find(function(q) { return q.k === 'spaces'; });
   return { n: u.n, lo: u.n * r.low, hi: u.n * r.high, per: [r.low, r.high], how: sp ? sp.f : '', src: r.src };
@@ -33570,7 +33603,7 @@ P101.render = function() {
     "<div><dt>Total</dt><dd>" + rg(est.lo, est.hi) + "</dd><dd class='ce-dd-n'>" + (est.annual ? 'then ' + m(est.annual.lo) + ' a year' : '') + '</dd></div>' +
     "<div><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') : '') + '</dd></div></dl>';
   // the controls, grouped
-  h += "<div class='ce-ctl' role='group' aria-label='Rates'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.changed()'>" + sets.map(function(q) { return "<option value='" + q.id + "'" + (q.id === S.id ? ' selected' : '') + '>' + e(q.name) + '</option>'; }).join('') + '</select></label>' +
+  h += "<div class='ce-ctl' role='group' aria-label='Rates'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.cost().setChosen = true; P101.changed()'>" + sets.map(function(q) { return "<option value='" + q.id + "'" + (q.id === S.id ? ' selected' : '') + '>' + e(q.name) + '</option>'; }).join('') + '</select></label>' +
     "<span class='ce-ctl-g'><label>New set from this one <input type='text' id='p101Sup' placeholder='supplier' maxlength='40' autocomplete='off'></label> <button type='button' class='ctx-btn' id='p101NewSet' onclick='P101.newSet(document.getElementById(\"p101Sup\").value.trim())'>Create</button></span>" +
     "<span class='ce-ctl-g'><label>CAD for 1 USD <input type='text' inputmode='decimal' id='p101Fx' value='" + C.fx + "' onchange='var v = pkReadNum(this.value, \"\"); P101.cost().fx = v && v.v > 0 ? v.v : 1.35; P101.changed()'></label>" +
     " <label>Meters to remove <input type='text' inputmode='numeric' id='p101Meters' value='" + C.meters + "' onchange='var v = parseInt(this.value, 10); P101.cost().meters = v > 0 ? Math.min(12, v) : 0; P101.changed()'></label></span></div>";
