@@ -10302,10 +10302,10 @@ function mbox(x0,y0,z0, x1,y1,z1, col, rough=0.82) {
   { const _hx = new Set();
     _s3d.forEach(function(sg) { if (sg.x1 > sg.x0 + 0.001) { _hx.add(+sg.x0.toFixed(3)); _hx.add(+sg.x1.toFixed(3)); } });
     [XSWL, XCL, XCR, XSWR].forEach(function(x) { if (isFinite(x)) _hx.add(+(+x).toFixed(3)); });
-    // a 5 cm strip one step above the highest ground layer (the ground is drawn forward by a polygon offset of its height:
+    // a 5 cm strip above the ground layers and under the road markings (the ground is drawn forward by a polygon offset of its height:
     // a line cannot take one, so a line on the ground is never seen)
     let _first = null;
-    _hx.forEach(function(x) { const m = mplane(x - 0.025, ZS, x + 0.025, ZE, 0.009, DS.t().edge3d); m.userData.segEdge = true; if (!_first) _first = m; });
+    _hx.forEach(function(x) { const m = mplane(x - 0.025, ZS, x + 0.025, ZE, 0.0036, DS.t().edge3d); m.userData.segEdge = true; if (!_first) _first = m; });
     [XCL, XCR].forEach(function(x) { if (isFinite(x)) mplane(x - 0.02, ZS, x + 0.02, ZE, 0.153, DS.t().edge3d).userData.segEdge = true; });   // the curb's top edge
     if (_first) _first.userData.segEdges = _hx.size; }
 
@@ -15531,7 +15531,7 @@ function createWorldGrid3D(scene3d) {
     var geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
     var mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
       uniforms: { c: { value: new THREE.Color(rgb) }, a: { value: alpha }, o: { value: new THREE.Vector2(0, cz) }, f0: { value: fade0 }, f1: { value: fade1 } },
-      vertexShader: 'varying vec3 vW; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+      vertexShader: 'varying vec3 vW; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; gl_Position.z -= 0.002 * gl_Position.w; }',   // drawn over the ground, whose layers a polygon offset pulls forward
       fragmentShader: 'uniform vec3 c; uniform float a; uniform vec2 o; uniform float f0; uniform float f1; varying vec3 vW; void main() { float d = length(vW.xz - o); float k = 1.0 - smoothstep(f0, f1, d); if (k <= 0.0) discard; gl_FragColor = vec4(c, a * k); }' });
     var L = new THREE.LineSegments(geo, mat); L.renderOrder = -2; return L;
   };
