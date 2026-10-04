@@ -778,7 +778,7 @@ body, button, input, select, textarea { font-family: var(--font-ui); }
     <button class='ctb-btn' onclick='autoSolveWidth()' title='Widens the parklet as far as the travel lanes allow at their minimum width (C02).'>Fit lanes to minimum</button>
     <button class='ctb-btn' id='vpFitAllBtn' onclick='fitAllViewports()' title='Fits the Plan, Section and 3D views to the whole design.'>Fit design</button>
     <div class='canvas-toolbar-right'>
-      <button class='ctb-btn' id='axToggleBtn' onclick='AX.toggle()' title='Change the design by describing it'>&#10022; Assistant</button>
+      
     </div>
   </div>
 <div id='viewportGrid' data-layout='max-3d'>
@@ -20603,6 +20603,14 @@ document.addEventListener('DOMContentLoaded', PX.updateNote);
 /* ── REFACTOR 10: Design assistant chat ── */
 #axPanel { position:fixed; right:16px; bottom:16px; width:372px; max-height:min(72vh,720px); background:#1A1E24; color:#E2E5E8; border:1px solid rgba(255,255,255,.1); border-radius:8px; box-shadow:0 12px 40px rgba(0,0,0,.35); display:none; flex-direction:column; z-index:8500; font-family:'DM Sans','Inter',sans-serif; overflow:hidden; }
 #axPanel.open { display:flex; }
+/* Brief 30 §7: the assistant in the Generate panel */
+#axBody { display: flex; flex-direction: column; gap: 6px; } #axBody #axMsgs { max-height: 420px; min-height: 0; padding: 4px 0; }
+#axBody .ax-bar { display: flex; gap: 6px; align-items: center; } #axBody .ax-bar .ax-sub { flex: 1; font-size: 11px; color: var(--c-text-dim, #9AA0A6); }
+#axBody #axInputRow { padding: 6px 0 0; } #axBody #axInputRow textarea { flex: 1; min-height: 44px; resize: vertical; background: var(--c-bg, #17191C); color: var(--c-text, #E8EAED); border: 1px solid var(--c-rule, #2E3338); border-radius: 3px; font: 12px var(--font-ui, sans-serif); padding: 6px; }
+#axBody .ax-chips { padding: 0; } #axBody .ax-gate { padding: 6px 0; }
+.ax-card { align-self: stretch; max-width: 100%; background: rgba(58,168,228,.08); border-left: 3px solid var(--accent-ui, #3AA8E4); border-radius: 3px; padding: 6px 10px; }
+.ax-card .ax-card-h { font-weight: 600; text-transform: capitalize; display: flex; justify-content: space-between; align-items: center; } .ax-card ul { margin: 4px 0; padding-left: 16px; } .ax-card .ax-chk, .ax-card .ax-why { font-size: 11px; color: var(--c-text-dim, #9AA0A6); }
+.ax-card .ax-undo { background: transparent; border: 1px solid rgba(255,255,255,.2); border-radius: 3px; color: inherit; font: 11px var(--font-ui, sans-serif); padding: 1px 8px; cursor: pointer; } .ax-card .ax-undo:disabled { opacity: .45; cursor: default; } .ax-card.undone { opacity: .6; }
 #axHdr { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; }
 #axHdr .ax-title { font-size:12px; font-weight:600; letter-spacing:.02em; }
 #axHdr .ax-sub { font-size:11px; color:rgba(178,188,200,.6); margin-left:auto; font-family:'Courier New',monospace; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -20637,28 +20645,7 @@ document.addEventListener('DOMContentLoaded', PX.updateNote);
 @keyframes axdots { 0%{content:'·'} 33%{content:'··'} 66%{content:'···'} }
 .ctb-btn.ax-on { background:var(--accent-ui); color:var(--c-bg); border-color:var(--accent-ui); }
 </style>
-<div id='axPanel' role='dialog' aria-label='Design assistant'>
-  <div id='axHdr'>
-    <span class='ax-title'>Design assistant</span>
-    <span class='ax-sub' id='axModelLbl'></span>
-    <button class='ax-ib' title='Settings' onclick='AX.toggleSettings()'>&#9881;</button>
-    <button class='ax-ib' title='Clear conversation' onclick='AX.clear()'>&#8635;</button>
-    <button class='ax-ib' title='Close' onclick='AX.toggle(false)'>&times;</button>
-  </div>
-  <div id='axMsgs'></div>
-  <div class='ax-gate' id='axGate' hidden></div>
-  <div class='ax-chips' id='axChips'></div>
-  <div id='axSettings'>
-    <label>Model</label>
-    <input id='axModel' type='text' placeholder='claude-sonnet-4-5' title='The Claude model the Assistant uses.'>
-    <div class='ax-warn'>Your Anthropic key is in <button type='button' class='conn-go' onclick='CONN.open("anthropic")' title='Opens Settings at Connections.'>Settings &rsaquo; Connections</button>: kept in this browser only, sent straight to Anthropic.</div>
-    <div class='ax-row'><button class='ctx-btn' onclick='AX.saveSettings()'>Save</button><button class='ctx-btn' onclick='AX.toggleSettings()'>Close</button></div>
-  </div>
-  <div id='axInputRow'>
-    <textarea id='axInput' rows='1' placeholder='Describe a change… e.g. "make it 2.3 m wide and add two benches"'></textarea>
-    <button id='axSend' onclick='AX.send()'>Send</button>
-  </div>
-</div>
+<!-- (Brief 30 §7: the assistant is a block in the Generate tab; AX.mount) -->
 <script>
 /* ================================================================
    REFACTOR 10 — Conversational design assistant
@@ -20712,7 +20699,6 @@ CONN.gate = function(id) {
   return "<span class='conn-gate' data-conn-gate='" + id + "'>" + r.gate + " <button type='button' class='conn-go' onclick='CONN.open(\"" + id + "\")' title='Opens Settings at Connections, where you add your " + r.name + " key.'>Add a key in Connections &rarr;</button></span>";
 };
 CONN.open = function(id) {
-  if (typeof AX !== 'undefined' && AX.toggle) try { AX.toggle(false); } catch (e) {}
   if (typeof appSetMode === 'function') appSetMode('settings');
   setTimeout(function() { if (typeof swScrollTo === 'function') swScrollTo('swConn'); var f = id && document.getElementById('connKey_' + id); if (f) f.focus(); }, 80);
 };
@@ -20770,247 +20756,292 @@ CONN.runTest = async function(id) {
   return r;
 };
 window.addEventListener('load', function() { CONN.renderRows(); });
-var AX = { history: [], undoSnap: null, busy: false, maxTurns: 12 };
+var AX = { history: [], stack: [], busy: false, maxTurns: 12, STACK_MAX: 10 };
 AX.API_URL = 'https://api.anthropic.com/v1/messages';
 AX.DEFAULT_MODEL = 'claude-sonnet-4-5';
 AX.CFG_KEY = 'px_ax_cfg_v1';
-
-/* ── settings ─────────────────────────────────────────────── */
-// the key is the user's own, from Settings > Connections (Brief 21 §7); the call goes straight from this
-// browser to Anthropic -- there is no relay hop. This object keeps only the model choice.
+// ── Brief 30 §7: the assistant is the last block of Generate's left panel ────────────────────────────────────────────
+// It was a dialog behind a canvas-toolbar toggle, outside every tab, with one tool from before the enclosure types, the
+// materials, the shape editor and the generator's patterns. Now it lives in Generate, and its tools are rebuilt from the
+// model: the generator lays out (the model picks a pattern and constraints, the rules make the geometry), the materials,
+// the enclosure and the deck are set through their own stores, furniture is placed through the one placement path
+// (clamped on the deck), a check is explained from its measured values and rule text only, and the design is read. It
+// writes no provenance and no site fact; every applied change is a card (before -> after, the checks that changed) with
+// Undo (10 deep). Its key is the user's (Settings > Connections), straight to Anthropic; nothing it says reaches the
+// report, a save or an export, and nothing is logged anywhere but this browser's console.
 AX.cfg = function() { var c = {}; try { c = JSON.parse(localStorage.getItem(AX.CFG_KEY) || '{}') || {}; } catch(e) {} return { model: c.model, apiKey: CONN.get('anthropic') }; };
 AX.saveSettings = function() {
   var c = { model: (document.getElementById('axModel').value || '').trim() || AX.DEFAULT_MODEL };
   try { localStorage.setItem(AX.CFG_KEY, JSON.stringify(c)); } catch(e) {}
   AX.refreshLbl(); AX.toggleSettings(false); pkToast('Assistant settings saved', 'success');
 };
-AX.loadSettingsUI = function() { var c = AX.cfg(); document.getElementById('axModel').value = c.model || AX.DEFAULT_MODEL; AX.refreshLbl(); AX.gate(); };
+AX.loadSettingsUI = function() { var c = AX.cfg(), m = document.getElementById('axModel'); if (m) m.value = c.model || AX.DEFAULT_MODEL; AX.refreshLbl(); AX.gate(); };
 AX.refreshLbl = function() { var c = AX.cfg(), l = document.getElementById('axModelLbl'); if (l) l.textContent = c.model || AX.DEFAULT_MODEL; };
-AX.toggleSettings = function(force) { var s = document.getElementById('axSettings'); var on = force === undefined ? !s.classList.contains('open') : !!force; s.classList.toggle('open', on); };
+AX.toggleSettings = function(force) { var s = document.getElementById('axSettings'); if (!s) return; var on = force === undefined ? !s.classList.contains('open') : !!force; s.classList.toggle('open', on); };
 AX.configured = function() { return CONN.has('anthropic'); };
-// without a key: the Connections prompt in place of the input
+// without a key: the one Connections prompt in place of the chat (nothing greyed)
 AX.gate = function() {
-  var g = document.getElementById('axGate'), row = document.getElementById('axInputRow'), ch = document.getElementById('axChips'), ok = AX.configured();
+  var g = document.getElementById('axGate'), row = document.getElementById('axInputRow'), ch = document.getElementById('axChips'), ms = document.getElementById('axMsgs'), ok = AX.configured();
   if (g) { g.hidden = ok; g.innerHTML = ok ? '' : CONN.gate('anthropic'); }
-  if (row) row.hidden = !ok; if (ch) ch.hidden = !ok;
+  if (row) row.hidden = !ok; if (ch) ch.hidden = !ok; if (ms) ms.hidden = !ok;
+  if (ok && ms && !ms.childElementCount) AX.welcome();
 };
-
-/* ── panel ────────────────────────────────────────────────── */
-AX.toggle = function(force) {
-  var p = document.getElementById('axPanel'), b = document.getElementById('axToggleBtn');
-  var on = force === undefined ? !p.classList.contains('open') : !!force;
-  p.classList.toggle('open', on); if (b) b.classList.toggle('ax-on', on);
-  if (on) { AX.loadSettingsUI(); if (!AX.history.length) AX.welcome(); if (AX.configured()) setTimeout(function() { document.getElementById('axInput').focus(); }, 50); }
+// the block in Generate's left panel (the last), wrapped as the other panels are
+AX.mount = function() {
+  if (document.getElementById('axSec')) return;
+  var host = document.getElementById('ctxGenerate'); if (!host) return;
+  if (!host._dkInit && typeof _dkWrap === 'function') { setTimeout(AX.mount, 200); return; }
+  var sec = document.createElement('div'); sec.className = 'sb-section'; sec.id = 'axSec';
+  sec.innerHTML = "<div class='sb-section-lbl'>Design assistant</div><div id='axBody'>" +
+    "<div class='ax-bar'><span class='ax-sub' id='axModelLbl'></span><button type='button' class='ax-ib' title='The model the assistant uses' onclick='AX.toggleSettings()'>&#9881;</button><button type='button' class='ax-ib' title='Clears the conversation (the design is not changed)' onclick='AX.clear()'>&#8635;</button></div>" +
+    "<div id='axSettings'><label for='axModel'>Model</label><input id='axModel' type='text' placeholder='" + AX.DEFAULT_MODEL + "'><div class='ax-warn'>Your Anthropic key is in <button type='button' class='conn-go' onclick='CONN.open(\"anthropic\")'>Settings &rsaquo; Connections</button>: kept in this browser only, sent straight to Anthropic.</div><div class='ax-row'><button type='button' class='ctx-btn' onclick='AX.saveSettings()'>Save</button><button type='button' class='ctx-btn' onclick='AX.toggleSettings()'>Close</button></div></div>" +
+    "<div class='ax-gate' id='axGate' hidden></div><div id='axMsgs' aria-live='polite'></div><div class='ax-chips' id='axChips'></div>" +
+    "<div id='axInputRow'><textarea id='axInput' rows='2' placeholder='Describe a change, or ask why a check fails'></textarea><button type='button' id='axSend' onclick='AX.send()'>Send</button></div></div>";
+  host.appendChild(sec);
+  if (typeof _dkWrap === 'function') { _dkWrap(sec, 'dkcgAx', 'Design assistant', false); if (typeof _dkMenuUpdate === 'function') _dkMenuUpdate(); }
+  var inp = document.getElementById('axInput');
+  inp.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); AX.send(); } });
+  AX.loadSettingsUI();
 };
-AX.welcome = function() {
-  AX.sys('I can change the parklet, the street, site objects and furniture, and tell you what it does to compliance. Try one of these, or describe what you want.');
-  AX.chips(['Make the parklet 2.3 m wide so the lane passes', 'Add two benches facing each other in the middle', 'Put a hydrant 4 m from the south end — does it still pass?', 'Switch to a two-way street with a protected bike lane', 'Summarise what is failing and why']);
-};
-AX.chips = function(arr) { var c = document.getElementById('axChips'); c.innerHTML = arr.map(function(t) { return "<button class='ax-chip' onclick='AX.useChip(this)'>" + AX.esc(t) + '</button>'; }).join(''); };
-AX.useChip = function(el) { document.getElementById('axInput').value = el.textContent; document.getElementById('axChips').innerHTML = ''; AX.send(); };
+window.addEventListener('load', function() { setTimeout(AX.mount, 700); });
+AX.STARTERS = ['Lay out seating for 8 with a planter edge', 'Why does C02 fail here?', 'Make it feel more like a garden'];
+AX.welcome = function() { AX.sys('Ask for a layout, a material or an edge, or why a check fails. Every change shows here with Undo.'); AX.chips(AX.STARTERS); };
+AX.chips = function(arr) { var c = document.getElementById('axChips'); if (c) c.innerHTML = arr.map(function(t) { return "<button type='button' class='ax-chip' onclick='AX.useChip(this)'>" + AX.esc(t) + '</button>'; }).join(''); };
+AX.useChip = function(el) { document.getElementById('axInput').value = el.textContent; AX.send(); };
 AX.esc = function(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
-AX.add = function(cls, html) { var m = document.getElementById('axMsgs'), d = document.createElement('div'); d.className = 'ax-m ' + cls; d.innerHTML = html; m.appendChild(d); m.scrollTop = m.scrollHeight; return d; };
+AX.add = function(cls, html) { var m = document.getElementById('axMsgs'); if (!m) return null; var d = document.createElement('div'); d.className = 'ax-m ' + cls; d.innerHTML = html; m.appendChild(d); m.scrollTop = m.scrollHeight; return d; };
 AX.sys = function(t, err) { return AX.add('ax-s' + (err ? ' ax-err' : ''), AX.esc(t)); };
-AX.clear = function() { AX.history = []; document.getElementById('axMsgs').innerHTML = ''; AX.welcome(); };
+AX.clear = function() { AX.history = []; var m = document.getElementById('axMsgs'); if (m) m.innerHTML = ''; AX.welcome(); };
 
-/* ── design context ───────────────────────────────────────── */
-AX._cat = null;
-AX.catalog = function() {
-  if (AX._cat) return AX._cat;
-  // Generic archetypes first (objId GEN-<type>), then manufacturer presets. Footprints come
-  // from the archetype params (FL_OBJ is a top-level const, not a window property).
-  var rows = [];
-  function fp(key) { var d = flKeyDims(key); return ' ' + d.l.toFixed(2) + 'x' + d.d.toFixed(2) + 'm'; }
-  Object.keys(FL_ARCHETYPES).forEach(function(t) { rows.push('GEN-' + t + ' | ' + flArchLabel(t, {}) + ' | generic | ' + FL_ARCHETYPES[t].cat + fp('GEN-' + t)); });
-  FL_OBJ.forEach(function(o) { rows.push(o.id + ' | ' + o.name + ' | ' + o.brand + ' | ' + o.cat + fp(o.id)); });
-  AX._cat = rows.join('\n'); return AX._cat;
+/* ── what the model reads ─────────────────────────────────── */
+// the design, trimmed: the deck, the street, the enclosure, the materials, the furniture, the site objects and every
+// check's state; never the cell data, a key or the chat
+AX.read = function() {
+  var DM = buildDesignModel(), LM = DM.landmarks;
+  var checks = (typeof criteria !== 'undefined' ? criteria : []).map(function(c) { var s = CHK.state(c); return { id: 'C' + c.num, title: c.title, state: s.base + (s.provisional ? ' (provisional)' : ''), hint: s.hint || '' }; });
+  return {
+    deck: { length: +DM.parklet.length.toFixed(2), width: +DM.parklet.width.toFixed(2), area: DM.parklet.area, shape: DM.parklet.shape, corners: state.pkShape ? ((typeof skeParse === 'function' && skeParse(state.pkShape)) || { ch: 'drawn with an older tool' }).ch : [0, 0, 0, 0] },
+    street: { name: (state.__siteMap || {}).name || null, side: (state.__siteMap || {}).parkletSide || null, lanes: DM.lanes.map(function(l) { return +l.width.toFixed(2); }), route: DM.street.route, bikeLane: DM.street.bikeLane, curbToCurb: +(LM.roadRight - LM.roadLeft).toFixed(2) },
+    enclosure: DM.enclosure ? { traffic: DM.enclosure.sides.traffic, endA: DM.enclosure.sides.endA, endB: DM.enclosure.sides.endB, height: DM.enclosure.height, buffer: DM.enclosure.bufferDepth } : null,
+    materials: DM.parklet.materials,
+    furniture: (FL3D.placed || []).map(function(i, k) { return { index: k, objId: i.objId, x: +(+i.x).toFixed(2), z: +(+i.z).toFixed(2), rotationDeg: Math.round((i.userRotation || 0) * 180 / Math.PI) }; }),
+    siteObjects: { hydrants: (state.curb_features || []).filter(function(f) { return f.type === 'H'; }).map(function(f) { return +f.xM; }), poles: (state.curb_features || []).filter(function(f) { return f.type === 'P'; }).map(function(f) { return +f.xM; }), manholes: (state.manholes || []).length, driveways: (state.driveways || []).length, busStops: (state.transit_stops || []).filter(function(t) { return t.kind === 'bus'; }).map(function(t) { return +t.xM; }) },
+    checks: checks
+  };
 };
-AX.derived = function() {
-  var out = {};
-  try {
-    var PW = designParkletWidth, LW = TOTAL_ROAD - PW, carLW = LW - getBikeLaneD(), n = getTotalLanes();
-    out.travelLaneWidth = +(carLW / n).toFixed(3); out.requiredLaneWidth = getReqLane(); out.lanePasses = out.travelLaneWidth >= out.requiredLaneWidth - 1e-4;
-  } catch(e) {}
-  try { var h = document.querySelector('#verdictBanner h2'); if (h) out.overallVerdict = h.textContent.trim(); } catch(e) {}
-  try {
-    var f = [], u = [];
-    (window.criteria || []).forEach(function(c) { var s = CHK.state(c), st = s.base; if (st === 'fail') f.push(c.num + ' ' + c.title + (s.provisional ? ' (provisional)' : '')); else if (st === 'unclear' || st === 'await') u.push(c.num + ' ' + c.title + (st === 'await' ? ' (awaiting measurement: ' + s.hint + ')' : '')); });
-    out.failingCriteria = f; out.awaitingInput = u;
-  } catch(e) {}
-  return out;
+AX.rules = function() {
+  return (typeof criteria !== 'undefined' ? criteria : []).map(function(c) { return 'C' + c.num + ' ' + c.title + ' (Manual p. ' + c.page + '): ' + String(c.requirement || '').slice(0, 220); }).join('\n');
 };
-AX.snapshot = function() { var s = pkSerialize(); delete s.savedAt; delete s.schemaVersion; s.derived = AX.derived(); return s; };
-
 AX.system = function() {
   return [
-'You are the design assistant inside Curbside, a browser tool that models a parklet on a Vancouver street and checks it against the City of Vancouver Parklet Manual (v1.0, June 2016). The user talks; you change the design by calling apply_design_changes, and you explain results plainly. Be brief and concrete. Use metres.',
+'You are the design assistant inside Curbside, a browser tool that designs a parklet on a Vancouver street and checks it against the City of Vancouver Parklet Manual (v1.0, June 2016). Be brief, concrete, metres.',
 '',
-'RULES',
-'- The Parklet Manual is the only compliance authority. Do not import rules from other cities.',
-'- Never invent site measurements. If the user has not given a value a check needs, say it is unconfirmed rather than guessing.',
-'- When a request would break a rule (e.g. widening the parklet below the 3.0 m / 3.2 m travel lane), still do what they ask if it is a legitimate design move, but say clearly what fails afterwards.',
-'- Prefer one tool call with all the changes. After the tool result comes back, reply in 1–4 sentences with what changed and the new compliance picture. No headings, no bullet lists unless listing failures.',
-'- If the user only asks a question, answer from CURRENT STATE without calling the tool.',
+'WHAT YOU MAY DO (tools): run the layout generator (you pick its pattern and constraints; its rules make the geometry), set the parklet\'s materials, set an enclosure side\'s type, set the deck as a rectangle with optional 45-degree corner cuts, add / move / remove furniture (positions are clamped onto the deck), add / remove site objects, explain a check, read the design.',
+'WHAT YOU MAY NOT DO: write any site fact or measurement, mark any value as measured, estimated or confirmed, or draw free geometry. If asked to mark a value as measured (or to enter a site fact), refuse in one sentence: "Only you can say a value was measured: open Site facts (Site > Review site facts) and choose Measured on site." Never invent a measurement.',
+'Explaining a check: call explain_check and restate its measured values and the rule text with its page; change nothing.',
+'After a tool result, reply in 1-3 sentences: what changed and which checks changed. Never repeat the whole design.',
 '',
-'COORDINATES',
-'- Street runs along Z (0 = north/start of parklet, parkletLength = south/end; north is -Z, east is +X). X runs across the street: curb at x=0, parklet occupies 0..parkletWidth, then bike lane / buffer / travel lanes.',
-'- Furniture: x = distance from curb across the deck (0..parkletWidth), z = distance along the deck (0..parkletLength), rotationDeg about vertical. Keep pieces inside the deck with ~0.3 m clear of edges and at least a 1.5 m clear path (Manual G19).',
-'- Site objects: hydrants (H), poles (P), signal boxes (S), driveways and manholes are placed by xM = position along the street in the same Z axis; the parklet spans 0..parkletLength. Manholes also take yM = metres across the street (world x: 0 = near curb, the parklet spans 0..parkletWidth, the road runs to the far curb; negative = sidewalk).',
+'COORDINATES: x runs across the street from the curb (0) through the deck (0..deck width) to the road; z runs along the street, the deck from 0 to its length. Furniture x, z are the piece\'s centre on the deck.',
 '',
-'FIELDS you may set with set_site (units m unless noted):',
-'totalRoad (curb-to-centreline width incl. parking lane), sidewalkW, numLanes (int), roadDir ("oneway"|"twoway"), lanesA, lanesB (int, twoway), parkletWidth, parkletLength, bikeLane ("none"|"protected"), bikeLaneW, bufferEnabled (bool), bufferW, bufPKType/bufBLType ("none"|"raised"|"planters"|"trees"), bufPKW, bufBLW.',
-'Compliance inputs via set_compliance: parking_restrictions (none|rush_hour|bus_zone|taxi_zone|loading_zone|other), route_type (standard|bus_truck), intersection_dist, slope (%), hydrant_dist, driveway_dist, pole_dist, pole_trolley (yes|no), signal_box_dist, manhole_dist, fire_exit_block (no|yes|unverified), drainage_clear (yes|no|unverified), boulevard_clear (not_used|used_clear|used_blocked), parking_setback, platform_gap (mm), load_capacity (kPa).',
-'Buildings via set_buildings: side "L"|"R", buildings: [{height, depth, length, zOffset, setback}].',
-'Deck outline via set_deck_shape: verts [{x,y}] in plan, x along the street 0..parkletLength, y across 0..parkletWidth, counter-clockwise; reset_deck_shape returns to a rectangle.',
+'RULES (Parklet Manual):',
+AX.rules(),
 '',
-'FURNITURE CATALOGUE (objId | name | brand | category | footprint L x D):',
-AX.catalog(),
+'GENERATOR PATTERNS: ' + GEN.TEMPLATES.map(function(t) { return t.id + ' (' + t.label + ')'; }).join(', ') + '. Edges: ' + GEN.EDGES.map(function(e) { return e.id; }).join(', ') + '.',
+'ENCLOSURE TYPES: ' + Object.keys(ENCLOSURE_ARCHETYPES).map(function(k) { return k + ' (' + ENCLOSURE_ARCHETYPES[k].name + ')'; }).join(', ') + '. Sides: traffic, endA, endB.',
+'MATERIAL ROLES: ' + PKMAT.ROLES.map(function(r) { return r.k + ' (' + r.allow.join('/') + ')'; }).join(', ') + '. Presets: ' + PKMAT.PRESETS.map(function(p) { return p.id; }).join(', ') + '. Materials: ' + FL_MATERIALS.filter(function(m) { return !m.custom && ['fixed', 'figure'].indexOf(m.group) < 0 && !/^deck_/.test(m.id); }).map(function(m) { return m.id + '/' + m.group; }).join(', ') + '.',
+'FURNITURE: GEN-<type> for ' + Object.keys(FL_ARCHETYPES).filter(function(t) { return !FL_ARCHETYPES[t].user; }).join(', ') + '.',
 '',
-'CURRENT STATE (JSON):',
-JSON.stringify(AX.snapshot())
+'THE DESIGN NOW (JSON):',
+JSON.stringify(AX.read())
   ].join('\n');
 };
+AX.tools = [
+  { name: 'read_design', description: 'Read the design now: deck, street, enclosure, materials, furniture, site objects, and every check\'s state.', input_schema: { type: 'object', properties: {} } },
+  { name: 'explain_check', description: 'The measured values, their sources and the rule text (with its Manual page) behind one check. Changes nothing.', input_schema: { type: 'object', properties: { id: { type: 'string', description: 'C01 ... C19' } }, required: ['id'] } },
+  { name: 'run_generator', description: 'Lay the deck out with the generator: its rules place the furniture and keep every check passing; you choose the pattern and the constraints. Opens the best scheme that meets them.',
+    input_schema: { type: 'object', properties: { pattern: { type: 'string', description: 'a generator pattern id' }, constraints: { type: 'object', properties: { seats_min: { type: 'integer' }, seating: { type: 'integer', description: '0-3 weight' }, dining: { type: 'integer' }, green: { type: 'integer' }, shade: { type: 'integer' }, bike: { type: 'integer' }, lounging: { type: 'integer' }, play: { type: 'integer' }, edge: { type: 'string' }, planting: { type: 'integer', description: '0-3' }, character: { type: 'string' } } }, rationale: { type: 'string', description: 'one sentence: why this pattern and these constraints' } }, required: ['pattern', 'rationale'] } },
+  { name: 'set_materials', description: 'Set the parklet\'s materials: a preset, and/or roles (deck, fascia, posts, infill, planter, screen) to material ids.', input_schema: { type: 'object', properties: { preset: { type: 'string' }, roles: { type: 'object' } } } },
+  { name: 'set_enclosure', description: 'Set the enclosure type on one side (traffic, endA, endB) or all.', input_schema: { type: 'object', properties: { side: { type: 'string', enum: ['traffic', 'endA', 'endB', 'all'] }, type: { type: 'string' } }, required: ['side', 'type'] } },
+  { name: 'set_deck', description: 'Set the deck as a rectangle l (along the curb) x w (across, from the curb) with optional 45-degree corner cuts (leg length, m).', input_schema: { type: 'object', properties: { l: { type: 'number' }, w: { type: 'number' }, chamfers: { type: 'object', properties: { startCurb: { type: 'number' }, endCurb: { type: 'number' }, endTraffic: { type: 'number' }, startTraffic: { type: 'number' } } } }, required: ['l', 'w'] } },
+  { name: 'add_furniture', description: 'Place a piece (objId GEN-<type> or a catalogue id) at x, z on the deck (clamped onto it).', input_schema: { type: 'object', properties: { objId: { type: 'string' }, x: { type: 'number' }, z: { type: 'number' }, rotationDeg: { type: 'number' } }, required: ['objId'] } },
+  { name: 'move_furniture', description: 'Move a placed piece (by its index in read_design) to x, z (clamped onto the deck), or turn it.', input_schema: { type: 'object', properties: { index: { type: 'integer' }, x: { type: 'number' }, z: { type: 'number' }, rotationDeg: { type: 'number' } }, required: ['index'] } },
+  { name: 'remove_furniture', description: 'Remove a piece by index, every piece of an objId, or all.', input_schema: { type: 'object', properties: { index: { type: 'integer' }, objId: { type: 'string' }, all: { type: 'boolean' } } } },
+  { name: 'add_site_object', description: 'Add a hydrant, pole, signal_box, manhole or driveway at xM along the street (manholes also yM across).', input_schema: { type: 'object', properties: { kind: { type: 'string', enum: ['hydrant', 'pole', 'signal_box', 'manhole', 'driveway'] }, xM: { type: 'number' }, yM: { type: 'number' } }, required: ['kind', 'xM'] } },
+  { name: 'remove_site_object', description: 'Remove a site object of a kind by its index among that kind, or all of them.', input_schema: { type: 'object', properties: { kind: { type: 'string', enum: ['hydrant', 'pole', 'signal_box', 'manhole', 'driveway'] }, index: { type: 'integer' }, all: { type: 'boolean' } }, required: ['kind'] } }
+];
 
-AX.tools = [{
-  name: 'apply_design_changes',
-  description: 'Apply a batch of changes to the parklet design. Returns which changes were applied, the resulting travel-lane width and the overall compliance verdict.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      changes: { type: 'array', items: { type: 'object', properties: {
-        op: { type: 'string', enum: ['set_site','set_project','set_compliance','set_buildings','add_furniture','move_furniture','remove_furniture','add_site_object','remove_site_object','set_deck_shape','reset_deck_shape'] },
-        field: { type: 'string' }, key: { type: 'string' }, value: {},
-        name: { type: 'string' }, streetAddress: { type: 'string' },
-        side: { type: 'string', enum: ['L','R'] }, buildings: { type: 'array' },
-        objId: { type: 'string' }, x: { type: 'number' }, z: { type: 'number' }, rotationDeg: { type: 'number' },
-        index: { type: 'integer' }, all: { type: 'boolean' },
-        kind: { type: 'string', enum: ['hydrant','pole','signal_box','manhole','driveway'] }, xM: { type: 'number' }, yM: { type: 'number' },
-        verts: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } } } }
-      }, required: ['op'] } }
-    },
-    required: ['changes']
-  }
-}];
-
-/* ── apply ops ────────────────────────────────────────────── */
-AX.SITE_FIELDS = { totalRoad:[3,25], sidewalkW:[0.5,8], numLanes:[1,4], roadDir:['oneway','twoway'], lanesA:[1,3], lanesB:[1,3], parkletWidth:[1,4.5], parkletLength:[2,45], bikeLane:['none','protected'], bikeLaneW:[1,3], bufferEnabled:'bool', bufferW:[0.3,2], bufPKType:['none','raised','planters','trees'], bufBLType:['none','raised','planters','trees'], bufPKW:[0.2,2], bufBLW:[0.2,2] };
-AX.KINDS = { hydrant:['curb_features','H'], pole:['curb_features','P'], signal_box:['curb_features','S'], manhole:['manholes'], driveway:['driveways'] };
-AX.apply = function(changes) {
-  var snap = pkSerialize(); AX.undoSnap = JSON.parse(JSON.stringify(snap));
-  var applied = [], rejected = [];
-  var num = function(v) { var n = parseFloat(v); return isNaN(n) ? null : n; };
-  var byId = {}; FL_OBJ.forEach(function(o) { byId[o.id] = o; byId[o.name.toLowerCase()] = o; });
-  Object.keys(FL_ARCHETYPES).forEach(function(t) { byId['GEN-' + t] = {id:'GEN-' + t, name:flArchLabel(t, {})}; });
-  (changes || []).forEach(function(c) {
-    try {
-      switch (c.op) {
-        case 'set_site': {
-          var spec = AX.SITE_FIELDS[c.field]; if (!spec) throw new Error('unknown site field ' + c.field);
-          var v = c.value;
-          if (spec === 'bool') v = !!v;
-          else if (Array.isArray(spec) && typeof spec[0] === 'string') { if (spec.indexOf(v) < 0) throw new Error(c.field + ' must be one of ' + spec.join('|')); }
-          else { v = num(v); if (v === null) throw new Error(c.field + ' needs a number'); v = Math.min(spec[1], Math.max(spec[0], v)); if (/numLanes|lanesA|lanesB/.test(c.field)) v = Math.round(v); }
-          snap.site[c.field] = v; applied.push(c.field + ' = ' + v); break; }
-        case 'set_project': { if (c.name !== undefined) snap.project.name = String(c.name); if (c.streetAddress !== undefined) snap.project.streetAddress = String(c.streetAddress); applied.push('project info'); break; }
-        case 'set_compliance': { if (!(c.key in snap.compliance)) throw new Error('unknown compliance key ' + c.key); snap.compliance[c.key] = String(c.value); applied.push(c.key + ' = ' + c.value); break; }
-        case 'set_buildings': { if (!Array.isArray(c.buildings)) throw new Error('buildings must be an array'); var bl = c.buildings.map(function(b) { return { height: num(b.height) || 8, depth: num(b.depth) || 4, length: num(b.length) || 20, zOffset: num(b.zOffset) || 0, setback: num(b.setback) || 0 }; }); snap.site[c.side === 'L' ? 'bldgL' : 'bldgR'] = { buildings: bl }; applied.push('buildings ' + c.side + ' (' + bl.length + ')'); break; }
-        case 'add_furniture': {
-          var o = byId[c.objId] || byId[String(c.objId || '').toLowerCase()]; if (!o) throw new Error('unknown furniture ' + c.objId);
-          var W = snap.site.parkletWidth, L = snap.site.parkletLength;
-          var fx = Math.min(W - 0.2, Math.max(0.2, num(c.x) === null ? W / 2 : num(c.x))), fz = Math.min(L - 0.2, Math.max(0.2, num(c.z) === null ? L / 2 : num(c.z)));
-          var rot = (num(c.rotationDeg) || 0) * Math.PI / 180;
-          snap.furniture.placed.push({ objId: o.id, x: fx, z: fz, rotationY: 0, userRotation: rot }); applied.push('added ' + o.name + ' at (' + fx.toFixed(2) + ', ' + fz.toFixed(2) + ')'); break; }
-        case 'move_furniture': {
-          var inst = snap.furniture.placed[c.index]; if (!inst) throw new Error('no furniture at index ' + c.index);
-          if (num(c.x) !== null) inst.x = num(c.x); if (num(c.z) !== null) inst.z = num(c.z); if (num(c.rotationDeg) !== null) inst.userRotation = num(c.rotationDeg) * Math.PI / 180;
-          applied.push('moved #' + c.index + ' ' + inst.objId); break; }
-        case 'remove_furniture': {
-          if (c.all) { var n0 = snap.furniture.placed.length; snap.furniture.placed = []; applied.push('removed all furniture (' + n0 + ')'); }
-          else if (c.index !== undefined && snap.furniture.placed[c.index]) { applied.push('removed #' + c.index + ' ' + snap.furniture.placed[c.index].objId); snap.furniture.placed.splice(c.index, 1); }
-          else if (c.objId) { var before = snap.furniture.placed.length; snap.furniture.placed = snap.furniture.placed.filter(function(p) { return p.objId !== c.objId; }); applied.push('removed ' + (before - snap.furniture.placed.length) + ' × ' + c.objId); }
-          else throw new Error('remove_furniture needs index, objId or all'); break; }
-        case 'add_site_object': {
-          var k = AX.KINDS[c.kind]; if (!k) throw new Error('unknown kind ' + c.kind); var xm = num(c.xM); if (xm === null) throw new Error(c.kind + ' needs xM');
-          var arr = snap.siteObjects[k[0]] = snap.siteObjects[k[0]] || [], obj = { id: Date.now() + Math.random(), xM: xm };
-          if (k[0] === 'curb_features') { obj.type = k[1]; obj.yM = -0.75; } if (k[0] === 'manholes') { var _mlm = _dmCurrent().landmarks; obj.yM = Math.min(_mlm.sidewalkR.x1, Math.max(_mlm.sidewalkL.x0, num(c.yM) === null ? _mlm.roadCenterX : num(c.yM))); }
-          arr.push(obj); applied.push('added ' + c.kind + ' at ' + xm.toFixed(2) + ' m'); break; }
-        case 'remove_site_object': {
-          var k2 = AX.KINDS[c.kind]; if (!k2) throw new Error('unknown kind ' + c.kind); var a2 = snap.siteObjects[k2[0]] || [];
-          var match = function(o) { return k2[1] ? o.type === k2[1] : true; };
-          if (c.all) { var rm = a2.filter(match).length; snap.siteObjects[k2[0]] = a2.filter(function(o) { return !match(o); }); applied.push('removed ' + rm + ' × ' + c.kind); }
-          else { var idxs = []; a2.forEach(function(o, i) { if (match(o)) idxs.push(i); }); var ti = idxs[c.index || 0]; if (ti === undefined) throw new Error('no ' + c.kind + ' at index ' + (c.index || 0)); a2.splice(ti, 1); applied.push('removed ' + c.kind + ' #' + (c.index || 0)); }
-          break; }
-        case 'set_deck_shape': {
-          if (!Array.isArray(c.verts) || c.verts.length < 3) throw new Error('need ≥3 verts');
-          var vs = c.verts.map(function(v) { return { x: +v.x, y: +v.y }; });
-          snap.siteObjects.pkShape = { active: true, closed: true, verts: vs, segs: vs.map(function() { return { arc: false, sag: 0 }; }) }; applied.push('deck outline (' + vs.length + ' pts)'); break; }
-        case 'reset_deck_shape': { snap.siteObjects.pkShape = null; applied.push('deck reset to rectangle'); break; }
-        default: throw new Error('unknown op ' + c.op);
-      }
-    } catch (e) { rejected.push((c.op || '?') + ': ' + e.message); }
-  });
-  if (applied.length) {
-    pkApplyDesignState(snap);
-    try { if (window.pkCurrentDesignId && typeof pkScheduleSave === 'function') pkScheduleSave(); } catch(e) {}
-  }
-  var d = AX.derived();
-  return { applied: applied, rejected: rejected, travelLaneWidth: d.travelLaneWidth, requiredLaneWidth: d.requiredLaneWidth, lanePasses: d.lanePasses, overallVerdict: d.overallVerdict, failingCriteria: d.failingCriteria };
+/* ── apply ────────────────────────────────────────────────── */
+AX.KINDS = { hydrant: ['curb_features', 'H'], pole: ['curb_features', 'P'], signal_box: ['curb_features', 'S'], manhole: ['manholes'], driveway: ['driveways'] };
+AX.snap = function() { var s = pkSerialize(); delete s.savedAt; return JSON.stringify(s); };
+AX.locked = function() { return typeof SFG !== 'undefined' && SFG.locked && SFG.locked(); };   // the site facts gate (Brief 30 §9)
+AX.checkStates = function() { var o = {}; (typeof criteria !== 'undefined' ? criteria : []).forEach(function(c) { var s = CHK.state(c); o['C' + c.num] = s.base + (s.provisional ? '*' : ''); }); return o; };
+AX.summary = function() {
+  var DM = _dmCurrent(), n = {}; (FL3D.placed || []).forEach(function(i) { var l = flKeyLabel(i.objId); n[l] = (n[l] || 0) + 1; });
+  return { deck: DM.parklet.length.toFixed(2) + ' x ' + DM.parklet.width.toFixed(2) + ' m, ' + DM.parklet.area.toFixed(2) + ' m²', materials: PKMAT.presetOf() || (Object.keys(PKMAT.cur).filter(function(k) { return k !== 'preset'; }).map(function(k) { return k + ' ' + flMatInfo(PKMAT.cur[k]).label; }).join(', ') || 'default'),
+    enclosure: DM.enclosure ? ['traffic', 'endA', 'endB'].map(function(s) { return ENCLOSURE_ARCHETYPES[DM.enclosure.sides[s]].name; }).join(' / ') : '-', furniture: n, objects: (state.curb_features || []).length + (state.manholes || []).length + (state.driveways || []).length };
 };
-AX.undo = function(btn) {
-  if (!AX.undoSnap) return;
-  pkApplyDesignState(AX.undoSnap); AX.undoSnap = null;
-  if (btn) btn.remove(); AX.sys('Reverted the last change.');
-  AX.history.push({ role: 'user', content: '(The user pressed Undo — the previous change was reverted. Current state is back to what it was before your last tool call.)' });
-  AX.history.push({ role: 'assistant', content: 'Understood, reverted.' });
+// every applied tool call: the snapshot before, the change, then a card with what changed and Undo
+AX.run = function(name, a) {
+  a = a || {};
+  if (name === 'read_design') return AX.read();
+  if (name === 'explain_check') return AX.explain(a.id);
+  if (AX.locked()) return { refused: 'The site facts are not all answered yet (Site facts). The design stays locked until they are.' };
+  var before = AX.snap(), s0 = AX.summary(), c0 = AX.checkStates(), r;
+  try { r = AX.change(name, a); } catch (e) { return { error: e.message }; }
+  if (r && r.error) return r;
+  try { syncDesignModel('assistant'); } catch (e) {}
+  var after = AX.snap(); if (after === before) return Object.assign({ changed: false }, r || {});
+  var s1 = AX.summary(), c1 = AX.checkStates(), diff = [], checks = [];
+  ['deck', 'materials', 'enclosure'].forEach(function(k) { if (s0[k] !== s1[k]) diff.push(k + ': ' + s0[k] + ' -> ' + s1[k]); });
+  var fk = {}; Object.keys(s0.furniture).concat(Object.keys(s1.furniture)).forEach(function(k) { fk[k] = 1; });
+  Object.keys(fk).forEach(function(k) { if ((s0.furniture[k] || 0) !== (s1.furniture[k] || 0)) diff.push(k + ': ' + (s0.furniture[k] || 0) + ' -> ' + (s1.furniture[k] || 0)); });
+  if (s0.objects !== s1.objects) diff.push('site objects: ' + s0.objects + ' -> ' + s1.objects);
+  if (!diff.length) diff.push('furniture positions');
+  Object.keys(c1).forEach(function(k) { if (c0[k] !== c1[k]) checks.push(k + ' ' + c0[k] + ' -> ' + c1[k]); });
+  AX.stack.push({ snap: before, after: after }); if (AX.stack.length > AX.STACK_MAX) AX.stack.shift();
+  AX.card(name, diff, checks, r && r.rationale);
+  try { saveSettings(); } catch (e) {} if (typeof PK_EDIT !== 'undefined') PK_EDIT.soon();
+  return Object.assign({ changed: true, diff: diff, checksChanged: checks }, r || {});
+};
+AX.card = function(name, diff, checks, why) {
+  var d = AX.add('ax-card', "<div class='ax-card-h'>" + AX.esc(name.replace(/_/g, ' ')) + "<button type='button' class='ax-undo'>Undo</button></div>" + (why ? "<div class='ax-why'>" + AX.esc(why) + '</div>' : '') +
+    '<ul>' + diff.map(function(t) { return '<li>' + AX.esc(t) + '</li>'; }).join('') + '</ul>' + "<div class='ax-chk'>" + (checks.length ? 'Checks: ' + AX.esc(checks.join('; ')) : 'No check changed') + '</div>');
+  if (!d) return; var i = AX.stack.length; d.dataset.k = i; d.querySelector('.ax-undo').onclick = function() { AX.undo(d); };
+  AX.syncUndo();
+};
+// Undo: the latest change first (the stack, 10 deep); the card says so
+AX.syncUndo = function() { var n = AX.stack.length; document.querySelectorAll('#axMsgs .ax-card').forEach(function(c) { var b = c.querySelector('.ax-undo'), top = +c.dataset.k === n && !c.classList.contains('undone'); b.disabled = !top; b.title = top ? 'Undoes this change' : 'Undo the later changes first'; }); };
+AX.undo = function(card) {
+  var e = AX.stack.pop(); if (!e) return;
+  pkApplyDesignState(JSON.parse(e.snap)); try { syncDesignModel('assistant-undo'); } catch (er) {}
+  if (card) { card.classList.add('undone'); card.querySelector('.ax-undo').textContent = 'Undone'; }
+  AX.syncUndo(); try { saveSettings(); } catch (er) {}
+  AX.history.push({ role: 'user', content: '(The user pressed Undo: the last change was reverted.)' }); AX.history.push({ role: 'assistant', content: 'Reverted.' });
+};
+AX.explain = function(id) {
+  var n = String(id || '').replace(/^c/i, '').replace(/^0/, ''), c = (typeof criteria !== 'undefined' ? criteria : []).find(function(q) { return String(+q.num) === n || q.id === String(id).toLowerCase(); });
+  if (!c) return { error: 'no check ' + id };
+  var s = CHK.state(c), P = typeof SMP !== 'undefined' ? SMP.prov() : {};
+  var vals = (s.inputs || []).concat([c.inputId, c.inputId2]).filter(Boolean).filter(function(v, i, a) { return a.indexOf(v) === i; }).map(function(k) { return { input: k, value: state[k] === undefined ? null : state[k], source: P[k] ? P[k].source : null }; });
+  var x = { id: 'C' + c.num, title: c.title, rule: c.requirement, page: c.page, state: s.base + (s.provisional ? ' (provisional)' : ''), hint: s.hint || '', values: vals };
+  if (c.id === 'c2') { var d = AX.read(); x.lanes = d.street.lanes; x.route = d.street.route; x.requiredLane = getReqLane(); }
+  return x;
+};
+AX.change = function(name, a) {
+  var num = function(v) { var n = parseFloat(v); return isFinite(n) ? n : null; };
+  if (name === 'run_generator') return AX.generate(a);
+  if (name === 'set_materials') {
+    if (a.preset) { if (!PKMAT.presetState(a.preset)) return { error: 'unknown preset ' + a.preset }; PKMAT.preset(a.preset); }
+    var bad = [], patch = {};
+    Object.keys(a.roles || {}).forEach(function(k) { var r = PKMAT.role(k), m = a.roles[k], mi = FL_MAT_BY_ID[m]; if (!r) bad.push('role ' + k); else if (!mi || r.allow.indexOf(mi.group) < 0) bad.push(k + ': ' + m + ' (not a ' + r.allow.join('/') + ' material)'); else patch[k] = m; });
+    if (Object.keys(patch).length) PKMAT.set(patch);
+    return bad.length ? { applied: Object.keys(patch), rejected: bad } : { applied: Object.keys(patch).concat(a.preset ? ['preset ' + a.preset] : []) };
+  }
+  if (name === 'set_enclosure') {
+    if (!ENCLOSURE_ARCHETYPES[a.type]) return { error: 'unknown enclosure type ' + a.type };
+    var sides = a.side === 'all' ? ['traffic', 'endA', 'endB'] : [a.side]; if (sides.some(function(s) { return ['traffic', 'endA', 'endB'].indexOf(s) < 0; })) return { error: 'unknown side ' + a.side };
+    var p = { sides: {} }; sides.forEach(function(s) { p.sides[s] = a.type; }); ENC.set(p); return { applied: sides.map(function(s) { return s + ' ' + a.type; }) };
+  }
+  if (name === 'set_deck') {
+    var l = num(a.l), w = num(a.w); if (!(l > 1) || !(w > 0.5)) return { error: 'l and w in metres' };
+    var LM = _dmCurrent().landmarks, ch = a.chamfers || {}; skeOpen();
+    SKE.legacy = false; SKE.r = { z0: 0, z1: +l.toFixed(4), y0: LM.deckX0, y1: +(LM.deckX0 + Math.min(w, LM.deckX1 - LM.deckX0)).toFixed(4) };
+    SKE.ch = [num(ch.startCurb) || 0, num(ch.endCurb) || 0, num(ch.endTraffic) || 0, num(ch.startTraffic) || 0]; skeClampCuts(); skeSync();
+    var iss = skeIssues(SKE.shape, skeExtent(), false); if (iss.list.length) { skeClose(); return { error: iss.list[0] }; }
+    skeApply(); return { applied: ['deck ' + l.toFixed(2) + ' x ' + Math.min(w, LM.deckX1 - LM.deckX0).toFixed(2) + ' m, cuts ' + SKE.ch.join('/')] };
+  }
+  if (name === 'add_furniture') {
+    var key = a.objId && (flSpecFromKey(a.objId) ? a.objId : null); if (!key) return { error: 'unknown furniture ' + a.objId };
+    var DM = _dmCurrent(), inst = placeFurnitureAtWorld(key, num(a.x) === null ? DM.parklet.width / 2 : num(a.x), num(a.z) === null ? DM.parklet.length / 2 : num(a.z));
+    if (!inst) return { error: 'could not place ' + a.objId };
+    if (num(a.rotationDeg) !== null) { inst.userRotation = num(a.rotationDeg) * Math.PI / 180; applyFurnitureTransform(inst); flKeepOnDeck(inst); _dmSyncObject(inst); }
+    return { applied: ['added ' + flKeyLabel(key) + ' at (' + (+inst.x).toFixed(2) + ', ' + (+inst.z).toFixed(2) + ')'] };
+  }
+  if (name === 'move_furniture') {
+    var it = FL3D.placed[a.index]; if (!it) return { error: 'no piece at index ' + a.index };
+    if (num(a.rotationDeg) !== null) { it.userRotation = num(a.rotationDeg) * Math.PI / 180; applyFurnitureTransform(it); }
+    var nx = num(a.x) === null ? it.x : num(a.x), nz = num(a.z) === null ? it.z : num(a.z), k2 = Object.assign({}, it, { x: nx, z: nz, mesh: null });
+    if (FLZ.zone(it.objId) === 'deck') flKeepOnDeck(k2);
+    moveFurnitureWorld(it, k2.x - it.x, 0, k2.z - it.z); return { applied: ['moved #' + a.index + ' to (' + (+it.x).toFixed(2) + ', ' + (+it.z).toFixed(2) + ')'] };
+  }
+  if (name === 'remove_furniture') {
+    var ids = a.all ? FL3D.placed.map(function(i) { return i.id; }) : a.objId ? FL3D.placed.filter(function(i) { return i.objId === a.objId; }).map(function(i) { return i.id; }) : FL3D.placed[a.index] ? [FL3D.placed[a.index].id] : [];
+    if (!ids.length) return { error: 'nothing to remove' };
+    ids.forEach(function(id) { fl3DSelect(id); fl3DDeleteSelected(); }); return { applied: ['removed ' + ids.length] };
+  }
+  if (name === 'add_site_object' || name === 'remove_site_object') {
+    var K = AX.KINDS[a.kind]; if (!K) return { error: 'unknown kind ' + a.kind };
+    var snap = pkSerialize(), arr = snap.siteObjects[K[0]] = snap.siteObjects[K[0]] || [];
+    if (name === 'add_site_object') {
+      var xm = num(a.xM); if (xm === null) return { error: a.kind + ' needs xM' };
+      var o = { id: Date.now() + Math.random(), xM: xm }; if (K[1]) { o.type = K[1]; o.yM = -0.75; }
+      if (K[0] === 'manholes') { var M = _dmCurrent().landmarks; o.yM = Math.min(M.sidewalkR.x1, Math.max(M.sidewalkL.x0, num(a.yM) === null ? M.roadCenterX : num(a.yM))); }
+      arr.push(o);
+    } else {
+      var mt = function(q) { return K[1] ? q.type === K[1] : true; }, idx = []; arr.forEach(function(q, i) { if (mt(q)) idx.push(i); });
+      if (a.all) snap.siteObjects[K[0]] = arr.filter(function(q) { return !mt(q); }); else { var ti = idx[a.index || 0]; if (ti === undefined) return { error: 'no ' + a.kind + ' at index ' + (a.index || 0) }; arr.splice(ti, 1); }
+    }
+    pkApplyDesignState(snap); return { applied: [name.replace(/_/g, ' ') + ' ' + a.kind] };
+  }
+  return { error: 'unknown tool ' + name };
+};
+// run_generator: the user's Generate preferences take the constraints; the generator lays out and checks; the best
+// scheme of the pattern that meets the constraints opens on the design (in place: the chat stays in Generate)
+AX.generate = function(a) {
+  var C = a.constraints || {}, P = GEN.prefs || (GEN.prefs = GEN.loadPrefs()), tpl = GEN.TEMPLATES.find(function(t) { return t.id === a.pattern; });
+  if (!tpl) return { error: 'unknown pattern ' + a.pattern + ' (one of ' + GEN.TEMPLATES.map(function(t) { return t.id; }).join(', ') + ')' };
+  ['seating', 'dining', 'lounging', 'bike', 'green', 'shade', 'play', 'open'].forEach(function(k) { if (C[k] != null) P.prog[k] = Math.max(0, Math.min(3, C[k] | 0)); });
+  Object.keys(tpl.fit).forEach(function(k) { P.prog[k] = Math.max(P.prog[k] || 0, 2); });
+  if (C.planting != null) P.planting = Math.max(0, Math.min(3, C.planting | 0)); if (C.character && GEN.CHARACTER.some(function(c) { return c[0] === C.character; })) P.character = C.character;
+  if (typeof GEN.savePrefs === 'function') GEN.savePrefs();
+  GEN.generate();
+  var res = GEN.result || {}; if (res.error) return { error: 'the generator refused: ' + res.error };
+  var sch = (res.schemes || []).map(function(c, i) { return { c: c, i: i }; }), want = function(x) { return x.c.tpl.id === tpl.id && (!C.seats_min || x.c.m.seats >= C.seats_min) && (!C.edge || x.c.edge.id === C.edge); };
+  var pick = sch.filter(want)[0] || sch.filter(function(x) { return !C.seats_min || x.c.m.seats >= C.seats_min; })[0] || sch[0];
+  if (!pick) return { error: 'no scheme passed every check with these constraints' };
+  var c = pick.c, cur = getDesignState();
+  applyDesignState(GEN.openState(c, cur, GEN._base || cur)); if (typeof pkAfterMove === 'function') pkAfterMove('assistant-generate');
+  GEN.opened = { title: GEN.title(c), seed: res.seed, i: pick.i }; if (GEN.banner) GEN.banner();
+  return { scheme: GEN.title(c), matched: want(pick), seats: c.m.seats, tables: c.m.tables, planting: c.m.planting, edge: c.edge.label, rationale: a.rationale || '' };
 };
 
-/* ── API ──────────────────────────────────────────────────── */
+/* ── the API ──────────────────────────────────────────────── */
 AX.call = function(messages) {
-  var c = AX.cfg(), url = c.proxy || AX.API_URL, headers = { 'content-type': 'application/json' };
-  if (!c.proxy) { headers['x-api-key'] = c.apiKey; headers['anthropic-version'] = '2023-06-01'; headers['anthropic-dangerous-direct-browser-access'] = 'true'; }
+  var c = AX.cfg(), headers = { 'content-type': 'application/json', 'x-api-key': c.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
   var body = { model: c.model || AX.DEFAULT_MODEL, max_tokens: 1500, system: AX.system(), messages: messages, tools: AX.tools, tool_choice: { type: 'auto' } };
-  return fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(body) }).then(function(r) {
-    return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; });
+  return fetch(AX.API_URL, { method: 'POST', headers: headers, body: JSON.stringify(body) }).catch(function(e) { var x = new Error('Anthropic could not be reached from this browser (' + (e.message || e) + ').'); x.net = true; throw x; }).then(function(r) {
+    return r.json().catch(function() { return {}; }).then(function(j) {
+      if (r.status === 401 || r.status === 403) throw new Error('Anthropic did not accept the key. Check it in Settings › Connections.');
+      if (!r.ok) throw new Error('Anthropic answered HTTP ' + r.status + ((j.error && j.error.message) ? ': ' + j.error.message : '') + '.');
+      return j;
+    });
   });
 };
 AX.send = function() {
   if (AX.busy) return;
   var inp = document.getElementById('axInput'), text = (inp.value || '').trim(); if (!text) return;
   if (!AX.configured()) { AX.gate(); return; }
-  inp.value = ''; inp.style.height = ''; document.getElementById('axChips').innerHTML = '';
+  inp.value = ''; var ch = document.getElementById('axChips'); if (ch) ch.innerHTML = '';
   AX.add('ax-u', AX.esc(text));
   AX.history.push({ role: 'user', content: text });
   if (AX.history.length > AX.maxTurns * 2) AX.history = AX.history.slice(-AX.maxTurns * 2);
   AX.busy = true; document.getElementById('axSend').disabled = true;
-  var typing = AX.add('ax-typing', ''); typing.className = 'ax-typing';
-  var rounds = 0;
+  var typing = AX.add('ax-typing', ''), rounds = 0;
   var step = function() {
     return AX.call(AX.history).then(function(res) {
       var content = res.content || [];
       AX.history.push({ role: 'assistant', content: content });
-      var text = content.filter(function(b) { return b.type === 'text'; }).map(function(b) { return b.text; }).join('\n').trim();
-      var tools = content.filter(function(b) { return b.type === 'tool_use'; });
-      if (!tools.length) { if (text) AX.add('ax-a', AX.esc(text)); return; }
-      if (text) AX.add('ax-a', AX.esc(text));
-      var results = tools.map(function(t) {
-        var r = t.name === 'apply_design_changes' ? AX.apply(t.input.changes) : { error: 'unknown tool' };
-        if (r.applied && r.applied.length) { var box = AX.sys('Applied: ' + r.applied.join('; ') + (r.rejected.length ? ' — skipped: ' + r.rejected.join('; ') : '')); box.insertAdjacentHTML('afterbegin', "<button class='ax-undo' onclick='AX.undo(this.parentNode)'>Undo</button>"); }
-        else if (r.rejected && r.rejected.length) AX.sys('Nothing applied — ' + r.rejected.join('; '), true);
-        return { type: 'tool_result', tool_use_id: t.id, content: JSON.stringify(r) };
-      });
+      var t = content.filter(function(b) { return b.type === 'text'; }).map(function(b) { return b.text; }).join('\n').trim(), tools = content.filter(function(b) { return b.type === 'tool_use'; });
+      if (t) AX.add('ax-a', AX.esc(t));
+      if (!tools.length) return;
+      var results = tools.map(function(tu) { var r = AX.run(tu.name, tu.input); if (r && (r.error || r.refused)) AX.sys(r.error || r.refused, true); return { type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(r) }; });
       AX.history.push({ role: 'user', content: results });
-      if (++rounds < 3) return step();
+      if (++rounds < 4) return step();
     });
   };
-  step().catch(function(e) { AX.sys('Request failed: ' + (e.message || e), true); console.error('[ax]', e); })
-    .then(function() { typing.remove(); AX.busy = false; document.getElementById('axSend').disabled = false; document.getElementById('axInput').focus(); });
+  step().catch(function(e) { AX.sys(e.message || String(e), true); console.warn('[assistant]', e); })
+    .then(function() { if (typing) typing.remove(); AX.busy = false; document.getElementById('axSend').disabled = false; });
 };
-(function() {
-  var inp = document.getElementById('axInput');
-  inp.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); AX.send(); } });
-  inp.addEventListener('input', function() { this.style.height = ''; this.style.height = Math.min(120, this.scrollHeight) + 'px'; });
-  AX.refreshLbl();
-})();
 window.AX = AX;
 </script>
 
@@ -31447,7 +31478,6 @@ var UI_TIPS = [
   ['.vpill[onclick*=\'"section"\']', 'Shows the Section only.'],
   ['.vpill[onclick*=\'"3d"\']', 'Shows the 3D view only.'],
   ['#appearanceBtn', 'Drawing style of the Plan, Section and 3D: schematic (colour) or technical (black and white).'],
-  ['#axToggleBtn', 'Opens the Assistant, which changes the design from a description you type.'],
   ['.vp-max', 'Enlarges this view to the whole work area; Esc returns to three views.'],
   ['.vp-lbl', 'The view&rsquo;s name.'],
   // section editor
