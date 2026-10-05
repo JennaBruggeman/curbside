@@ -2615,7 +2615,7 @@ function _checkLandmarkConsistency(verbose) {
       var pb = f.poly ? { z0: Math.min.apply(null, f.poly.map(function(p) { return p.z; })), z1: Math.max.apply(null, f.poly.map(function(p) { return p.z; })), x0: Math.min.apply(null, f.poly.map(function(p) { return p.x; })), x1: Math.max.apply(null, f.poly.map(function(p) { return p.x; })) } : null;
       var row = { building: id, model: pb ? [pb.z0, pb.z1, near ? pb.x1 : pb.x0, near ? pb.x0 : pb.x1] : [f.z0, f.z1, f.faceX, f.backX] };
       var r = planSvg && planSvg.querySelector("[data-bldg='" + id + "']");
-      if (planSvg && planSvg.childElementCount) {
+      if (planSvg && planSvg.childElementCount && !(window._pvMassesOff && window._pvMassesOff[id])) {   // (Plan second pass) drawn as its City footprint at Fit sheet
         if (!r) bad.push({ value: 'Plan draws no rect for building ' + id, model: 'visible', independent: 'missing' });
         else {
           // a path: the bounds of its own points (a hidden Plan measures 0 x 0)
@@ -7813,10 +7813,13 @@ DRAW_STYLE.SEG_FILL = { 'travel-lane': 'road', 'transit-lane': 'road', 'turn-lan
 DRAW_STYLE.CTX = {
   ring: 100, lane: 0.5,
   curb: { inner: { c: 'ink', op: 0.85 }, outer: { c: 'mid', op: 0.75 } },
+  // (Plan second pass) three tones by ring: the design block darkest (technical solid ink poché, schematic the darkest
+  // grey), the inner ring mid-grey with a hairline, the outer ring the palest grey with no outline; the host's outline heavier
   bldg: {
-    technical: { inner: { c: 'ink', op: 0.34, line: 'ink', lop: 0.55 }, outer: { c: 'ink', op: 0.2 } },
-    schematic: { inner: { c: 'mid', op: 0.34, line: 'mid', lop: 0.9 }, outer: { c: 'mid', op: 0.22 } }
+    technical: { block: { c: '#1A1A1A', op: 1, line: '#1A1A1A', lop: 1 }, inner: { c: '#B4B4B4', op: 1, line: '#8C8C8C', lop: 1 }, outer: { c: '#E6E6E6', op: 1 } },
+    schematic: { block: { c: '#55524C', op: 1, line: '#2B2B2B', lop: 1 }, inner: { c: '#C7C2B8', op: 1, line: '#8A857D', lop: 1 }, outer: { c: '#EDEAE4', op: 1 } }
   },
+  hostPx: 2.5, hostMm: 0.5, jog: 1.5,   // the host's outline (screen px, sheet mm); the outer ring's simplification (m: jogs under 3 m)
   park: { technical: '#E9F0E3', schematic: '#E6EEDD' },
   name: { major: 10.5, minor: 9, majorRe: /^(motorway|trunk|primary|secondary)/, gap: 260 }
 };
@@ -8396,6 +8399,10 @@ function _renderPlanView(o) {
   // the annotation tier (Brief 19 A): from the screen's px per metre (paper: the sheet scale, 2 px/m per mm/m)
   const LOD = paper ? lodTier(2 * (o.mmPerM || 10)) : lodLive(PLAN_PX_M / U), LODn = LOD_RANK[LOD];   // live: by on-screen scale (Brief 29 item 5)
   const atTier = function(t) { return LODn >= LOD_RANK[t]; };
+  // (Plan second pass) Fit sheet and Fit context, and any zoom out as far: one source of building outline, the City's
+  // footprints; the design street two curb lines; no grid. Fit design and closer keep the model's masses and the bands.
+  const FG = !paper && typeof CTX_OUTER !== 'undefined' && !!CTX_OUTER && (LODn < 2 || (!_pvUserMod && _pvExtent !== 'design'));
+  window._pvFG = FG;
   if (!paper) window._pvLod = { tier: LOD, pxPerM: +(PLAN_PX_M / U).toFixed(2), scale: lodScale(PLAN_PX_M / U) };
   const pvDFV = 8 * pvZS, pvDFL = 6 * pvZS, pvDFS = 5.5 * pvZS;
   const pvDTK = (0.85 * pvZS).toFixed(2), pvDEXT = (0.55 * pvZS).toFixed(2);
@@ -8520,7 +8527,7 @@ function _renderPlanView(o) {
   s += _defsStr;
   // the city context (Brief 19 B): the outer ring under the street, one cached group (its own paper out to the radius)
   const _iR = typeof SMP !== 'undefined' ? SMP.R : 150;   // the inner ring (the import script may not have run yet)
-  const _oc = _pvOuterLayer({ far: LODn < 1, mid: LODn === 1, U: U, L: PARKLET_M, DK: DK,
+  const _oc = _pvOuterLayer({ far: LODn < 1, mid: LODn === 1, fg: FG, U: U, L: PARKLET_M, DK: DK,
     x0: Math.min(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px), x1: Math.max(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px),
     y0: -CTX_TOP, y1: OPP_BOTTOM, ry0: SW_Y - 1, ry1: _pvOppSW1 + 1 });
   s += _oc.paper + `<rect width='${VW}' height='${VH}' fill='${DK.T.paper}'/>` + _oc.svg;
@@ -8532,11 +8539,11 @@ function _renderPlanView(o) {
     s += `<rect x='${_ia.toFixed(1)}' y='${(-CTX_TOP).toFixed(1)}' width='${(_ib - _ia).toFixed(1)}' height='${(OPP_BOTTOM + CTX_TOP).toFixed(1)}' fill='none'${K('fine', { c: 'mid', dash: 'hidden' })} pointer-events='none' data-import-area='1'/>`; }
   { const _swSeg = _pvXS.find(function(sg){ return sg.type === 'sidewalk'; });
     const _swR = function(a) { return `<rect x='0' y='${SW_Y.toFixed(2)}' width='${VW}' height='${SW_H.toFixed(2)}'${a}/>`; };
-    s += _swR(` fill='${DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`).replace(/\/>$/, paper ? '/>' : '><title>Sidewalk' + (_swSeg ? ' · ' + DRAW_STYLE.fmt(Math.abs(_swSeg.x1 - _swSeg.x0)) + ' m' : '') + '</title></rect>') + _band('concrete', _swR); }
+    s += _swR(` fill='${FG ? DK.T.paper : DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`).replace(/\/>$/, paper ? '/>' : '><title>Sidewalk' + (_swSeg ? ' · ' + DRAW_STYLE.fmt(Math.abs(_swSeg.x1 - _swSeg.x0)) + ' m' : '') + '</title></rect>') + (FG ? '' : _band('concrete', _swR)); }
   // segment labels: at the left edge of what is on screen, moving along their band, never under an object
   const SEGX = Math.max(0, VIS.x0) + 8 * U, SEGLO = Math.max(0, VIS.x0) + 2 * U, SEGHI = Math.min(VW, VIS.x1);
   const annSeg = function(str, y, o) { annText('segment', str, SEGX, y, Object.assign({ axis: 'x', lo: SEGLO, hi: SEGHI }, o || {})); };
-  annSeg('Sidewalk / building frontage', SW_Y + 3 * U + DRAW_STYLE.fs(DK, 'tag'));
+  if (!FG) annSeg('Sidewalk / building frontage', SW_Y + 3 * U + DRAW_STYLE.fs(DK, 'tag'));
   // Road segments beyond the parklet, each at its own model x range in Section-editor order.
   // Bands are tagged data-seg='<segment id>' so checkLandmarkConsistency can read them back.
   const _bikeSeg = _pvRoadSegs.find(function(sg){ return sg.type === 'bike-lane'; });
@@ -8551,8 +8558,9 @@ function _renderPlanView(o) {
     const _ft = sg.type === 'bike-lane' && !blOkPV ? 'bike-lane-fail' : sg.type === 'travel-lane' && !_lanesPass ? 'travel-lane-fail'
       : (sg.type === 'buf-pk' || sg.type === 'buf-bl') ? (_planted ? 'planting' : sg.variant === 'raised' ? 'curb' : 'travel-lane') : sg.type;
     const _sgR = function(a) { return `<rect x='0' y='${sg.y0.toFixed(2)}' width='${VW}' height='${(sg.y1 - sg.y0).toFixed(2)}'${a}/>`; };
-    s += _sgR(` fill='${DRAW_STYLE.seg(_ft, DK.mode)}' data-seg='${sg.id}'`).replace(/\/>$/, paper ? '/>' : '><title>' + _annEsc(((window.SE_TYPES && SE_TYPES[sg.type] && SE_TYPES[sg.type].label) || sg.type) + ' · ' + DRAW_STYLE.fmt(Math.abs(sg.x1 - sg.x0)) + ' m') + '</title></rect>');
+    s += _sgR(` fill='${FG ? DK.T.paper : DRAW_STYLE.seg(_ft, DK.mode)}' data-seg='${sg.id}'`).replace(/\/>$/, paper ? '/>' : '><title>' + _annEsc(((window.SE_TYPES && SE_TYPES[sg.type] && SE_TYPES[sg.type].label) || sg.type) + ' · ' + DRAW_STYLE.fmt(Math.abs(sg.x1 - sg.x0)) + ' m') + '</title></rect>');
     // hatch bands: planting beds and planted buffers, concrete (curbs, raised buffers); asphalt has its edge line only
+    if (FG) return;   // (Plan second pass) the design street at Fit sheet: its curbs only
     if (_planted) s += _band('planting', _sgR); else if (_ft === 'curb') s += _band('concrete', _sgR);
     if (_segLbl[sg.type]) {
       s += `<line x1='0' y1='${sg.y0.toFixed(2)}' x2='${VW}' y2='${sg.y0.toFixed(2)}'${K('context', { c: 'mid', dash: 'hidden' })}/>`;
@@ -8560,7 +8568,7 @@ function _renderPlanView(o) {
     }
   });
   // Roadway no segment covers (lanes capped by LANE_ENVELOPE): its own band up to the far curb.
-  if (_pvLM.roadRight - _pvLM.allocatedRight > 0.005) {
+  if (!FG && _pvLM.roadRight - _pvLM.allocatedRight > 0.005) {
     const uy0 = _yOf(_pvLM.allocatedRight), uy1 = _yOf(_pvLM.roadRight);
     s += `<rect x='0' y='${uy0.toFixed(2)}' width='${VW}' height='${(uy1 - uy0).toFixed(2)}' fill='${DRAW_STYLE.seg('unallocated', DK.mode)}' data-seg='unallocated'>${paper ? '' : '<title>Unallocated roadway · ' + DRAW_STYLE.fmt(_pvLM.roadRight - _pvLM.allocatedRight) + ' m</title>'}</rect>`;
     s += `<line x1='0' y1='${uy0.toFixed(2)}' x2='${VW}' y2='${uy0.toFixed(2)}'${K('context', { c: 'mid', dash: 'hidden' })}/>`;
@@ -8568,7 +8576,7 @@ function _renderPlanView(o) {
   }
   // the parking row, one surface the whole length (Brief 28 item 8: under the deck too, so an edited deck shape sits on the
   // ground and nothing is cut from it), under the trees' canopies
-  s += `<rect x="0" y="${PK_Y}" width="${VW}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}" data-ground='parking'/>`;
+  s += `<rect x="0" y="${PK_Y}" width="${VW}" height="${pvPkH}" fill="${FG ? DK.T.paper : DRAW_STYLE.seg('parklet', DK.mode)}" data-ground='parking'/>`;
   // Trees and planters from DESIGN_MODEL.vegetation, on top of their bands, true scale
   // (ellipse radii use each axis's own px/m). Tagged data-veg='<index>' for the check.
   _pvDM.vegetation.forEach(function(v, i) {
@@ -8592,7 +8600,7 @@ function _renderPlanView(o) {
     s += "<g data-ctx='stops'><title>" + (t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop') + (t.confirmed ? '' : ' (confirm on site)') + '</title>' + _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'`, noText: LODn < 2 }); }) + '</g>';
 
   });
-  if (_bikeSeg) {
+  if (_bikeSeg && !FG) {
     const pvLaneY = _bikeSeg.y0, pvLaneH = _bikeSeg.y1 - _bikeSeg.y0;
     const _corrEdgeY = Math.max.apply(null, _bikeCorr.map(function(sg){ return sg.y1; }));  // traffic side of the corridor
     s += `<line x1='0' y1='${_corrEdgeY.toFixed(2)}' x2='${VW}' y2='${_corrEdgeY.toFixed(2)}'${K('general', { c: pvBLStroke })}/>`;
@@ -8612,7 +8620,7 @@ function _renderPlanView(o) {
   }
   // Vegetated buffer strip between the sidewalk and the building frontage (landmarks.bufferL,
   // the same strip 3D draws), placed through worldToPlan.
-  if (_pvLM.bufferW > 0.05) {
+  if (_pvLM.bufferW > 0.05 && !FG) {
     const _bfY0 = worldToPlan(_pvLM.bufferL.x0, 0).py, _bfY1 = worldToPlan(_pvLM.bufferL.x1, 0).py, _bfH = _bfY1 - _bfY0;
     const _bfR = function(a) { return `<rect x='0' y='${_bfY0.toFixed(2)}' width='${VW}' height='${_bfH.toFixed(2)}'${a}/>`; };
     s += _bfR(` fill='${DK.T.fill.planting}'`) + _band('planting', _bfR);
@@ -8634,7 +8642,7 @@ function _renderPlanView(o) {
   const _nearSp = _span(_lnSegs.filter(function(l){ return l.direction === 'near'; }));
   const _farSp  = _span(_lnSegs.filter(function(l){ return l.direction === 'far'; }));
   const _allSp  = _span(_lnSegs);
-  if (ROAD_DIR === 'twoway' && _nearSp && _farSp) {
+  if (FG) { /* (Plan second pass) no lane arrows, no centre line at Fit sheet */ } else if (ROAD_DIR === 'twoway' && _nearSp && _farSp) {
     const cenY = (_nearSp.y1 + _farSp.y0) / 2;
     const nearMidY = (_nearSp.y0 + _nearSp.y1) / 2;
     const farMidY = (_farSp.y0 + _farSp.y1) / 2;
@@ -8659,9 +8667,8 @@ function _renderPlanView(o) {
 
 // (Brief 31 §5) Far, live: the design street like every other street in the figure-ground: paper from frontage to
 // frontage, its two curb lines one pixel in ink (DRAW_STYLE.CTX's inner ring); the bands under it stay for the checks
-if (!paper && LODn < 1) {
-  const _fy0 = Math.min(SW_Y, _pvOppSW1), _fy1 = Math.max(SW_Y, _pvOppSW1), _fc = DRAW_STYLE.CTX.curb.inner;
-  s += `<rect x='0' y='${_fy0.toFixed(2)}' width='${VW}' height='${(_fy1 - _fy0).toFixed(2)}' fill='${DK.T.paper}' pointer-events='none' data-far-street='1'/>`;
+if (FG) {   // (Plan second pass) at Fit sheet as at Fit context: the bands are paper already; the curbs, broken at the crossings
+  const _fc = DRAW_STYLE.CTX.curb.inner;
   const _cy = [_yOf(_pvLM.roadLeft), _yOf(_pvLM.roadRight)];
   _cy.forEach(function(y) { s += `<line x1='0' y1='${y.toFixed(2)}' x2='${VW}' y2='${y.toFixed(2)}' stroke='${DK.T[_fc.c]}' stroke-opacity='${_fc.op}' stroke-width='${U.toFixed(3)}' data-far-curb='1'/>`; });
   if (_oc.cross) { const _c0 = Math.min.apply(null, _cy) - 2 * U, _c1 = Math.max.apply(null, _cy) + 2 * U; s += `<defs><clipPath id='pvFarBand'><rect x='-1e5' y='${_c0.toFixed(2)}' width='2e5' height='${(_c1 - _c0).toFixed(2)}'/></clipPath></defs><g clip-path='url(#pvFarBand)' pointer-events='none' data-far-cross='1'>` + _oc.cross + '</g>'; }   // the curb lines break at the crossings
@@ -8676,7 +8683,7 @@ const C13_REQ = 1.5;
   const c13Z = DRAW_STYLE.zoneSt(DK, c13St);
   // the check zones are annotation: none at the far tier (Brief 19 A)
   // live, far (Brief 29 item 5): the zones as faint fills with their lozenges, no values; a zone's full label on hover
-  const ZN = LODn >= 1, ZF = !paper && !ZN;
+  const ZN = LODn >= 1 && !FG, ZF = !paper && !ZN && !FG;   // (Plan second pass) at Fit sheet: no C13 marks; C03 its bubble
   const ANNAPI = { lozenge: annLozenge, text: annText };
   const c13Lbl = DRAW_STYLE.clearLbl(c13Raw, C13_REQ, 'C13');
   const _zTip = function(lab) { return paper ? '' : '<title>' + _annEsc(lab.val + (lab.ok == null ? '' : ' m') + ' · ' + lab.note) + '</title>'; };
@@ -8706,6 +8713,7 @@ const C03_REQ = 6;
   const c03Px = Math.min(Math.round(c03DisplayM*HS), Math.round(maxC03M*HS));
   const c03Z = DRAW_STYLE.zoneSt(DK, c03St);
   const C03_LX = PK_X-c13Px-c03Px, C03_RX = PK_X+PK_W+c13Px;
+  if (c03Px > 4 && FG) { _zFar(C03_LX, C03_LX + c03Px, 'C03', 'pass'); _zFar(C03_RX, C03_RX + c03Px, 'C03', 'pass'); }   // in ink
   if (c03Px > 4 && ZF) { const c03Lbl = DRAW_STYLE.clearLbl(c03Raw, C03_REQ, 'C03'); s += _zRect(C03_LX, c03Px, c03St, c03Lbl) + _zRect(C03_RX, c03Px, c03St, c03Lbl); _zFar(C03_LX, C03_LX+c03Px, 'C03', c03St); _zFar(C03_RX, C03_RX+c03Px, 'C03', c03St); }
   if (c03Px > 4 && ZN) {
     const c03Lbl = DRAW_STYLE.clearLbl(c03Raw, C03_REQ, 'C03');
@@ -8740,7 +8748,7 @@ const C03_REQ = 6;
   if (LODn >= 1) s += _dkR(` fill='${DK.T.fill.deck}'`).replace(/\/>$/, '>' + _dkTip + '</rect>') + _band('timber', _dkR, { across: true });
   else s += `<rect x='${PK_X}' y='${PK_Y}' width='${PK_W}' height='${pvPkH}' fill='${DRAW_STYLE.c(DK, _iTch ? 'light' : 'fill.deck')}' stroke='none' data-pk-far='1'>${_dkTip}</rect>`;
   // ── Metric world-space grid (covers full viewBox — extends with zoom/pan) ─
-  if (_gridEnabled && !paper) {
+  if (_gridEnabled && !paper && !FG) {   // (Plan second pass) off at Fit sheet and Fit context
     // the drawn grid's step follows the zoom (Brief 19 B): the snap spacing, else the first of 1, 5, 10, 50, 100 m whose
     // lines are 6 px apart on screen; the major lines every 4 or 5 steps (snapping keeps _gridSpacing)
     var _gS = _gridSpacing, _gMaj = 1.0, _gPpm = PLAN_PX_M / U;
@@ -8754,7 +8762,7 @@ const C03_REQ = 6;
     for (var _gz = _gzMin; _gz <= _gzMax + _gS * 0.5; _gz = Math.round((_gz + _gS) * 1e6) / 1e6) {
       var _gpx = worldToPlan(0, _gz).px.toFixed(1);
       var _gMajZ = Math.abs(Math.round(_gz / _gMaj) * _gMaj - _gz) < _gS * 0.01;
-      s += `<line x1='${_gpx}' y1='${_vbY0.toFixed(1)}' x2='${_gpx}' y2='${_vbY1.toFixed(1)}'${KU(_gMajZ ? 0.5 : 0.25, _gMajZ ? 'gridMaj' : 'grid')}/>`;
+      s += `<line x1='${_gpx}' y1='${_vbY0.toFixed(1)}' x2='${_gpx}' y2='${_vbY1.toFixed(1)}'${KU(_gMajZ ? 0.5 : 0.25, _gMajZ ? 'gridMaj' : 'grid')} data-grid='1'/>`;
     }
     // Cross-street (X) grid lines: SVG horizontal; world-X range of the viewBox via planToWorld
     var _gxA = planToWorld(0, _vbY0).x, _gxB = planToWorld(0, _vbY1).x;
@@ -8763,7 +8771,7 @@ const C03_REQ = 6;
     for (var _gx = _gxMin; _gx <= _gxMax2 + _gS * 0.5; _gx = Math.round((_gx + _gS) * 1e6) / 1e6) {
       var _gpy = worldToPlan(_gx, 0).py.toFixed(1);
       var _gMajX = Math.abs(Math.round(_gx / _gMaj) * _gMaj - _gx) < _gS * 0.01;
-      s += `<line x1='${_vbX0.toFixed(1)}' y1='${_gpy}' x2='${_vbX1.toFixed(1)}' y2='${_gpy}'${KU(_gMajX ? 0.5 : 0.25, _gMajX ? 'gridMaj' : 'grid')}/>`;
+      s += `<line x1='${_vbX0.toFixed(1)}' y1='${_gpy}' x2='${_vbX1.toFixed(1)}' y2='${_gpy}'${KU(_gMajX ? 0.5 : 0.25, _gMajX ? 'gridMaj' : 'grid')} data-grid='1'/>`;
     }
   }
   // -- World origin marker (CAD-style): X/Z axes at world (0,0)
@@ -9146,10 +9154,12 @@ const manholes = state['manholes'] || [];
       return { x: Math.min(a.px, b.px), y: Math.min(a.py, b.py), w: Math.abs(b.px - a.px), h: Math.abs(b.py - a.py) };
     };
     const _rect = (q, attrs) => `<rect x='${q.x.toFixed(2)}' y='${q.y.toFixed(2)}' width='${q.w.toFixed(2)}' height='${q.h.toFixed(2)}' ${attrs}/>`;
+    const _rgM = {}; if (FG) ['L', 'R'].forEach(function(sd) { (_pvDM.buildings[sd] || []).forEach(function(b, i) { _rgM[sd + i] = true; }); });   // at Fit sheet and Fit context, no model mass
+    window._pvMassesOff = Object.assign({}, _rgM);
     const _drawSide = function(list, side, label) {
       list.forEach(function(b, i) {
         const f = b.footprint;
-        if (!f.visible) return;
+        if (!f.visible || _rgM[side + i]) return;   // (Plan second pass) the City's footprints are drawn instead
         const body = _box(f.faceX, f.backX, f.z0, f.z1), inward = f.backX > f.faceX ? 1 : -1;
         const _bTip = paper ? '' : '<title>' + _annEsc(b.address || 'Building') + '</title>';   // (hover, Brief 29 item 5)
         if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${DK.T.fill.sidewalk}' data-ctx='buildings'`);
@@ -9172,9 +9182,9 @@ const manholes = state['manholes'] || [];
     _drawSide(_pvDM.buildings.L, 'L', 'Building interior');
     // Opposite sidewalk (continuous street element) and curb face, then opposite buildings
     const _osR = function(a) { return `<rect x='0' y='${_pvOppSW0.toFixed(2)}' width='${VW}' height='${(_pvOppSW1 - _pvOppSW0).toFixed(2)}'${a}/>`; };
-    s += _osR(` fill='${DK.T.fill.sidewalk}'`) + _band('concrete', _osR);
+    if (!FG) { s += _osR(` fill='${DK.T.fill.sidewalk}'`) + _band('concrete', _osR);
     s += `<line x1='0' y1='${_pvOppSW0.toFixed(2)}' x2='${VW}' y2='${_pvOppSW0.toFixed(2)}'${K('edge')}/>`;
-    annSeg('Opposite sidewalk', (_pvOppSW0 + _pvOppSW1) / 2 + 3 * U);
+    annSeg('Opposite sidewalk', (_pvOppSW0 + _pvOppSW1) / 2 + 3 * U); }
     _drawSide(_pvDM.buildings.R, 'R', 'Opposite building');
   }
   // ── Section A-A mark (Brief 08) ──────────────────────────────────────────────────────
@@ -15169,7 +15179,7 @@ function _pvOuterLayer(g) {
   var DK = g.DK, T = DK.T, LM = DESIGN_MODEL.landmarks, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
   var W = function(e, n) { return worldToPlan(LM.roadCenterX + e * E.x + n * N.x, g.L / 2 - pk + e * E.z + n * N.z); };
   var p0 = W(0, 0), pe = W(1, 0), pn = W(0, 1), ax = pe.px - p0.px, ay = pe.py - p0.py, bx = pn.px - p0.px, by = pn.py - p0.py, sc = Math.hypot(ax, ay);
-  var key = [o.stamp, (2 / g.U).toFixed(4), g.mid ? 'mid' : '', pk, g.L, p0.px.toFixed(2), p0.py.toFixed(2), ax.toFixed(5), ay.toFixed(5), bx.toFixed(5), by.toFixed(5), g.far ? 1 : 0, DK.mode, g.x0.toFixed(1), g.x1.toFixed(1), g.y0.toFixed(1), g.y1.toFixed(1)].join('|');
+  var key = [o.stamp, (2 / g.U).toFixed(4), g.mid ? 'mid' : '', g.fg ? 'fg' : '', JSON.stringify((CTX_BLDG.rings(DESIGN_MODEL) || {}).hostIdx), pk, g.L, p0.px.toFixed(2), p0.py.toFixed(2), ax.toFixed(5), ay.toFixed(5), bx.toFixed(5), by.toFixed(5), g.far ? 1 : 0, DK.mode, g.x0.toFixed(1), g.x1.toFixed(1), g.y0.toFixed(1), g.y1.toFixed(1)].join('|');
   if (_pvOuterCache && _pvOuterCache.key === key) { window._pvOuterCheck = _pvOuterCache.check; return _pvOuterCache.out; }
   var t0 = performance.now(), f = function(v) { return v.toFixed(1); };
   var P = function(p) { return [p0.px + ax * p[0] + bx * p[1], p0.py + ay * p[0] + by * p[1]]; };
@@ -15177,8 +15187,18 @@ function _pvOuterLayer(g) {
   var cen = function(r) { var s = [0, 0]; r.forEach(function(p) { s[0] += p[0]; s[1] += p[1]; }); return P([s[0] / r.length, s[1] / r.length]); };
   var inStrip = function(q) { return q[0] >= g.x0 && q[0] <= g.x1 && q[1] >= g.y0 && q[1] <= g.y1; };
   // (Brief 31 §5) the footprints by ring (DRAW_STYLE.CTX): within CTX.ring m of the site medium, beyond fill only
-  var bdI = '', bdO = '', nb = 0, skipped = 0, RI = DRAW_STYLE.CTX.ring;
-  o.bldg.forEach(function(r) { if (inStrip(cen(r))) { skipped++; return; } var m = [0, 0]; r.forEach(function(p) { m[0] += p[0] / r.length; m[1] += p[1] / r.length; }); if (Math.hypot(m[0], m[1]) <= RI) bdI += ring(r); else bdO += ring(r); nb++; });
+  // (Plan second pass) Fit sheet and Fit context (g.fg): every footprint, the design block's too, by its ring (CTX_BLDG);
+  // nearer, the inner strip's are the model's masses as before. The outer ring simplified (jogs under 3 m)
+  var bdB = '', bdH = '', bdI = '', bdO = '', nb = 0, skipped = 0, RG = CTX_BLDG.rings(DESIGN_MODEL), SIM = CTX_BLDG.simple(o), vtx = { outerRaw: 0, outer: 0 };
+  o.bldg.forEach(function(r, i) {
+    var cls = RG ? RG.cls[i] : 'outer';
+    if (!g.fg && inStrip(cen(r))) { skipped++; return; }
+    if (cls === 'outer') { vtx.outerRaw += r.length; vtx.outer += SIM[i].length; bdO += ring(SIM[i]); }
+    else if (cls === 'inner') bdI += ring(r);
+    else if (g.fg) { if (RG && i === RG.hostIdx) bdH += ring(r); else bdB += ring(r); }
+    else bdI += ring(r);
+    nb++;
+  });
   var pd = o.parks.map(ring).join(''), wd = o.water.map(ring).join('');
   // the streets (Brief 28 item 9; Brief 31 §5): paper between curb lines, by width and ring; a footway one faint line. The
   // main street (all inside its own band) is the model's, not drawn here
@@ -15187,10 +15207,11 @@ function _pvOuterLayer(g) {
     var q = st.pts.map(P); if (q.length < 2 || q.every(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; })) return;
     ns++;
     var d = 'M' + q.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L'), foot = st.kind === 'foot' || !(st.half > 0);
-    SL.push({ d: d, w: foot ? 0 : 2 * (st.half || 4.5) * sc, ring: DRAW_STYLE.ctxRing(st.pts), lane: st.use === 'service', foot: foot, cross: q.some(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; }) });
+    var rng = DRAW_STYLE.ctxRing(st.pts); if (st.use === 'service' && rng === 'outer') { ns--; return; }   // (Plan second pass) no lanes in the outer ring
+    SL.push({ d: d, w: foot ? 0 : 2 * (st.half || 4.5) * sc, ring: rng, lane: st.use === 'service', foot: foot, cross: q.some(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; }) });
     if (st.name && !foot) named.push({ st: st, q: q });
   });
-  var tech = DK.mode === 'technical', U1 = g.U > 0 ? g.U : 1, ops = DRAW_STYLE.ctxRoads(SL, U1, T), cross = DRAW_STYLE.ctxSVG(DRAW_STYLE.ctxRoads(SL.filter(function(q) { return q.cross && !q.foot; }), U1, T).filter(function(q) { return q.role === 'street'; })), bI = DRAW_STYLE.ctxBldg(DK.mode, 'inner', T), bO = DRAW_STYLE.ctxBldg(DK.mode, 'outer', T), park = DRAW_STYLE.ctxPark(DK.mode);
+  var tech = DK.mode === 'technical', U1 = g.U > 0 ? g.U : 1, ops = DRAW_STYLE.ctxRoads(SL, U1, T), cross = DRAW_STYLE.ctxSVG(DRAW_STYLE.ctxRoads(SL.filter(function(q) { return q.cross && !q.foot; }), U1, T).filter(function(q) { return q.role === 'street'; })), bI = DRAW_STYLE.ctxBldg(DK.mode, 'inner', T), bO = DRAW_STYLE.ctxBldg(DK.mode, 'outer', T), bB = DRAW_STYLE.ctxBldg(DK.mode, 'block', T), park = DRAW_STYLE.ctxPark(DK.mode);
   var R = o.R, cs = [W(-R, -R), W(R, -R), W(R, R), W(-R, R)], xs = cs.map(function(c) { return c.px; }), ys = cs.map(function(c) { return c.py; });
   var paper = "<rect x='" + f(Math.min.apply(null, xs)) + "' y='" + f(Math.min.apply(null, ys)) + "' width='" + f(Math.max.apply(null, xs) - Math.min.apply(null, xs)) + "' height='" + f(Math.max.apply(null, ys) - Math.min.apply(null, ys)) + "' fill='" + T.paper + "' data-layer='city-paper'/>";
   // the far tier: the same strokes painted once into a canvas (2 px per screen px) and placed as one image, so panning
@@ -15202,9 +15223,9 @@ function _pvOuterLayer(g) {
     if (wd) { cx2.fillStyle = T.fill.sea; cx2.fill(new Path2D(wd), 'evenodd'); }
     if (pd) { cx2.fillStyle = park; cx2.fill(new Path2D(pd)); }
     DRAW_STYLE.ctxCanvas(cx2, DRAW_STYLE.ctxRoads(SL, Math.max(g.U, 1 / k2), T));
-    [[bdO, bO], [bdI, bI]].forEach(function(b) { if (!b[0]) return; var p2 = new Path2D(b[0]); cx2.globalAlpha = b[1].op; cx2.fillStyle = b[1].fill; cx2.fill(p2); if (b[1].line) { cx2.globalAlpha = b[1].lop; cx2.strokeStyle = b[1].line; cx2.lineWidth = 0.5 * g.U; cx2.stroke(p2); } cx2.globalAlpha = 1; });
+    [[bdO, bO, 0.5], [bdI, bI, 0.5], [bdB, bB, 0.5], [bdH, bB, DRAW_STYLE.CTX.hostPx]].forEach(function(b) { if (!b[0]) return; var p2 = new Path2D(b[0]); cx2.globalAlpha = b[1].op; cx2.fillStyle = b[1].fill; cx2.fill(p2); if (b[1].line) { cx2.globalAlpha = b[1].lop; cx2.strokeStyle = b[1].line; cx2.lineWidth = b[2] * g.U; cx2.stroke(p2); } cx2.globalAlpha = 1; });
     var img = "<g data-layer='city' pointer-events='none'><image x='" + f(bx0) + "' y='" + f(by0) + "' width='" + f(bw) + "' height='" + f(bh) + "' preserveAspectRatio='none' href='" + cv.toDataURL('image/png') + "' data-city='raster'/></g>";
-    var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height], names: 0 };
+    var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height], names: 0, vtx: vtx, fg: !!g.fg };
     _pvOuterCache = { key: key, out: { paper: paper, svg: img, cross: cross }, check: chk };
     window._pvOuterCheck = chk;
     return _pvOuterCache.out;
@@ -15231,14 +15252,14 @@ function _pvOuterLayer(g) {
   }
   // clipped to the context square; water, parks, the curb casings, the street surfaces, footways, the buildings, the names
   var cl = 'pvCityClip', bx = Math.min.apply(null, xs), by = Math.min.apply(null, ys);
-  var bpath = function(dd, b, r) { return dd ? "<path d='" + dd + "' fill='" + b.fill + "' fill-opacity='" + b.op + "'" + (b.line ? " stroke='" + b.line + "' stroke-opacity='" + b.lop + "' stroke-width='" + (0.5 * U1).toFixed(3) + "'" : " stroke='none'") + " data-city='bldg' data-ring='" + r + "'/>" : ''; };
+  var bpath = function(dd, b, r, lw) { return dd ? "<path d='" + dd + "' fill='" + b.fill + "' fill-opacity='" + b.op + "'" + (b.line ? " stroke='" + b.line + "' stroke-opacity='" + b.lop + "' stroke-width='" + ((lw || 0.5) * U1).toFixed(3) + "' stroke-linejoin='round'" : " stroke='none'") + " data-city='bldg' data-ring='" + r + "'/>" : ''; };
   var svg = "<defs><clipPath id='" + cl + "'><rect x='" + f(bx) + "' y='" + f(by) + "' width='" + f(Math.max.apply(null, xs) - bx) + "' height='" + f(Math.max.apply(null, ys) - by) + "'/></clipPath></defs>" +
     "<g data-layer='city' pointer-events='none' clip-path='url(#" + cl + ")'>" +
     (wd ? "<path d='" + wd + "' fill='" + T.fill.sea + "' fill-rule='evenodd' stroke='none' data-city='water'/>" : '') +
     (pd ? "<path d='" + pd + "' fill='" + park + "' stroke='none' data-city='parks'/>" : '') +
     (ops.length ? "<g data-city='streets'>" + DRAW_STYLE.ctxSVG(ops) + '</g>' : '') +
-    bpath(bdO, bO, 'outer') + bpath(bdI, bI, 'inner') + (nm ? "<g data-city='names'>" + nm + '</g>' : '') + '</g>';
-  var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far, names: nNames, curbOps: ops.filter(function(q) { return q.role === 'curb'; }).length };
+    bpath(bdO, bO, 'outer') + bpath(bdI, bI, 'inner') + bpath(bdB, bB, 'block') + bpath(bdH, bB, 'host', DRAW_STYLE.CTX.hostPx) + (nm ? "<g data-city='names'>" + nm + '</g>' : '') + '</g>';
+  var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far, names: nNames, vtx: vtx, fg: !!g.fg, curbOps: ops.filter(function(q) { return q.role === 'curb'; }).length };
 
   _pvOuterCache = { key: key, out: { paper: paper, svg: svg, cross: cross }, check: check };
   window._pvOuterCheck = check;
@@ -15263,6 +15284,64 @@ var CTX_ROADS = {
     var f = function(v) { return v.toFixed(2); };
     var SL = roads.map(function(r) { return { d: 'M' + r.pts.map(function(p) { var q = to(p[0], p[1]); return f(q[0]) + ' ' + f(q[1]); }).join('L'), w: r.kind === 'foot' ? 0 : 2 * r.half * k, ring: r.ring || 'outer', lane: !!r.lane, foot: r.kind === 'foot' }; });
     return SL.length ? "<g data-ctx-roads='" + roads.length + "'>" + DRAW_STYLE.ctxSVG(DRAW_STYLE.ctxRoads(SL, lw, T)) + '</g>' : '';
+  }
+};
+// (Plan second pass) each City footprint's ring: 'block' when it is one of the model's buildings (its centroid inside one
+// of DESIGN_MODEL.buildings' footprints, 1 m allowed), 'inner' within DRAW_STYLE.CTX.ring m of the site, else 'outer'; the
+// host's footprint; the model buildings a footprint stands for (they are not drawn twice); the outer ones simplified
+// (Douglas-Peucker, DRAW_STYLE.CTX.jog m) once per import
+var CTX_BLDG = {
+  rings: function(DM) {
+    var o = typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null; if (!o || !o.bldg) return null;
+    DM = DM || _dmCurrent();
+    var LM = DM.landmarks, L = DM.parklet.length, pk = typeof pkZNow === 'function' ? pkZNow() : 0, E = siteBearingWorld(90), N = siteBearingWorld(0), host = DM.site && DM.site.host ? DM.site.host.index : -1, mb = [];
+    ['L', 'R'].forEach(function(side) { (DM.buildings[side] || []).forEach(function(b, i) { var f = b.footprint; if (!f || !f.visible) return;
+      var pts = f.poly ? f.poly.map(function(p) { return [p.x, p.z]; }) : [[f.faceX, f.z0], [f.backX, f.z0], [f.backX, f.z1], [f.faceX, f.z1]];
+      var xs = pts.map(function(p) { return p[0]; }), zs = pts.map(function(p) { return p[1]; });
+      mb.push({ id: side + i, host: side === 'L' && i === host, pts: pts, bb: [Math.min.apply(null, xs), Math.min.apply(null, zs), Math.max.apply(null, xs), Math.max.apply(null, zs)] }); }); });
+    var key = [o.stamp, o.bldg.length, pk, L, LM.roadCenterX, host, mb.map(function(m) { return m.bb.map(function(v) { return v.toFixed(2); }).join(','); }).join(';')].join('|');
+    if (CTX_BLDG._k === key) return CTX_BLDG._r;
+    var W = function(p) { return [LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z]; };
+    var inPoly = function(q, P) { var c = false; for (var i = 0, j = P.length - 1; i < P.length; j = i++) { if ((P[i][1] > q[1]) !== (P[j][1] > q[1]) && q[0] < (P[j][0] - P[i][0]) * (q[1] - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; } return c; };
+    var R = DRAW_STYLE.CTX.ring, out = { cls: [], hostIdx: -1, matched: {}, world: [] };
+    o.bldg.forEach(function(r, i) {
+      var c = [0, 0]; r.forEach(function(p) { c[0] += p[0] / r.length; c[1] += p[1] / r.length; });
+      var wp = r.map(W), xs = wp.map(function(p) { return p[0]; }), zs = wp.map(function(p) { return p[1]; }), cb = [Math.min.apply(null, xs), Math.min.apply(null, zs), Math.max.apply(null, xs), Math.max.apply(null, zs)], wc = W(c);
+      // either way round, 1 m allowed: the footprint's centre in the model building's bounds, or the model's centre in the footprint's
+      var hit = mb.find(function(m) { var mc = [(m.bb[0] + m.bb[2]) / 2, (m.bb[1] + m.bb[3]) / 2];
+        return (wc[0] >= m.bb[0] - 1 && wc[0] <= m.bb[2] + 1 && wc[1] >= m.bb[1] - 1 && wc[1] <= m.bb[3] + 1) || (mc[0] >= cb[0] - 1 && mc[0] <= cb[2] + 1 && mc[1] >= cb[1] - 1 && mc[1] <= cb[3] + 1); });
+      out.cls.push(hit ? 'block' : Math.hypot(c[0], c[1]) <= R ? 'inner' : 'outer');
+      if (hit) { out.matched[hit.id] = true; if (hit.host && out.hostIdx < 0) out.hostIdx = i; }
+    });
+    CTX_BLDG._k = key; CTX_BLDG._r = out; return out;
+  },
+  // the outer ring's rings, simplified (local metres), once per import
+  simple: function(o) {
+    if (CTX_BLDG._sk === o.stamp + '|' + o.bldg.length) return CTX_BLDG._s;
+    var eps = DRAW_STYLE.CTX.jog, dp = function(P) {
+      if (P.length < 4) return P;
+      var keep = new Uint8Array(P.length); keep[0] = keep[P.length - 1] = 1;
+      var st = [[0, P.length - 1]];
+      while (st.length) { var q = st.pop(), a = P[q[0]], b = P[q[1]], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1e-9, best = -1, bi = -1;
+        for (var k = q[0] + 1; k < q[1]; k++) { var d = Math.abs((P[k][0] - a[0]) * dz - (P[k][1] - a[1]) * dx) / l; if (d > best) { best = d; bi = k; } }
+        if (best > eps) { keep[bi] = 1; st.push([q[0], bi], [bi, q[1]]); } }
+      return P.filter(function(p, k) { return keep[k]; });
+    };
+    var out = o.bldg.map(function(r) {
+      // a closed ring: split at its farthest point from the first, each half simplified
+      var far = 0, fd = -1; r.forEach(function(p, k) { var d = Math.hypot(p[0] - r[0][0], p[1] - r[0][1]); if (d > fd) { fd = d; far = k; } });
+      if (r.length < 5) return r;
+      var A = dp(r.slice(0, far + 1)), B = dp(r.slice(far).concat([r[0]])), s2 = A.concat(B.slice(1, -1));
+      return s2.length >= 3 ? s2 : r;
+    });
+    CTX_BLDG._sk = o.stamp + '|' + o.bldg.length; CTX_BLDG._s = out; return out;
+  },
+  // in the world frame (the sheets): [{pts: [[x, z]], cls, host}]
+  world: function(DM) {
+    var o = typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null, rg = CTX_BLDG.rings(DM); if (!o || !rg) return [];
+    DM = DM || _dmCurrent(); var LM = DM.landmarks, L = DM.parklet.length, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0), sim = CTX_BLDG.simple(o);
+    var W = function(p) { return [LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z]; };
+    return o.bldg.map(function(r, i) { var c = rg.cls[i]; return { pts: (c === 'outer' ? sim[i] : r).map(W), cls: c, host: i === rg.hostIdx }; });
   }
 };
 window.addEventListener('load', function() {   // the outer ring from the cache (no request) after a reload
@@ -25283,7 +25362,11 @@ RPT.planBase = function(P, G, F, mode, o) {
   var FI = RPT.fills(mode), LM = G.LM, xa = F.sx(F.zB), xb = F.sx(F.zA), sx = function(z) { return F.sx(z); }, sy = function(x) { return F.sy(x); };
   // near sidewalk (frontage to curb), road segments, far curb and sidewalk (o.deckOnly, A-103: none of it, Brief 19b)
   var swL = LM.sidewalkL, fx = LM.roadRight;
-  if (!o.deckOnly) {
+  if (o.fg) {   // (Plan second pass) A-101 as the live Plan at Fit sheet: the design street two curb lines at the street weight
+    var cc = DRAW_STYLE.CTX.curb.inner, TT2 = DRAW_STYLE.t(mode);
+    [swL.x1, fx].forEach(function(x) { P.line(xa, sy(x), xb, sy(x), { w: 0.18, c: TT2[cc.c], op: cc.op, data: " data-curb='1'" }); });
+  }
+  if (!o.deckOnly && !o.fg) {
   P.rect(xa, sy(swL.x0), xb - xa, (swL.x1 - swL.x0) * F.k, { fill: FI.sidewalk, w: 0 });
   if (mode === 'technical' && o.hatchSidewalk) P.hatch("<rect x='" + xa + "' y='" + sy(swL.x0) + "' width='" + (xb - xa) + "' height='" + ((swL.x1 - swL.x0) * F.k) + "'/>", [xa, sy(swL.x0), xb, sy(swL.x1)], 'concrete');
   G.segs.forEach(function(sg) {
@@ -25445,12 +25528,22 @@ RPT.sheetSite = function(d) {
   };
   // the cross streets in the crop as surfaces, under the buildings (Brief 28 item 9; the main street is the model's)
   P.add(CTX_ROADS.svg(CTX_ROADS.world(), function(x, z) { return [F.sx(z), F.sy(x)]; }, k, DRAW_STYLE.t(d.mode), 0.18));
+  // (Plan second pass) the City's footprints, as the live Plan draws them at Fit sheet: the design block solid (technical
+  // poché, schematic the darkest grey), the host outlined heavier, the inner ring mid-grey with a hairline, the outer palest;
+  // a model building with no footprint is drawn as before
+  var TT = DRAW_STYLE.t(d.mode), CW = CTX_BLDG.world(G.DM), RGW = CTX_BLDG.rings(G.DM), mOff = RGW ? RGW.matched : {}, onPoche = !!CW.length;
+  CW.forEach(function(q) {
+    if (!q.pts.some(function(p) { return p[1] >= zA - 5 && p[1] <= zB + 5 && p[0] >= xTop - 5 && p[0] <= xBot + 5; })) return;
+    var t = DRAW_STYLE.ctxBldg(d.mode, q.cls === 'outer' ? 'outer' : q.cls === 'inner' ? 'inner' : 'block', TT);
+    P.poly(q.pts.map(function(p) { return [F.sx(p[1]), F.sy(p[0])]; }), { fill: t.fill, fop: t.op, w: t.line ? (q.host ? DRAW_STYLE.CTX.hostMm : RPT.LW.hatch) : 0, c: t.line || undefined, data: " data-ctx-bldg='" + (q.host ? 'host' : q.cls) + "'" });
+  });
   // buildings with their programme
   ['L', 'R'].forEach(function(side) {
     (G.DM.buildings[side] || []).forEach(function(b, bi) {
       var fp = b.footprint; if (!fp || !fp.visible || fp.z1 < zA || fp.z0 > zB) return;
-      var x0 = Math.min(fp.faceX, fp.backX), x1 = Math.max(fp.faceX, fp.backX);
-      if (fp.poly) P.poly(fp.poly.map(function(p) { return [F.sx(p.z), F.sy(p.x)]; }), { fill: FI.building, cls: 'edge', data: " data-bldg-poly='1'" });   // its real footprint (Brief 28 item 9)
+      var x0 = Math.min(fp.faceX, fp.backX), x1 = Math.max(fp.faceX, fp.backX), drawn = onPoche;   // with the City's footprints, no model mass
+      if (drawn) {}   // its City footprint above
+      else if (fp.poly) P.poly(fp.poly.map(function(p) { return [F.sx(p.z), F.sy(p.x)]; }), { fill: FI.building, cls: 'edge', data: " data-bldg-poly='1'" });   // its real footprint (Brief 28 item 9)
       else P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, cls: 'edge' });
       var z0 = Math.max(fp.z0, zA), z1 = Math.min(fp.z1, zB), cx = F.sx((z0 + z1) / 2), wmm = (z1 - z0) * k, face = F.sy(fp.faceX) + (side === 'L' ? -8 : 10);   // inside the footprint, clear of the section marker
       if (side === 'L' && G.DM.site.host && G.DM.site.host.index === bi) hostAt = [cx, F.sy((x0 + x1) / 2)];
@@ -25459,14 +25552,15 @@ RPT.sheetSite = function(d) {
       var l1 = ad || nm, l2 = ad ? [nm, use].filter(Boolean).join(', ') : use;
       var lo = F.sx(z1) + 1, hi = F.sx(z0) - 1, y1 = face - (side === 'L' ? 2.6 : 0), y2 = face + (side === 'L' ? 0 : 2.6), w1 = l1 ? RPT.tw(l1, RPT.TX.tag, true) : 0, w2 = l2 ? RPT.tw(l2, RPT.TX.tag) : 0;
       var c1 = l1 && wmm > w1 + 2 ? labelX(cx, y1, w1, lo, hi) : null, c2 = l2 && wmm > w2 + 2 ? labelX(cx, y2, w2, lo, hi) : null;
-      if (c1 != null) P.text(c1, y1, l1, RPT.TX.tag, { anchor: 'middle', bold: true, data: ad ? " data-addr='1'" : '' });
-      if (c2 != null) P.text(c2, y2, l2, RPT.TX.tag, { anchor: 'middle', c: RPT.MID });
+      var onDark = !!mOff[side + bi] && onPoche, lc = onDark ? '#FFFFFF' : undefined;   // on the design block's poché, the labels in paper
+      if (c1 != null) P.text(c1, y1, l1, RPT.TX.tag, { anchor: 'middle', bold: true, c: lc, data: ad ? " data-addr='1'" : '' });
+      if (c2 != null) P.text(c2, y2, l2, RPT.TX.tag, { anchor: 'middle', c: onDark ? '#FFFFFF' : RPT.MID });
     });
   });
   // the annotation tier from the sheet's scale (Brief 19 A): 1:250 is mid (no tree tags, no object labels), nearer is near
   var lod = lodTier(2000 / sc), near = lod === 'near';
   // the trees on the ground under the deck (Brief 28 item 5), the site objects over it
-  RPT.planBase(P, G, F, d.mode, { beforeDeck: function() { RPT.planObjects(P, G, F, { layers: ['trees'] }); } });
+  RPT.planBase(P, G, F, d.mode, { fg: onPoche, beforeDeck: function() { RPT.planObjects(P, G, F, { layers: ['trees'] }); } });
   RPT.planObjects(P, G, F, { labels: near, layers: RPT.SHEET_LAYERS.A101.filter(function(l) { return l !== 'trees'; }) });
   RPT.cityPlan(P, F, d);   // the City's wheel stops and bollards (Brief 21 §13): symbols, no note (A-102 has it)
   // genus tags last, on top, at every scale (Brief 28 item 6: grouped, they read at 1:250), clear of the section marker's tags
