@@ -22989,6 +22989,8 @@ GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.sav
 .gen-title { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--d-ink); }
 .gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); padding: var(--sp-4); align-content: start; }
 .gen-empty { grid-column: 1 / -1; padding: var(--sp-6) 0; }
+.gen-sentence { color: var(--d-ink); font-weight: 600; cursor: help; } .gen-miss-h { grid-column: 1 / -1; margin: var(--sp-2) 0 0; font: 600 var(--fs-12) var(--font-ui); color: var(--d-ink); }
+.gen-card.gen-miss { border-color: var(--st-fail, #C0392B); border-style: dashed; } .gen-fails { margin: 0 var(--sp-3) var(--sp-2); font: 600 var(--fs-12) var(--font-ui); color: var(--st-fail-ink, #B42C2C); }
 .gen-err-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }   /* Brief 29c item 3 */
 .gen-err.gen-ready p { color: var(--text-hi, inherit); }
 </style>
@@ -23069,7 +23071,8 @@ GEN.evaluate = function(ds) {
     // (Brief 30 §9) a check left open only by a site fact answered 'not known yet' does not reject a layout: the design
     // cannot decide it, and Check shows it Awaiting measurement
     var open = function(c) { return typeof SFG !== 'undefined' && SFG.active() && SFG.cardsFor(c.id).length > 0 && SFG.critDone(c.id); };
-    criteria.forEach(function(c) { var st = getCriterionStatus(c); out.status[c.id] = st; if (st === 'pass' || (st === 'unclear' && open(c))) out.pass++; });
+    out.failing = [];
+    criteria.forEach(function(c) { var st = getCriterionStatus(c); out.status[c.id] = st; if (st === 'pass' || (st === 'unclear' && open(c))) out.pass++; else out.failing.push(c.id); });
     return out;
   });
 };
@@ -23911,7 +23914,7 @@ GEN.generate = function() {
     var fit = 0; Object.keys(t.fit).forEach(function(k) { fit += t.fit[k] * (P.prog[k] || 0); });
     return 0.5 + fit + 3 * ((t.char || {})[P.character] || 0);
   });
-  var N = P.n, total = N * 20, cands = [], seen = {};
+  var N = P.n, total = N * 20, cands = [], seen = {}, rejects = [];
   for (var i = 0; i < total; i++) {
     res.stats.sampled++;
     var tpl = GEN.pick(r, GEN.TEMPLATES, tw), fp = GEN.pick(r, fps), edge = GEN.pick(r, GEN.EDGES), pi = Math.floor(r() * pals.length) % pals.length, flip = r() < 0.5;
@@ -23920,6 +23923,7 @@ GEN.generate = function() {
     if (seen[key]) continue; seen[key] = 1;
     var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip, pattern: pat, fill: fill });
     if (!lay.ok) {
+      if (rejects.length < 200) rejects.push({ key: key, tpl: tpl, fp: fp, edge: edge, pi: pi, flip: flip, lay: lay });   // (Brief 32 §2) a nearest miss, perhaps
       res.stats.layoutRejects++;
       lay.reasons.forEach(function(w) { w = w.split(' (')[0]; res.stats.why[w] = (res.stats.why[w] || 0) + 1; });
       continue;
@@ -23929,7 +23933,7 @@ GEN.generate = function() {
     ds.parkletMaterials = JSON.parse(JSON.stringify(PKMAT.cur));   // the scheme carries the materials it was made with (applied only when opened)
     res.stats.built++;
     var ev = GEN.evaluate(ds);
-    if (ev.pass !== criteria.length) { res.stats.checkRejects++; continue; }
+    if (ev.pass !== criteria.length) { res.stats.checkRejects++; if (rejects.length < 200) rejects.unshift({ key: key, tpl: tpl, fp: fp, edge: edge, pi: pi, flip: flip, lay: lay, ds: ds, ev: ev }); continue; }
     res.stats.passed++;
     var m = GEN.metrics(lay, fp), c = { key: key, tpl: tpl, pattern: lay.pattern, fp: fp, edge: edge, pal: pal, flip: flip, lay: lay, ds: ds, ev: ev, m: m, score: GEN.score(m, P, fp) };
     c.f = GEN.features(c);
@@ -23962,7 +23966,26 @@ GEN.generate = function() {
     sel.push(pool.splice(bi, 1)[0]);
   }
   res.schemes = sel; GEN._cands = cands;   // the scored pool (inspection)
-  if (!sel.length) res.error = 'No candidate passed every check (' + res.stats.built + ' built). ' + (env.why || []).join(' ');
+  // (Brief 32 §2) the shortfall's nearest misses: each rejected candidate built and run through the checks (a layout the
+  // access model or the enclosure turned away is checked the same way), fewest failing checks first
+  var short = N - sel.length; res.misses = [];
+  if (short > 0) {
+    var ms = [];
+    for (var ri = 0; ri < rejects.length && ms.length < Math.max(short * 4, 12); ri++) {
+      var rj = rejects[ri];
+      try {
+        if (!rj.ds) { var pal2 = Object.assign({ idx: rj.pi }, pals[rj.pi]); rj.pal = pal2; rj.ds = GEN.buildState(S, base, env, rj.fp, rj.lay, pal2); rj.ev = GEN.evaluate(rj.ds); }
+        else rj.pal = Object.assign({ idx: rj.pi }, pals[rj.pi]);
+        rj.failing = rj.ev.failing.slice(); rj.why = rj.failing.length ? '' : (rj.lay.reasons[0] || '').split(' (')[0];
+        try { rj.m = GEN.metrics(rj.lay, rj.fp); } catch (e) { rj.m = null; }
+        rj.pattern = rj.lay.pattern || 'traffic_band';
+        ms.push(rj);
+      } catch (e) { console.warn('[generate] a miss could not be built', e); }
+    }
+    ms.sort(function(a, b) { return (a.failing.length || 99) - (b.failing.length || 99) || (a.key < b.key ? -1 : 1); });
+    res.misses = ms.slice(0, short);
+  }
+  if (!sel.length && !res.misses.length) res.error = 'No candidate passed every check (' + res.stats.built + ' built). ' + (env.why || []).join(' ');
   return GEN.finish(res, t0);
 };
 GEN.finish = function(res, t0) {
@@ -23976,7 +23999,7 @@ GEN.finish = function(res, t0) {
 // session storage (they are this tab's working results, not part of the design), dropped when the site changes
 GEN.KEEP = 'pkt-gen-result';
 GEN.siteKey = function() { var sm = typeof state !== 'undefined' && state.__siteMap; return sm ? [sm.lat, sm.lon, sm.parkletSide, sm.importedAt || ''].join('|') : (state && state.__generic ? 'blank' : ''); };
-GEN.keep = function(res) { try { if (res && res.schemes && res.schemes.length) sessionStorage.setItem(GEN.KEEP, JSON.stringify({ k: GEN.siteKey(), res: res })); else sessionStorage.removeItem(GEN.KEEP); } catch (e) {} };
+GEN.keep = function(res) { try { if (res && res.schemes && res.schemes.length) sessionStorage.setItem(GEN.KEEP, JSON.stringify({ k: GEN.siteKey(), res: Object.assign({}, res, { misses: [] }) })); else sessionStorage.removeItem(GEN.KEEP); } catch (e) {} };
 GEN.kept = function() { try { var o = JSON.parse(sessionStorage.getItem(GEN.KEEP) || 'null'); return o && o.k && o.k === GEN.siteKey() ? o.res : null; } catch (e) { return null; } };
 // The candidate as a DESIGN_STATE: site skeleton at deck [a, a + L], shape, derived inputs,
 // furniture with palette materials. Deterministic: no ids, no timestamps.
@@ -24100,12 +24123,24 @@ GEN.axonThumb = function(c, W0, H0) {   // -> a Promise of the picture (an Image
   groups.forEach(function(g) { g.traverse(function(o) { if (o.geometry) o.geometry.dispose(); }); });   // flMat materials are shared: kept
   return url;
 };
+// (Brief 32 §2) what a miss fails, by the checks' own names ("C16 accessible route"), or the layout's reason when no check fails
+GEN.failName = function(id) { var c = criteria.find(function(q) { return q.id === id; }); return c ? 'C' + String(c.num).padStart(2, '0') + ' ' + ((CHECK_SHORT[id] || [c.title])[0]).toLowerCase() : id; };
+GEN.missWhy = function(m) { return m.failing && m.failing.length ? m.failing.map(GEN.failName).join(' and ') : 'its layout (' + (m.why || 'pieces do not fit') + ')'; };
+GEN.sentence = function(R) {
+  var N = R.n || (R.schemes || []).length, ok = (R.schemes || []).length, ms = R.misses || [];
+  if (ok >= N || !ms.length) return N + ' asked · ' + ok + ' passed every check';
+  var by = {}; ms.forEach(function(m) { var k = GEN.missWhy(m); by[k] = (by[k] || 0) + 1; });
+  var parts = Object.keys(by).sort(function(a, b) { return by[b] - by[a] || (a < b ? -1 : 1); }).map(function(k) { return by[k] + ' on ' + k; });
+  return N + ' asked · ' + (ok ? ok + ' passed every check' : 'none passed') + ' · ' + ms.length + ' failed: ' + parts.join(', ');
+};
 GEN.renderCards = function() {
   var R = GEN.result, bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
-  var nLock = Object.keys(GEN.locked).length;
+  var nLock = Object.keys(GEN.locked).length, ms = R.misses || [], showM = ms.length && (GEN.showMiss || !(R.schemes || []).length);
+  var tip = 'seed ' + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed every check · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.effectivePrefs()) === 'density' ? 'seat density' : 'utilisation') + (R.bias ? ' · ' + R.bias : '') +
+    (R.envelope && R.envelope.ok ? ' · envelope ' + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) : '');
   bar.innerHTML = "<span class='gen-title'>Generated schemes</span>" +
-    "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed every check · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.effectivePrefs()) === 'density' ? 'seat density' : 'utilisation') + (R.bias ? ' · ' + GEN.esc(R.bias) : '') + '</span>' +
-    (R.envelope && R.envelope.ok ? "<span class='gen-stat'>envelope " + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) + '</span>' : '') +
+    (R.error ? '' : "<span class='gen-stat gen-sentence' title='" + GEN.esc(tip) + "'>" + GEN.esc(GEN.sentence(R)) + '</span>') +
+    (ms.length && (R.schemes || []).length ? "<button type='button' class='gen-link gen-miss-tg' aria-pressed='" + !!GEN.showMiss + "' onclick='GEN.showMiss=!GEN.showMiss;GEN.renderCards()'>" + (GEN.showMiss ? 'Hide' : 'Show') + " the scheme" + (ms.length > 1 ? 's' : '') + " that didn't pass (" + ms.length + ')</button>' : '') +
     (GEN.undoSnap ? "<button class='gen-link' onclick='GEN.undoOpen()'>Restore the design you had before opening a scheme</button>" : '');
   // a refusal (Brief 29c item 3, triage F18): the Generate button stays, the reason beside it, and a link to the first fact to
   // set; once the facts are all set, the old reason gives way to that news
@@ -24117,7 +24152,7 @@ GEN.renderCards = function() {
     return;
   }
   grid.innerHTML = R.schemes.map(function(c, i) {
-    var m = c.m, locked = !!GEN.locked[c.key];
+    var m = c.m, locked = !!GEN.locked[c.key];   // (the misses follow: GEN.missCards)
     return "<article class='gen-card" + (locked ? ' locked' : '') + "' data-key='" + GEN.esc(c.key) + "'>" +
       "<div class='gen-thumbs'>" + GEN.planThumb(c) + "<canvas class='gen-axon' width='630' height='270' role='img' aria-label='Axonometric of " + GEN.esc(GEN.title(c)) + "' data-i='" + i + "'></canvas></div>" +
       "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
@@ -24130,6 +24165,7 @@ GEN.renderCards = function() {
         "<button class='gen-lock' aria-pressed='" + locked + "' onclick='GEN.toggleLock(" + i + ")'>" + (locked ? 'Locked' : 'Lock') + '</button>' +
         "<span class='gen-fp'>" + GEN.esc(c.pal.label) + ' · ' + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
   }).join('');
+  if (showM) grid.innerHTML += GEN.missCards(R);
   // axon thumbnails after the cards are painted: one per turn of the event loop (one offscreen renderer), each copied
   // straight onto its card's canvas (Brief 29b S4: a PNG encode of each held the page for seconds); a newer render of the
   // cards stops the queue
@@ -24144,6 +24180,18 @@ GEN.renderCards = function() {
   };
   setTimeout(function() { next(0); }, 16);
   GEN.writeRationales();
+};
+// (Brief 32 §2) the schemes that didn't pass, drawn, with their failing checks named; open one to see why in Check
+GEN.missCards = function(R) {
+  var fail = (typeof CHK !== 'undefined' ? CHK.BADGE.fail[1] : 'Fail');
+  return "<h3 class='gen-miss-h'>" + ((R.schemes || []).length ? "Didn't pass" : 'None passed: the nearest misses') + '</h3>' + (R.misses || []).map(function(c, i) {
+    var m = c.m;
+    return "<article class='gen-card gen-miss' data-key='" + GEN.esc(c.key) + "'><div class='gen-thumbs'>" + GEN.planThumb(c) + '</div>' +
+      "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + '</h3></div>' +
+      "<p class='gen-fails'>" + (c.failing.length ? GEN.esc(fail) + ': ' + GEN.esc(c.failing.map(GEN.failName).join(', ')) : 'Not laid out: ' + GEN.esc(c.why || 'the pieces do not fit')) + '</p>' +
+      (m ? "<div class='gen-metrics'><span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.planting.toFixed(1) + '</b>planting m²</span>' + "<span class='gen-pass'><b>" + c.ev.pass + '/' + criteria.length + '</b>checks</span></div>' : '') +
+      "<div class='gen-card-ft'><button class='gen-secondary' onclick='GEN.open(" + i + ", true)'>Open in Design</button><span class='gen-fp'>" + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
+  }).join('');
 };
 // Optional: the Assistant rewrites the one-line rationale from the metrics (text only - the
 // geometry is the rules'). Without an API key or proxy the templated sentence stays.
@@ -24201,8 +24249,8 @@ GEN.openState = function(c, cur, base) {
   GEN.COMMIT_KEYS.concat(moved ? GEN.DERIVED_KEYS : []).forEach(function(n) { if (ds.compliance[n] !== undefined) out.compliance[n] = ds.compliance[n]; });
   return out;
 };
-GEN.open = function(i) {
-  var c = GEN.result.schemes[i]; if (!c) return;
+GEN.open = function(i, miss) {
+  var c = (miss ? GEN.result.misses : GEN.result.schemes)[i]; if (!c) return;
   GEN.undoSnap = getDesignState();
   applyDesignState(GEN.openState(c, GEN.undoSnap, GEN._base || GEN.undoSnap));
   if (typeof pkAfterMove === 'function') pkAfterMove('generate-open');   // the clearances and C03 from the moved deck, saved
