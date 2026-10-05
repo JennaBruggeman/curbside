@@ -7656,7 +7656,8 @@ DRAW_STYLE.MAP = {
   // are hidden below zoom 15. (Brief 31 §3A: Brief 30 wrote these as MapLibre's circle-radius, a radius drawn outside a
   // 1 px halo, so every dot was twice as wide: 10 / 14 / 18 px, and 3,700 trees at zoom 15 merged into green ribbons.)
   bandOk: '#7FA36B', bandOut: '#9A9A96', bandMeasure: '#9A9A96',
-  minZoom: 15, sizes: [[0, 4], [16, 6], [18, 8]], haloW: 0.75, hoverGrow: 1, treeOpacity: 0.8
+  minZoom: 16, bandMinZoom: 14, blockMinZoom: 12, sizes: [[0, 4], [16, 6], [18, 8]],   // (Brief 32 §1) the dots from 16, the band from 14, per block from 12
+  haloW: 0.75, hoverGrow: 1, treeOpacity: 0.8
 };
 DRAW_STYLE.mode = function(m) {
   if (m === 'technical' || m === 'schematic') return m;
@@ -29030,10 +29031,11 @@ RVZP._gallery = async function() {
       <button type='submit' class='sm-btn' id='smGo'>Search</button>
       <ul class='sm-results' id='smResults' hidden></ul>
     </form>
+    <div class='sm-band-leg' id='smBandLeg' hidden></div>
     <div class='sm-keys' id='smKeys' role='group' aria-label='Streets near this place: pick one by its side' hidden></div>
     <div class='sm-body'><div id='smMap'></div><p class='sm-zoom-note' id='smZoomNote' hidden>Zoom in to see site features</p>
-      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><p class='gis-note gis-zoom' id='gisZoomNote' hidden>Zoom in to see site features (hydrants, stops, trees show from zoom 15).</p><div id='smLayersList'></div></aside></div>
-    <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
+      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><p class='gis-note gis-zoom' id='gisZoomNote' hidden>Zoom in to see site features (hydrants, stops, trees show from zoom 16).</p><div id='smLayersList'></div></aside></div>
+    <div class='sm-foot'><div class='sm-foot-t'><p class='sm-band-note' id='smBandNote' hidden></p><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p></div>
       <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' aria-describedby='smStatus' title='Click the street, then the side of it the parklet is on' disabled>Use this location</button></div>
   </div>
 </div>
@@ -29220,8 +29222,8 @@ SM.open = async function() {
     SM.status('The map library could not be loaded.'); return;
   }
   if (!SM.map) {
-    var so = SITE_ORIENT, c = so && so.lat ? [so.lon, so.lat] : [SM.VAN.lon, SM.VAN.lat], style = await SM.loadStyle();
-    SM.map = new maplibregl.Map({ container: 'smMap', center: c, zoom: 16, attributionControl: false, style: style });
+    var so = SITE_ORIENT, sited = !!(state.__siteMap && state.__siteMap.lat), c = sited && so && so.lat ? [so.lon, so.lat] : [SM.VAN.lon, SM.VAN.lat], style = await SM.loadStyle();
+    SM.map = new maplibregl.Map({ container: 'smMap', center: c, zoom: sited ? 16 : 14, attributionControl: false, style: style });   // (Brief 32 §1) Vancouver where the bands read
     // the vector style's sources name OpenFreeMap / OpenMapTiles / OpenStreetMap from their TileJSON; the raster fallback names OSM
     SM.map.addControl(new maplibregl.AttributionControl({ compact: false }), 'bottom-right');
     SM.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
@@ -29478,7 +29480,7 @@ var SITER = {
 // (cellId|layerId|schemaVersion), shown at once from there and refreshed in the background when index.json says the
 // layer is newer. Every request carries the viewport's generation: a response for an older generation is dropped.
 // ════════════════════════════════════════════════════════════════════════════════════════════
-var GIS = { SCHEMA: 1, MAX_CELLS: 12, LS: 'pkt_gis_layers', DB: 'pkt-gis', INDEX_TTL: 24 * 3600 * 1000,
+var GIS = { SCHEMA: 1, MAX_CELLS: 12, BAND_CELLS: 48, LS: 'pkt_gis_layers2', DB: 'pkt-gis', INDEX_TTL: 24 * 3600 * 1000,
   BASE: 'https://jennabruggeman.github.io/curbside-data/', gen: 0, genLog: [], cs: new Map(), lru: new Map(), view: [], _idx: null };
 // on a development host, ?gis=fixtures reads the vendored fixtures (tools/test/gis-fixtures/): every VERIFY runs offline
 (function() { if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && /[?&]gis=fixtures\b/.test(location.search)) { GIS.BASE = 'tools/test/gis-fixtures/'; GIS.fixtures = true; } })();
@@ -29496,9 +29498,9 @@ GIS.LAYERS = [
   // Brief 30 §2: where a parklet could go, per block face piece (curbside-data's derived blockfaces layer). A map layer
   // only: the import never reads it, and nothing in the app decides eligibility (the build does; the checks decide the site)
   { id: 'blockfaces', label: 'Where a parklet could go', group: 'Curbside', geometry: 'line', style: { colour: '#9DB58E', width: 5 }, defaultOn: true, mapOnly: true, legend: 'Estimate from City and OSM data — confirm on site', feeds: [] },
-  { id: 'buildings', label: 'Buildings', group: 'OSM', geometry: 'polygon', style: { colour: '#9AA0A6', opacity: 0.32 }, defaultOn: true, legend: 'Footprints, with the City civic address and the use', feeds: [], imports: true, live: true },
-  { id: 'streets', label: 'Streets', group: 'OSM', geometry: 'line', style: { colour: '#E8A33D', width: 2 }, defaultOn: true, legend: 'The ways the map snaps to: lanes, one-way, cycleway and parking tags', feeds: ['roadDir', 'laneCount', 'bikeLane'], imports: true, live: true },
-  { id: 'bikeways', label: 'Bikeways', group: 'City', geometry: 'line', style: { colour: '#2E9E5B', width: 3 }, defaultOn: true, legend: 'Painted, protected, shared and local-street bikeways (the side is approximate)', feeds: ['bikeLane'] },
+  { id: 'buildings', label: 'Buildings', group: 'OSM', geometry: 'polygon', style: { colour: '#9AA0A6', opacity: 0.32 }, defaultOn: false, legend: 'Footprints, with the City civic address and the use', feeds: [], imports: true, live: true },
+  { id: 'streets', label: 'Streets', group: 'OSM', geometry: 'line', style: { colour: '#E8A33D', width: 2 }, defaultOn: false, legend: 'The ways the map snaps to: lanes, one-way, cycleway and parking tags', feeds: ['roadDir', 'laneCount', 'bikeLane'], imports: true, live: true },
+  { id: 'bikeways', label: 'Bikeways', group: 'City', geometry: 'line', style: { colour: '#2E9E5B', width: 3 }, defaultOn: false, legend: 'Painted, protected, shared and local-street bikeways (the side is approximate)', feeds: ['bikeLane'] },
   { id: 'truck-routes', label: 'Truck routes', group: 'City', geometry: 'line', style: { colour: '#8E5B3F', width: 3 }, defaultOn: false, legend: 'Truck routes and restricted-access truck routes', feeds: ['routeType'] },
   { id: 'one-way', label: 'One-way streets', group: 'City', geometry: 'line', style: { colour: '#8C6BC8', width: 3 }, defaultOn: false, legend: 'The City\'s one-way street blocks', feeds: ['roadDir'] },
   { id: 'bus-routes', label: 'Bus routes', group: 'TransLink', geometry: 'line', style: { colour: '#D6453D', width: 2 }, defaultOn: false, legend: 'Bus route shapes', feeds: ['routeType'] },
@@ -29645,19 +29647,21 @@ GIS.ensure = function(lids, cells, opts) {
   opts = opts || {};
   return Promise.all([].concat.apply([], cells.map(function(c) { return lids.map(function(l) { return GIS.load(c, l, opts.gen, opts.signal, opts); }); })));
 };
-GIS.setView = function(cells) {
+GIS.setView = function(cells, band) {
   GIS.gen++; if (GIS._ctl) GIS._ctl.abort(); GIS._ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  GIS.view = cells; var now = Date.now(); cells.forEach(function(c) { GIS.lru.set(c, now); });
+  GIS.view = cells; GIS.bandView = band || []; var now = Date.now(); cells.concat(GIS.bandView).forEach(function(c) { GIS.lru.set(c, now); });
   var lids = GIS.LAYERS.filter(function(l) { return GIS.on[l.id]; }).map(function(l) { return l.id; });
+  if (lids.indexOf('streets') < 0) lids.push('streets');   // (Brief 32 §1) the pick reads the streets, drawn or not
   GIS.evict();
-  return GIS.ensure(lids, cells, { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal });
+  var o = { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal };
+  return Promise.all([GIS.ensure(lids, cells, o), GIS.ensure(['blockfaces'], GIS.bandView.filter(function(c) { return cells.indexOf(c) < 0; }), o)]);
 };
 // at most MAX_CELLS cells resident; the least recently in view go (never one in view, never one an import holds)
 GIS.evict = function() {
   var res = new Set(); GIS.cs.forEach(function(v, k) { res.add(k.split('|')[0]); });
-  if (res.size <= GIS.MAX_CELLS) return;
-  var keep = new Set(GIS.view.concat(GIS._held || [])), out = [...res].filter(function(c) { return !keep.has(c); }).sort(function(a, b) { return (GIS.lru.get(a) || 0) - (GIS.lru.get(b) || 0); });
-  var n = res.size - GIS.MAX_CELLS, gone = {};
+  if (res.size <= Math.max(GIS.MAX_CELLS, (GIS.bandView || []).length)) return;
+  var keep = new Set(GIS.view.concat(GIS._held || [], GIS.bandView || [])), out = [...res].filter(function(c) { return !keep.has(c); }).sort(function(a, b) { return (GIS.lru.get(a) || 0) - (GIS.lru.get(b) || 0); });
+  var n = res.size - Math.max(GIS.MAX_CELLS, (GIS.bandView || []).length), gone = {};
   out.slice(0, n).forEach(function(c) { GIS.cs.forEach(function(v, k) { if (k.split('|')[0] === c) { GIS.cs.delete(k); gone[k.split('|')[1]] = 1; } }); GIS.lru.delete(c); });
   Object.keys(gone).forEach(GIS.dirty);
 };
@@ -29783,6 +29787,11 @@ GIS.mapInit = function(map) {
     var lay = { id: id, type: spec.type, source: id, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, spec.layout || {}), paint: spec.paint };
     if (spec.minzoom) lay.minzoom = spec.minzoom; if (spec.filter) lay.filter = spec.filter;
     map.addLayer(lay, map.getLayer('smHover') ? 'smHover' : map.getLayer('smWay') ? 'smWay' : undefined);
+    if (L.id === 'blockfaces') {   // (Brief 32 §1) below zoom 14, one tone per block face side
+      map.addSource(id + '-b', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' });
+      var bs = GIS.bandSpec(), bm = GIS.bandMeasureSpec(), under = map.getLayer('smHover') ? 'smHover' : undefined;
+      [[id + '-b', bs], [id + '-bm', bm]].forEach(function(q) { var sp = q[1]; sp.paint['line-width'] = 3; map.addLayer({ id: q[0], type: 'line', source: id + '-b', minzoom: DRAW_STYLE.MAP.blockMinZoom, maxzoom: DRAW_STYLE.MAP.bandMinZoom, filter: sp.filter, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, sp.layout), paint: sp.paint }, under); });
+    }
     if (L.id === 'blockfaces') { var mm = GIS.bandMeasureSpec(); map.addLayer({ id: id + '-m', type: 'line', source: id, minzoom: mm.minzoom, filter: mm.filter, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, mm.layout), paint: mm.paint }, map.getLayer('smHover') ? 'smHover' : undefined); }
   });
   // hover: one feature at a time, through feature-state (no DOM per feature); a point's type in a small label beside it
@@ -29810,13 +29819,27 @@ GIS.mapInit = function(map) {
 GIS.bandSpec = function() {
   var M = DRAW_STYLE.MAP, ppm = function(z) { return Math.pow(2, z) * 512 / (40075016.7 * Math.cos(49.25 * Math.PI / 180)); };
   var off = ['interpolate', ['exponential', 2], ['zoom'], 13, ['*', ['get', 'offM'], ppm(13)], 22, ['*', ['get', 'offM'], ppm(22)]];
-  return { type: 'line', minzoom: M.minZoom, layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: { 'line-offset': off, 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 7, 5],
+  return { type: 'line', minzoom: M.bandMinZoom, layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: { 'line-offset': off, 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 7, 5],
     'line-color': ['match', ['get', 'eligibility'], 'eligible-estimate', M.bandOk, M.bandOut], 'line-opacity': 0.9 }, filter: ['!=', ['get', 'eligibility'], 'needs-measurement'] };
 };
 // the hatched tone: a dash pattern cannot vary per feature, so the pieces that need a measurement are a second layer on
 // the same source ('gis-blockfaces-m'), shown and hidden with the first (GIS.subLayers)
 GIS.bandMeasureSpec = function() { var b = GIS.bandSpec(); b.paint['line-color'] = DRAW_STYLE.MAP.bandMeasure; b.paint['line-dasharray'] = [1.2, 0.8]; b.filter = ['==', ['get', 'eligibility'], 'needs-measurement']; return b; };
-GIS.subLayers = function(lid) { return lid === 'blockfaces' ? [GIS.src(lid), GIS.src(lid) + '-m'] : [GIS.src(lid)]; };
+GIS.subLayers = function(lid) { return lid === 'blockfaces' ? [GIS.src(lid), GIS.src(lid) + '-m', GIS.src(lid) + '-b', GIS.src(lid) + '-bm'] : [GIS.src(lid)]; };
+// (Brief 32 §1) the block faces: the pieces of one face and side (their id less the piece number) as one feature, in the
+// tone of its best piece (could go here, else measure first, else excluded)
+GIS.BLOCK_RANK = { 'eligible-estimate': 0, 'needs-measurement': 1, excluded: 2 };
+GIS.blocks = function() {
+  var by = new Map();
+  GIS.features('blockfaces').forEach(function(f) {
+    var p = f.properties.props || {}, k = String(f.id).split(':').slice(0, 5).join(':'), o = by.get(k), ls = GIS.linesOf(f.geometry);
+    if (!o) { by.set(k, { type: 'Feature', id: k, properties: { eligibility: p.eligibility, offM: p.offM || 0, props: { wayId: p.wayId, side: p.side, name: p.name, eligibility: p.eligibility, detail: p.detail || [] } }, geometry: { type: 'MultiLineString', coordinates: ls.slice() } }); return; }
+    o.geometry.coordinates = o.geometry.coordinates.concat(ls);
+    if (GIS.BLOCK_RANK[p.eligibility] < GIS.BLOCK_RANK[o.properties.eligibility]) { o.properties.eligibility = p.eligibility; o.properties.props.eligibility = p.eligibility; o.properties.props.detail = p.detail || []; }
+  });
+  return [...by.values()];
+};
+GIS.listen(function(lids) { if (lids.indexOf('blockfaces') < 0 || !GIS.map) return; var s2 = GIS.map.getSource(GIS.src('blockfaces') + '-b'); if (s2) s2.setData({ type: 'FeatureCollection', features: GIS.blocks() }); GIS.bandUI(); });
 // a band piece's properties at the top level, where the map's expressions read them (the cells keep them under props)
 GIS.flat = function(o) {
   var p = o.properties && o.properties.props; if (!p || o.properties.layer !== 'blockfaces') return o;
@@ -29863,9 +29886,19 @@ GIS.hoverLabel = function(f, at) {
 };
 // ── The eligibility band (Brief 30 §2): what a piece says, in the build's plain words ───────────────────────────────
 GIS.bandLegend = function() {
-  var M = DRAW_STYLE.MAP, it = function(css, t) { return "<span class='gis-leg-i'><span class='gis-leg-sw' style='" + css + "'></span>" + t + '</span>'; };
-  return "<div class='gis-legend'>" + it('background:' + M.bandOk, 'could go here') + it('background:' + M.bandOut, 'excluded') + it('background:repeating-linear-gradient(90deg,' + M.bandMeasure + ' 0 4px,transparent 4px 7px)', 'measure first') +
-    "<div class='gis-leg-note'>" + SM.esc(GIS.byId('blockfaces').legend) + '. Shown from zoom 15. Hover a band for the reason.</div></div>';
+  var M = DRAW_STYLE.MAP, it = function(css, t) { return "<span class='gis-leg-i'><span class='gis-leg-sw' style='" + css + "' aria-hidden='true'></span>" + t + '</span>'; };
+  return it('background:' + M.bandOk, 'could go here') + it('background:' + M.bandOut, 'excluded') + it('background:repeating-linear-gradient(90deg,' + M.bandMeasure + ' 0 4px,transparent 4px 7px)', 'measure first');
+};
+// (Brief 32 §1) the three words under the search box while the band has pieces; when the data has no band, the footer's
+// one sentence instead (said once: the line stays, it is not repeated) and no legend
+GIS.bandUI = function() {
+  var leg = document.getElementById('smBandLeg'), note = document.getElementById('smBandNote'); if (!leg || !note) return;
+  var idx = GIS._idx, has = !!(idx && idx.layers && idx.layers.blockfaces);
+  if (idx && !has) { leg.hidden = true; if (note.hidden) { note.textContent = 'Where a parklet could go is not in this site data yet: click a street, then the side of it.'; note.hidden = false; } return; }
+  note.hidden = true;
+  var on = GIS.on.blockfaces && has && GIS.features('blockfaces').length > 0;
+  if (on && !leg.innerHTML) leg.innerHTML = GIS.bandLegend();
+  leg.hidden = !on;
 };
 GIS.isBand = function(f) { return !!f && /^gis-blockfaces/.test((f.layer && f.layer.id) || f.source || ''); };
 GIS.bandAt = function(pt) {
@@ -29903,7 +29936,7 @@ GIS.zoomNote = function() {
   var map = GIS.map; if (!map) return;
   var low = map.getZoom() < DRAW_STYLE.MAP.minZoom && GIS.LAYERS.some(function(l) { return l.geometry === 'point' && GIS.on[l.id]; });
   var n = document.getElementById('gisZoomNote'); if (n) n.hidden = !low;
-  var m = document.getElementById('smZoomNote'); if (m) m.hidden = !low;
+  var m = document.getElementById('smZoomNote'); if (m) m.hidden = !low || !!document.getElementById('smLayers').hidden;   // (Brief 32 §1) on the map only while the Layers panel is open: the base state draws the band alone
   GIS.lowZoom = low;
 };
 GIS.describe = function(lid, p) {
@@ -29931,7 +29964,10 @@ GIS.onMove = async function() {
   var cells = inView.length > GIS.MAX_CELLS ? [] : inView.slice();
   if (cells.length) GIS.cellsIn(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 1).forEach(function(c) { if (cells.length < GIS.MAX_CELLS && cells.indexOf(c) < 0) cells.push(c); });
   GIS.zoomOut = inView.length > GIS.MAX_CELLS;
-  GIS.setView(cells);
+  // (Brief 32 §1) the band is light: its cells load to BAND_CELLS, so it reads at zoom 14 and, per block, a little further out
+  var band = GIS.on.blockfaces && map.getZoom() >= DRAW_STYLE.MAP.blockMinZoom && inView.length <= GIS.BAND_CELLS ? inView.slice() : [];
+  GIS.setView(cells, band);
+  GIS.bandUI();
   GIS.zoomNote();
   GIS.renderRows();
 };
@@ -29965,7 +30001,7 @@ GIS.buildRows = function() {
       return "<div class='gis-row' data-l='" + L.id + "'><label class='gis-lab' title='" + SM.esc(L.legend) + "'><input type='checkbox' id='gisChk_" + L.id + "' data-l='" + L.id + "'" + (GIS.on[L.id] ? ' checked' : '') + " onchange='GIS.toggle(this.dataset.l, this.checked)'>" +
         "<span class='gis-sw' style='" + sw + "'></span><span class='gis-name'>" + SM.esc(L.label) + "</span></label><span class='gis-n' id='gisN_" + L.id + "'></span>" +
         (L.live ? "<button type='button' class='gis-live' id='gisLive_" + L.id + "' onclick='GIS.live(\"" + L.id + "\")' title='Fetches this layer for the view from OpenStreetMap now (Overpass). The site facts change only when you import again.'>&#8635; live</button>" : '') +
-        "<span class='gis-src' id='gisSrc_" + L.id + "'></span>" + (L.id === 'blockfaces' ? GIS.bandLegend() : '') + '</div>';
+        "<span class='gis-src' id='gisSrc_" + L.id + "'></span>" + '</div>';
     }).join('') + '</div>';
   }).join('') + "<button type='button' class='gis-reset txt-btn' onclick='GIS.reset()'>Reset to defaults</button>";
   // keyboard: space toggles (the checkbox's own), up / down move between rows
@@ -29987,7 +30023,7 @@ GIS.renderRows = function() {
     if (!idx) txt = GIS._idxErr ? 'not cached here' : 'loading…';
     else if (!meta) txt = 'not in the published data yet';   // (Brief 31 §3B: the band before curbside-data publishes it)
     else if (!GIS.on[L.id]) txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
-    else if (GIS.zoomOut || (GIS.lowZoom && L.geometry === 'point')) txt = 'zoom in to see this layer';
+    else if ((GIS.zoomOut && !(L.id === 'blockfaces' && (GIS.bandView || []).length)) || (GIS.lowZoom && L.geometry === 'point')) txt = 'zoom in to see this layer';
     else if (st.live) txt = 'live OSM ' + new Date(st.live).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     else if (st.loading && !st.ready) txt = 'loading…';
     else if (!st.ready && st.nodata && !st.offline) txt = 'no data for this location';
@@ -30611,6 +30647,9 @@ FLZ.hide = function() { var g = document.getElementById('_fdZonePrev'); if (g) g
 .sm-zoom-note[hidden], .gis-zoom[hidden] { display: none; }
 .sm-keys { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 12px; } .sm-keys[hidden] { display: none; } .sm-keys-h { font-size: 12px; color: var(--c-text-dim, #9AA0A6); margin-right: 4px; }
 /* Brief 30 §2: the eligibility band's legend, hover and pick-card line */
+.sm-box { display: flex; flex-direction: column; } .sm-box > .sm-body { flex: 1 1 auto; min-height: 0; } .sm-box > * { flex-shrink: 0; } .sm-box > .sm-body { flex-shrink: 1; }   /* (Brief 32 §1) the strips above the map (search, legend, keys) take what they need; the map the rest */
+.sm-band-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 4px 12px 6px; font-size: 12px; color: var(--c-text, #F2F2F0); border-bottom: 1px solid var(--c-rule, #2E3338); } .sm-band-leg[hidden] { display: none; }
+.sm-band-leg .gis-leg-sw { width: 18px; height: 5px; } .sm-foot-t { flex: 1; min-width: 0; } .sm-band-note { margin: 0 0 2px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); } .sm-band-note[hidden] { display: none; }
 .gis-legend { grid-column: 1 / -1; padding: 2px 0 2px 22px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); line-height: 1.5; }
 .gis-leg-i { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; }
 .gis-leg-sw { display: inline-block; width: 16px; height: 5px; }
