@@ -20,10 +20,10 @@ The top bar is the seven steps, in working order: *1 Site · 2 Site facts · 3 D
 
 ### 1. Site
 
-Click *Locate on map* and search an address with its house number (`2000 Main St`) or an intersection (`Main St & E 20th Ave`). Pick a result, click the street, then click the parklet's side of it, and click *Use this location*. To pick another street, click it; to change the side, click the same street on its other side.
+Click *Locate on map*. The map opens on Vancouver showing *where a parklet could go* along every block face with a parking lane: green *could go here*, grey *excluded*, hatched *measure first* (the three words under the search box; hover a band for the reason). Click a green or hatched band: its street and side are picked in one click. Or search an address with its house number (`2000 Main St`) or an intersection (`Main St & E 20th Ave`), click the street, then the parklet's side of it. Then click *Use this location*. To pick another street, click it; to change the side, click the same street on its other side. Zoomed out, the bands show one tone per block; the site's hydrants, stops and trees appear from zoom 16.
 
 - Without a mouse: after a search result, the streets near it are listed under the results as buttons, one per side (*Robson Street, south-west side*). Enter on one picks it.
-- *Layers* on the map shows what the import will read (streets, buildings, bikeways, bus stops, hydrants, trees) and, along the curbs, *Where a parklet could go*: an estimate from City and OSM data, with the reason on hover.
+- *Layers* on the map (closed when it opens) turns on what the import will read (streets, buildings, bikeways, bus stops, hydrants, trees). The bands are an estimate from City and OpenStreetMap data; where the site data has none, the footer says so.
 - No real site? *Start a blank street* gives a generic two-way street to sketch on; its report says it is not a real location.
 - If you locate a different street, side or block later, the tool asks *Replace the site data?* Replacing clears the imported data and site values; the deck and furniture stay.
 
@@ -37,15 +37,15 @@ One card per fact the checks read (parking, curb to curb, lanes, route type, the
 
 Three sub-tabs at the top of the left panel: *Generate*, *Layout* and *Furniture*. Work in *Plan*, *Section* or *3D*.
 
-- **Generate** (the quick start; Design opens on it while the deck is empty) proposes layouts from *Site constraints*, *Programme* (each use weighted 0–3), *Character and materials* and *Output*. A fact you don't know yet leaves its check *Awaiting measurement*, not the layout. *Lock* keeps a scheme through *Regenerate*; *Open in Design* takes it into your design. The *Design assistant* below it uses your own Anthropic key.
-- **Layout:** *Parklet shape editor* → *Edit the deck's shape*: type the rectangle's length and width (or drag one on the parking segment), cut any corner at 45°, *Reset to rectangle*; *Apply*. *Edge*: choose *Traffic side*, *Start end* or *Far end*, then an enclosure type, its *Height*, *Buffer* and *Material*. *Materials* sets the deck, the edge and the furniture finishes.
+- **Generate** (the quick start; Design opens on it while the deck is empty) proposes layouts from *Site constraints*, *Programme* (each use weighted 0–3), *Character and materials* and *Output*. Every deck is a rectangle, some with 45° corner cuts, with two entries at its ends. When fewer pass than you asked for, the header says how many and which checks the others failed; *Show the schemes that didn't pass* draws them. A fact you don't know yet leaves its check *Awaiting measurement*, not the layout. *Lock* keeps a scheme through *Regenerate*; *Open in Design* takes it into your design. The *Design assistant* below it uses your own Anthropic key.
+- **Layout:** *Parklet shape editor* → *Edit the deck's shape*: type the rectangle's length and width (or drag one on the parking segment), cut any corner at 45°, *Reset to rectangle*; *Apply*. *Edge*: choose *Traffic side*, *Start end*, *Far end* or *Sidewalk side*, then an enclosure type, its *Height*, *Buffer* and *Material*. *Entries* lists the openings to the sidewalk (two at the deck ends to start; C18 needs two, each 1.8 m wide): type a position or width, *Remove* one, or *+ Add an entry*; on the Plan, drag an entry along the curb. The sidewalk side is enclosed between the entries (its switch is on the *Sidewalk side* tab). *Materials* sets the deck, the edge and the furniture finishes.
 - **Furniture:** the library. *Place on deck* on a card, then click a spot on the deck (Enter places it at the centre; Esc cancels), or drag a card onto the deck in the Plan or 3D. Drag a placed piece to move it; it never leaves the deck. *Import 3D model…* adds your own (GLB, glTF or OBJ) to *My furniture*.
 - **Street:** in the *Section*, drag a chip from *Add segment* into the section; click a width to type it (a decimal comma and m, cm or mm are fine). A typed width counts as an estimate until you mark it measured in *Site facts*.
 - **Undo:** Ctrl+Z works in the Section and in the shape editor.
 
 ### 4. Access
 
-A 1.5 m clear route from each entry to an accessible seat (a bench end, or a table 0.70–0.80 m high). Drag a piece on the Plan and the route follows; a pinch is dimensioned across the narrow point, with the piece in the way named.
+A 1.5 m clear route from each of your entries to the nearest accessible seat (a bench end, or a table 0.70–0.80 m high), drawn as a dashed outline, with a turning circle where it turns and where it ends. Drag a piece or an entry on the Plan and the route follows; a pinch is dimensioned across the narrow point, with the piece in the way named.
 
 ### 5. Check
 
@@ -61,9 +61,9 @@ The parklet in 3D, with the sun at any date and time. Photoreal renders are opti
 
 ### 7. Export
 
-In *Report*, choose *Schematic* (colour, renders on the title sheet) or *Technical* (line and hatch, no images), tick what to *Include*, and click *Download report (PDF)*. Page two is *What to do next*. *Accessible route (A-104)* adds the route sheet; it is printed anyway when C16 fails. Sheet scales are the largest of 1:20, 1:25, 1:50, 1:75, 1:100, 1:200 and 1:250 that fits.
+In *Report*, choose *Schematic* (colour, renders on the title sheet) or *Technical* (line and hatch, no images), tick what to *Include*, and click *Download report (PDF)*. Page two is *What to do next*. *Accessible route (A-104)* adds the route sheet; it is printed anyway when C16 fails. Sheet scales are the largest of 1:20, 1:25, 1:50, 1:75, 1:100, 1:150, 1:200 and 1:250 at which everything on the sheet, dimensions and labels included, fits; the smallest text is 2.0 mm. Without a ticked render the cover is the Street view of the deck.
 
-*Cost estimate* (beside *Report*) prices the design as a range from a stated rate set: *Vancouver indicative 2026* by default, each rate with its source and date, and a line without a checkable source shown as *—* and counted. *Download (.xlsx)* gives the same estimate as a workbook with live formulas. *More formats* holds the 3D model (*Rhino (.3dm)*, glTF, IFC, Collada, STL, OBJ, DXF) and the animation.
+*Cost estimate* (beside *Report*) prices the design as a range from a stated rate set: *Vancouver indicative 2026* by default. Every build line is priced and tagged by how well: *sourced* (a retail listing), *indicative* (a published installed range or an allowance), *proxy* (no public figure: the nearest priced line's rate, said so) or *user* (yours); the summary counts them. Furniture is priced from your quotes. *Download (.xlsx)* gives the same estimate as a workbook with live formulas. *More formats* holds the 3D model (*Rhino (.3dm)*, glTF, IFC, Collada, STL, OBJ, DXF) and the animation.
 
 ### Settings
 
