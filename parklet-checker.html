@@ -3469,6 +3469,43 @@ ENC.adoptInferred = function(DM) {
   console.info('[entries] ' + list.length + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' the tool inferred are now the design\'s own, at z ' + list.map(function(q) { return q.z.toFixed(2); }).join(', ') + ' m (Design › Edge)');
   return true;
 };
+// (Brief 32 §4) the resolved entries back to the stored form; an entry placed from the far end stays so unless moved
+ENC.storeOf = function(list, L, moved) { return list.map(function(q, k) { return k !== moved && q.fromEnd ? { z: +(L - q.z).toFixed(3), w: q.w, fromEnd: true } : { z: +q.z.toFixed(3), w: q.w }; }); };
+ENC.entryDown = function(e, i) {
+  e.preventDefault(); e.stopPropagation();
+  var svg = document.getElementById('planView'); if (!svg) return;
+  var DM = _dmCurrent(), E = DM.enclosure, L = DM.parklet.length, list = (E.entries || []).map(function(q) { return Object.assign({}, q); }), q0 = list[i]; if (!q0) return;
+  var zAt = function(ev) { var m = svg.getScreenCTM(); if (!m) return null; var p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; var q = p.matrixTransform(m.inverse()); return planToWorld(q.x, q.y).z; };
+  var lo = E.zA + q0.w / 2, hi = E.zB - q0.w / 2, pv = list[i - 1], nx = list[i + 1];
+  if (pv) lo = Math.max(lo, pv.z + pv.w / 2 + q0.w / 2); if (nx) hi = Math.min(hi, nx.z - nx.w / 2 - q0.w / 2);
+  var st = typeof cadStep === 'function' ? cadStep() : 0.25, z0 = zAt(e), base = q0.z, g = e.currentTarget, moved = false, px0 = worldToPlan(0, base).px;
+  var at = function(ev) { var z = zAt(ev); if (z == null || z0 == null) return null; return Math.max(lo, Math.min(hi, Math.round((base + z - z0) / st) * st)); };
+  var move = function(ev) { var z = at(ev); if (z == null) return; moved = true; list[i].z = z; if (g) g.setAttribute('transform', 'translate(' + (worldToPlan(0, z).px - px0).toFixed(2) + ',0)'); ENC.set({ entries: ENC.storeOf(list, L, i) }, { fast: true, quiet: true }); };
+  var up = function() { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); if (moved) ENC.set({ entries: ENC.storeOf(list, L, i) }); };
+  document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+};
+// add one in the middle of the longest closed stretch of the sidewalk side (else the deck's middle); remove (one stays)
+ENC.addEntry = function() {
+  var DM = _dmCurrent(), E = DM.enclosure, L = DM.parklet.length, list = (E.entries || []).map(function(q) { return Object.assign({}, q); }), w = ENC.OPEN_W, gaps = [], cur = E.zA;
+  list.forEach(function(q) { if (q.z0 - cur >= w) gaps.push([cur, q.z0]); cur = Math.max(cur, q.z1); }); if (E.zB - cur >= w) gaps.push([cur, E.zB]);
+  if (!gaps.length) return false;
+  // the clear spot nearest the middle of the longest stretch: nothing within the turning depth in front of it
+  var its = ENC.items().filter(function(it) { return it.type !== 'umbrella'; }).map(function(it) { return GEN.aabb(it); }), T = GEN.TURN, clear = function(z) { return !its.some(function(b) { return b.x0 < T && b.z0 < z + w / 2 && b.z1 > z - w / 2; }); };
+  gaps.sort(function(a, b) { return (b[1] - b[0]) - (a[1] - a[0]); });
+  var zz = null; gaps.some(function(g) { var mid = (g[0] + g[1]) / 2, lo = g[0] + w / 2, hi = g[1] - w / 2; for (var d = 0; d <= (hi - lo) / 2 + 1e-6 && zz === null; d += 0.1) [mid - d, mid + d].forEach(function(z) { if (zz === null && z >= lo - 1e-6 && z <= hi + 1e-6 && clear(z)) zz = z; }); return zz !== null; });
+  if (zz === null) zz = (gaps[0][0] + gaps[0][1]) / 2;
+  list.push({ z: +zz.toFixed(3), w: w }); list.sort(function(a, b) { return a.z - b.z; });
+  ENC.set({ entries: ENC.storeOf(list, L, -1) }); return true;
+};
+ENC.removeEntry = function(k) {
+  var DM = _dmCurrent(), L = DM.parklet.length, list = (DM.enclosure.entries || []).map(function(q) { return Object.assign({}, q); }); if (list.length <= 1) return false;
+  list.splice(k, 1); ENC.set({ entries: ENC.storeOf(list, L, -1) }); return true;
+};
+ENC.setEntry = function(k, z, w) {
+  var DM = _dmCurrent(), L = DM.parklet.length, list = (DM.enclosure.entries || []).map(function(q) { return Object.assign({}, q); }); if (!list[k]) return;
+  if (isFinite(z)) list[k].z = z; if (isFinite(w) && w > 0.5) list[k].w = w;
+  ENC.set({ entries: ENC.storeOf(list, L, k) });
+};
 ENC.fpLive = function(DM) { DM = DM || _dmCurrent(); return Object.assign({ id: 'live', W: DM.parklet.width, L: DM.parklet.length, shape: DM.parklet.outline }, ENC.fpFields(DM)); };
 ENC.openings = function(DM) { var o = ENC.openingsOf(ENC.items(), ENC.fpLive(DM)); return o; };
 // C17: the height on the traffic side and both ends (planters: the top of the planting)
@@ -8870,6 +8907,19 @@ const C03_REQ = 6;
     s += `</g>`;
     s += `<path d='` + _clipD + `' fill='none'${K('object', { join: 'round' })}/>`;
   }
+  // (Brief 32 §4) the entries: the gaps in the sidewalk-side edge, each a handle that drags along the curb; "Entry" outside
+  // the deck on the sidewalk side, placed by the annotation layer so it never sits on another label
+  var _entH = '';   // drawn last, over the lines that would take its pointer
+  if (LODn >= 1) (_pvDM.parklet.entries || []).forEach(function(q, i) {
+    const a = worldToPlan(_pvLM.deckX0, q.z0), b = worldToPlan(_pvLM.deckX0, q.z1), m = worldToPlan(_pvLM.deckX0, q.z), o = worldToPlan(_pvLM.sidewalkL.x0 + (_pvLM.deckX0 - _pvLM.sidewalkL.x0) * 0.45, q.z);
+    const x0 = Math.min(a.px, b.px), x1 = Math.max(a.px, b.px), y = a.py, t = 4 * U;
+    _entH += "<g data-entry='" + i + "' data-entry-z='" + q.z + "'" + (paper ? '' : " class='pv-entry' style='cursor:ew-resize' onmousedown='ENC.entryDown(event, " + i + ")'") + '>' + (paper ? '' : '<title>Entry ' + (i + 1) + ': ' + q.w.toFixed(2) + ' m at z ' + q.z.toFixed(2) + ' (drag along the curb; Design › Edge to add or remove)</title>') +
+      (paper ? '' : "<rect x='" + x0.toFixed(2) + "' y='" + (y - 7 * U).toFixed(2) + "' width='" + (x1 - x0).toFixed(2) + "' height='" + (14 * U).toFixed(2) + "' fill='transparent' pointer-events='all'/>") +
+      "<line x1='" + x0.toFixed(2) + "' y1='" + y.toFixed(2) + "' x2='" + x1.toFixed(2) + "' y2='" + y.toFixed(2) + "'" + K('object', { c: paper ? 'ink' : DRAW_STYLE.UI.accent, cap: 'butt' }) + '/>' +
+      [x0, x1].map(function(x) { return "<line x1='" + x.toFixed(2) + "' y1='" + (y - t).toFixed(2) + "' x2='" + x.toFixed(2) + "' y2='" + (y + t).toFixed(2) + "'" + K('general', { c: paper ? 'ink' : DRAW_STYLE.UI.accent }) + '/>'; }).join('') + '</g>';
+    annObst(x0 - 2 * U, y - t, x1 + 2 * U, y + t);
+    annText('object', 'Entry', m.px, o.py, { role: 'body', c: 'ink', bold: true, anchor: 'middle', axis: 'x', tier: 'mid', at: [m.px, y], slide: true, lo: x0 - 40 * U, hi: x1 + 40 * U, data: " data-entry-label='" + i + "'" });
+  });
   if (!paper && LODn >= 1 && window.APP_MODE === 'accessibility' && typeof ACC !== 'undefined' && ACC._over) { s += ACC._over; ACC._over = ''; }   // the entries and the pinch, over the enclosure and the outline (Brief 29 item 6)
   annObj(PK_X, PK_Y, PK_X + PK_W, PK_Y + pvPkH);   // the parklet: segment labels keep off it
   // the deck's label (Brief 29 item 4): one, outside the deck outline on the road side, never over the deck or its pieces
@@ -9226,6 +9276,7 @@ const manholes = state['manholes'] || [];
   { const _nw = siteBearingWorld(0), _n0 = worldToPlan(0, 0), _n1 = worldToPlan(_nw.x, _nw.z);
     const _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
     window._pvNorthV = { x: _nx / _nm, y: _ny / _nm }; }
+    s += _entH;   // (Brief 32 §4) the entry handles, on top
     // the annotation layer, placed in one pass on top of the drawing (Brief 18 A)
     s += annFlush();
     // every colour above is a DRAW_STYLE token (the old tonal remap, DS.restylePlan, is gone)
@@ -33008,6 +33059,12 @@ body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #s
 .verdict-rule { margin: 6px 0 0; }
 @media (max-width: 1100px) { .chk-bar .hint { order: 5; flex-basis: 100%; min-width: 0; } }
 @media (max-width: 760px) { #criteriaList .pkc .criterion-body { padding-left: 17px; } #criteriaList .sfc-line-l { flex-basis: 100%; } #verdictBanner .verdict-act { flex-basis: 100%; margin-left: 29px; } }
+/* (Brief 32 §4) the entries in Design › Edge */
+.enc-ents { margin: 8px 0; padding: 6px 0; border-top: 1px solid var(--c-rule); border-bottom: 1px solid var(--c-rule); font-size: 12px; }
+.enc-ents-h { color: var(--c-text-dim); margin-bottom: 4px; } .enc-ents-h b { color: var(--c-text); font-weight: 600; }
+.enc-ent { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 0; } .enc-ent-n { min-width: 52px; color: var(--c-text); }
+.enc-ent input { width: 58px; background: var(--c-bg); color: var(--c-text); border: 1px solid var(--c-text-dim); border-radius: 3px; padding: 1px 4px; font: inherit; }
+.enc-curb input { margin-right: 4px; }
 /* the Cost estimate on Export (Brief 31 §9) */
 .ce { max-width: 1180px; padding: 20px 28px 64px; font: 13px/1.5 var(--font-ui); color: var(--c-text); }
 .ce-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; } .ce-state { margin: 0 0 16px; color: var(--c-text); max-width: 72ch; }
@@ -33682,7 +33739,13 @@ ENC.renderCard = function() {
   var DM = _dmCurrent(), EN = DM.enclosure; if (!EN) return;
   var E = ENC.norm(ENCLOSURE), side = ENC._side, id = E.sides[side], A = ENCLOSURE_ARCHETYPES[id], p = ENC.params(E, id), mx = ENC.bufMax(E, { quick: true }), esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;'); };
   var h = "<div class='enc-tabs' role='tablist' aria-label='Side'>" + ENC.SIDES.map(function(s) { return "<button type='button' role='tab' class='seg-btn" + (s === side ? ' active' : '') + "' aria-selected='" + (s === side) + "' data-enc-side='" + s + "' title='Choose the archetype for the " + ENC.SIDE_LABEL[s].toLowerCase() + "'>" + ENC.SIDE_LABEL[s] + '<small>' + esc(ENCLOSURE_ARCHETYPES[E.sides[s]].name) + '</small></button>'; }).join('') + '</div>';
+  if (side === 'curb') h += "<label class='enc-row enc-curb'><span>Enclose</span><span><input type='checkbox' id='encCurbOn'" + (E.curbOn ? ' checked' : '') + "> the sidewalk side between the entries</span></label>";   // (Brief 32 §4)
   h += "<div class='enc-grid' role='group' aria-label='Archetype for the " + ENC.SIDE_LABEL[side].toLowerCase() + "'>" + ENC.IDS.map(function(q) { return ENC.thumb(q, q === id); }).join('') + '</div>';
+  // (Brief 32 §4) the entries: where they are, how wide; one at least, two for C18
+  var ens = EN.entries || [];
+  h += "<div class='enc-ents' role='group' aria-label='Entries'><div class='enc-ents-h'><b>Entries</b> <span>two or more, each 1.8 m or wider (C18); drag them on the Plan</span></div>" + ens.map(function(q, k) {
+    return "<div class='enc-ent'><span class='enc-ent-n'>Entry " + (k + 1) + "</span><label>at <input type='number' data-ent-z='" + k + "' step='0.1' value='" + q.z.toFixed(2) + "' aria-label='Entry " + (k + 1) + " position from the deck start, m'> m</label><label>width <input type='number' data-ent-w='" + k + "' step='0.1' min='0.6' value='" + q.w.toFixed(2) + "' aria-label='Entry " + (k + 1) + " width, m'> m</label><button type='button' class='txt-btn' data-ent-x='" + k + "'" + (ens.length <= 1 ? " disabled title='A deck keeps one entry at least'" : '') + '>Remove</button></div>';
+  }).join('') + "<button type='button' class='txt-btn' data-ent-add='1'>+ Add an entry</button></div>";
   h += "<label class='enc-row' title='Height of the enclosure above the deck; a planter reads the top of its planting (Parklet Manual E2: 0.75 to 1.0 m)'><span>Height</span><input type='range' id='encH' min='0.75' max='1' step='0.01' value='" + Math.min(1, Math.max(0.75, E.height)).toFixed(2) + "'><output id='encHo'>" + E.height.toFixed(2) + ' m</output></label>';
   h += "<label class='enc-row' title='Buffer measured inward from the deck&#39;s traffic-side edge: the deck and the travel lane do not move; the buffer is unusable'><span>Buffer</span><input type='range' id='encB' min='0' max='0.6' step='0.01' value='" + E.bufferDepth.toFixed(2) + "'><output id='encBo'>" + E.bufferDepth.toFixed(2) + ' m</output></label>';
   h += "<label class='enc-row' title='Material of the " + esc(A.name.toLowerCase()) + "'><span>Material</span><select id='encMat'>" + A.mats.map(function(m) { return "<option value='" + m + "'" + (m === (PKMAT.cur.infill || PKMAT.cur.posts || ENC.mat(E, id)) ? ' selected' : '') + '>' + esc((flMatInfo(m) || {}).label || m) + '</option>'; }).join('') + '</select></label>';
@@ -33699,6 +33762,11 @@ ENC.renderCard = function() {
   host.innerHTML = h;
   var q = function(s) { return host.querySelector(s); };
   host.querySelectorAll('[data-enc-side]').forEach(function(b) { b.onclick = function() { ENC._side = b.dataset.encSide; ENC.renderCard(); }; });
+  host.querySelectorAll('[data-ent-z]').forEach(function(el) { el.onchange = function() { ENC.setEntry(+el.dataset.entZ, parseFloat(el.value), NaN); }; });
+  host.querySelectorAll('[data-ent-w]').forEach(function(el) { el.onchange = function() { ENC.setEntry(+el.dataset.entW, NaN, parseFloat(el.value)); }; });
+  host.querySelectorAll('[data-ent-x]').forEach(function(el) { el.onclick = function() { ENC.removeEntry(+el.dataset.entX); }; });
+  host.querySelectorAll('[data-ent-add]').forEach(function(el) { el.onclick = function() { if (!ENC.addEntry() && typeof pkToast === 'function') pkToast('No stretch of the sidewalk side is long enough for another 1.8 m entry.', 'info'); }; });
+  var cOn = q('#encCurbOn'); if (cOn) cOn.onchange = function() { ENC.set({ curbOn: this.checked }); };
   host.querySelectorAll('[data-enc-id]').forEach(function(b) { b.onclick = function() { var sd = {}; sd[ENC._side] = b.dataset.encId; ENC.set({ sides: sd }, { fast: true }); }; });
   q('#encH').oninput = function() { q('#encHo').textContent = (+this.value).toFixed(2) + ' m'; ENC.set({ height: +this.value }, { quiet: true, fast: true }); };
   q('#encH').onchange = function() { ENC.renderCard(); };
