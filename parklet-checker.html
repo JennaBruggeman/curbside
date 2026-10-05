@@ -30290,7 +30290,9 @@ PKINV.apply = function() { var g = document.getElementById('pkSUInviteGrp'); if 
 // direction, the shops that name the host): only transit-stations starts unticked. state.__importLayers keeps the
 // choice with the design. ──────────────────────────────────────────────────────────────────────────────────────
 var IMP = {};
-IMP.defaultOn = function(L) { return !!(L.defaultOn || L.feeds.length || L.id === 'pois'); };
+// (Brief 32 §1) the import's own defaults, not the map's: the map now opens on the band alone, and a layer hidden on the
+// map is still read by the import (buildings, streets, bikeways, the dots); only transit-stations starts unticked, as before
+IMP.defaultOn = function(L) { return !L.mapOnly && L.id !== 'transit-stations' && !!(L.imports || L.feeds.length || L.id === 'pois'); };
 IMP.get = function() { var s = (typeof state !== 'undefined' && state.__importLayers) || null, o = {}; GIS.LAYERS.forEach(function(L) { o[L.id] = s && typeof s[L.id] === 'boolean' ? s[L.id] : IMP.defaultOn(L); }); return o; };
 IMP.on = function(lid) { return IMP.get()[lid] !== false; };
 IMP.set = function(lid, v) { var o = IMP.get(); if (lid === '*') GIS.LAYERS.forEach(function(L) { o[L.id] = !!v; }); else o[lid] = !!v; state.__importLayers = o; try { saveSettings(); } catch (e) {} IMP.render(); };
