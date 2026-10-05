@@ -19,6 +19,17 @@ Do NOT open as a `file://` URL — Supabase network requests will fail.
 ## Current state
 v0.17.2 on master, tagged and live on GitHub Pages. Code freeze until after 9 October 2026 (see "Review period" below). **Brief 30 (the Friday round) is done on branch `friday-round`, not merged and not pushed**; curbside-data has an unpublished `friday-round` branch too (the blockfaces layer the picker's band reads). What it did, the VERIFY numbers, the decisions and what needs Jenna: `docs/process/HANDOFF_SESSION_8.md`. The session before it: `docs/process/HANDOFF_SESSION_7.md`. **Brief 31 (the walkthrough round) is done on branch `walkthrough-round`, branched from `friday-round`, not merged and not pushed**: one navigation of seven steps, the Check as Site-facts cards, the cost estimate with its Vancouver 2026 rate set and xlsx, the figure-ground Plan context, the sheets on one scale ladder, and the fixes for Brief 30's two picker regressions. See `docs/process/HANDOFF_SESSION_9.md`. Headless tests now use Playwright's own timeouts and close the browser in a `finally` (`H.run`); see that file's working conventions.
 
+## Working conventions
+- **VERIFY against published data runs on the published URL.** A VERIFY that depends on published data (curbside-data's
+  cells, GitHub Pages) runs against the published URL, with `?gis=published` or its equivalent, never against a local
+  checkout or a development host that reads unpublished branches. The report says which it was: "published" (with the
+  URL) or "local" (with the server and branch). A local run of such a check proves the code, not what users see. Brief 31
+  §3B is why: the band drew locally from curbside-data's unpublished `friday-round` branch and drew nothing on the live
+  data.
+- **Headless runs use Playwright's own timeouts.** Use `page.setDefaultTimeout` and `setDefaultNavigationTimeout`, and
+  close the browser in a `finally` (the harness's `H.run`). Never rely on the shell's `timeout`: in Git Bash on
+  Windows it does not stop a node process that holds a Playwright Edge. Details: `docs/process/HANDOFF_SESSION_9.md`.
+
 ## Photoreal notes (from the v0.4 candidate)
 Kept for reference; the branch plan these were written under is superseded by the releases above.
 
