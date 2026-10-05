@@ -1685,6 +1685,9 @@ function chkCondText(c) {
 // card, the banner and C-001 read.
 var PKCARD = {
   MANUAL: 'https://vancouver.ca/files/cov/parklet-design-construction-manual.pdf',
+  // the PDF's page index less the printed page number: 0, checked 2026-10-04 on v1.0 (June 2016, 76 pages, SHA-256
+  // 025eb122...6055): the cover is PDF page 1 and every numbered page prints its own index (74 of 74; the covers carry none)
+  PAGE_OFFSET: 0,
   DESIGN: { c14: 1, c16: 1, c17: 1, c18: 1, c19: 1 },   // read from the design alone: the derivation and Go to Design
   // o: { id, cls, open, toggle (the header's onclick, makes it a button), headCls, rid, ridCls, title, titleTag, titleCls,
   //      titleId, answer, answerCls, answerId, badge (html), body, bodyCls, bodyId, mainCls, aside, attrs }
@@ -1704,7 +1707,7 @@ var PKCARD = {
   toggle: function(h) { var a = h.closest('.pkc'); if (!a) return; a.classList.toggle('open'); h.setAttribute('aria-expanded', String(a.classList.contains('open'))); },
   // the Manual page as a link that opens it
   cite: function(c) {
-    return c.page ? "<a class='pkc-cite' href='" + PKCARD.MANUAL + '#page=' + c.page + "' target='_blank' rel='noopener'>Parklet Manual p. " + c.page + '</a>' + (c.src && !/^Parklet Manual p/.test(c.src) ? " <span class='pkc-dim'>(" + String(c.src).replace(/^Parklet Manual\s*/, '') + ')</span>' : '') : (c.src ? "<span class='pkc-dim'>" + c.src + '</span>' : '');
+    return c.page ? "<a class='pkc-cite' href='" + PKCARD.MANUAL + '#page=' + (+c.page + PKCARD.PAGE_OFFSET) + "' target='_blank' rel='noopener'>Parklet Manual p. " + c.page + '</a>' + (c.src && !/^Parklet Manual p/.test(c.src) ? " <span class='pkc-dim'>(" + String(c.src).replace(/^Parklet Manual\s*/, '') + ')</span>' : '') : (c.src ? "<span class='pkc-dim'>" + c.src + '</span>' : '');
   },
   // a check's card data: the answer is the value and how it is known ("Fire hydrant 7.0 m · measured on site, 4 Oct")
   data: function(c, row) {
