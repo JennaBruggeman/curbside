@@ -34010,12 +34010,13 @@ P101.qty = function(DM) {
   for (var i = 0; i < P.length; i++) { var a = P[i], b = P[(i + 1) % P.length]; per += Math.hypot(b[0] - a[0], b[1] - a[1]); }
   var none = !L || (typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET);
   // joists across the deck, every spacing along it, each as long as the deck is wide there
-  var sp = C.spacing, n = none ? 0 : Math.floor(L / sp + 1e-9) + 1, run = 0, ol = DM.parklet.outline;
-  for (var k = 0; k < n; k++) { var z = Math.min(L - 1e-3, Math.max(1e-3, k * sp)), w = ol && typeof shapeWidthAtLength === 'function' ? shapeWidthAtLength(ol, z) : null; run += w ? w[1] - w[0] : W; }
+  var sp = C.spacing, n = none ? 0 : Math.floor(L / sp + 1e-9) + 1, run = 0, ol = DM.parklet.outline, ped = 0;
+  for (var k = 0; k < n; k++) { var z = Math.min(L - 1e-3, Math.max(1e-3, k * sp)), w = ol && typeof shapeWidthAtLength === 'function' ? shapeWidthAtLength(ol, z) : null, wk = w ? w[1] - w[0] : W; run += wk; ped += Math.max(1, Math.floor((wk - 0.2) / 0.6 + 1e-9) + 1); }   // (Brief 32 §5) pedestals every 0.6 m across each joist, as A-202 draws them
   var r2 = function(v) { return Math.round(v * 100) / 100; };
   q.push({ k: 'area', item: 'Deck area', n: none ? 0 : r2(A), u: 'm²', f: 'the applied outline\'s area (DESIGN_MODEL.parklet.area)' });
   q.push({ k: 'perim', item: 'Deck perimeter', n: none ? 0 : r2(per), u: 'm', f: 'the sum of the outline\'s ' + P.length + ' edges' });
   q.push({ k: 'joist', item: 'Joists / sleepers (run)', n: r2(run), u: 'm', f: n + ' joists across the deck every ' + sp.toFixed(2) + ' m along ' + L.toFixed(2) + ' m, each as long as the deck is wide there', count: n });
+  q.push({ k: 'pedestals', item: 'Levelling pedestals', n: ped, u: 'ea', f: 'under each of the ' + n + ' joists, every 0.60 m across from 0.15 m (as A-202 draws them)' });
   q.push({ k: 'decking', item: 'Decking (with waste)', n: none ? 0 : r2(A * (1 + C.waste)), u: 'm²', f: r2(A) + ' m² x (1 + ' + Math.round(C.waste * 100) + ' % waste)' });
   // the enclosure: each run, its posts, by type (DESIGN_MODEL.enclosure's runs)
   var E = DM.enclosure, encRun = 0, posts = 0, planters = [], screens = 0;
@@ -34083,29 +34084,34 @@ P101.SETS = [
 // 0.7646 m³. Edge rates are installed (labour included); decking and soil are material only. No figure is guessed.
 P101.VAN = (function() {
   var b12 = 0.1445 * 3.6576, b14 = 0.1445 * 4.2672, ft = 3.2808, yd = 0.764555, r2 = function(v) { return Math.round(v * 100) / 100; };
-  var R = function(lo, hi, src) { return { low: r2(lo), high: r2(hi), src: src }; };
+  var R = function(lo, hi, src) { return { low: r2(lo), high: r2(hi), src: src, tag: 'indicative' }; }, P = function(r, src) { return { low: r.low, high: r.high, src: src, tag: 'proxy' }; };   // (Brief 32 §5) a proxy: the nearest priced line's rate, said so
   return { id: 'van2026', name: 'Vancouver indicative 2026, CAD', cur: 'CAD', date: '2026-10', shipped: true, tag: 'indicative', def: true,
     prov: 'Indicative unit rates for a Vancouver parklet, October 2026: retail material prices from Canadian suppliers\' public listings and published Canadian installed ranges, each line with its basis (retrieved 2026-10-04). A line with no credible public source shows — and is counted as not priced. Not a quote: confirm every rate with a supplier.',
     rates: [
-      { k: 'decking', item: 'Decking', per: 'deckm2', unit: 'm²', src: 'by the deck material chosen in Design', fam: {
+      { k: 'decking', item: 'Decking', per: 'deckm2', unit: 'm²', src: 'by the deck material chosen in Design', famTag: 'sourced', fam: {
         softwood: R(12.38 / b12, 13.90 / b12, 'pressure-treated 5/4 x 6 x 12 ft deck board, $12.38 (Turkstra Lumber) to $13.90 (Kent), per 0.5285 m² of board'),
         cedar: R(32.98 / b14, 28.48 / b12, 'western red cedar 5/4 x 6 deck board, $32.98 for 14 ft (BMR) and $28.48 for 12 ft (RONA), per m² of board; thermowood priced as cedar'),
         hardwood: R(12.95 * ft / 0.1445, 13.95 * ft / 0.1445, 'ipe 5/4 x 6 grooved deck board, $12.95 to $13.95 per linear foot (Patio Etc. Clôture Nationale), at 6.92 linear m per m²'),
+        mineral: P(R(12.95 * ft / 0.1445, 13.95 * ft / 0.1445), 'priced as hardwood (ipe) decking: terrazzo, concrete, granite and fibre-cement decking have no public Canadian rate per m²'),
         composite: R(29.16 / b12, 39.60 / b12, 'Trex composite 1 x 6 x 12 ft deck board, $29.16 (Home Depot Canada, Enhance Basics) to $39.60 (Patio Etc. Clôture Nationale), per 0.5285 m² of board') } },
-      { k: 'joists', item: 'Joists', per: 'joistm', unit: 'm', low: null, high: null, src: 'no Canadian public listing found for a treated 2 x 6 joist that could be checked' },
-      { k: 'pedestals', item: 'Levelling pedestals', per: 'aream', unit: 'm²', low: null, high: null, src: 'no Canadian public listing found for adjustable deck pedestals at parklet heights' },
-      { k: 'labour', item: 'Deck installation labour', per: 'aream', unit: 'm²', low: null, high: null, src: 'no Vancouver deck labour rate found from a source that could be checked' },
-      { k: 'edge', item: 'Edge', per: 'enc', unit: 'm', src: 'installed, per linear foot, Ontario installers 2026 (no Vancouver figure published)', types: {
+      // (Brief 32 §5) joists and pedestals from Canadian listings (read 2026-10-04); deck labour derived; the edge for every type
+      { k: 'joists', item: 'Joists, pressure-treated 2 x 6', per: 'joistm', unit: 'm', tag: 'sourced', low: r2(18.88 / 3.6576), high: r2(20.48 / 3.6576), src: 'pressure-treated 2 x 6 x 12 ft, $18.88 (RONA) to $20.48 (Kent, "starting at"), per 3.658 m; read from the retailers\' listings in a web search on 2026-10-04 (their product pages refuse automated reads)' },
+      { k: 'pedestals', item: 'Levelling pedestals, adjustable', per: 'ped', unit: 'each', tag: 'sourced', low: 18.14, high: 25.87, src: 'Bison Versadjust adjustable pedestal V1-V4, $18.14 (sale) to $25.87 (regular), DeckMart, Vaughan ON, a Canadian Bison seller (Level.It $21.12)' },
+      { k: 'labour', item: 'Deck installation labour', per: 'aream', unit: 'm²', tag: 'indicative', low: r2(30 * 10.7639 - (12.38 / b12 * 1.1 + 2.5 * 18.88 / 3.6576 + 4.17 * 18.14)), high: r2(50 * 10.7639 - (13.90 / b12 * 1.1 + 2.5 * 20.48 / 3.6576 + 4.17 * 25.87)),
+        src: 'derived: Decksforlife (Toronto, 23 February 2026) pressure-treated deck installed at $30-50 a square foot ($323-538 a m², materials, labour and standard stairs), less this set\'s own pressure-treated materials per m² (decking with waste, joists at 0.40 m, pedestals at 0.40 x 0.60 m: $114-151); no Canadian source found states the labour share itself' },
+      { k: 'edge', item: 'Edge', per: 'enc', unit: 'm', src: 'installed (labour included), per linear foot, Ontario installers 2026 (no Vancouver figure published)', types: {
         'steel-picket': R(70 * ft, 130 * ft, 'aluminum picket railing, installed $70-130 per linear foot (Builders Ontario 2026; DecksForLife $83-120)'),
         'horizontal-cable': R(60 * ft, 250 * ft, 'cable railing, installed $60-150 per linear foot (Builders Ontario 2026) to $180-250 (DecksForLife)'),
         'timber-slat-v': R(30 * ft, 75 * ft, 'wood railing, installed $30-75 per linear foot (Builders Ontario 2026; DecksForLife $55-75)'),
         'timber-slat-h': R(30 * ft, 75 * ft, 'wood railing, installed $30-75 per linear foot (Builders Ontario 2026; DecksForLife $55-75)'),
-        glass: R(150 * ft, 300 * ft, 'glass railing, installed $150-300 per linear foot (Builders Ontario 2026; DecksForLife frameless $190-280)') } },
-      { k: 'planterwall', item: 'Planter wall (edge)', per: 'planterm', unit: 'm', low: null, high: null, src: 'no public figure for a planter wall per metre that could be checked' },
-      { k: 'screens', item: 'Screens (edge)', per: 'screenm', unit: 'm', low: null, high: null, src: 'no public figure for a screen or knee wall per metre that could be checked' },
-      { k: 'soil', item: 'Planter soil', per: 'soilm3', unit: 'm³', low: r2(44 / 0.70 / yd), high: r2(44 / 0.60 / yd), src: 'bulk garden mix from $44 per tractor scoop of about 60-70 % of a cubic yard (Arts Nursery, Metro Vancouver), material only' },
-      { k: 'design', item: 'Design and permit drawings', per: 'once', unit: 'allowance', low: null, high: null, src: 'no published Vancouver figure for parklet drawings' },
-      { k: 'contingency', item: 'Contingency', per: 'pct', pct: 20, unit: '%', src: 'NerdWallet Canada (February 2026): budget an extra 20 % on a renovation for the unexpected' }
+        glass: R(150 * ft, 300 * ft, 'glass railing, installed $150-300 per linear foot (Builders Ontario 2026; DecksForLife frameless $190-280)'),
+        'perforated-panel': P(R(70 * ft, 130 * ft), 'priced as aluminum picket railing (installed $70-130 per linear foot): a perforated metal panel has no public installed rate'),
+        'bench-back': P(R(30 * ft, 75 * ft), 'priced as wood railing (installed $30-75 per linear foot): a bench-back edge has no public installed rate') } },
+      { k: 'planterwall', item: 'Planter wall (edge)', per: 'planterm', unit: 'm', tag: 'proxy', low: r2(70 * ft), high: r2(130 * ft), src: 'priced as aluminum picket railing, installed $70-130 per linear foot (Builders Ontario 2026): a planter wall (Corten, galvanized or timber) has no public rate per metre' },
+      { k: 'screens', item: 'Screens (edge)', per: 'screenm', unit: 'm', tag: 'proxy', low: r2(30 * ft), high: r2(75 * ft), src: 'priced as wood railing, installed $30-75 per linear foot (Builders Ontario 2026): a screen or knee wall has no public rate per metre' },
+      { k: 'soil', item: 'Planter soil', per: 'soilm3', unit: 'm³', tag: 'sourced', low: r2(44 / 0.70 / yd), high: r2(44 / 0.60 / yd), src: 'bulk garden mix from $44 per tractor scoop of about 60-70 % of a cubic yard (Arts Nursery, Metro Vancouver), material only' },
+      { k: 'design', item: 'Design and permit drawings', per: 'pct', of: 'build', pctLo: 8, pctHi: 12, unit: '% of build', tag: 'indicative', src: 'an allowance of 8-12 % of the build lines (Brief 32): no published Vancouver figure for parklet drawings' },
+      { k: 'contingency', item: 'Contingency', per: 'pct', pct: 20, unit: '%', tag: 'indicative', src: 'NerdWallet Canada (February 2026): budget an extra 20 % on a renovation for the unexpected' }
     ] };
 })();
 P101.FEE_URL = 'https://vancouver.ca/streets-transportation/parklets.aspx';
@@ -34140,12 +34146,13 @@ P101.matLabel = function(id) { if (!id) return ''; try { var i = flMatInfo(id); 
 P101.lines = function(r, Q, DM) {
   var g = function(k) { var x = Q.find(function(q) { return q.k === k; }); return x ? +x.n || 0 : 0; }, one = function(o) { return [Object.assign({ low: r.low, high: r.high, basis: r.src }, o)]; };
   var M = function(k) { return typeof PKMAT !== 'undefined' ? P101.matLabel(PKMAT.eff(k)) : ''; };
-  if (r.per === 'deckm2') { var fam = P101.deckFam(), fr = r.fam && r.fam[fam]; return [{ qty: g('decking'), unit: 'm²', f: g('decking') + ' m² of decking (the deck area plus waste)', mat: M('deck'), low: fr ? fr.low : null, high: fr ? fr.high : null, basis: fr ? fr.src : 'no sourced rate for ' + P101.FAMNAME[fam] + ' decking', item: r.item + ', ' + P101.FAMNAME[fam] }]; }
+  if (r.per === 'deckm2') { var fam = P101.deckFam(), fr = r.fam && r.fam[fam]; return [{ qty: g('decking'), unit: 'm²', f: g('decking') + ' m² of decking (the deck area plus waste)', mat: M('deck'), low: fr ? fr.low : null, high: fr ? fr.high : null, basis: fr ? fr.src : 'no sourced rate for ' + P101.FAMNAME[fam] + ' decking', item: r.item + ', ' + P101.FAMNAME[fam], tag: fr ? (fr.tag === 'proxy' ? 'proxy' : r.famTag || fr.tag) : null }]; }
+  if (r.per === 'ped') return one({ qty: g('pedestals'), unit: 'each', f: g('pedestals') + ' pedestals under the joists' });   // (Brief 32 §5)
   if (r.per === 'joistm') return one({ qty: g('joist'), unit: 'm', f: 'the joist run: ' + g('joist') + ' m' });
   if (r.per === 'aream') return one({ qty: g('area'), unit: 'm²', f: g('area') + ' m² of deck' });
   if (r.per === 'soilm3') return one({ qty: g('soil'), unit: 'm³', f: 'each planter\'s inside', mat: '' });
   if (r.per === 'once') return one({ qty: g('area') > 0 ? 1 : 0, unit: 'allowance', f: 'once' });
-  if (r.per === 'pct') return [{ qty: r.pct || 0, unit: '% of build', f: (r.pct || 0) + ' % of the build lines above', pct: true, low: null, high: null, basis: r.src }];
+  if (r.per === 'pct') return [{ qty: r.pct != null ? r.pct : r.pctLo, unit: '% of build', f: (r.pct != null ? r.pct : r.pctLo + '-' + r.pctHi) + ' % of the build lines above', pct: true, low: null, high: null, basis: r.src }];
   if (r.per === 'enc' || r.per === 'planterm' || r.per === 'screenm') {
     var E = DM.enclosure, by = {}, fam = r.per === 'planterm' ? 'planter' : r.per === 'screenm' ? 'wall' : null;
     if (E && !(typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET)) E.runs.forEach(function(run) {
@@ -34156,7 +34163,7 @@ P101.lines = function(r, Q, DM) {
     });
     return Object.keys(by).map(function(key) {
       var b = by[key], t = fam ? { low: r.low, high: r.high, src: r.src } : (r.types && r.types[key]) || null, L = Math.round(b.len * 100) / 100;
-      return { sub: key, qty: L, unit: 'm', f: L + ' m of edge, the runs of ' + (b.name || (fam === 'planter' ? 'planter walls' : 'screens')), item: fam ? r.item : 'Edge: ' + String(b.name || key).toLowerCase(), mat: P101.matLabel(b.mat), low: t ? t.low : null, high: t ? t.high : null, basis: t ? t.src : 'no sourced rate for ' + String(b.name || key).toLowerCase() };
+      return { sub: key, qty: L, unit: 'm', f: L + ' m of edge, the runs of ' + (b.name || (fam === 'planter' ? 'planter walls' : 'screens')), item: fam ? r.item : 'Edge: ' + String(b.name || key).toLowerCase() + ', installed', mat: P101.matLabel(b.mat), low: t ? t.low : null, high: t ? t.high : null, basis: t ? t.src : 'no sourced rate for ' + String(b.name || key).toLowerCase(), tag: t ? (t.tag || r.tag) : null };
     });
   }
   var u = P101.units(r, Q); return [{ qty: u.n, unit: r.unit, f: u.f, city: u.city, annual: u.annual, low: r.low, high: r.high, basis: r.src }];
@@ -34183,20 +34190,28 @@ P101.estimate = function(DM) {
       if (!isFee(r) && !(L.qty > 0)) return;   // a build line the design does not take
       var f1 = r.ext ? 1 : fx, priced = L.low != null && L.high != null, l = priced ? L.qty * L.low * f1 : null, h = priced ? L.qty * L.high * f1 : null;
       if (!S.shipped && !r.ext && !r.entered) userAll = false;
-      rows.push({ sec: isFee(r) ? 'fee' : 'build', k: r.k + (L.sub ? ':' + L.sub : ''), rk: r.k, item: L.item || r.item, qty: L.qty, unit: L.unit || r.unit, rate: r, rlow: priced ? L.low * f1 : null, rhigh: priced ? L.high * f1 : null, f: L.f, lo: l, hi: h, mat: L.mat || '', src: L.basis || r.src || '', tag: r.ext ? 'Manual 2016' : !priced && !L.city ? 'not priced' : (r.tag || tag0), city: !!L.city, annual: !!L.annual, fee: isFee(r), ext: !!r.ext, priced: priced });
+      rows.push({ sec: isFee(r) ? 'fee' : 'build', k: r.k + (L.sub ? ':' + L.sub : ''), rk: r.k, item: L.item || r.item, qty: L.qty, unit: L.unit || r.unit, rate: r, rlow: priced ? L.low * f1 : null, rhigh: priced ? L.high * f1 : null, f: L.f, lo: l, hi: h, mat: L.mat || '', src: L.basis || r.src || '', tag: r.ext ? 'sourced' : !priced && !L.city ? 'not priced' : (r.entered ? 'user' : L.tag || r.tag || tag0), priced: priced, city: !!L.city, annual: !!L.annual, fee: isFee(r), ext: !!r.ext, priced: priced });
     });
   });
   var furn = P101.furniture(), unpriced = 0;
   furn.forEach(function(g) {
     var fr = C.furn[g.key], card = g.user && g.userA && g.userA.card && +g.userA.card.price > 0 ? +g.userA.card.price : null;
     var price = fr && fr.low > 0 ? fr : card ? { low: card, high: card, src: 'spec card' } : null;
-    var row = { sec: 'furn', furn: g, k: 'furn:' + g.key, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', mat: g.mats || '', tag: price ? (price.suggested ? 'suggested' : 'entered') : '', priced: !!price };
+    var row = { sec: 'furn', furn: g, k: 'furn:' + g.key, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', mat: g.mats || '', tag: price ? (price.suggested ? 'indicative' : 'user') : 'awaiting a quote', priced: !!price };   // (Brief 32 §5) the tags: a suggestion indicative, a quote the user's
     if (!price) { unpriced += g.n; rows.push(Object.assign(row, { lo: null, hi: null, src: 'not priced: enter a quote' })); return; }
     var c = price.cur === 'USD' ? C.fx : 1, l = g.n * price.low * c, h = g.n * (price.high || price.low) * c;
     rows.push(Object.assign(row, { lo: l, hi: h, rlow: price.low * c, rhigh: (price.high || price.low) * c, price: price, suggested: !!price.suggested, src: price.src || 'entered' }));
   });
   var sum = function(sec, k) { return rows.filter(function(q) { return q.sec === sec && !q.city && !q.annual && q[k] != null; }).reduce(function(a, q) { return a + q[k]; }, 0); };
   var bLo = sum('build', 'lo') + sum('furn', 'lo'), bHi = sum('build', 'hi') + sum('furn', 'hi');
+  // (Brief 32 §5) a share of the build lines (the design allowance) first, then the contingency on everything above
+  var buildLo = sum('build', 'lo'), buildHi = sum('build', 'hi');
+  pctRates.filter(function(r) { return r.of === 'build'; }).forEach(function(r) {
+    var lo = buildLo * r.pctLo / 100, hi = buildHi * r.pctHi / 100;
+    rows.push({ sec: 'build', k: r.k, rk: r.k, item: r.item, qty: r.pctLo + '-' + r.pctHi, unit: '% of build', rate: r, f: r.pctLo + '-' + r.pctHi + ' % of the build lines', lo: lo, hi: hi, rlow: null, rhigh: null, mat: '', src: r.src, tag: r.tag || tag0, pct: true, pctLo: r.pctLo, pctHi: r.pctHi, of: 'build', priced: true });
+    bLo += lo; bHi += hi;
+  });
+  pctRates = pctRates.filter(function(r) { return r.of !== 'build'; });
   pctRates.forEach(function(r) {
     var p = (r.pct || 0) / 100, priced = r.pct != null;
     rows.push({ sec: 'build', k: r.k, rk: r.k, item: r.item, qty: r.pct, unit: '% of build', rate: r, f: r.pct + ' % of the build and furniture priced above', lo: priced ? bLo * p : null, hi: priced ? bHi * p : null, rlow: null, rhigh: null, mat: '', src: r.src, tag: r.tag || tag0, pct: true, priced: priced });
@@ -34254,7 +34269,7 @@ P101.workbook = function(X) {
   var secRows = {}, section = function(key, title, list) {
     put(r, 0, title); r++; var first = r;
     list.forEach(function(q) {
-      if (q.pct) return;   // the contingency after the subtotals
+      if (q.pct) return;   // the design allowance and the contingency after the subtotals
       put(r, 0, q.item); if (!q.pct) put(r, 1, q.qty); put(r, 2, q.unit);
       if (q.city) { put(r, 5, 'supplied by the City'); }
       else if (q.rlow != null) { put(r, 3, +q.rlow.toFixed(2), CUR); put(r, 4, +q.rhigh.toFixed(2), CUR); put(r, 5, { t: 'n', v: +(q.qty * q.rlow).toFixed(2), f: 'B' + (r + 1) + '*D' + (r + 1) }, CUR); put(r, 6, { t: 'n', v: +(q.qty * q.rhigh).toFixed(2), f: 'B' + (r + 1) + '*E' + (r + 1) }, CUR); }
@@ -34269,17 +34284,25 @@ P101.workbook = function(X) {
   };
   var B = est.rows.filter(function(q) { return q.sec === 'build'; }), FU = est.rows.filter(function(q) { return q.sec === 'furn'; }), FE = est.rows.filter(function(q) { return q.sec === 'fee'; });
   section('build', 'Build', B); section('furn', 'Furniture', FU);
-  var pc = B.find(function(q) { return q.pct; });
+  // (Brief 32 §5) the design allowance: its low and high shares (D, E) of the build subtotal
+  var dz = B.find(function(q) { return q.pct && q.of === 'build'; });
+  if (dz) {
+    var bl0 = secRows.build + 1;
+    put(r, 0, dz.item); put(r, 2, '% of build'); put(r, 3, dz.pctLo); put(r, 4, dz.pctHi);
+    put(r, 5, { t: 'n', v: +(ws[cell(secRows.build, 5)].v * dz.pctLo / 100).toFixed(2), f: 'D' + (r + 1) + '/100*F' + bl0 }, CUR); put(r, 6, { t: 'n', v: +(ws[cell(secRows.build, 6)].v * dz.pctHi / 100).toFixed(2), f: 'E' + (r + 1) + '/100*G' + bl0 }, CUR);
+    put(r, 8, dz.tag || ''); put(r, 9, dz.src || ''); secRows.design = r; r += 2;
+  }
+  var pc = B.find(function(q) { return q.pct && q.of !== 'build'; });
   if (pc) {
-    var bl = secRows.build + 1, fl = secRows.furn + 1, p = pc.qty / 100;
-    put(r, 0, pc.item); put(r, 1, pc.qty); put(r, 2, '% of build and furniture');
-    var cl = ws[cell(secRows.build, 5)].v + ws[cell(secRows.furn, 5)].v, ch = ws[cell(secRows.build, 6)].v + ws[cell(secRows.furn, 6)].v;
-    put(r, 5, { t: 'n', v: +(cl * p).toFixed(2), f: 'B' + (r + 1) + '/100*(F' + bl + '+F' + fl + ')' }, CUR); put(r, 6, { t: 'n', v: +(ch * p).toFixed(2), f: 'B' + (r + 1) + '/100*(G' + bl + '+G' + fl + ')' }, CUR);
+    var bl = secRows.build + 1, fl = secRows.furn + 1, dl = secRows.design != null ? secRows.design + 1 : null, p = pc.qty / 100;
+    put(r, 0, pc.item); put(r, 1, pc.qty); put(r, 2, '% of build, furniture' + (dl ? ' and design' : ''));
+    var cl = ws[cell(secRows.build, 5)].v + ws[cell(secRows.furn, 5)].v + (dl ? ws[cell(secRows.design, 5)].v : 0), ch = ws[cell(secRows.build, 6)].v + ws[cell(secRows.furn, 6)].v + (dl ? ws[cell(secRows.design, 6)].v : 0);
+    put(r, 5, { t: 'n', v: +(cl * p).toFixed(2), f: 'B' + (r + 1) + '/100*(F' + bl + '+F' + fl + (dl ? '+F' + dl : '') + ')' }, CUR); put(r, 6, { t: 'n', v: +(ch * p).toFixed(2), f: 'B' + (r + 1) + '/100*(G' + bl + '+G' + fl + (dl ? '+G' + dl : '') + ')' }, CUR);
     put(r, 8, pc.tag || ''); put(r, 9, pc.src || ''); secRows.cont = r; r += 2;
   }
   section('fee', 'City fees', FE);
-  var refs = function(col) { var L = String.fromCharCode(65 + col); return ['build', 'furn', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).map(function(k) { return L + (secRows[k] + 1); }); };
-  var tv = function(col) { return +['build', 'furn', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).reduce(function(a, k) { return a + ws[cell(secRows[k], col)].v; }, 0).toFixed(2); };
+  var refs = function(col) { var L = String.fromCharCode(65 + col); return ['build', 'furn', 'design', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).map(function(k) { return L + (secRows[k] + 1); }); };
+  var tv = function(col) { return +['build', 'furn', 'design', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).reduce(function(a, k) { return a + ws[cell(secRows[k], col)].v; }, 0).toFixed(2); };
   put(r, 0, 'Total, build and fees'); put(r, 5, { t: 'n', v: tv(5), f: refs(5).join('+') }, CUR0); put(r, 6, { t: 'n', v: tv(6), f: refs(6).join('+') }, CUR0); secRows.total = r; r += 2;
   put(r, 0, 'Note'); put(r, 9, P101.rangeLine(est)); r++;
   put(r, 0, 'Note'); put(r, 9, 'What is not priced (—) is not counted as zero. An estimate to plan a budget, not a quote. City fees: the Parklet Manual\'s 2016 figures; confirm against the current schedule.'); r++;
@@ -34290,10 +34313,10 @@ P101.workbook = function(X) {
   // Rates
   var rr2 = [['Rates: ' + S.name], [S.prov], [], ['Line', 'For', 'Unit', 'Low, ' + S.cur, 'High, ' + S.cur, 'Tag', 'Basis']];
   S.rates.forEach(function(x) {
-    var tag = x.tag || S.tag || (S.placeholder ? 'placeholder' : S.shipped ? 'Manual 2016' : 'entered');
-    if (x.fam) Object.keys(x.fam).forEach(function(k) { var f = x.fam[k]; rr2.push([x.item, P101.FAMNAME[k] || k, x.unit, f.low, f.high, tag, f.src]); });
-    else if (x.types) Object.keys(x.types).forEach(function(k) { var f = x.types[k], A2 = ENCLOSURE_ARCHETYPES[k]; rr2.push([x.item, A2 ? A2.name : k, x.unit, f.low, f.high, tag, f.src]); });
-    else rr2.push([x.item, x.range ? 'the comparison range, not a cost line' : '', x.per === 'pct' ? '%' : x.unit, x.per === 'pct' ? x.pct : (x.low == null ? '—' : x.low), x.per === 'pct' ? x.pct : (x.high == null ? '—' : x.high), tag, x.src || '']);
+    var tag = x.entered ? 'user' : x.tag || S.tag || (S.placeholder ? 'placeholder' : S.shipped ? 'sourced' : 'user');
+    if (x.fam) Object.keys(x.fam).forEach(function(k) { var f = x.fam[k]; rr2.push([x.item, P101.FAMNAME[k] || k, x.unit, f.low, f.high, f.tag === 'proxy' ? 'proxy' : x.famTag || f.tag || tag, f.src]); });
+    else if (x.types) Object.keys(x.types).forEach(function(k) { var f = x.types[k], A2 = ENCLOSURE_ARCHETYPES[k]; rr2.push([x.item + ', installed', A2 ? A2.name : k, x.unit, f.low, f.high, f.tag || tag, f.src]); });
+    else rr2.push([x.item, x.range ? 'the comparison range, not a cost line' : '', x.per === 'pct' ? '%' : x.unit, x.per === 'pct' ? (x.pct != null ? x.pct : x.pctLo) : (x.low == null ? '—' : x.low), x.per === 'pct' ? (x.pct != null ? x.pct : x.pctHi) : (x.high == null ? '—' : x.high), tag, x.src || '']);
   });
   var wr = X.utils.aoa_to_sheet(rr2); wr['!cols'] = [{ wch: 30 }, { wch: 28 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 110 }];
   Object.keys(wr).forEach(function(k) { if (k[0] === '!') return; var c = X.utils.decode_cell(k); if (c.r >= 4 && (c.c === 3 || c.c === 4) && wr[k].t === 'n') wr[k].z = CUR; });
