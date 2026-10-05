@@ -12,76 +12,65 @@ Curbside is a schematic design and compliance tool that helps turn an idea for a
 
 ## How to use it
 
-Curbside runs in the browser at the link above. Nothing to install. Button and tab names below are shown *in italics* exactly as they appear on screen.
+Curbside runs in the browser at the link above. Nothing to install. Button and step names below are shown *in italics* exactly as they appear on screen.
 
-### 1. Open the site
+**Before you start.** Open the link above; the landing page explains the steps, and *Try the sample report* opens a finished technical report (no account needed). Click *Sign in* or *Create account* (during the class review, until 9 October 2026, sign-up asks for no invite code), or *Try without an account* to work in this browser only. Every change saves itself; *Save* saves at once; the header reads *Saved ·* and the time, or *Browser only* when signed out. Your other designs are in the account menu (*your name ▼*) › *My designs*.
 
-Open the link above. The landing page explains the steps. *Try the sample report* opens a finished technical report for a reference design; no account is needed for that.
+The top bar is the seven steps, in working order: *1 Site · 2 Site facts · 3 Design · 4 Access · 5 Check · 6 Visualize · 7 Export*. The keys 1 to 7 go to them. Steps 3 to 7 open once every site fact has an answer.
 
-### 2. Sign in
+### 1. Site
 
-Click *Sign in*, or *Create account*. During the class review (until 9 October 2026) sign-up is open and asks for no invite code. After signing in, your most recent design opens.
-
-- **Your designs:** open the account menu (*your name ▼*) and choose *My designs* to see the rest. Each has *Open*, *Rename* and *Delete*.
-- **Saving:** every change saves itself. *Save* saves at once. The bar in the header reads *Saved ·* and the time; signed out, it reads *Browser only*, meaning the design lives only in this browser.
-
-### 3. Choose a site
-
-Click *Locate on map* and search an address with its house number (`2000 Main St`) or an intersection (`Main St & E 20th Ave`). Pick a result, click the street, then click the parklet's side of it, and click *Use this location*.
+Click *Locate on map* and search an address with its house number (`2000 Main St`) or an intersection (`Main St & E 20th Ave`). Pick a result, click the street, then click the parklet's side of it, and click *Use this location*. To pick another street, click it; to change the side, click the same street on its other side.
 
 - Without a mouse: after a search result, the streets near it are listed under the results as buttons, one per side (*Robson Street, south-west side*). Enter on one picks it.
-- *Layers* on the map shows what the import will read: streets, buildings, bikeways, bus stops, hydrants, trees.
+- *Layers* on the map shows what the import will read (streets, buildings, bikeways, bus stops, hydrants, trees) and, along the curbs, *Where a parklet could go*: an estimate from City and OSM data, with the reason on hover.
 - No real site? *Start a blank street* gives a generic two-way street to sketch on; its report says it is not a real location.
 - If you locate a different street, side or block later, the tool asks *Replace the site data?* Replacing clears the imported data and site values; the deck and furniture stay.
 
-### 4. Import
+Then click *Import street context*. The tool reads the street (lanes, direction, route type, bike lane), the buildings and the site objects (hydrants, trees, bus stops) within 150 m, from City of Vancouver open data, OpenStreetMap and TransLink, and places a 19.8 m deck at the host building's frontage. Every value shows where it came from.
 
-Click *Import street context*. The tool reads the street (lanes, direction, route type, bike lane), the buildings, and the site objects (hydrants, trees, bus stops) within 150 m, from City of Vancouver open data, OpenStreetMap and TransLink. It then places a 19.8 m deck at the host building's frontage (*Place parklet*).
+### 2. Site facts
 
-- Every value shows where it came from: *imported*, *estimate*, or *You* once you have typed it.
-- To change a value or a step, click *Edit* on that step.
-- **Site facts:** when the import finishes, *Site facts* opens: one card per fact the checks read (parking, curb to curb, lanes, route type, the distances to the intersection, hydrant, driveway, pole, signal box and manhole, the slope, connections, drainage, the boulevard, the parking setback), then one card per group of imported objects. Each card shows the value found and where it came from; confirm or change it and say how you know it: *Measured on site*, *Estimate* or *Don't know yet*. *Design* and the tabs after it open once every card has an answer. *Review site facts* in the Site tab opens them again.
+One card per fact the checks read (parking, curb to curb, lanes, route type, the distances to the intersection, hydrant, driveway, pole, signal box and manhole, the slope, connections, drainage, the boulevard, the parking setback), then one card per group of imported objects. Each card shows the value found and where it came from; confirm or change it and say how you know it: *Measured on site*, *Estimate* or *Don't know yet*. *Review site facts* in step 1 opens them again; *I've measured on site* opens them with *Measured on site* chosen, for after the site visit.
 
-### 5. Design
+### 3. Design
 
-Work in the *Design* tab, in *Plan*, *Section* or *3D*.
+Three sub-tabs at the top of the left panel: *Generate*, *Layout* and *Furniture*. Work in *Plan*, *Section* or *3D*.
 
-- **Add a piece:** open the *Furniture* tab, click *Place on deck* on a card, then click a spot on the deck. Enter places it at the centre; Esc cancels.
-- **Move a piece:** drag it on the Plan. It never leaves the deck; the edge it meets flashes. Or use the *Move* arrows (0.25 m steps), the keyboard arrow keys, or type *Across* / *Along* and *Apply*. *Duplicate* and *Delete* are under *Actions*.
-- **Your own furniture:** *Import 3D model…* (Furniture tab or library) → *Choose a file…* (GLB, glTF or OBJ) → *Add to My furniture*. It joins the library in this browser.
-- **Deck shape:** *Parklet shape editor* → *Edit the deck's shape*: type the rectangle's length and width (or drag one on the parking segment), cut any corner at 45° (type the cut, or drag the corner handle inward), *Reset to rectangle*; then *Apply* (*Cancel* discards).
-- **Enclosure:** *Edge*. Choose *Traffic side*, *Start end* or *Far end*, then an enclosure type (*Steel picket*, *Planter wall* …), its *Height*, *Buffer* and *Material*.
-- **Street:** in the *Section*, drag a chip from *Add segment* (*Bike Lane*, *Planting* …) into the section. It is refused, with the reason, when the roadway has no room. Click a width to type it (a decimal comma and m, cm or mm are fine); a typed width counts as an estimate until you mark the curb-to-curb width measured in *Site facts*.
-- **Undo:** Ctrl+Z works in the Section and in the shape editor. A furniture move has no undo; move it back.
-- **Generate:** proposes layouts from *Site constraints*, *Programme* (each use weighted 0–3), *Character and materials* and *Output* (*Schemes*, *Seed*). It opens once every site fact has an answer; a fact you don't know yet leaves its check *Awaiting measurement*, not the layout. *Lock* keeps a scheme through *Regenerate*; *Open in Design* takes it into your design.
+- **Generate** (the quick start; Design opens on it while the deck is empty) proposes layouts from *Site constraints*, *Programme* (each use weighted 0–3), *Character and materials* and *Output*. A fact you don't know yet leaves its check *Awaiting measurement*, not the layout. *Lock* keeps a scheme through *Regenerate*; *Open in Design* takes it into your design. The *Design assistant* below it uses your own Anthropic key.
+- **Layout:** *Parklet shape editor* → *Edit the deck's shape*: type the rectangle's length and width (or drag one on the parking segment), cut any corner at 45°, *Reset to rectangle*; *Apply*. *Edge*: choose *Traffic side*, *Start end* or *Far end*, then an enclosure type, its *Height*, *Buffer* and *Material*. *Materials* sets the deck, the edge and the furniture finishes.
+- **Furniture:** the library. *Place on deck* on a card, then click a spot on the deck (Enter places it at the centre; Esc cancels), or drag a card onto the deck in the Plan or 3D. Drag a placed piece to move it; it never leaves the deck. *Import 3D model…* adds your own (GLB, glTF or OBJ) to *My furniture*.
+- **Street:** in the *Section*, drag a chip from *Add segment* into the section; click a width to type it (a decimal comma and m, cm or mm are fine). A typed width counts as an estimate until you mark it measured in *Site facts*.
+- **Undo:** Ctrl+Z works in the Section and in the shape editor.
 
-### 6. Accessibility
+### 4. Access
 
-The *Access* tab checks a 1.5 m clear route from each entry to an accessible seat (a bench end, or a table 0.70–0.80 m high). Drag a piece on the Plan and the route follows; it shows where a piece blocks it and by how much.
+A 1.5 m clear route from each entry to an accessible seat (a bench end, or a table 0.70–0.80 m high). Drag a piece on the Plan and the route follows; a pinch is dimensioned across the narrow point, with the piece in the way named.
 
-### 7. Check
+### 5. Check
 
-The *Check* tab gives the verdict in one sentence with one next step, then every check grouped under *Fails*, *Awaiting measurement*, *Not entered*, *Provisional pass* and *Pass*.
+The verdict in one sentence with one next step and the count by result, then every check as a card, grouped under *Fails*, *Awaiting measurement*, *Not entered*, *Provisional pass*, *Pass* and *Advisory*. A card shows its rule, its result and the value with how it is known; open it (click, or Enter) for the rule in plain words, the Manual page (a link that opens it), how the result was found and the fix. Esc closes it. Every result says how it is known: *Pass (measured)* on a site measurement, *Pass (design)* where only the design is read, *Provisional pass (estimate)* or *(imported)* until it is measured, *Awaiting measurement* while a fact is not known.
 
-A result depends on how its facts are known: measured on site gives *Pass* or *Fail*; an estimate or imported data gives a provisional result, marked *estimate* where an estimate is read; a fact you don't know yet leaves the check *Awaiting measurement*.
+- **Change a value:** open the card and click *Change* next to the fact: the same inputs as its Site facts card open in it. Change the value and how you know it, then *Save*; the check runs again and the card moves to its new group.
+- **See it on the drawing:** *Show me in the Plan ›* in any open card. A check read from the design alone (C14, C16 to C19) has *Go to Design ›*.
+- **Measure on site:** the report's S-002 lists every site fact with its value now, how it is known and a blank column for the measurement.
 
-- **Change a value:** open a group, open the row, click *Change* next to the fact: its card opens in the row. Change the value and how you know it, then *Save*. The row stays where it is until you leave Check.
-- **Confirm imported objects:** *Review site facts* opens the cards; the hydrant, bus stop and tree cards confirm a whole group with *Confirm all*, and you untick any that is not there.
-- **See it on the drawing:** *Show me in the Plan ›* in any open row.
-- **Measure on site:** the report's S-002 lists every site fact with its value now, how it is known and a blank column to write the measurement in. Back from the site visit, *I've measured on site* (Site tab) opens the cards with *Measured on site* chosen.
+### 6. Visualize
 
-### 8. Export
+The parklet in 3D, with the sun at any date and time. Photoreal renders are optional and use your own Replicate key and the local server (`tools/start.cmd`).
 
-In *Report*, choose *Schematic* (colour, renders on the title sheet) or *Technical* (line and hatch, no images), tick what to *Include*, and click *Download report (PDF)*. It takes a few seconds; page two is *What to do next*.
+### 7. Export
 
-- **3D model:** *3D Model* → *Rhino (.3dm)* (or glTF, IFC, Collada, STL, OBJ, DXF) → *Export 3D Model*.
+In *Report*, choose *Schematic* (colour, renders on the title sheet) or *Technical* (line and hatch, no images), tick what to *Include*, and click *Download report (PDF)*. Page two is *What to do next*. *Accessible route (A-104)* adds the route sheet; it is printed anyway when C16 fails. Sheet scales are the largest of 1:20, 1:25, 1:50, 1:75, 1:100, 1:200 and 1:250 that fits.
 
-### 9. Settings
+*Cost estimate* (beside *Report*) prices the design as a range from a stated rate set: *Vancouver indicative 2026* by default, each rate with its source and date, and a line without a checkable source shown as *—* and counted. *Download (.xlsx)* gives the same estimate as a workbook with live formulas. *More formats* holds the 3D model (*Rhino (.3dm)*, glTF, IFC, Collada, STL, OBJ, DXF) and the animation.
 
-Open the account menu (*Sign in ▼* or *your name ▼*) → *Settings*.
+### Settings
 
-- **Connections:** your own Replicate key for photoreal renders, Anthropic key for the Design Assistant, and Mapillary token for street photos. Paste a key and press Enter; *Test* checks it, *Remove* deletes it. Keys are stored only in this browser, never sent to Curbside's servers or saved with your design. On the hosted copy, renders also need the local server (`tools/start.cmd`); *how?* beside *Render (photoreal, 4 presets)* explains.
-- **General** (name, email, organization, kept in this browser), **Units** (Metric / Imperial), **Grid & Snap**, **Project North** (*Set in Site*), **Data** (*Clear all saved data*).
+Account menu (*Sign in ▼* or *your name ▼*) → *Settings*.
+
+- **Connections:** your own Replicate key for photoreal renders, Anthropic key for the Design assistant, Mapillary token for street photos. Paste a key and press Enter; *Test* checks it, *Remove* deletes it. Keys live only in this browser, at this address: signing out, a new design or clearing your data keeps them; another browser, a private window, or the app at another address starts with none.
+- **General**, **Units** (Metric / Imperial), **Grid & Snap**, **Project North**, **Data** (*Clear all saved data* keeps your keys).
 - **Sign out** is in the account menu; it saves the open design first.
 
 ## Source

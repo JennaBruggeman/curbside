@@ -338,6 +338,18 @@ while ($l.IsListening) {
       else { Send-Json $c @{ error = 'not found' } 404 }
     } elseif ($c.Request.HttpMethod -ne 'GET') {
       $c.Response.StatusCode = 405
+    } elseif ($path.StartsWith('/curbside-data/')) {
+      # (Brief 31 sec. 3B) a curbside-data checkout beside this repo, read-only: the page reads it in place of the
+      # published cells, so a layer can be seen before it is published. No checkout there: 404, the page uses the published.
+      $dr = Join-Path (Split-Path -Parent $Root) 'curbside-data'
+      $f = $null
+      if (Test-Path $dr -PathType Container) { $dr = (Resolve-Path $dr).Path.TrimEnd('\'); $f = [IO.Path]::GetFullPath((Join-Path $dr $path.Substring(15))) }
+      if (-not $f -or -not $f.StartsWith($dr + '\') -or $f.Contains('\.git') -or -not (Test-Path $f -PathType Leaf)) { $c.Response.StatusCode = 404 }
+      else {
+        $b = [IO.File]::ReadAllBytes($f)
+        $c.Response.ContentType = 'application/json'; $c.Response.Headers.Add('Cache-Control', 'no-cache')
+        $c.Response.OutputStream.Write($b, 0, $b.Length)
+      }
     } else {
       $rel = $path.TrimStart('/'); if ($rel -eq '') { $rel = $(if (Test-Path (Join-Path $Root 'index.html')) { 'index.html' } else { 'parklet-checker.html' }) }   # / = the landing page
       $f = [IO.Path]::GetFullPath((Join-Path $Root $rel))
