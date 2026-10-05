@@ -34308,7 +34308,7 @@ P101.workbook = function(X) {
   put(r, 0, 'Note'); put(r, 9, 'What is not priced (—) is not counted as zero. An estimate to plan a budget, not a quote. City fees: the Parklet Manual\'s 2016 figures; confirm against the current schedule.'); r++;
   ws['!ref'] = 'A1:J' + r; ws['!cols'] = [{ wch: 42 }, { wch: 8 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 90 }];
   // Quantities
-  var q = [['Quantities: ' + name], [(addr ? addr + ' · ' : '') + d.toISOString().slice(0, 10)], [], ['Item', 'Qty', 'Unit', 'How it is counted (the formula)']].concat(est.Q.map(function(x) { return [x.item, x.n, x.u, x.f]; }));
+  var q = [['Quantities: ' + name], [(addr ? addr + ' · ' : '') + d.toISOString().slice(0, 10)], [], ['Item', 'Qty', 'Unit', 'How it is counted (the formula)']].concat(P101.shownQ(est.Q).map(function(x) { return [x.item, x.n, x.u, x.f]; }));
   var wq = X.utils.aoa_to_sheet(q); wq['!cols'] = [{ wch: 44 }, { wch: 10 }, { wch: 8 }, { wch: 100 }];
   // Rates
   var rr2 = [['Rates: ' + S.name], [S.prov], [], ['Line', 'For', 'Unit', 'Low, ' + S.cur, 'High, ' + S.cur, 'Tag', 'Basis']];
@@ -34363,6 +34363,8 @@ P101.tagCount = function(est) {
   var n = {}; est.rows.forEach(function(q) { if (q.sec !== 'build' || q.city || !q.priced) return; n[q.tag] = (n[q.tag] || 0) + 1; });
   return P101.TAGS.filter(function(t) { return n[t]; }).map(function(t) { return n[t] + ' ' + t; }).join(' · ');
 };
+// (Brief 32 §5) the take-off as shown: without a row the design does not use (its count zero)
+P101.shownQ = function(Q) { return Q.filter(function(q) { return !(+q.n === 0); }); };
 P101.rangeLine = function(est) {
   var R = est.range, m = function(v) { return '$' + Math.round(v).toLocaleString('en-CA'); };
   return 'The Manual\'s typical range for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + ': ' + m(R.lo) + ' – ' + m(R.hi) + ' (' + m(R.per[0]) + ' – ' + m(R.per[1]) + ' a space, Manual p. 18, 2016). For comparison only, not in the total.';
@@ -34428,7 +34430,7 @@ P101.render = function() {
   // quantities
   h += "<h2 class='ce-h2'>Quantities</h2><p class='ce-note'>A take-off from this design's model; each line says how it is counted. Joists every <input type='text' inputmode='numeric' id='p101Sp' class='ce-q' aria-label='Joist spacing, mm' value='" + Math.round(C.spacing * 1000) + "' onchange='P101.setNum(\"spacing\", this.value)'> mm; decking waste <input type='text' inputmode='numeric' id='p101Waste' class='ce-q' aria-label='Decking waste, percent' value='" + Math.round(C.waste * 100) + "' onchange='P101.setNum(\"waste\", this.value)'> %.</p>" +
     "<table class='ce-t ce-qt'><thead><tr><th scope='col'>Item</th><th scope='col' class='num'>Qty</th><th scope='col'>Unit</th><th scope='col'>How it is counted</th></tr></thead><tbody>" +
-    Q.map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + '</td></tr>'; }).join('') +
+    P101.shownQ(Q).map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + '</td></tr>'; }).join('') +
     P101.city(DM).map(function(c) { return '<tr><td>' + e(c.item) + "</td><td class='num'>" + e(c.n) + '</td><td>ea</td><td>supplied by the City (Manual p. 48)</td></tr>'; }).join('') + '</tbody></table>';
   // materials
   h += "<h2 class='ce-h2'>Materials</h2><table class='ce-t'><thead><tr><th scope='col'>Family</th><th scope='col'>Material</th><th scope='col'>Durability</th><th scope='col'>Maintenance</th><th scope='col'>San Francisco (advisory)</th><th scope='col'>Vancouver Manual</th></tr></thead><tbody>" +
@@ -34455,7 +34457,7 @@ RPT.sheetBudget = function(d) {
   var hdr = function(t) { return [{ t: t, b: true }, '', '', '', '', '']; };
   var rows = [hdr('Build')].concat(est.rows.filter(function(r) { return r.sec === 'build'; }).map(row), [hdr('Furniture')], est.rows.filter(function(r) { return r.sec === 'furn'; }).map(row), [hdr('City fees')], est.rows.filter(function(r) { return r.sec === 'fee'; }).map(row));
   rows.push([{ t: 'Total, build and fees', b: true }, '', '', '', { t: rg(est.lo, est.hi), b: true }, est.unpricedLines || est.unpriced ? 'what is not priced is not counted' : '']);
-  var qrows = est.Q.filter(function(q) { return !q.sub; }).map(function(q) { return [q.item, String(q.n), q.u, q.f]; });
+  var qrows = P101.shownQ(est.Q).filter(function(q) { return !q.sub; }).map(function(q) { return [q.item, String(q.n), q.u, q.f]; });
   return RPT.textSheet('G-002', 'Cost estimate', S.name, [
     { p: est.banner + ' Rate set: ' + S.name + '. ' + S.prov + (S.cur === 'USD' ? ' Converted at USD 1 = CAD ' + est.fx + '.' : '') },
     { kv: [['Build', rg(est.build.lo, est.build.hi)], ['City fees', rg(est.fees.lo, est.fees.hi)], ['Total', rg(est.lo, est.hi)], ['Against the Manual', est.range.n > 0 ? (est.cmp || 'nothing priced') + ', ' + fmt(est.range.lo) + ' - ' + fmt(est.range.hi) + ' for ' + est.range.n + ' spaces' : '-']] },
