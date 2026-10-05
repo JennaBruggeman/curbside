@@ -8,7 +8,7 @@ export a drawing set.
 
 ## Purpose
 
-Curbside is a schematic design and compliance tool that helps turn an idea for a Vancouver parklet into a site-specific, reviewable proposal. Designed for anyone who might initiate a parklet, from a café owner to a designer preparing a first sketch, it builds the street from the address using City open data, OpenStreetMap and TransLink, incorporating lanes, bike routes, transit stops, hydrants, trees and buildings. Users can generate and refine furnished layouts according to their priorities, such as seating, planting or shade, while the Parklet Manual's clearance and access requirements are checked throughout. Each value is identified as measured, imported or estimated; estimates cannot satisfy compliance checks, and a survey sheet lists what must still be verified on site. From one model, Curbside produces both a schematic package for communicating the proposal and a technical package documenting compliance, assumptions and sources for pre-application review.
+Curbside is a schematic design and compliance tool that helps turn an idea for a Vancouver parklet into a site-specific, reviewable proposal. Designed for anyone who might initiate a parklet, from a café owner to a designer preparing a first sketch, it builds the street from the address using City open data, OpenStreetMap and TransLink, incorporating lanes, bike routes, transit stops, hydrants, trees and buildings. Users can generate and refine furnished layouts according to their priorities, such as seating, planting or shade, while the Parklet Manual's clearance and access requirements are checked throughout. Each value is identified as measured, imported or estimated; only a measured value settles a check (an estimate or imported data gives a provisional result), and a survey sheet lists what must still be measured on site. From one model, Curbside produces both a schematic package for communicating the proposal and a technical package documenting compliance, assumptions and sources for pre-application review.
 
 ## How to use it
 
@@ -29,6 +29,7 @@ Click *Sign in*, or *Create account*. During the class review (until 9 October 2
 
 Click *Locate on map* and search an address with its house number (`2000 Main St`) or an intersection (`Main St & E 20th Ave`). Pick a result, click the street, then click the parklet's side of it, and click *Use this location*.
 
+- Without a mouse: after a search result, the streets near it are listed under the results as buttons, one per side (*Robson Street, south-west side*). Enter on one picks it.
 - *Layers* on the map shows what the import will read: streets, buildings, bikeways, bus stops, hydrants, trees.
 - No real site? *Start a blank street* gives a generic two-way street to sketch on; its report says it is not a real location.
 - If you locate a different street, side or block later, the tool asks *Replace the site data?* Replacing clears the imported data and site values; the deck and furniture stay.
@@ -39,6 +40,7 @@ Click *Import street context*. The tool reads the street (lanes, direction, rout
 
 - Every value shows where it came from: *imported*, *estimate*, or *You* once you have typed it.
 - To change a value or a step, click *Edit* on that step.
+- **Site facts:** when the import finishes, *Site facts* opens: one card per fact the checks read (parking, curb to curb, lanes, route type, the distances to the intersection, hydrant, driveway, pole, signal box and manhole, the slope, connections, drainage, the boulevard, the parking setback), then one card per group of imported objects. Each card shows the value found and where it came from; confirm or change it and say how you know it: *Measured on site*, *Estimate* or *Don't know yet*. *Design* and the tabs after it open once every card has an answer. *Review site facts* in the Site tab opens them again.
 
 ### 5. Design
 
@@ -47,11 +49,11 @@ Work in the *Design* tab, in *Plan*, *Section* or *3D*.
 - **Add a piece:** open the *Furniture* tab, click *Place on deck* on a card, then click a spot on the deck. Enter places it at the centre; Esc cancels.
 - **Move a piece:** drag it on the Plan. It never leaves the deck; the edge it meets flashes. Or use the *Move* arrows (0.25 m steps), the keyboard arrow keys, or type *Across* / *Along* and *Apply*. *Duplicate* and *Delete* are under *Actions*.
 - **Your own furniture:** *Import 3D model…* (Furniture tab or library) → *Choose a file…* (GLB, glTF or OBJ) → *Add to My furniture*. It joins the library in this browser.
-- **Deck shape:** *Parklet shape editor* → *Edit the deck's shape*: *Rectangle*, *Polygon*, *Edit*, *Notch* or *Reset to rectangle*, then *Apply* (*Cancel* discards).
+- **Deck shape:** *Parklet shape editor* → *Edit the deck's shape*: type the rectangle's length and width (or drag one on the parking segment), cut any corner at 45° (type the cut, or drag the corner handle inward), *Reset to rectangle*; then *Apply* (*Cancel* discards).
 - **Enclosure:** *Edge*. Choose *Traffic side*, *Start end* or *Far end*, then an enclosure type (*Steel picket*, *Planter wall* …), its *Height*, *Buffer* and *Material*.
-- **Street:** in the *Section*, drag a chip from *Add segment* (*Bike Lane*, *Planting* …) into the section. It is refused, with the reason, when the roadway has no room. Click a width to type it; a typed width counts as measured.
+- **Street:** in the *Section*, drag a chip from *Add segment* (*Bike Lane*, *Planting* …) into the section. It is refused, with the reason, when the roadway has no room. Click a width to type it (a decimal comma and m, cm or mm are fine); a typed width counts as an estimate until you mark the curb-to-curb width measured in *Site facts*.
 - **Undo:** Ctrl+Z works in the Section and in the shape editor. A furniture move has no undo; move it back.
-- **Generate:** proposes layouts from *Site constraints*, *Programme* (each use weighted 0–3), *Character and materials* and *Output* (*Schemes*, *Seed*). If a site fact is missing, it says *Set these site facts first* with a link to the first one, and the button stays. *Lock* keeps a scheme through *Regenerate*; *Open in Design* takes it into your design.
+- **Generate:** proposes layouts from *Site constraints*, *Programme* (each use weighted 0–3), *Character and materials* and *Output* (*Schemes*, *Seed*). It opens once every site fact has an answer; a fact you don't know yet leaves its check *Awaiting measurement*, not the layout. *Lock* keeps a scheme through *Regenerate*; *Open in Design* takes it into your design.
 
 ### 6. Accessibility
 
@@ -61,12 +63,12 @@ The *Access* tab checks a 1.5 m clear route from each entry to an accessible sea
 
 The *Check* tab gives the verdict in one sentence with one next step, then every check grouped under *Fails*, *Awaiting measurement*, *Not entered*, *Provisional pass* and *Pass*.
 
-A check passes only on measured or confirmed values. Imported data gives a provisional result. Estimates never pass.
+A result depends on how its facts are known: measured on site gives *Pass* or *Fail*; an estimate or imported data gives a provisional result, marked *estimate* where an estimate is read; a fact you don't know yet leaves the check *Awaiting measurement*.
 
-- **Enter a value:** open a group, open the row, type the number. It reads *Not saved yet* until you click *Save* (or press Enter); Esc discards. The row then moves to its new group.
-- **Confirm imported objects:** *Confirm imported items* opens the list; *Confirm* per group, or *Confirm all visible* once you have checked them on site.
+- **Change a value:** open a group, open the row, click *Change* next to the fact: its card opens in the row. Change the value and how you know it, then *Save*. The row stays where it is until you leave Check.
+- **Confirm imported objects:** *Review site facts* opens the cards; the hydrant, bus stop and tree cards confirm a whole group with *Confirm all*, and you untick any that is not there.
 - **See it on the drawing:** *Show me in the Plan ›* in any open row.
-- **Site survey (optional):** *Site › Survey › Survey template (CSV)* downloads a sheet of the values to measure; fill its measured column and *Import filled template…*.
+- **Measure on site:** the report's S-002 lists every site fact with its value now, how it is known and a blank column to write the measurement in. Back from the site visit, *I've measured on site* (Site tab) opens the cards with *Measured on site* chosen.
 
 ### 8. Export
 
@@ -130,12 +132,12 @@ downloaded and paged through: cover, What to do next, layout plan, deck plan, bo
 - **Schematic, not construction.** The drawings are for the Parklet Manual pre-application; no structural or
   construction feasibility is assessed.
 - **Imported data is a starting point.** Street facts, buildings and site objects come from City open data and
-  OpenStreetMap. Curb-to-curb width is an estimate to measure, and every imported object stays *provisional* until
-  confirmed on site.
+  OpenStreetMap. Curb-to-curb width is an estimate to measure; a result that rests on an estimate or imported data stays
+  *provisional* until you mark the fact measured in *Site facts*.
 - **Checks need inputs.** A check whose value is neither imported nor entered reports *not entered*, never a pass.
-- **Vancouver only**, and a desktop browser with WebGL.
-- **Open a design in one tab at a time; the last save wins.** Two tabs on the same design do not merge: whichever
-  saves last replaces the other's edits.
+- **Vancouver only**, and a browser with WebGL: a desktop or laptop, or a tablet (taps and one-finger drags work).
+- **Open a design in one tab at a time.** Two tabs (or two browsers) on the same design do not merge: the one that saves
+  second is asked first whether to reload the newer version or overwrite it.
 - **Photoreal renders and the Design Assistant use the visitor's own keys** (Replicate, Anthropic), entered in
   Settings › Connections and kept only in that browser. The site ships with none.
 - **The render relay is absent on the Pages build.** Photoreal renders go through the relay in `tools/serve.ps1`,

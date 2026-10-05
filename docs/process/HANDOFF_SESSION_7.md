@@ -52,9 +52,8 @@ v0.12-fixes → v0.13 → v0.14 → v0.15 → v0.16 (+.1) → v0.17 (+.1 list fi
 2. **Fri in class:** demo; use two classmates' tools; file their reviews.
 3. **By 9 Oct:** read reviews on the repo; for each, fix and retest or explain
    in the thread; close the issue (never delete). Collect them into Brief 30.
-4. **Brief 30 (after 9 Oct), already logged:** full-city 3D (25-24); persona 7
-   touch re-run; hosted photoreal relay; survey CSV validation (a duplicate
-   row turned 12 % slope into a pass); C03 not reading the map corner;
+4. **Brief 30 (after 9 Oct), already logged:** persona 7 touch re-run;
+   hosted photoreal relay; C03 not reading the map corner;
    two-tab last-save-wins; access gaps (no signed-out entry, no keyboard site
    pick, no touch drags, left panel won't scroll at 200 %, forced-colours
    states); Duplicate makes an empty copy; Section Undo after import rolls
@@ -62,6 +61,9 @@ v0.12-fixes → v0.13 → v0.14 → v0.15 → v0.16 (+.1) → v0.17 (+.1 list fi
    show the old 2.5 m umbrella; in-app report viewer clips notes column
    (`#view=Fit`); render-to-account test; the rest of the three triage tables
    in docs/process/23-triage.md.
+   Removed from scope by Brief 30: full-city 3D (25-24), not needed; survey CSV
+   validation, the survey import itself is removed (Brief 30 §10); any notch or
+   free-polygon shape-editor work, replaced by Brief 30 §3 (rectangle + 45° corners).
 5. **Then:** the voice-over demo video (Brief 26 full cut + Jenna's audio
    muxed with ffmpeg, now installed); a standalone user guide once reviews
    show where people got lost.

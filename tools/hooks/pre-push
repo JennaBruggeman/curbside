@@ -45,4 +45,24 @@ if [ -n "$stale" ]; then
   echo "Run node tools/bump-version.js <version> (or node tools/build-sample-pdfs.js) with the local server up, commit, and push again." >&2
   exit 1
 fi
+# the UI design detector (Brief 30 §12): the app's interface must scan clean (exit 0) against docs/DESIGN.md and the
+# reasoned exceptions in .impeccable/config.json. The detector ships with the Impeccable plugin for Claude Code; set
+# IMPECCABLE to its launcher, or it is looked for in the plugin cache. Without it the push goes on, with a warning.
+imp="${IMPECCABLE:-}"
+if [ -z "$imp" ]; then
+  for c in "$HOME"/.claude/plugins/cache/impeccable/impeccable/*/skills/impeccable/scripts/impeccable; do [ -f "$c" ] && imp="$c"; done
+fi
+if [ -n "$imp" ]; then
+  out=$("$imp" detect --no-advisory parklet-checker.html 2>&1); rc=$?
+  if [ "$rc" = 2 ]; then
+    echo "pre-push: refused. The design detector found problems in the interface:" >&2
+    printf '%s
+' "$out" >&2
+    echo "Fix them (or record a reasoned exception with impeccable hooks ignore-value), commit, and push again." >&2
+    exit 1
+  fi
+  [ "$rc" = 0 ] || echo "pre-push: the design detector did not run (exit $rc); pushing without it." >&2
+else
+  echo "pre-push: the Impeccable design detector is not installed here; the interface was not scanned." >&2
+fi
 exit 0
