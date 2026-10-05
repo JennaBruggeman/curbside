@@ -33997,7 +33997,7 @@ P101.cost = function() {   // the design's cost settings (saved with it as costs
   var c = (typeof state !== 'undefined' && state.__cost && typeof state.__cost === 'object') ? state.__cost : null;
   if (!c) { c = { set: 'van2026', fx: 1.35, spacing: 0.40, waste: 0.10, meters: 0, sets: [], furn: {} }; if (typeof state !== 'undefined') state.__cost = c; }
   if (c.set === 'cov2016' && !c.setChosen) c.set = 'van2026';   // (Brief 31 §9) the default, unless the Manual set was chosen
-  c.sets = c.sets || []; c.furn = c.furn || {}; if (!(c.fx > 0)) c.fx = 1.35; if (!(c.spacing > 0)) c.spacing = 0.40; if (!(c.waste >= 0)) c.waste = 0.10; if (!(c.meters >= 0)) c.meters = 0;
+  c.sets = c.sets || []; c.furn = c.furn || {}; if (!(c.fx > 0)) c.fx = 1.35; if (!(c.spacing > 0)) c.spacing = 0.40; if (!(c.pedSpacing > 0)) c.pedSpacing = 0.60; if (!(c.waste >= 0)) c.waste = 0.10; if (!(c.meters >= 0)) c.meters = 0;
   return c;
 };
 P101.poly = function(DM) {
@@ -34011,12 +34011,12 @@ P101.qty = function(DM) {
   var none = !L || (typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET);
   // joists across the deck, every spacing along it, each as long as the deck is wide there
   var sp = C.spacing, n = none ? 0 : Math.floor(L / sp + 1e-9) + 1, run = 0, ol = DM.parklet.outline, ped = 0;
-  for (var k = 0; k < n; k++) { var z = Math.min(L - 1e-3, Math.max(1e-3, k * sp)), w = ol && typeof shapeWidthAtLength === 'function' ? shapeWidthAtLength(ol, z) : null, wk = w ? w[1] - w[0] : W; run += wk; ped += Math.max(1, Math.floor((wk - 0.2) / 0.6 + 1e-9) + 1); }   // (Brief 32 §5) pedestals every 0.6 m across each joist, as A-202 draws them
+  for (var k = 0; k < n; k++) { var z = Math.min(L - 1e-3, Math.max(1e-3, k * sp)), w = ol && typeof shapeWidthAtLength === 'function' ? shapeWidthAtLength(ol, z) : null, wk = w ? w[1] - w[0] : W; run += wk; ped += Math.ceil(wk / C.pedSpacing - 1e-9) + 1; }   // (Brief 32 §5, follow-up) along each joist: one at each end and as many between as keep the spacing
   var r2 = function(v) { return Math.round(v * 100) / 100; };
   q.push({ k: 'area', item: 'Deck area', n: none ? 0 : r2(A), u: 'm²', f: 'the applied outline\'s area (DESIGN_MODEL.parklet.area)' });
   q.push({ k: 'perim', item: 'Deck perimeter', n: none ? 0 : r2(per), u: 'm', f: 'the sum of the outline\'s ' + P.length + ' edges' });
   q.push({ k: 'joist', item: 'Joists / sleepers (run)', n: r2(run), u: 'm', f: n + ' joists across the deck every ' + sp.toFixed(2) + ' m along ' + L.toFixed(2) + ' m, each as long as the deck is wide there', count: n });
-  q.push({ k: 'pedestals', item: 'Levelling pedestals', n: ped, u: 'ea', f: 'under each of the ' + n + ' joists, every 0.60 m across from 0.15 m (as A-202 draws them)' });
+  q.push({ k: 'pedestals', item: 'Levelling pedestals', n: ped, u: 'ea', f: ped + ' pedestals: under each of the ' + n + ' joists, one at each end and between them every ' + Math.round(C.pedSpacing * 1000) + ' mm or less', ped: true });
   q.push({ k: 'decking', item: 'Decking (with waste)', n: none ? 0 : r2(A * (1 + C.waste)), u: 'm²', f: r2(A) + ' m² x (1 + ' + Math.round(C.waste * 100) + ' % waste)' });
   // the enclosure: each run, its posts, by type (DESIGN_MODEL.enclosure's runs)
   var E = DM.enclosure, encRun = 0, posts = 0, planters = [], screens = 0;
@@ -34430,7 +34430,7 @@ P101.render = function() {
   // quantities
   h += "<h2 class='ce-h2'>Quantities</h2><p class='ce-note'>A take-off from this design's model; each line says how it is counted. Joists every <input type='text' inputmode='numeric' id='p101Sp' class='ce-q' aria-label='Joist spacing, mm' value='" + Math.round(C.spacing * 1000) + "' onchange='P101.setNum(\"spacing\", this.value)'> mm; decking waste <input type='text' inputmode='numeric' id='p101Waste' class='ce-q' aria-label='Decking waste, percent' value='" + Math.round(C.waste * 100) + "' onchange='P101.setNum(\"waste\", this.value)'> %.</p>" +
     "<table class='ce-t ce-qt'><thead><tr><th scope='col'>Item</th><th scope='col' class='num'>Qty</th><th scope='col'>Unit</th><th scope='col'>How it is counted</th></tr></thead><tbody>" +
-    P101.shownQ(Q).map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + '</td></tr>'; }).join('') +
+    P101.shownQ(Q).map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + (q.ped ? " <label class='ce-ped'>· spacing <input type='text' inputmode='numeric' id='p101Ped' class='ce-q' aria-label='Pedestal spacing along each joist, mm' value='" + Math.round(C.pedSpacing * 1000) + "' onchange='P101.setNum(\"pedSpacing\", this.value)'> mm</label>" : '') + '</td></tr>'; }).join('') +
     P101.city(DM).map(function(c) { return '<tr><td>' + e(c.item) + "</td><td class='num'>" + e(c.n) + '</td><td>ea</td><td>supplied by the City (Manual p. 48)</td></tr>'; }).join('') + '</tbody></table>';
   // materials
   h += "<h2 class='ce-h2'>Materials</h2><table class='ce-t'><thead><tr><th scope='col'>Family</th><th scope='col'>Material</th><th scope='col'>Durability</th><th scope='col'>Maintenance</th><th scope='col'>San Francisco (advisory)</th><th scope='col'>Vancouver Manual</th></tr></thead><tbody>" +
@@ -34441,6 +34441,7 @@ P101.GROUP = { wood: 'Timber', other: 'Composite and recycled', metal: 'Metal', 
 P101.setNum = function(k, v) {
   var q = typeof pkReadNum === 'function' ? pkReadNum(String(v), '') : { v: parseFloat(v) }, n = q && !q.err && !q.empty ? q.v : NaN, C = P101.cost(), why = '';
   if (k === 'spacing') { if (n >= 200 && n <= 800) C.spacing = n / 1000; else why = 'Joist spacing is 200 to 800 mm: ' + v + ' was not used.'; }
+  else if (k === 'pedSpacing') { if (n >= 300 && n <= 1200) C.pedSpacing = n / 1000; else why = 'Pedestal spacing is 300 to 1200 mm: ' + v + ' was not used.'; }
   else if (k === 'waste') { if (n >= 0 && n <= 40) C.waste = n / 100; else why = 'Decking waste is 0 to 40 %: ' + v + ' was not used.'; }
   else if (k === 'meters') { if (n >= 0 && n <= 12 && Math.round(n) === n) C.meters = n; else why = 'Parking meters to remove is a whole number from 0 to 12: ' + v + ' was not used.'; }
   else if (k === 'fx') { if (n > 0 && n < 5) C.fx = n; else why = 'The exchange rate is a number above 0: ' + v + ' was not used.'; }
