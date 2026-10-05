@@ -1286,8 +1286,8 @@ return n >= 2.4 ? 'pass' : null;
   }
 ,  {
     id: 'c18', num: '18', title: 'At least two unobstructed openings of 1.8 m or more to the sidewalk', requirement: 'The sidewalk side keeps at least two unobstructed openings, each at least 1.8 m wide, into the parklet (E3).', page: 65, status: 'unclear',
-    siteCondition: function() { var o = ENC.c18().o; return 'Clear runs along the sidewalk edge between the end enclosures, clear ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(1) + ' m deep: ' + (o.runs.length ? o.runs.map(function(r) { return r.w.toFixed(2) + ' m'; }).join(', ') : 'none') + '.'; },
-    note: 'Openings are where the generator\'s entries fall: each clear run of w metres takes floor(w / 1.8) openings.',
+    siteCondition: function() { var es = ENC.c18().entries; return 'Entries in the sidewalk-side edge: ' + (es.length ? es.map(function(q) { return q.w.toFixed(2) + ' m at z ' + q.z.toFixed(2); }).join(', ') : 'none') + ' (Design › Edge, or drag them on the Plan).'; },
+    note: 'The entries are the design\'s own (Brief 32): placed at the deck ends for a new design, moved, added or removed in Design › Edge or on the Plan.',
     evalFn: function() { return ENC.c18().ok ? 'pass' : 'fail'; }, evalMsg: function() { return ENC.c18().msg; }
   }
 ,  {
@@ -2219,11 +2219,23 @@ function sheetAlong(DM, maxW, minW) {
 // A-102's scale and extent (Brief 28 item 11): 1:200 when the block face fits it along the street, else 1:250; across, the
 // street and 10 m into each side's buildings, as far as the sheet holds
 function sheetLayoutCrop(DM) {
-  var LM = DM.landmarks, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, DA = sheetDA(), bf = sheetBlockFace(DM);
-  var x0 = LM.sidewalkL.x0 - 10, x1 = far + 10, xc = (x0 + x1) / 2, mW = function(s) { return (DA.w - 30) * s / 1000; }, mH = function(s) { return (DA.h - 45) * s / 1000; };
-  var blockW = bf.z0 != null && bf.z1 != null ? bf.z1 - bf.z0 + 4 : Infinity, s = blockW <= mW(200) ? 200 : 250;   // across, it is cut to fit
-  var al = sheetAlong(DM, mW(s) - 0.5, 0.85 * mW(s)), h = Math.min(mH(s) - 0.5, x1 - x0);
-  return { scale: s, crop: { z0: al.z0, z1: al.z1, x0: sheetSnap(xc - h / 2), x1: sheetSnap(xc + h / 2) } };
+  // (Brief 32 §3) what A-102 dimensions decides its crop: along, the deck with its C13 and C03 runs at both ends and the
+  // hydrants, poles and signal boxes within 15 m of an end (2 m past each); across, the frontage and 3 m of the buildings
+  // to the end of the first travel lane past the centreline. The scale is the largest on the ladder the content fits (its
+  // dimension rows and chain allowed for; the report then measures the sheet as drawn), and the along run is filled to
+  // the drawing area at that scale
+  var LM = DM.landmarks, L = DM.parklet.length, DA = sheetDA(), num = function(k, d0) { var v = typeof state !== 'undefined' ? parseFloat(state[k]) : NaN; return isNaN(v) ? d0 : v; };
+  // the C03 run to 8 m past the setback at most (the rule is 6 m; a longer measured distance is dimensioned to the crop's
+  // edge with its value), so a deck far from the corner still lands at a readable scale
+  var c13 = Math.min(Math.max(num('parking_setback', 1.5), 0), 15), c03 = Math.min(Math.max(num('intersection_dist', 6), 0), 8);
+  var z0 = -(c13 + c03) - 2, z1 = L + c13 + c03 + 2;
+  ((typeof state !== 'undefined' && state.curb_features) || []).forEach(function(o) { var z = +o.xM; if (!isFinite(z)) return; if (z < 0 && z > -15) z0 = Math.min(z0, z - 2); if (z > L && z < L + 15) z1 = Math.max(z1, z + 2); });
+  var lanes = (DM.crossSection || []).filter(function(sg) { return sg.type === 'travel-lane'; }).sort(function(a, b) { return a.x0 - b.x0; });
+  var past = lanes.find(function(sg) { return sg.x0 >= LM.roadCenterX - 0.01; }), x0 = LM.sidewalkL.x0 - 3, x1 = past ? past.x1 : LM.roadRight;
+  var D = { first: 10, step: 8 }, padW = 46 + 12, padH = 22 + D.first + 3 * D.step + 12;
+  var s = [100, 150, 200, 250].find(function(sc) { var k = 1000 / sc; return (z1 - z0) * k + padW <= DA.w && (x1 - x0) * k + padH <= DA.h; }) || 250;
+  var k = 1000 / s, aw = (DA.w - padW) / k, extra = Math.max(0, aw - (z1 - z0)) / 2;
+  return { scale: s, crop: { z0: sheetSnap(z0 - extra), z1: sheetSnap(z1 + extra), x0: sheetSnap(x0), x1: sheetSnap(x1) } };
 }
 function sheetCrops(DM) {
   var LM = DM.landmarks, L = DM.parklet.length, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, sx = (LM.sidewalkL.x0 + far) / 2;
@@ -2232,7 +2244,7 @@ function sheetCrops(DM) {
   // A-103: 3 m round the deck, its ends' margin trimmed (never under 2 m) where that lets the next larger scale hold it, so
   // the deck fills its sheet (RPT.deckScale: 1:50, 1:75, 1:100, the dimension rows' 30 mm along and 90 mm across)
   var DA = sheetDA(), Hm = (LM.deckX1 - LM.deckX0 + 2 * M) * 1000, Mz = M, SWw = typeof RPT !== 'undefined' && RPT.SW ? RPT.SW : 407.8;
-  [20, 25, 50, 75, 100, 200, 250].some(function(s) { var mw = (SWw - 30) * s / 1000; if (L + 4 <= mw && Hm / s + 110 <= DA.y + DA.h) { Mz = Math.min(M, Math.floor(((mw - L) / 2) * 2) / 2); return true; } return false; });   // (Brief 31 §11) the ladder, the whole width
+  [20, 25, 50, 75, 100, 150, 200, 250].some(function(s) { var mw = (SWw - 30) * s / 1000; if (L + 4 <= mw && Hm / s + 110 <= DA.y + DA.h) { Mz = Math.min(M, Math.floor(((mw - L) / 2) * 2) / 2); return true; } return false; });   // (Brief 31 §11) the ladder, the whole width
   var dflt = { A101: { z0: a1.z0, z1: a1.z1, x0: sheetSnap(sx - SHEET_CROP.A101.h / 2), x1: sheetSnap(sx + SHEET_CROP.A101.h / 2) }, A102: lay.crop,
     A103: { z0: sheetSnap(-Mz), z1: sheetSnap(L + Mz), x0: sheetSnap(LM.deckX0 - M), x1: sheetSnap(LM.deckX1 + M) } };
   var out = {};
@@ -2603,7 +2615,7 @@ function _checkLandmarkConsistency(verbose) {
       var pb = f.poly ? { z0: Math.min.apply(null, f.poly.map(function(p) { return p.z; })), z1: Math.max.apply(null, f.poly.map(function(p) { return p.z; })), x0: Math.min.apply(null, f.poly.map(function(p) { return p.x; })), x1: Math.max.apply(null, f.poly.map(function(p) { return p.x; })) } : null;
       var row = { building: id, model: pb ? [pb.z0, pb.z1, near ? pb.x1 : pb.x0, near ? pb.x0 : pb.x1] : [f.z0, f.z1, f.faceX, f.backX] };
       var r = planSvg && planSvg.querySelector("[data-bldg='" + id + "']");
-      if (planSvg && planSvg.childElementCount) {
+      if (planSvg && planSvg.childElementCount && !(window._pvMassesOff && window._pvMassesOff[id])) {   // (Plan second pass) drawn as its City footprint at Fit sheet
         if (!r) bad.push({ value: 'Plan draws no rect for building ' + id, model: 'visible', independent: 'missing' });
         else {
           // a path: the bounds of its own points (a hidden Plan measures 0 x 0)
@@ -3044,11 +3056,11 @@ ENC.BUF_MAX = 0.6; ENC.BUF_ADVISE = 0.3;     // the buffer slider; the Manual's 
 ENC.OPEN_W = 1.8;                            // E3, p. 65: an opening to the sidewalk
 ENC.OVERHEAD_H = 2.1;                        // E5, p. 65: clear above the deck
 ENC.IDS = ['steel-picket', 'horizontal-cable', 'timber-slat-v', 'timber-slat-h', 'perforated-panel', 'planter-wall', 'planter-topped-rail', 'bench-back', 'solid-wall'];
-ENC.SIDES = ['traffic', 'endA', 'endB'];
-ENC.SIDE_LABEL = { traffic: 'Traffic side', endA: 'Start end', endB: 'Far end' };
+ENC.SIDES = ['traffic', 'endA', 'endB', 'curb'];
+ENC.SIDE_LABEL = { traffic: 'Traffic side', endA: 'Start end', endB: 'Far end', curb: 'Sidewalk side' };
 // a new design; a design saved before Brief 21 §12 loads as ENC.LEGACY: the railing it had (0.90 m, at the deck edge) and
 // planter walls at the ends where its end planters stood
-ENC.DEFAULT = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0.30, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall' }, params: {}, mats: {} };
+ENC.DEFAULT = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0.30, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall', curb: 'steel-picket' }, params: {}, mats: {}, entries: 'seed', curbOn: false };   // (Brief 32 §4, follow-up) two entries at the ends, the sidewalk side open (the user may enclose it)
 ENC.LEGACY = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall' }, params: {}, mats: {} };
 var ENCLOSURE = JSON.parse(JSON.stringify(ENC.DEFAULT));
 // ── Brief 30 §5: the parklet's own materials, one store ────────────────────────────────────────────────────────────────
@@ -3192,10 +3204,28 @@ ENC.norm = function(e) {
   var tr = ok(s.traffic || e.archetype, 'steel-picket');
   return { archetype: tr, height: typeof e.height === 'number' && isFinite(e.height) ? e.height : 0.9,
     bufferDepth: typeof e.bufferDepth === 'number' && isFinite(e.bufferDepth) ? Math.max(0, e.bufferDepth) : 0.3,
-    sides: { traffic: tr, endA: ok(s.endA, 'planter-wall'), endB: ok(s.endB, 'planter-wall') },
+    sides: { traffic: tr, endA: ok(s.endA, 'planter-wall'), endB: ok(s.endB, 'planter-wall'), curb: ok(s.curb, 'steel-picket') },
+    // (Brief 32 §4) the entries: a list, 'seed' (at the deck ends) or 'infer' (a design saved before: the tool's old entries);
+    // the sidewalk side enclosed between them unless the design was saved before entries were the design's own
+    entries: ENC.cleanEntries(e.entries), curbOn: e.curbOn === true,   // open unless the design encloses it
     params: e.params && typeof e.params === 'object' ? e.params : {}, mats: e.mats && typeof e.mats === 'object' ? e.mats : {},
     // (Brief 21c) a design saved before §12: its end planters became planter walls; the note stays with the design
-    migrated: e.migrated ? String(e.migrated) : undefined };
+    migrated: e.migrated ? String(e.migrated) : undefined, entriesFrom: e.entriesFrom ? String(e.entriesFrom) : undefined };
+};
+// (Brief 32 §4) the stored entries: [{z (m from the start, or from the far end when fromEnd), w (m, 1.8 by default)}]
+ENC.cleanEntries = function(v) {
+  if (v === 'seed') return 'seed';
+  if (!Array.isArray(v)) return 'infer';
+  return v.filter(function(q) { return q && isFinite(+q.z); }).map(function(q) { return { z: +(+q.z).toFixed(3), w: isFinite(+q.w) && +q.w > 0.5 ? +(+q.w).toFixed(3) : ENC.OPEN_W, fromEnd: !!q.fromEnd }; });
+};
+// the entries on a deck of length L whose end enclosures are dA and dB deep: [{z (centre), w, z0, z1}], each kept between the
+// ends' inner faces, sorted, an overlapping one dropped; 'seed' and 'infer' (before the old ones are read) give the two at
+// the ends, against the end enclosures
+ENC.entriesOn = function(list, L, dA, dB) {
+  var w0 = ENC.OPEN_W, lo = dA, hi = L - dB, src = Array.isArray(list) ? list : [{ z: lo + w0 / 2, w: w0 }, { z: dB + w0 / 2, w: w0, fromEnd: true }];
+  var out = src.map(function(q) { var w = Math.min(q.w || w0, Math.max(0.5, hi - lo)), z = q.fromEnd ? L - q.z : q.z; z = Math.max(lo + w / 2, Math.min(hi - w / 2, z)); return { z: +z.toFixed(3), w: +w.toFixed(3), z0: +(z - w / 2).toFixed(3), z1: +(z + w / 2).toFixed(3), fromEnd: !!q.fromEnd }; });
+  out.sort(function(a, b) { return a.z - b.z; });
+  return out.filter(function(q, i) { return !out.slice(0, i).some(function(p) { return p.z1 > q.z0 + 1e-6; }); });
 };
 // the one line a migrated design carries (the Check tab, X-001 Assumptions)
 ENC.MIGRATION_NOTE = 'End planters raised to 0.90 m planter walls to meet Parklet Manual E2 (0.75–1.0 m)';
@@ -3261,6 +3291,7 @@ ENC.layout = function(DM, E) {
     var k = ((q[0] - p[0]) * t[1] - (q[1] - p[1]) * t[0]) / den; return [p[0] + r[0] * k, p[1] + r[1] * k];
   };
   var runs = [], ci = ed.findIndex(function(e) { return !e.type; }), loop = ci < 0, start = loop ? 0 : (ci + 1) % n;
+  ENC._curbEdges = ed.filter(function(e) { return e.cls === 'curb'; });   // (Brief 32 §4) read below for the sidewalk-side runs
   var seq = []; for (var k = 0; k < n; k++) seq.push(ed[(start + k) % n]);
   seq.forEach(function(e, k) {
     if (!e.type) return;
@@ -3287,6 +3318,18 @@ ENC.layout = function(DM, E) {
     g.S = [+S[0].toFixed(6), +S[1].toFixed(6)]; g.d = d; g.len = +len.toFixed(6); g.oblique = Math.abs(d[0]) > 1e-6 && Math.abs(d[1]) > 1e-6;
     runs.push(g);
   });
+  // (Brief 32 §4) the sidewalk side: along each curb-side edge, between the end enclosures' inner faces, a run in every
+  // stretch the entries leave (free ends at each gap): the gaps are the entries and nowhere else
+  if (E.curbOn) {
+    var L = DM.parklet.length, dA = depthOf('endA'), dB = depthOf('endB'), es = ENC.entriesOn(E.entries, L, dA, dB);
+    (ENC._curbEdges || []).forEach(function(e) {
+      var z0 = Math.max(Math.min(e.a[1], e.c[1]), dA), z1 = Math.min(Math.max(e.a[1], e.c[1]), L - dB), x = e.a[0], cur = z0, spans = [];
+      es.forEach(function(q) { if (q.z1 <= cur || q.z0 >= z1) return; if (q.z0 > cur) spans.push([cur, q.z0]); cur = Math.max(cur, q.z1); });
+      if (z1 > cur) spans.push([cur, z1]);
+      spans.forEach(function(sp) { var l2 = sp[1] - sp[0]; if (l2 < 0.05) return; runs.push({ type: 'curb', kind: 'main', n: [1, 0], mA: 0, mB: 0, aPost: false, bPost: false, S: [+x.toFixed(6), +sp[0].toFixed(6)], d: [0, 1], len: +l2.toFixed(6), oblique: false }); });
+    });
+  }
+  ENC._curbEdges = null;
   return runs;
 };
 ENC.pt = function(r, u, v) { return [r.S[0] + r.d[0] * u + r.n[0] * v, r.S[1] + r.d[1] * u + r.n[1] * v]; };
@@ -3321,9 +3364,13 @@ ENC.resolve = function(DM, Eo) {
   var dA = runs[1].depth, dB = runs[2].depth, flags = [];
   if (E.bufferDepth < ENC.BUF_ADVISE - 1e-9) flags.push({ k: 'buffer', t: 'Buffer ' + E.bufferDepth.toFixed(2) + ' m: a buffer of at least 0.30 m is recommended from a busy travel lane (Parklet Manual E2, advisory).' });
   if (runs.some(function(r) { return r.id === 'solid-wall' || (r.id === 'bench-back' && r.params.back === 'solid'); })) flags.push({ k: 'solid', t: 'Solid edge — confirm with City (Parklet Manual E4, G13).' });
-  return { archetype: E.archetype, height: H, bufferDepth: E.bufferDepth, sides: { traffic: E.sides.traffic, endA: E.sides.endA, endB: E.sides.endB },
+  // (Brief 32 §4) the entries on this deck; 'infer' (a design saved before) reads the tool's old entries until they are its own
+  var ents = E.entries === 'infer' && ENC.inferred ? ENC.inferred(DM, dA, dB) : ENC.entriesOn(E.entries, L, dA, dB), curb = runs.filter(function(r) { return r.side === 'curb' && r.parts.length; });
+  return { archetype: E.archetype, height: H, bufferDepth: E.bufferDepth, sides: { traffic: E.sides.traffic, endA: E.sides.endA, endB: E.sides.endB, curb: E.sides.curb },
     params: E.params, mats: E.mats, runs: runs, inset: +(E.bufferDepth + dT).toFixed(4), usableW: +(W - E.bufferDepth - dT).toFixed(4),
-    xOuter: xO, xInner: xI, zA: dA, zB: L - dB, openings: [], flags: flags, routeMaxBuffer: ENC.routeMaxBuffer(W, dT) };
+    xOuter: xO, xInner: xI, zA: dA, zB: L - dB, entries: ents, curbOn: !!E.curbOn, curbDepth: curb.length ? curb[0].depth : 0,
+    curbSpans: curb.map(function(r) { return [+r.S[1].toFixed(4), +(r.S[1] + r.len).toFixed(4)]; }),
+    openings: ents.map(function(q) { return { z0: q.z0, z1: q.z1, w: q.w }; }), flags: flags, routeMaxBuffer: ENC.routeMaxBuffer(W, dT) };
 };
 ENC.run = function(DM, side) { var e = (DM || _dmCurrent()).enclosure; return e ? e.runs.find(function(r) { return r.side === side; }) : null; };
 // a part in the model's frame; base = the height of the deck surface in the caller's frame
@@ -3378,7 +3425,7 @@ ENC.routeMaxBuffer = function(W, depthT) {
 // the generator's footprint fields for the enclosure: its inset on the traffic side, the ends' inner faces
 ENC.fpFields = function(DM) {
   DM = DM || _dmCurrent(); var E = DM.enclosure; if (!E) return { inset: 0, zA: null, zBd: null };
-  return { inset: E.inset, zA: E.runs[1].depth, zBd: E.runs[2].depth, encPlant: ENC.plantArea(DM) };
+  return { inset: E.inset, zA: E.runs[1].depth, zBd: E.runs[2].depth, encPlant: ENC.plantArea(DM), entries: (E.entries || []).map(function(q) { return { z: q.z, w: q.w }; }), curb: E.curbDepth || 0, curbSpans: E.curbSpans || [] };   // (Brief 32 §4)
 };
 ENC.plantArea = function(DM) {
   var E = DM.enclosure, a = 0; if (!E) return 0;
@@ -3407,6 +3454,58 @@ ENC.openingsOf = function(items, fp) {
   var out = runs.map(function(r) { var w = r[1] - r[0]; return { z0: +r[0].toFixed(4), z1: +r[1].toFixed(4), w: +w.toFixed(4), n: Math.floor(w / ENC.OPEN_W + 1e-6) }; });
   return { runs: out, count: out.reduce(function(s, o) { return s + o.n; }, 0) };
 };
+// (Brief 32 §4) the entries the tool used to infer (one per ENTRY_PER m, the free turning square nearest each length's middle)
+ENC.inferred = function(DM, dA, dB) {
+  if (typeof GEN === 'undefined' || !GEN.access) return ENC.entriesOn('seed', DM.parklet.length, dA, dB);
+  var fp = { id: 'infer', W: DM.parklet.width, L: DM.parklet.length, shape: DM.parklet.outline, inset: 0, zA: dA, zBd: dB };
+  try { var a = GEN.access(ENC.items(), fp); return ENC.entriesOn(a.entries.filter(function(z) { return z != null; }).map(function(z) { return { z: z, w: ENC.OPEN_W }; }), fp.L, dA, dB); }
+  catch (e) { return ENC.entriesOn('seed', DM.parklet.length, dA, dB); }
+};
+ENC.adoptInferred = function(DM) {
+  if (!ENC.items().length) return false;   // its pieces not loaded yet: the old entries depend on them
+  var list = (DM.enclosure.entries || []).map(function(q) { return { z: q.z, w: q.w }; });
+  ENCLOSURE.entries = list; ENCLOSURE.entriesFrom = 'inferred';
+  try { state.__enclosure = JSON.stringify(ENCLOSURE); } catch (e) {}
+  console.info('[entries] ' + list.length + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' the tool inferred are now the design\'s own, at z ' + list.map(function(q) { return q.z.toFixed(2); }).join(', ') + ' m (Design › Edge)');
+  return true;
+};
+// (Brief 32 §4) the resolved entries back to the stored form; an entry placed from the far end stays so unless moved
+ENC.storeOf = function(list, L, moved) { return list.map(function(q, k) { return k !== moved && q.fromEnd ? { z: +(L - q.z).toFixed(3), w: q.w, fromEnd: true } : { z: +q.z.toFixed(3), w: q.w }; }); };
+ENC.entryDown = function(e, i) {
+  e.preventDefault(); e.stopPropagation();
+  var svg = document.getElementById('planView'); if (!svg) return;
+  var DM = _dmCurrent(), E = DM.enclosure, L = DM.parklet.length, list = (E.entries || []).map(function(q) { return Object.assign({}, q); }), q0 = list[i]; if (!q0) return;
+  var zAt = function(ev) { var m = svg.getScreenCTM(); if (!m) return null; var p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; var q = p.matrixTransform(m.inverse()); return planToWorld(q.x, q.y).z; };
+  var lo = E.zA + q0.w / 2, hi = E.zB - q0.w / 2, pv = list[i - 1], nx = list[i + 1];
+  if (pv) lo = Math.max(lo, pv.z + pv.w / 2 + q0.w / 2); if (nx) hi = Math.min(hi, nx.z - nx.w / 2 - q0.w / 2);
+  var st = typeof cadStep === 'function' ? cadStep() : 0.25, z0 = zAt(e), base = q0.z, g = e.currentTarget, moved = false, px0 = worldToPlan(0, base).px;
+  var at = function(ev) { var z = zAt(ev); if (z == null || z0 == null) return null; return Math.max(lo, Math.min(hi, Math.round((base + z - z0) / st) * st)); };
+  var move = function(ev) { var z = at(ev); if (z == null) return; moved = true; list[i].z = z; if (g) g.setAttribute('transform', 'translate(' + (worldToPlan(0, z).px - px0).toFixed(2) + ',0)'); ENC.set({ entries: ENC.storeOf(list, L, i) }, { fast: true, quiet: true }); };
+  var up = function() { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); if (moved) ENC.set({ entries: ENC.storeOf(list, L, i) }); };
+  document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+};
+// add one in the middle of the longest closed stretch of the sidewalk side (else the deck's middle); remove (one stays)
+ENC.addEntry = function() {
+  var DM = _dmCurrent(), E = DM.enclosure, L = DM.parklet.length, list = (E.entries || []).map(function(q) { return Object.assign({}, q); }), w = ENC.OPEN_W, gaps = [], cur = E.zA;
+  list.forEach(function(q) { if (q.z0 - cur >= w) gaps.push([cur, q.z0]); cur = Math.max(cur, q.z1); }); if (E.zB - cur >= w) gaps.push([cur, E.zB]);
+  if (!gaps.length) return false;
+  // the clear spot nearest the middle of the longest stretch: nothing within the turning depth in front of it
+  var its = ENC.items().filter(function(it) { return it.type !== 'umbrella'; }).map(function(it) { return GEN.aabb(it); }), T = GEN.TURN, clear = function(z) { return !its.some(function(b) { return b.x0 < T && b.z0 < z + w / 2 && b.z1 > z - w / 2; }); };
+  gaps.sort(function(a, b) { return (b[1] - b[0]) - (a[1] - a[0]); });
+  var zz = null; gaps.some(function(g) { var mid = (g[0] + g[1]) / 2, lo = g[0] + w / 2, hi = g[1] - w / 2; for (var d = 0; d <= (hi - lo) / 2 + 1e-6 && zz === null; d += 0.1) [mid - d, mid + d].forEach(function(z) { if (zz === null && z >= lo - 1e-6 && z <= hi + 1e-6 && clear(z)) zz = z; }); return zz !== null; });
+  if (zz === null) zz = (gaps[0][0] + gaps[0][1]) / 2;
+  list.push({ z: +zz.toFixed(3), w: w }); list.sort(function(a, b) { return a.z - b.z; });
+  ENC.set({ entries: ENC.storeOf(list, L, -1) }); return true;
+};
+ENC.removeEntry = function(k) {
+  var DM = _dmCurrent(), L = DM.parklet.length, list = (DM.enclosure.entries || []).map(function(q) { return Object.assign({}, q); }); if (list.length <= 1) return false;
+  list.splice(k, 1); ENC.set({ entries: ENC.storeOf(list, L, -1) }); return true;
+};
+ENC.setEntry = function(k, z, w) {
+  var DM = _dmCurrent(), L = DM.parklet.length, list = (DM.enclosure.entries || []).map(function(q) { return Object.assign({}, q); }); if (!list[k]) return;
+  if (isFinite(z)) list[k].z = z; if (isFinite(w) && w > 0.5) list[k].w = w;
+  ENC.set({ entries: ENC.storeOf(list, L, k) });
+};
 ENC.fpLive = function(DM) { DM = DM || _dmCurrent(); return Object.assign({ id: 'live', W: DM.parklet.width, L: DM.parklet.length, shape: DM.parklet.outline }, ENC.fpFields(DM)); };
 ENC.openings = function(DM) { var o = ENC.openingsOf(ENC.items(), ENC.fpLive(DM)); return o; };
 // C17: the height on the traffic side and both ends (planters: the top of the planting)
@@ -3416,10 +3515,13 @@ ENC.c17 = function() {
   var f = function(v) { return (+v).toFixed(2); }, desc = 'traffic side ' + f(tops[0]) + ' m (' + E.runs[0].name.toLowerCase() + '), ends ' + f(tops[1]) + ' / ' + f(tops[2]) + ' m';
   return { ok: ok, tops: tops, msg: (ok ? '✓ ' : '✗ ') + desc + (ok ? ': within 0.75–1.0 m. Passes.' : ': outside 0.75–1.0 m. Fails.') };
 };
+// (Brief 32 §4) C18 counts the entries the design has: two or more, each at least 1.8 m wide (E3)
 ENC.c18 = function() {
-  var DM = _dmCurrent(), o = ENC.openingsOf(ENC.items(), ENC.fpLive(DM)), big = o.runs.filter(function(r) { return r.n > 0; });
-  var ws = o.runs.map(function(r) { return r.w.toFixed(2); }).join(', ');
-  return { ok: o.count >= 2, o: o, msg: (o.count >= 2 ? '✓ ' : '✗ ') + o.count + ' opening' + (o.count === 1 ? '' : 's') + ' of 1.8 m or more to the sidewalk (clear runs ' + (ws || 'none') + ' m)' + (o.count >= 2 ? '. Passes.' : '; two are needed. Fails.') };
+  var DM = _dmCurrent(), es = (DM.enclosure && DM.enclosure.entries) || [], n = es.length, narrow = es.filter(function(q) { return q.w < ENC.OPEN_W - 1e-6; }), f = function(v) { return (+v).toFixed(2); };
+  var where = es.map(function(q) { return f(q.w) + ' m at z ' + f(q.z); }).join(', '), ok = n >= 2 && !narrow.length;
+  var why = n === 0 ? 'no entry, needs two' : n === 1 ? 'one entry, needs two' : narrow.length ? narrow.map(function(q) { return 'the entry at z ' + f(q.z) + ' is ' + f(q.w) + ' m wide, needs ' + f(ENC.OPEN_W); }).join('; ') : '';
+  return { ok: ok, entries: es, o: { runs: es.map(function(q) { return { z0: q.z0, z1: q.z1, w: q.w, n: q.w >= ENC.OPEN_W - 1e-6 ? 1 : 0 }; }), count: es.filter(function(q) { return q.w >= ENC.OPEN_W - 1e-6; }).length },
+    msg: ok ? '✓ ' + n + ' entries to the sidewalk (' + where + '), each 1.8 m or more. Passes.' : '✗ ' + why + (where ? ' (' + where + ')' : '') + '. Fails.' };
 };
 // C16 (Brief 25 item 21b; the slot Brief 20 kept for accessibility): from each entry (a GEN.TURN square clear at the sidewalk
 // edge, its opening at least GEN.ROUTE_W wide) a continuous route GEN.ROUTE_W clear to an accessible seat, with GEN.TURN of
@@ -3433,10 +3535,10 @@ ENC.c16 = function() {
   if (typeof GEN === 'undefined' || !GEN.access) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'The route is checked once the layout model has loaded.' };   // the page still loading
   if (!ENC.items().length) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'Nothing placed yet: the route is checked once there is seating on the deck.' };   // an empty deck: not a failure
   var DM = _dmCurrent(), fp = ENC.fpLive(DM), items = ENC.items(), a = GEN.access(items, fp, { paths: true }), RW = GEN.ROUTE_W, T = GEN.TURN, f = function(v) { return (+v).toFixed(2); }, bad = [];
-  var op = ENC.openingsOf(items, fp).runs;
+  var ents = fp.entries || [];   // (Brief 32 §4) the design's entries
   a.entries.forEach(function(ez, k) {
-    if (ez === null) { bad.push('entry ' + (k + 1) + ': no ' + f(T) + ' m turning space clear at the sidewalk edge'); return; }
-    var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }); if (r && r.w < RW - 1e-9) bad.push('entry ' + (k + 1) + ': opening ' + f(r.w) + ' m, under ' + f(RW));
+    if (ez === null) { bad.push('entry ' + (k + 1) + (ents[k] ? ' (z ' + f(ents[k].z) + ')' : '') + ': no ' + f(T) + ' m turning space clear inside it'); return; }
+    var r = ents[k]; if (r && r.w < RW - 1e-9) bad.push('entry ' + (k + 1) + ': ' + f(r.w) + ' m wide, under ' + f(RW));
   });
   if (!a.seats) return { ok: false, unknown: true, acc: a, bad: [], msg: 'No accessible seat on the deck yet (a bench end, or a table 0.70–0.80 m high): the route is checked once there is one.' };   // not entered, never a fail (Brief 29 item 7)
   var loose = null;
@@ -3488,20 +3590,19 @@ ACC.planSVG = function(DK, U, ann) {
   var blocked = !c.ok && !c.unknown, ink = DRAW_STYLE.c(DK, 'ink'), mid = DRAW_STYLE.c(DK, 'mid'), acc = DRAW_STYLE.UI.accent;
   var line = blocked ? ink : mid, pts2 = function(poly) { return poly.map(function(q) { return f(q[0]) + ',' + f(q[1]); }).join(' '); };
   ACC._drawn = { route: 0, entry: 0, pinch: 0, turn: 0, blocked: blocked };
-  // (Brief 31 §8) the dotted hatch: dots every 6 px, faint
-  out += "<defs><pattern id='accDots' patternUnits='userSpaceOnUse' width='" + f(6 * U) + "' height='" + f(6 * U) + "'><circle cx='" + f(1.5 * U) + "' cy='" + f(1.5 * U) + "' r='" + (0.7 * U).toFixed(2) + "' fill='" + line + "' fill-opacity='0.45'/></pattern></defs>";
+  // (Brief 32 §4) no fill: the corridor is its dashed outline
   // a corridor: the route's centre line offset by half the required width, its outline dashed, the hatch inside
   var corridor = function(pts, w, colr, entry, tip) {
     if (!pts || pts.length < 2) return '';
     var poly = ACC.band(pts, w).map(P); if (poly.length < 3) return '';
     ACC._drawn.route++;
-    return "<g data-route='" + entry + "'><title>" + tip + "</title><polygon points='" + pts2(poly) + "' fill='url(#accDots)'" + DRAW_STYLE.ui(DK, 1, colr, { dash: [5, 3], join: 'round' }) + " data-corridor='" + w.toFixed(2) + "'/></g>";
+    return "<g data-route='" + entry + "'><title>" + tip + "</title><polygon points='" + pts2(poly) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, colr, { dash: [5, 3], join: 'round' }) + " data-corridor='" + w.toFixed(2) + "'/></g>";
   };
   // a turning space: a dashed circle of the turning width (an ellipse where the Plan's axes differ in scale)
   var turn = function(x, z, w) {
     var p0 = P([x, z]), px = P([x + T / 2, z]), pz = P([x, z + T / 2]), rx = Math.hypot(px[0] - p0[0], px[1] - p0[1]), ry = Math.hypot(pz[0] - p0[0], pz[1] - p0[1]);
     ACC._drawn.turn++;
-    return "<ellipse cx='" + f(p0[0]) + "' cy='" + f(p0[1]) + "' rx='" + f(rx) + "' ry='" + f(ry) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, w != null && w < T - 1e-9 ? acc : line, { dash: [3, 3] }) + " data-turn='" + T.toFixed(2) + "'><title>Turning space, " + T.toFixed(2) + ' m' + (w != null ? ' (' + w.toFixed(2) + ' m clear)' : '') + '</title></ellipse>';
+    return "<ellipse cx='" + f(p0[0]) + "' cy='" + f(p0[1]) + "' rx='" + f(rx) + "' ry='" + f(ry) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, w != null && w < T - 1e-9 ? ink : line, { dash: [3, 3] }) + " data-turn='" + T.toFixed(2) + "'><title>Turning space, " + T.toFixed(2) + ' m' + (w != null ? ' (' + w.toFixed(2) + ' m clear)' : '') + '</title></ellipse>';
   };
   // a dimension across the route at a point (deck frame), w wide along n (the unit normal), the text beside it
   var dimAcross = function(x, z, nx, nz, w, txt, colr, data) {
@@ -3516,8 +3617,7 @@ ACC.planSVG = function(DK, U, ann) {
   };
   (a.paths || []).forEach(function(rt) {
     out += corridor(rt.pts, RW, line, rt.entry, 'Accessible route (C16) from the entry at z ' + rt.entry.toFixed(2) + ' to the ' + rt.seat + ': ' + rt.w.toFixed(2) + ' m clear at its narrowest, ' + RW.toFixed(2) + ' m needed');
-    (rt.turns || []).forEach(function(t) { out += turn(t.x, t.z, t.w); });
-    var e = rt.pts[rt.pts.length - 1]; if (e) out += turn(e[0], e[1], null);   // the turning space at the seat
+    (rt.turns || []).forEach(function(t) { out += turn(t.x, t.z, t.w); });   // (Brief 32 §4) where it turns and where it ends (the seat): once each
   });
   // an entry with no route at C16's width: the narrower path that exists, its outline in the accent
   var loose = null;
@@ -3527,7 +3627,7 @@ ACC.planSVG = function(DK, U, ann) {
     loose = loose || GEN.access(its, fp, { w: 0.3 });
     var lw = ((loose.per || []).find(function(q) { return q.entry === p.entry; }) || {}).route || 0; if (!(lw >= 0.3)) return;
     var wide = GEN.access(its, fp, { w: lw - 1e-3, paths: true }), lp = (wide.paths || []).find(function(q) { return q.entry === p.entry; }); if (!lp) return;
-    out += corridor(lp.pts, Math.max(0.3, lp.pinch.w), acc, p.entry, 'No ' + RW.toFixed(2) + ' m route from the entry at z ' + p.entry.toFixed(2) + ': ' + lp.pinch.w.toFixed(2) + ' m at its narrowest');
+    out += corridor(lp.pts, Math.max(0.3, lp.pinch.w), ink, p.entry, 'No ' + RW.toFixed(2) + ' m route from the entry at z ' + p.entry.toFixed(2) + ': ' + lp.pinch.w.toFixed(2) + ' m at its narrowest');
   });
   var over = '';
   if (blocked && typeof ACCTAB !== 'undefined') {
@@ -3537,12 +3637,11 @@ ACC.planSVG = function(DK, U, ann) {
       ACC._drawn.pinch++;
       var lbl = (bk.w > 0.05 ? bk.w.toFixed(2) + ' m' : 'closed') + ' · min ' + RW.toFixed(2) + ' m';
       over += dimAcross(bk.x, bk.z, 1, 0, Math.max(bk.w, 0.05), lbl, ink, "data-pinch='1'");
-      var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(P);
-      over += "<polygon points='" + pts2(cs) + "' fill='none'" + DRAW_STYLE.ui(DK, 2, acc, { join: 'miter' }) + " data-obstruction='1'/>";
+      var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(P);   // (Brief 32 §4) named, no rectangle round it
       var tag = ACCTAB.tagOf(bk.it), nm = (tag ? tag + ' ' : '') + ((FL_ARCHETYPES[bk.it.type] || {}).label || 'piece').toLowerCase(), cr = cs[2], lx = cr[0] + 18 * U, ly = cr[1] + 14 * U;
-      over += "<line x1='" + f(cr[0]) + "' y1='" + f(cr[1]) + "' x2='" + f(lx) + "' y2='" + f(ly) + "'" + DRAW_STYLE.ui(DK, 1, acc) + " data-leader='1'/>";
-      if (ann) ann.text('object', nm + ' in the way', lx + 3 * U, ly + 4 * U, { role: 'body', c: 'accent', bold: true, axis: 'x', tier: 'mid', at: [lx, ly], data: " data-obstruction-t='1'" });
-      else over += "<text x='" + f(lx + 3 * U) + "' y='" + f(ly + 4 * U) + "' font-size='" + f(DRAW_STYLE.fs(DK, 'body')) + "' font-weight='600' fill='" + acc + "' data-obstruction-t='1'>" + nm + ' in the way</text>';
+      over += "<line x1='" + f(cr[0]) + "' y1='" + f(cr[1]) + "' x2='" + f(lx) + "' y2='" + f(ly) + "'" + DRAW_STYLE.ui(DK, 1, mid) + " data-leader='1'/>";
+      if (ann) ann.text('object', nm + ' in the way', lx + 3 * U, ly + 4 * U, { role: 'body', c: 'ink', bold: true, axis: 'x', tier: 'mid', at: [lx, ly], data: " data-obstruction-t='1'" });
+      else over += "<text x='" + f(lx + 3 * U) + "' y='" + f(ly + 4 * U) + "' font-size='" + f(DRAW_STYLE.fs(DK, 'body')) + "' font-weight='600' fill='" + ink + "' data-obstruction-t='1'>" + nm + ' in the way</text>';
     }
   } else if (!c.unknown && (a.paths || []).length) {
     // a clear route: its narrowest clear width, dimensioned once (the legs inside the deck; the first leg comes in from the edge)
@@ -3551,23 +3650,7 @@ ACC.planSVG = function(DK, U, ann) {
     if (best) { var dx2 = best.b[0] - best.a[0], dz2 = best.b[1] - best.a[1], ll = Math.hypot(dx2, dz2) || 1; ACC._drawn.narrowest = best.w;
       over += dimAcross((best.a[0] + best.b[0]) / 2, (best.a[1] + best.b[1]) / 2, -dz2 / ll, dx2 / ll, best.w, best.w.toFixed(2) + ' m clear', mid, "data-narrowest='1'"); }
   }
-  // the entries: the opening in the enclosure line at the sidewalk edge (1.8 m, C18's least, within its clear run), "Entry"
-  var op = ENC.openingsOf(ENC.items(), ENC.fpLive(_dmCurrent())).runs;
-  (a.entries || []).forEach(function(ez) {
-    if (ez == null) return; ACC._drawn.entry++;
-    var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }), z0 = Math.max(r ? r.z0 : -Infinity, ez - 0.9), z1 = Math.min(r ? r.z1 : Infinity, ez + 0.9);
-    var e0 = P([0, z0]), e1 = P([0, z1]), m = P([0, ez]), inn = P([0.3, ez]), dx = inn[0] - m[0], dy = inn[1] - m[1], dl = Math.hypot(dx, dy) || 1;
-    var tx = dx / dl * 4 * U, ty = dy / dl * 4 * U;   // a tick into the deck at each side of the opening
-    over += "<g data-entry='" + ez + "'><title>Entry at z " + ez.toFixed(2) + ': ' + (z1 - z0).toFixed(2) + ' m opening in the enclosure (C16, C18)</title>' +
-      "<line x1='" + f(e0[0]) + "' y1='" + f(e0[1]) + "' x2='" + f(e1[0]) + "' y2='" + f(e1[1]) + "'" + DRAW_STYLE.ui(DK, 3, 'accent', { cap: 'butt' }) + '/>' +
-      [e0, e1].map(function(q) { return "<line x1='" + f(q[0] - tx) + "' y1='" + f(q[1] - ty) + "' x2='" + f(q[0] + tx) + "' y2='" + f(q[1] + ty) + "'" + DRAW_STYLE.ui(DK, 1.6, 'accent') + '/>'; }).join('') + '</g>';
-    // the label outside the deck, on the sidewalk side
-    var fs = DRAW_STYLE.TYPE.screen.body * U, ox = -dx / dl, oy = -dy / dl;   // outward: toward the sidewalk
-    var lx = m[0] + ox * (6 * U + (Math.abs(ox) > 0.5 ? fs : 0)), ly = m[1] + oy * 6 * U + (oy > 0.5 ? 0.8 * fs : Math.abs(oy) <= 0.5 ? 0.35 * fs : 0);
-    if (ann) { ann.obst(Math.min(e0[0], e1[0]) - 2 * U, Math.min(e0[1], e1[1]) - 3 * U, Math.max(e0[0], e1[0]) + 2 * U, Math.max(e0[1], e1[1]) + 3 * U);
-      ann.text('object', 'Entry', lx, ly, { role: 'body', c: 'ink', bold: true, anchor: 'middle', axis: 'x', tier: 'mid', at: m, slide: true, lo: Math.min(e0[0], e1[0]) - 40 * U, hi: Math.max(e0[0], e1[0]) + 40 * U, data: " data-acc-entry='1'" }); }
-    else over += "<text x='" + f(lx) + "' y='" + f(ly) + "' text-anchor='middle' font-size='" + f(fs) + "' font-weight='600' data-acc-entry='1'>Entry</text>";
-  });
+  ACC._drawn.entry = (a.entries || []).filter(function(z) { return z != null; }).length;   // (Brief 32 §4) drawn as the Plan's entry handles
   ACC._over = "<g data-layer='route-marks' pointer-events='none'>" + over + '</g>';   // (renderPlanView adds it over the enclosure)
   return "<g data-layer='route' data-state='" + (c.unknown ? 'unknown' : c.ok ? 'clear' : 'blocked') + "' pointer-events='none'>" + out + '</g>';
 };
@@ -4235,6 +4318,9 @@ function buildDesignModel() {
     // the deck levels every view and the report's drawings read; the enclosure (Brief 21 §12), resolved on this deck
     DESIGN_MODEL.parklet.levels = Object.assign({}, PARKLET_LEVELS);
     DESIGN_MODEL.enclosure = ENC.resolve(DESIGN_MODEL);
+    // (Brief 32 §4) a design saved before: once its pieces are on the deck, the entries the tool inferred become its own (once)
+    if (ENCLOSURE.entries === 'infer' && typeof ENC.adoptInferred === 'function' && ENC.adoptInferred(DESIGN_MODEL)) DESIGN_MODEL.enclosure = ENC.resolve(DESIGN_MODEL);
+    DESIGN_MODEL.parklet.entries = DESIGN_MODEL.enclosure.entries;
     // Section A-A (Brief 08): the resolved cut every view reads.
     if (typeof sectionResolve === 'function') DESIGN_MODEL.section = sectionResolve(L, LM.sceneMinZ, LM.sceneMaxZ, null, LM);
   })();
@@ -7618,7 +7704,8 @@ WM.rebuildAll = function() { syncDesignModel('rebuildAll'); };
 var DRAW_STYLE = {
   W: { cut: 0.70, object: 0.50, edge: 0.35, general: 0.25, context: 0.18, fine: 0.13 },
   DASH: { hidden: [2, 1], centre: [8, 1, 1, 1], property: [12, 2, 2, 2], zone: [1.5, 1.5], short: [0.8, 0.8] },
-  TYPE: { sheet: { body: 2.5, tag: 1.8, head: 3.5 }, screen: { body: 12, tag: 9, head: 16 } },
+  TYPE: { sheet: { body: 2.5, tag: 2.0, head: 3.5 },   // (Brief 32 §3) 2.0 mm the smallest text on paper
+          screen: { body: 12, tag: 9, head: 16 } },
   FONT: 'DM Sans, Helvetica Neue, Arial, sans-serif',
   // screen: a class's px = its sheet mm x base x sqrt(px per metre / ref), held to [min, max]; text and
   // symbols are annotation: pxPerMm screen px per sheet mm at every zoom
@@ -7656,7 +7743,8 @@ DRAW_STYLE.MAP = {
   // are hidden below zoom 15. (Brief 31 §3A: Brief 30 wrote these as MapLibre's circle-radius, a radius drawn outside a
   // 1 px halo, so every dot was twice as wide: 10 / 14 / 18 px, and 3,700 trees at zoom 15 merged into green ribbons.)
   bandOk: '#7FA36B', bandOut: '#9A9A96', bandMeasure: '#9A9A96',
-  minZoom: 15, sizes: [[0, 4], [16, 6], [18, 8]], haloW: 0.75, hoverGrow: 1, treeOpacity: 0.8
+  minZoom: 16, bandMinZoom: 14, blockMinZoom: 12, sizes: [[0, 4], [16, 6], [18, 8]],   // (Brief 32 §1) the dots from 16, the band from 14, per block from 12
+  haloW: 0.75, hoverGrow: 1, treeOpacity: 0.8
 };
 DRAW_STYLE.mode = function(m) {
   if (m === 'technical' || m === 'schematic') return m;
@@ -7725,10 +7813,13 @@ DRAW_STYLE.SEG_FILL = { 'travel-lane': 'road', 'transit-lane': 'road', 'turn-lan
 DRAW_STYLE.CTX = {
   ring: 100, lane: 0.5,
   curb: { inner: { c: 'ink', op: 0.85 }, outer: { c: 'mid', op: 0.75 } },
+  // (Plan second pass) three tones by ring: the design block darkest (technical solid ink poché, schematic the darkest
+  // grey), the inner ring mid-grey with a hairline, the outer ring the palest grey with no outline; the host's outline heavier
   bldg: {
-    technical: { inner: { c: 'ink', op: 0.34, line: 'ink', lop: 0.55 }, outer: { c: 'ink', op: 0.2 } },
-    schematic: { inner: { c: 'mid', op: 0.34, line: 'mid', lop: 0.9 }, outer: { c: 'mid', op: 0.22 } }
+    technical: { block: { c: '#1A1A1A', op: 1, line: '#1A1A1A', lop: 1 }, inner: { c: '#B4B4B4', op: 1, line: '#8C8C8C', lop: 1 }, outer: { c: '#E6E6E6', op: 1 } },
+    schematic: { block: { c: '#55524C', op: 1, line: '#2B2B2B', lop: 1 }, inner: { c: '#C7C2B8', op: 1, line: '#8A857D', lop: 1 }, outer: { c: '#EDEAE4', op: 1 } }
   },
+  hostPx: 2.5, hostMm: 0.5, jog: 1.5,   // the host's outline (screen px, sheet mm); the outer ring's simplification (m: jogs under 3 m)
   park: { technical: '#E9F0E3', schematic: '#E6EEDD' },
   name: { major: 10.5, minor: 9, majorRe: /^(motorway|trunk|primary|secondary)/, gap: 260 }
 };
@@ -7984,7 +8075,7 @@ var DRAW_SYMBOLS = {
   // hydrant (Brief 18): one circle, 0.3 m across at model size (o.r, user units) and never under 2.4 mm, with an H
   // (o.noText, the far and mid tiers: the circle alone)
   hydrant: function(P, x, y, o) {
-    o = o || {}; var k = P.ctx.k, r = Math.max(1.5 * k, o.r || 0);   // its H at 1.9 mm: never under the least text size
+    o = o || {}; var k = P.ctx.k, r = Math.max(1.6 * k, o.r || 0);   // its H at 2.0 mm: never under the least text size (Brief 32 §3)
     P.circle(x, y, r, { cls: 'edge', fill: 'paper', c: o.c, data: o.data });
     if (!o.noText) P.text(x, y + 0.35 * 1.25 * r, 'H', 1.25 * r, { anchor: 'middle', bold: true, c: o.c || 'ink' });
   },
@@ -8308,6 +8399,10 @@ function _renderPlanView(o) {
   // the annotation tier (Brief 19 A): from the screen's px per metre (paper: the sheet scale, 2 px/m per mm/m)
   const LOD = paper ? lodTier(2 * (o.mmPerM || 10)) : lodLive(PLAN_PX_M / U), LODn = LOD_RANK[LOD];   // live: by on-screen scale (Brief 29 item 5)
   const atTier = function(t) { return LODn >= LOD_RANK[t]; };
+  // (Plan second pass) Fit sheet and Fit context, and any zoom out as far: one source of building outline, the City's
+  // footprints; the design street two curb lines; no grid. Fit design and closer keep the model's masses and the bands.
+  const FG = !paper && typeof CTX_OUTER !== 'undefined' && !!CTX_OUTER && (LODn < 2 || (!_pvUserMod && _pvExtent !== 'design'));
+  window._pvFG = FG;
   if (!paper) window._pvLod = { tier: LOD, pxPerM: +(PLAN_PX_M / U).toFixed(2), scale: lodScale(PLAN_PX_M / U) };
   const pvDFV = 8 * pvZS, pvDFL = 6 * pvZS, pvDFS = 5.5 * pvZS;
   const pvDTK = (0.85 * pvZS).toFixed(2), pvDEXT = (0.55 * pvZS).toFixed(2);
@@ -8432,7 +8527,7 @@ function _renderPlanView(o) {
   s += _defsStr;
   // the city context (Brief 19 B): the outer ring under the street, one cached group (its own paper out to the radius)
   const _iR = typeof SMP !== 'undefined' ? SMP.R : 150;   // the inner ring (the import script may not have run yet)
-  const _oc = _pvOuterLayer({ far: LODn < 1, mid: LODn === 1, U: U, L: PARKLET_M, DK: DK,
+  const _oc = _pvOuterLayer({ far: LODn < 1, mid: LODn === 1, fg: FG, U: U, L: PARKLET_M, DK: DK,
     x0: Math.min(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px), x1: Math.max(worldToPlan(0, -_iR).px, worldToPlan(0, PARKLET_M + _iR).px),
     y0: -CTX_TOP, y1: OPP_BOTTOM, ry0: SW_Y - 1, ry1: _pvOppSW1 + 1 });
   s += _oc.paper + `<rect width='${VW}' height='${VH}' fill='${DK.T.paper}'/>` + _oc.svg;
@@ -8444,11 +8539,11 @@ function _renderPlanView(o) {
     s += `<rect x='${_ia.toFixed(1)}' y='${(-CTX_TOP).toFixed(1)}' width='${(_ib - _ia).toFixed(1)}' height='${(OPP_BOTTOM + CTX_TOP).toFixed(1)}' fill='none'${K('fine', { c: 'mid', dash: 'hidden' })} pointer-events='none' data-import-area='1'/>`; }
   { const _swSeg = _pvXS.find(function(sg){ return sg.type === 'sidewalk'; });
     const _swR = function(a) { return `<rect x='0' y='${SW_Y.toFixed(2)}' width='${VW}' height='${SW_H.toFixed(2)}'${a}/>`; };
-    s += _swR(` fill='${DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`).replace(/\/>$/, paper ? '/>' : '><title>Sidewalk' + (_swSeg ? ' · ' + DRAW_STYLE.fmt(Math.abs(_swSeg.x1 - _swSeg.x0)) + ' m' : '') + '</title></rect>') + _band('concrete', _swR); }
+    s += _swR(` fill='${FG ? DK.T.paper : DK.T.fill.sidewalk}'${_swSeg ? ` data-seg='${_swSeg.id}'` : ''}`).replace(/\/>$/, paper ? '/>' : '><title>Sidewalk' + (_swSeg ? ' · ' + DRAW_STYLE.fmt(Math.abs(_swSeg.x1 - _swSeg.x0)) + ' m' : '') + '</title></rect>') + (FG ? '' : _band('concrete', _swR)); }
   // segment labels: at the left edge of what is on screen, moving along their band, never under an object
   const SEGX = Math.max(0, VIS.x0) + 8 * U, SEGLO = Math.max(0, VIS.x0) + 2 * U, SEGHI = Math.min(VW, VIS.x1);
   const annSeg = function(str, y, o) { annText('segment', str, SEGX, y, Object.assign({ axis: 'x', lo: SEGLO, hi: SEGHI }, o || {})); };
-  annSeg('Sidewalk / building frontage', SW_Y + 3 * U + DRAW_STYLE.fs(DK, 'tag'));
+  if (!FG) annSeg('Sidewalk / building frontage', SW_Y + 3 * U + DRAW_STYLE.fs(DK, 'tag'));
   // Road segments beyond the parklet, each at its own model x range in Section-editor order.
   // Bands are tagged data-seg='<segment id>' so checkLandmarkConsistency can read them back.
   const _bikeSeg = _pvRoadSegs.find(function(sg){ return sg.type === 'bike-lane'; });
@@ -8463,8 +8558,9 @@ function _renderPlanView(o) {
     const _ft = sg.type === 'bike-lane' && !blOkPV ? 'bike-lane-fail' : sg.type === 'travel-lane' && !_lanesPass ? 'travel-lane-fail'
       : (sg.type === 'buf-pk' || sg.type === 'buf-bl') ? (_planted ? 'planting' : sg.variant === 'raised' ? 'curb' : 'travel-lane') : sg.type;
     const _sgR = function(a) { return `<rect x='0' y='${sg.y0.toFixed(2)}' width='${VW}' height='${(sg.y1 - sg.y0).toFixed(2)}'${a}/>`; };
-    s += _sgR(` fill='${DRAW_STYLE.seg(_ft, DK.mode)}' data-seg='${sg.id}'`).replace(/\/>$/, paper ? '/>' : '><title>' + _annEsc(((window.SE_TYPES && SE_TYPES[sg.type] && SE_TYPES[sg.type].label) || sg.type) + ' · ' + DRAW_STYLE.fmt(Math.abs(sg.x1 - sg.x0)) + ' m') + '</title></rect>');
+    s += _sgR(` fill='${FG ? DK.T.paper : DRAW_STYLE.seg(_ft, DK.mode)}' data-seg='${sg.id}'`).replace(/\/>$/, paper ? '/>' : '><title>' + _annEsc(((window.SE_TYPES && SE_TYPES[sg.type] && SE_TYPES[sg.type].label) || sg.type) + ' · ' + DRAW_STYLE.fmt(Math.abs(sg.x1 - sg.x0)) + ' m') + '</title></rect>');
     // hatch bands: planting beds and planted buffers, concrete (curbs, raised buffers); asphalt has its edge line only
+    if (FG) return;   // (Plan second pass) the design street at Fit sheet: its curbs only
     if (_planted) s += _band('planting', _sgR); else if (_ft === 'curb') s += _band('concrete', _sgR);
     if (_segLbl[sg.type]) {
       s += `<line x1='0' y1='${sg.y0.toFixed(2)}' x2='${VW}' y2='${sg.y0.toFixed(2)}'${K('context', { c: 'mid', dash: 'hidden' })}/>`;
@@ -8472,7 +8568,7 @@ function _renderPlanView(o) {
     }
   });
   // Roadway no segment covers (lanes capped by LANE_ENVELOPE): its own band up to the far curb.
-  if (_pvLM.roadRight - _pvLM.allocatedRight > 0.005) {
+  if (!FG && _pvLM.roadRight - _pvLM.allocatedRight > 0.005) {
     const uy0 = _yOf(_pvLM.allocatedRight), uy1 = _yOf(_pvLM.roadRight);
     s += `<rect x='0' y='${uy0.toFixed(2)}' width='${VW}' height='${(uy1 - uy0).toFixed(2)}' fill='${DRAW_STYLE.seg('unallocated', DK.mode)}' data-seg='unallocated'>${paper ? '' : '<title>Unallocated roadway · ' + DRAW_STYLE.fmt(_pvLM.roadRight - _pvLM.allocatedRight) + ' m</title>'}</rect>`;
     s += `<line x1='0' y1='${uy0.toFixed(2)}' x2='${VW}' y2='${uy0.toFixed(2)}'${K('context', { c: 'mid', dash: 'hidden' })}/>`;
@@ -8480,7 +8576,7 @@ function _renderPlanView(o) {
   }
   // the parking row, one surface the whole length (Brief 28 item 8: under the deck too, so an edited deck shape sits on the
   // ground and nothing is cut from it), under the trees' canopies
-  s += `<rect x="0" y="${PK_Y}" width="${VW}" height="${pvPkH}" fill="${DRAW_STYLE.seg('parklet', DK.mode)}" data-ground='parking'/>`;
+  s += `<rect x="0" y="${PK_Y}" width="${VW}" height="${pvPkH}" fill="${FG ? DK.T.paper : DRAW_STYLE.seg('parklet', DK.mode)}" data-ground='parking'/>`;
   // Trees and planters from DESIGN_MODEL.vegetation, on top of their bands, true scale
   // (ellipse radii use each axis's own px/m). Tagged data-veg='<index>' for the check.
   _pvDM.vegetation.forEach(function(v, i) {
@@ -8504,7 +8600,7 @@ function _renderPlanView(o) {
     s += "<g data-ctx='stops'><title>" + (t.kind === 'rapid' ? 'Rapid transit' : 'Bus stop') + (t.confirmed ? '' : ' (confirm on site)') + '</title>' + _sym(function(P) { DRAW_SYMBOLS.busStop(P, c.px, c.py, { unconfirmed: !t.confirmed, data: ` data-transit='${i}'`, noText: LODn < 2 }); }) + '</g>';
 
   });
-  if (_bikeSeg) {
+  if (_bikeSeg && !FG) {
     const pvLaneY = _bikeSeg.y0, pvLaneH = _bikeSeg.y1 - _bikeSeg.y0;
     const _corrEdgeY = Math.max.apply(null, _bikeCorr.map(function(sg){ return sg.y1; }));  // traffic side of the corridor
     s += `<line x1='0' y1='${_corrEdgeY.toFixed(2)}' x2='${VW}' y2='${_corrEdgeY.toFixed(2)}'${K('general', { c: pvBLStroke })}/>`;
@@ -8524,7 +8620,7 @@ function _renderPlanView(o) {
   }
   // Vegetated buffer strip between the sidewalk and the building frontage (landmarks.bufferL,
   // the same strip 3D draws), placed through worldToPlan.
-  if (_pvLM.bufferW > 0.05) {
+  if (_pvLM.bufferW > 0.05 && !FG) {
     const _bfY0 = worldToPlan(_pvLM.bufferL.x0, 0).py, _bfY1 = worldToPlan(_pvLM.bufferL.x1, 0).py, _bfH = _bfY1 - _bfY0;
     const _bfR = function(a) { return `<rect x='0' y='${_bfY0.toFixed(2)}' width='${VW}' height='${_bfH.toFixed(2)}'${a}/>`; };
     s += _bfR(` fill='${DK.T.fill.planting}'`) + _band('planting', _bfR);
@@ -8546,7 +8642,7 @@ function _renderPlanView(o) {
   const _nearSp = _span(_lnSegs.filter(function(l){ return l.direction === 'near'; }));
   const _farSp  = _span(_lnSegs.filter(function(l){ return l.direction === 'far'; }));
   const _allSp  = _span(_lnSegs);
-  if (ROAD_DIR === 'twoway' && _nearSp && _farSp) {
+  if (FG) { /* (Plan second pass) no lane arrows, no centre line at Fit sheet */ } else if (ROAD_DIR === 'twoway' && _nearSp && _farSp) {
     const cenY = (_nearSp.y1 + _farSp.y0) / 2;
     const nearMidY = (_nearSp.y0 + _nearSp.y1) / 2;
     const farMidY = (_farSp.y0 + _farSp.y1) / 2;
@@ -8571,9 +8667,8 @@ function _renderPlanView(o) {
 
 // (Brief 31 §5) Far, live: the design street like every other street in the figure-ground: paper from frontage to
 // frontage, its two curb lines one pixel in ink (DRAW_STYLE.CTX's inner ring); the bands under it stay for the checks
-if (!paper && LODn < 1) {
-  const _fy0 = Math.min(SW_Y, _pvOppSW1), _fy1 = Math.max(SW_Y, _pvOppSW1), _fc = DRAW_STYLE.CTX.curb.inner;
-  s += `<rect x='0' y='${_fy0.toFixed(2)}' width='${VW}' height='${(_fy1 - _fy0).toFixed(2)}' fill='${DK.T.paper}' pointer-events='none' data-far-street='1'/>`;
+if (FG) {   // (Plan second pass) at Fit sheet as at Fit context: the bands are paper already; the curbs, broken at the crossings
+  const _fc = DRAW_STYLE.CTX.curb.inner;
   const _cy = [_yOf(_pvLM.roadLeft), _yOf(_pvLM.roadRight)];
   _cy.forEach(function(y) { s += `<line x1='0' y1='${y.toFixed(2)}' x2='${VW}' y2='${y.toFixed(2)}' stroke='${DK.T[_fc.c]}' stroke-opacity='${_fc.op}' stroke-width='${U.toFixed(3)}' data-far-curb='1'/>`; });
   if (_oc.cross) { const _c0 = Math.min.apply(null, _cy) - 2 * U, _c1 = Math.max.apply(null, _cy) + 2 * U; s += `<defs><clipPath id='pvFarBand'><rect x='-1e5' y='${_c0.toFixed(2)}' width='2e5' height='${(_c1 - _c0).toFixed(2)}'/></clipPath></defs><g clip-path='url(#pvFarBand)' pointer-events='none' data-far-cross='1'>` + _oc.cross + '</g>'; }   // the curb lines break at the crossings
@@ -8588,7 +8683,7 @@ const C13_REQ = 1.5;
   const c13Z = DRAW_STYLE.zoneSt(DK, c13St);
   // the check zones are annotation: none at the far tier (Brief 19 A)
   // live, far (Brief 29 item 5): the zones as faint fills with their lozenges, no values; a zone's full label on hover
-  const ZN = LODn >= 1, ZF = !paper && !ZN;
+  const ZN = LODn >= 1 && !FG, ZF = !paper && !ZN && !FG;   // (Plan second pass) at Fit sheet: no C13 marks; C03 its bubble
   const ANNAPI = { lozenge: annLozenge, text: annText };
   const c13Lbl = DRAW_STYLE.clearLbl(c13Raw, C13_REQ, 'C13');
   const _zTip = function(lab) { return paper ? '' : '<title>' + _annEsc(lab.val + (lab.ok == null ? '' : ' m') + ' · ' + lab.note) + '</title>'; };
@@ -8618,6 +8713,7 @@ const C03_REQ = 6;
   const c03Px = Math.min(Math.round(c03DisplayM*HS), Math.round(maxC03M*HS));
   const c03Z = DRAW_STYLE.zoneSt(DK, c03St);
   const C03_LX = PK_X-c13Px-c03Px, C03_RX = PK_X+PK_W+c13Px;
+  if (c03Px > 4 && FG) { _zFar(C03_LX, C03_LX + c03Px, 'C03', 'pass'); _zFar(C03_RX, C03_RX + c03Px, 'C03', 'pass'); }   // in ink
   if (c03Px > 4 && ZF) { const c03Lbl = DRAW_STYLE.clearLbl(c03Raw, C03_REQ, 'C03'); s += _zRect(C03_LX, c03Px, c03St, c03Lbl) + _zRect(C03_RX, c03Px, c03St, c03Lbl); _zFar(C03_LX, C03_LX+c03Px, 'C03', c03St); _zFar(C03_RX, C03_RX+c03Px, 'C03', c03St); }
   if (c03Px > 4 && ZN) {
     const c03Lbl = DRAW_STYLE.clearLbl(c03Raw, C03_REQ, 'C03');
@@ -8652,7 +8748,7 @@ const C03_REQ = 6;
   if (LODn >= 1) s += _dkR(` fill='${DK.T.fill.deck}'`).replace(/\/>$/, '>' + _dkTip + '</rect>') + _band('timber', _dkR, { across: true });
   else s += `<rect x='${PK_X}' y='${PK_Y}' width='${PK_W}' height='${pvPkH}' fill='${DRAW_STYLE.c(DK, _iTch ? 'light' : 'fill.deck')}' stroke='none' data-pk-far='1'>${_dkTip}</rect>`;
   // ── Metric world-space grid (covers full viewBox — extends with zoom/pan) ─
-  if (_gridEnabled && !paper) {
+  if (_gridEnabled && !paper && !FG) {   // (Plan second pass) off at Fit sheet and Fit context
     // the drawn grid's step follows the zoom (Brief 19 B): the snap spacing, else the first of 1, 5, 10, 50, 100 m whose
     // lines are 6 px apart on screen; the major lines every 4 or 5 steps (snapping keeps _gridSpacing)
     var _gS = _gridSpacing, _gMaj = 1.0, _gPpm = PLAN_PX_M / U;
@@ -8666,7 +8762,7 @@ const C03_REQ = 6;
     for (var _gz = _gzMin; _gz <= _gzMax + _gS * 0.5; _gz = Math.round((_gz + _gS) * 1e6) / 1e6) {
       var _gpx = worldToPlan(0, _gz).px.toFixed(1);
       var _gMajZ = Math.abs(Math.round(_gz / _gMaj) * _gMaj - _gz) < _gS * 0.01;
-      s += `<line x1='${_gpx}' y1='${_vbY0.toFixed(1)}' x2='${_gpx}' y2='${_vbY1.toFixed(1)}'${KU(_gMajZ ? 0.5 : 0.25, _gMajZ ? 'gridMaj' : 'grid')}/>`;
+      s += `<line x1='${_gpx}' y1='${_vbY0.toFixed(1)}' x2='${_gpx}' y2='${_vbY1.toFixed(1)}'${KU(_gMajZ ? 0.5 : 0.25, _gMajZ ? 'gridMaj' : 'grid')} data-grid='1'/>`;
     }
     // Cross-street (X) grid lines: SVG horizontal; world-X range of the viewBox via planToWorld
     var _gxA = planToWorld(0, _vbY0).x, _gxB = planToWorld(0, _vbY1).x;
@@ -8675,7 +8771,7 @@ const C03_REQ = 6;
     for (var _gx = _gxMin; _gx <= _gxMax2 + _gS * 0.5; _gx = Math.round((_gx + _gS) * 1e6) / 1e6) {
       var _gpy = worldToPlan(_gx, 0).py.toFixed(1);
       var _gMajX = Math.abs(Math.round(_gx / _gMaj) * _gMaj - _gx) < _gS * 0.01;
-      s += `<line x1='${_vbX0.toFixed(1)}' y1='${_gpy}' x2='${_vbX1.toFixed(1)}' y2='${_gpy}'${KU(_gMajX ? 0.5 : 0.25, _gMajX ? 'gridMaj' : 'grid')}/>`;
+      s += `<line x1='${_vbX0.toFixed(1)}' y1='${_gpy}' x2='${_vbX1.toFixed(1)}' y2='${_gpy}'${KU(_gMajX ? 0.5 : 0.25, _gMajX ? 'gridMaj' : 'grid')} data-grid='1'/>`;
     }
   }
   // -- World origin marker (CAD-style): X/Z axes at world (0,0)
@@ -8800,6 +8896,19 @@ const C03_REQ = 6;
     s += `</g>`;
     s += `<path d='` + _clipD + `' fill='none'${K('object', { join: 'round' })}/>`;
   }
+  // (Brief 32 §4) the entries: the gaps in the sidewalk-side edge, each a handle that drags along the curb; "Entry" outside
+  // the deck on the sidewalk side, placed by the annotation layer so it never sits on another label
+  var _entH = '';   // drawn last, over the lines that would take its pointer
+  if (LODn >= 1) (_pvDM.parklet.entries || []).forEach(function(q, i) {
+    const a = worldToPlan(_pvLM.deckX0, q.z0), b = worldToPlan(_pvLM.deckX0, q.z1), m = worldToPlan(_pvLM.deckX0, q.z), o = worldToPlan(_pvLM.sidewalkL.x0 + (_pvLM.deckX0 - _pvLM.sidewalkL.x0) * 0.45, q.z);
+    const x0 = Math.min(a.px, b.px), x1 = Math.max(a.px, b.px), y = a.py, t = 4 * U;
+    _entH += "<g data-entry='" + i + "' data-entry-z='" + q.z + "'" + (paper ? '' : " class='pv-entry' style='cursor:ew-resize' onmousedown='ENC.entryDown(event, " + i + ")'") + '>' + (paper ? '' : '<title>Entry ' + (i + 1) + ': ' + q.w.toFixed(2) + ' m at z ' + q.z.toFixed(2) + ' (drag along the curb; Design › Edge to add or remove)</title>') +
+      (paper ? '' : "<rect x='" + x0.toFixed(2) + "' y='" + (y - 7 * U).toFixed(2) + "' width='" + (x1 - x0).toFixed(2) + "' height='" + (14 * U).toFixed(2) + "' fill='transparent' pointer-events='all'/>") +
+      "<line x1='" + x0.toFixed(2) + "' y1='" + y.toFixed(2) + "' x2='" + x1.toFixed(2) + "' y2='" + y.toFixed(2) + "'" + K('object', { c: paper ? 'ink' : DRAW_STYLE.UI.accent, cap: 'butt' }) + '/>' +
+      [x0, x1].map(function(x) { return "<line x1='" + x.toFixed(2) + "' y1='" + (y - t).toFixed(2) + "' x2='" + x.toFixed(2) + "' y2='" + (y + t).toFixed(2) + "'" + K('general', { c: paper ? 'ink' : DRAW_STYLE.UI.accent }) + '/>'; }).join('') + '</g>';
+    annObst(x0 - 2 * U, y - t, x1 + 2 * U, y + t);
+    annText('object', 'Entry', m.px, o.py, { role: 'body', c: 'ink', bold: true, anchor: 'middle', axis: 'x', tier: 'mid', at: [m.px, y], slide: true, lo: x0 - 40 * U, hi: x1 + 40 * U, data: " data-entry-label='" + i + "'" });
+  });
   if (!paper && LODn >= 1 && window.APP_MODE === 'accessibility' && typeof ACC !== 'undefined' && ACC._over) { s += ACC._over; ACC._over = ''; }   // the entries and the pinch, over the enclosure and the outline (Brief 29 item 6)
   annObj(PK_X, PK_Y, PK_X + PK_W, PK_Y + pvPkH);   // the parklet: segment labels keep off it
   // the deck's label (Brief 29 item 4): one, outside the deck outline on the road side, never over the deck or its pieces
@@ -9045,10 +9154,12 @@ const manholes = state['manholes'] || [];
       return { x: Math.min(a.px, b.px), y: Math.min(a.py, b.py), w: Math.abs(b.px - a.px), h: Math.abs(b.py - a.py) };
     };
     const _rect = (q, attrs) => `<rect x='${q.x.toFixed(2)}' y='${q.y.toFixed(2)}' width='${q.w.toFixed(2)}' height='${q.h.toFixed(2)}' ${attrs}/>`;
+    const _rgM = {}; if (FG) ['L', 'R'].forEach(function(sd) { (_pvDM.buildings[sd] || []).forEach(function(b, i) { _rgM[sd + i] = true; }); });   // at Fit sheet and Fit context, no model mass
+    window._pvMassesOff = Object.assign({}, _rgM);
     const _drawSide = function(list, side, label) {
       list.forEach(function(b, i) {
         const f = b.footprint;
-        if (!f.visible) return;
+        if (!f.visible || _rgM[side + i]) return;   // (Plan second pass) the City's footprints are drawn instead
         const body = _box(f.faceX, f.backX, f.z0, f.z1), inward = f.backX > f.faceX ? 1 : -1;
         const _bTip = paper ? '' : '<title>' + _annEsc(b.address || 'Building') + '</title>';   // (hover, Brief 29 item 5)
         if (f.setback > 0.02) s += _rect(_box(f.frontageX, f.faceX, f.z0, f.z1), `fill='${DK.T.fill.sidewalk}' data-ctx='buildings'`);
@@ -9071,9 +9182,9 @@ const manholes = state['manholes'] || [];
     _drawSide(_pvDM.buildings.L, 'L', 'Building interior');
     // Opposite sidewalk (continuous street element) and curb face, then opposite buildings
     const _osR = function(a) { return `<rect x='0' y='${_pvOppSW0.toFixed(2)}' width='${VW}' height='${(_pvOppSW1 - _pvOppSW0).toFixed(2)}'${a}/>`; };
-    s += _osR(` fill='${DK.T.fill.sidewalk}'`) + _band('concrete', _osR);
+    if (!FG) { s += _osR(` fill='${DK.T.fill.sidewalk}'`) + _band('concrete', _osR);
     s += `<line x1='0' y1='${_pvOppSW0.toFixed(2)}' x2='${VW}' y2='${_pvOppSW0.toFixed(2)}'${K('edge')}/>`;
-    annSeg('Opposite sidewalk', (_pvOppSW0 + _pvOppSW1) / 2 + 3 * U);
+    annSeg('Opposite sidewalk', (_pvOppSW0 + _pvOppSW1) / 2 + 3 * U); }
     _drawSide(_pvDM.buildings.R, 'R', 'Opposite building');
   }
   // ── Section A-A mark (Brief 08) ──────────────────────────────────────────────────────
@@ -9156,6 +9267,7 @@ const manholes = state['manholes'] || [];
   { const _nw = siteBearingWorld(0), _n0 = worldToPlan(0, 0), _n1 = worldToPlan(_nw.x, _nw.z);
     const _nx = _n1.px - _n0.px, _ny = _n1.py - _n0.py, _nm = Math.hypot(_nx, _ny) || 1;
     window._pvNorthV = { x: _nx / _nm, y: _ny / _nm }; }
+    s += _entH;   // (Brief 32 §4) the entry handles, on top
     // the annotation layer, placed in one pass on top of the drawing (Brief 18 A)
     s += annFlush();
     // every colour above is a DRAW_STYLE token (the old tonal remap, DS.restylePlan, is gone)
@@ -15067,7 +15179,7 @@ function _pvOuterLayer(g) {
   var DK = g.DK, T = DK.T, LM = DESIGN_MODEL.landmarks, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0);
   var W = function(e, n) { return worldToPlan(LM.roadCenterX + e * E.x + n * N.x, g.L / 2 - pk + e * E.z + n * N.z); };
   var p0 = W(0, 0), pe = W(1, 0), pn = W(0, 1), ax = pe.px - p0.px, ay = pe.py - p0.py, bx = pn.px - p0.px, by = pn.py - p0.py, sc = Math.hypot(ax, ay);
-  var key = [o.stamp, (2 / g.U).toFixed(4), g.mid ? 'mid' : '', pk, g.L, p0.px.toFixed(2), p0.py.toFixed(2), ax.toFixed(5), ay.toFixed(5), bx.toFixed(5), by.toFixed(5), g.far ? 1 : 0, DK.mode, g.x0.toFixed(1), g.x1.toFixed(1), g.y0.toFixed(1), g.y1.toFixed(1)].join('|');
+  var key = [o.stamp, (2 / g.U).toFixed(4), g.mid ? 'mid' : '', g.fg ? 'fg' : '', JSON.stringify((CTX_BLDG.rings(DESIGN_MODEL) || {}).hostIdx), pk, g.L, p0.px.toFixed(2), p0.py.toFixed(2), ax.toFixed(5), ay.toFixed(5), bx.toFixed(5), by.toFixed(5), g.far ? 1 : 0, DK.mode, g.x0.toFixed(1), g.x1.toFixed(1), g.y0.toFixed(1), g.y1.toFixed(1)].join('|');
   if (_pvOuterCache && _pvOuterCache.key === key) { window._pvOuterCheck = _pvOuterCache.check; return _pvOuterCache.out; }
   var t0 = performance.now(), f = function(v) { return v.toFixed(1); };
   var P = function(p) { return [p0.px + ax * p[0] + bx * p[1], p0.py + ay * p[0] + by * p[1]]; };
@@ -15075,8 +15187,18 @@ function _pvOuterLayer(g) {
   var cen = function(r) { var s = [0, 0]; r.forEach(function(p) { s[0] += p[0]; s[1] += p[1]; }); return P([s[0] / r.length, s[1] / r.length]); };
   var inStrip = function(q) { return q[0] >= g.x0 && q[0] <= g.x1 && q[1] >= g.y0 && q[1] <= g.y1; };
   // (Brief 31 §5) the footprints by ring (DRAW_STYLE.CTX): within CTX.ring m of the site medium, beyond fill only
-  var bdI = '', bdO = '', nb = 0, skipped = 0, RI = DRAW_STYLE.CTX.ring;
-  o.bldg.forEach(function(r) { if (inStrip(cen(r))) { skipped++; return; } var m = [0, 0]; r.forEach(function(p) { m[0] += p[0] / r.length; m[1] += p[1] / r.length; }); if (Math.hypot(m[0], m[1]) <= RI) bdI += ring(r); else bdO += ring(r); nb++; });
+  // (Plan second pass) Fit sheet and Fit context (g.fg): every footprint, the design block's too, by its ring (CTX_BLDG);
+  // nearer, the inner strip's are the model's masses as before. The outer ring simplified (jogs under 3 m)
+  var bdB = '', bdH = '', bdI = '', bdO = '', nb = 0, skipped = 0, RG = CTX_BLDG.rings(DESIGN_MODEL), SIM = CTX_BLDG.simple(o), vtx = { outerRaw: 0, outer: 0 };
+  o.bldg.forEach(function(r, i) {
+    var cls = RG ? RG.cls[i] : 'outer';
+    if (!g.fg && inStrip(cen(r))) { skipped++; return; }
+    if (cls === 'outer') { vtx.outerRaw += r.length; vtx.outer += SIM[i].length; bdO += ring(SIM[i]); }
+    else if (cls === 'inner') bdI += ring(r);
+    else if (g.fg) { if (RG && i === RG.hostIdx) bdH += ring(r); else bdB += ring(r); }
+    else bdI += ring(r);
+    nb++;
+  });
   var pd = o.parks.map(ring).join(''), wd = o.water.map(ring).join('');
   // the streets (Brief 28 item 9; Brief 31 §5): paper between curb lines, by width and ring; a footway one faint line. The
   // main street (all inside its own band) is the model's, not drawn here
@@ -15085,10 +15207,11 @@ function _pvOuterLayer(g) {
     var q = st.pts.map(P); if (q.length < 2 || q.every(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; })) return;
     ns++;
     var d = 'M' + q.map(function(p) { return f(p[0]) + ' ' + f(p[1]); }).join('L'), foot = st.kind === 'foot' || !(st.half > 0);
-    SL.push({ d: d, w: foot ? 0 : 2 * (st.half || 4.5) * sc, ring: DRAW_STYLE.ctxRing(st.pts), lane: st.use === 'service', foot: foot, cross: q.some(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; }) });
+    var rng = DRAW_STYLE.ctxRing(st.pts); if (st.use === 'service' && rng === 'outer') { ns--; return; }   // (Plan second pass) no lanes in the outer ring
+    SL.push({ d: d, w: foot ? 0 : 2 * (st.half || 4.5) * sc, ring: rng, lane: st.use === 'service', foot: foot, cross: q.some(function(p) { return p[1] >= g.ry0 && p[1] <= g.ry1; }) });
     if (st.name && !foot) named.push({ st: st, q: q });
   });
-  var tech = DK.mode === 'technical', U1 = g.U > 0 ? g.U : 1, ops = DRAW_STYLE.ctxRoads(SL, U1, T), cross = DRAW_STYLE.ctxSVG(DRAW_STYLE.ctxRoads(SL.filter(function(q) { return q.cross && !q.foot; }), U1, T).filter(function(q) { return q.role === 'street'; })), bI = DRAW_STYLE.ctxBldg(DK.mode, 'inner', T), bO = DRAW_STYLE.ctxBldg(DK.mode, 'outer', T), park = DRAW_STYLE.ctxPark(DK.mode);
+  var tech = DK.mode === 'technical', U1 = g.U > 0 ? g.U : 1, ops = DRAW_STYLE.ctxRoads(SL, U1, T), cross = DRAW_STYLE.ctxSVG(DRAW_STYLE.ctxRoads(SL.filter(function(q) { return q.cross && !q.foot; }), U1, T).filter(function(q) { return q.role === 'street'; })), bI = DRAW_STYLE.ctxBldg(DK.mode, 'inner', T), bO = DRAW_STYLE.ctxBldg(DK.mode, 'outer', T), bB = DRAW_STYLE.ctxBldg(DK.mode, 'block', T), park = DRAW_STYLE.ctxPark(DK.mode);
   var R = o.R, cs = [W(-R, -R), W(R, -R), W(R, R), W(-R, R)], xs = cs.map(function(c) { return c.px; }), ys = cs.map(function(c) { return c.py; });
   var paper = "<rect x='" + f(Math.min.apply(null, xs)) + "' y='" + f(Math.min.apply(null, ys)) + "' width='" + f(Math.max.apply(null, xs) - Math.min.apply(null, xs)) + "' height='" + f(Math.max.apply(null, ys) - Math.min.apply(null, ys)) + "' fill='" + T.paper + "' data-layer='city-paper'/>";
   // the far tier: the same strokes painted once into a canvas (2 px per screen px) and placed as one image, so panning
@@ -15100,9 +15223,9 @@ function _pvOuterLayer(g) {
     if (wd) { cx2.fillStyle = T.fill.sea; cx2.fill(new Path2D(wd), 'evenodd'); }
     if (pd) { cx2.fillStyle = park; cx2.fill(new Path2D(pd)); }
     DRAW_STYLE.ctxCanvas(cx2, DRAW_STYLE.ctxRoads(SL, Math.max(g.U, 1 / k2), T));
-    [[bdO, bO], [bdI, bI]].forEach(function(b) { if (!b[0]) return; var p2 = new Path2D(b[0]); cx2.globalAlpha = b[1].op; cx2.fillStyle = b[1].fill; cx2.fill(p2); if (b[1].line) { cx2.globalAlpha = b[1].lop; cx2.strokeStyle = b[1].line; cx2.lineWidth = 0.5 * g.U; cx2.stroke(p2); } cx2.globalAlpha = 1; });
+    [[bdO, bO, 0.5], [bdI, bI, 0.5], [bdB, bB, 0.5], [bdH, bB, DRAW_STYLE.CTX.hostPx]].forEach(function(b) { if (!b[0]) return; var p2 = new Path2D(b[0]); cx2.globalAlpha = b[1].op; cx2.fillStyle = b[1].fill; cx2.fill(p2); if (b[1].line) { cx2.globalAlpha = b[1].lop; cx2.strokeStyle = b[1].line; cx2.lineWidth = b[2] * g.U; cx2.stroke(p2); } cx2.globalAlpha = 1; });
     var img = "<g data-layer='city' pointer-events='none'><image x='" + f(bx0) + "' y='" + f(by0) + "' width='" + f(bw) + "' height='" + f(bh) + "' preserveAspectRatio='none' href='" + cv.toDataURL('image/png') + "' data-city='raster'/></g>";
-    var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height], names: 0 };
+    var chk = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: true, raster: [cv.width, cv.height], names: 0, vtx: vtx, fg: !!g.fg };
     _pvOuterCache = { key: key, out: { paper: paper, svg: img, cross: cross }, check: chk };
     window._pvOuterCheck = chk;
     return _pvOuterCache.out;
@@ -15129,14 +15252,14 @@ function _pvOuterLayer(g) {
   }
   // clipped to the context square; water, parks, the curb casings, the street surfaces, footways, the buildings, the names
   var cl = 'pvCityClip', bx = Math.min.apply(null, xs), by = Math.min.apply(null, ys);
-  var bpath = function(dd, b, r) { return dd ? "<path d='" + dd + "' fill='" + b.fill + "' fill-opacity='" + b.op + "'" + (b.line ? " stroke='" + b.line + "' stroke-opacity='" + b.lop + "' stroke-width='" + (0.5 * U1).toFixed(3) + "'" : " stroke='none'") + " data-city='bldg' data-ring='" + r + "'/>" : ''; };
+  var bpath = function(dd, b, r, lw) { return dd ? "<path d='" + dd + "' fill='" + b.fill + "' fill-opacity='" + b.op + "'" + (b.line ? " stroke='" + b.line + "' stroke-opacity='" + b.lop + "' stroke-width='" + ((lw || 0.5) * U1).toFixed(3) + "' stroke-linejoin='round'" : " stroke='none'") + " data-city='bldg' data-ring='" + r + "'/>" : ''; };
   var svg = "<defs><clipPath id='" + cl + "'><rect x='" + f(bx) + "' y='" + f(by) + "' width='" + f(Math.max.apply(null, xs) - bx) + "' height='" + f(Math.max.apply(null, ys) - by) + "'/></clipPath></defs>" +
     "<g data-layer='city' pointer-events='none' clip-path='url(#" + cl + ")'>" +
     (wd ? "<path d='" + wd + "' fill='" + T.fill.sea + "' fill-rule='evenodd' stroke='none' data-city='water'/>" : '') +
     (pd ? "<path d='" + pd + "' fill='" + park + "' stroke='none' data-city='parks'/>" : '') +
     (ops.length ? "<g data-city='streets'>" + DRAW_STYLE.ctxSVG(ops) + '</g>' : '') +
-    bpath(bdO, bO, 'outer') + bpath(bdI, bI, 'inner') + (nm ? "<g data-city='names'>" + nm + '</g>' : '') + '</g>';
-  var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far, names: nNames, curbOps: ops.filter(function(q) { return q.role === 'curb'; }).length };
+    bpath(bdO, bO, 'outer') + bpath(bdI, bI, 'inner') + bpath(bdB, bB, 'block') + bpath(bdH, bB, 'host', DRAW_STYLE.CTX.hostPx) + (nm ? "<g data-city='names'>" + nm + '</g>' : '') + '</g>';
+  var check = { bldgDrawn: nb, bldgInStrip: skipped, streetsDrawn: ns, parks: o.parks.length, water: o.water.length, buildMs: +(performance.now() - t0).toFixed(1), far: !!g.far, names: nNames, vtx: vtx, fg: !!g.fg, curbOps: ops.filter(function(q) { return q.role === 'curb'; }).length };
 
   _pvOuterCache = { key: key, out: { paper: paper, svg: svg, cross: cross }, check: check };
   window._pvOuterCheck = check;
@@ -15161,6 +15284,64 @@ var CTX_ROADS = {
     var f = function(v) { return v.toFixed(2); };
     var SL = roads.map(function(r) { return { d: 'M' + r.pts.map(function(p) { var q = to(p[0], p[1]); return f(q[0]) + ' ' + f(q[1]); }).join('L'), w: r.kind === 'foot' ? 0 : 2 * r.half * k, ring: r.ring || 'outer', lane: !!r.lane, foot: r.kind === 'foot' }; });
     return SL.length ? "<g data-ctx-roads='" + roads.length + "'>" + DRAW_STYLE.ctxSVG(DRAW_STYLE.ctxRoads(SL, lw, T)) + '</g>' : '';
+  }
+};
+// (Plan second pass) each City footprint's ring: 'block' when it is one of the model's buildings (its centroid inside one
+// of DESIGN_MODEL.buildings' footprints, 1 m allowed), 'inner' within DRAW_STYLE.CTX.ring m of the site, else 'outer'; the
+// host's footprint; the model buildings a footprint stands for (they are not drawn twice); the outer ones simplified
+// (Douglas-Peucker, DRAW_STYLE.CTX.jog m) once per import
+var CTX_BLDG = {
+  rings: function(DM) {
+    var o = typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null; if (!o || !o.bldg) return null;
+    DM = DM || _dmCurrent();
+    var LM = DM.landmarks, L = DM.parklet.length, pk = typeof pkZNow === 'function' ? pkZNow() : 0, E = siteBearingWorld(90), N = siteBearingWorld(0), host = DM.site && DM.site.host ? DM.site.host.index : -1, mb = [];
+    ['L', 'R'].forEach(function(side) { (DM.buildings[side] || []).forEach(function(b, i) { var f = b.footprint; if (!f || !f.visible) return;
+      var pts = f.poly ? f.poly.map(function(p) { return [p.x, p.z]; }) : [[f.faceX, f.z0], [f.backX, f.z0], [f.backX, f.z1], [f.faceX, f.z1]];
+      var xs = pts.map(function(p) { return p[0]; }), zs = pts.map(function(p) { return p[1]; });
+      mb.push({ id: side + i, host: side === 'L' && i === host, pts: pts, bb: [Math.min.apply(null, xs), Math.min.apply(null, zs), Math.max.apply(null, xs), Math.max.apply(null, zs)] }); }); });
+    var key = [o.stamp, o.bldg.length, pk, L, LM.roadCenterX, host, mb.map(function(m) { return m.bb.map(function(v) { return v.toFixed(2); }).join(','); }).join(';')].join('|');
+    if (CTX_BLDG._k === key) return CTX_BLDG._r;
+    var W = function(p) { return [LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z]; };
+    var inPoly = function(q, P) { var c = false; for (var i = 0, j = P.length - 1; i < P.length; j = i++) { if ((P[i][1] > q[1]) !== (P[j][1] > q[1]) && q[0] < (P[j][0] - P[i][0]) * (q[1] - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; } return c; };
+    var R = DRAW_STYLE.CTX.ring, out = { cls: [], hostIdx: -1, matched: {}, world: [] };
+    o.bldg.forEach(function(r, i) {
+      var c = [0, 0]; r.forEach(function(p) { c[0] += p[0] / r.length; c[1] += p[1] / r.length; });
+      var wp = r.map(W), xs = wp.map(function(p) { return p[0]; }), zs = wp.map(function(p) { return p[1]; }), cb = [Math.min.apply(null, xs), Math.min.apply(null, zs), Math.max.apply(null, xs), Math.max.apply(null, zs)], wc = W(c);
+      // either way round, 1 m allowed: the footprint's centre in the model building's bounds, or the model's centre in the footprint's
+      var hit = mb.find(function(m) { var mc = [(m.bb[0] + m.bb[2]) / 2, (m.bb[1] + m.bb[3]) / 2];
+        return (wc[0] >= m.bb[0] - 1 && wc[0] <= m.bb[2] + 1 && wc[1] >= m.bb[1] - 1 && wc[1] <= m.bb[3] + 1) || (mc[0] >= cb[0] - 1 && mc[0] <= cb[2] + 1 && mc[1] >= cb[1] - 1 && mc[1] <= cb[3] + 1); });
+      out.cls.push(hit ? 'block' : Math.hypot(c[0], c[1]) <= R ? 'inner' : 'outer');
+      if (hit) { out.matched[hit.id] = true; if (hit.host && out.hostIdx < 0) out.hostIdx = i; }
+    });
+    CTX_BLDG._k = key; CTX_BLDG._r = out; return out;
+  },
+  // the outer ring's rings, simplified (local metres), once per import
+  simple: function(o) {
+    if (CTX_BLDG._sk === o.stamp + '|' + o.bldg.length) return CTX_BLDG._s;
+    var eps = DRAW_STYLE.CTX.jog, dp = function(P) {
+      if (P.length < 4) return P;
+      var keep = new Uint8Array(P.length); keep[0] = keep[P.length - 1] = 1;
+      var st = [[0, P.length - 1]];
+      while (st.length) { var q = st.pop(), a = P[q[0]], b = P[q[1]], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1e-9, best = -1, bi = -1;
+        for (var k = q[0] + 1; k < q[1]; k++) { var d = Math.abs((P[k][0] - a[0]) * dz - (P[k][1] - a[1]) * dx) / l; if (d > best) { best = d; bi = k; } }
+        if (best > eps) { keep[bi] = 1; st.push([q[0], bi], [bi, q[1]]); } }
+      return P.filter(function(p, k) { return keep[k]; });
+    };
+    var out = o.bldg.map(function(r) {
+      // a closed ring: split at its farthest point from the first, each half simplified
+      var far = 0, fd = -1; r.forEach(function(p, k) { var d = Math.hypot(p[0] - r[0][0], p[1] - r[0][1]); if (d > fd) { fd = d; far = k; } });
+      if (r.length < 5) return r;
+      var A = dp(r.slice(0, far + 1)), B = dp(r.slice(far).concat([r[0]])), s2 = A.concat(B.slice(1, -1));
+      return s2.length >= 3 ? s2 : r;
+    });
+    CTX_BLDG._sk = o.stamp + '|' + o.bldg.length; CTX_BLDG._s = out; return out;
+  },
+  // in the world frame (the sheets): [{pts: [[x, z]], cls, host}]
+  world: function(DM) {
+    var o = typeof CTX_OUTER !== 'undefined' ? CTX_OUTER : null, rg = CTX_BLDG.rings(DM); if (!o || !rg) return [];
+    DM = DM || _dmCurrent(); var LM = DM.landmarks, L = DM.parklet.length, pk = pkZNow(), E = siteBearingWorld(90), N = siteBearingWorld(0), sim = CTX_BLDG.simple(o);
+    var W = function(p) { return [LM.roadCenterX + p[0] * E.x + p[1] * N.x, L / 2 - pk + p[0] * E.z + p[1] * N.z]; };
+    return o.bldg.map(function(r, i) { var c = rg.cls[i]; return { pts: (c === 'outer' ? sim[i] : r).map(W), cls: c, host: i === rg.hostIdx }; });
   }
 };
 window.addEventListener('load', function() {   // the outer ring from the cache (no request) after a reload
@@ -22756,10 +22937,9 @@ GEN.PROG = [
   ['green', 'Planting / green'], ['shade', 'Shade'], ['play', 'Kids / play'], ['open', 'Event / open']
 ];
 GEN.CHARACTER = [['quiet_green', 'Quiet / green'], ['social', 'Social'], ['cafe', 'Cafe'], ['urban', 'Urban / minimal']];
-GEN.FOOTPRINT = [['single', 'Single'], ['split', 'Split'], ['free', 'Notches + curves']];
 GEN.defaultPrefs = function() {
   return { prog: { seating: 2, dining: 1, lounging: 1, bike: 1, green: 2, shade: 1, play: 0, open: 1 },
-    character: 'social', footprint: 'free', access: 2, planting: 2, n: 6, seed: 1 };
+    character: 'social', access: 2, planting: 2, n: 6, seed: 1 };
 };
 // The Site tab, as generator constraints (all metres; frontage in world z, default the
 // current deck span, so typed distances measured from the current deck ends stay valid).
@@ -22892,11 +23072,10 @@ GEN.renderDock = function() {
     weight('access', 'Accessibility priority', P.access, 'data-pref') + weight('planting', 'Planting intensity', P.planting, 'data-pref') +
     "<div class='gen-hint' id='genBias'>Host bias: " + GEN.esc(GEN.biasText()) + (P._hostBias ? '. Clicking a weight makes these weights yours.' : '') + '</div>' +
     (GEN.prefs.progUserSet && GEN.hostBias() ? "<button class='txt-btn' onclick='GEN.resetProg()'>Use the host defaults</button>" : '');
-  // character, materials, footprint
+  // character, materials (every deck a rectangle, with or without 45° corner cuts: Brief 32 §2)
   document.getElementById('genChar').innerHTML =
     "<label class='gen-row'><span>Character</span>" + select('data-pref', 'character', P.character, GEN.CHARACTER) + '</label>' +
-    "<label class='gen-row'><span>Materials</span><span id='genMatPick'>" + GEN.matPickHTML() + '</span></label>' +
-    "<label class='gen-row'><span>Deck shape</span>" + select('data-pref', 'footprint', P.footprint, GEN.FOOTPRINT) + '</label>';
+    "<label class='gen-row'><span>Materials</span><span id='genMatPick'>" + GEN.matPickHTML() + '</span></label>';
   // output
   document.getElementById('genOut').innerHTML =
     "<label class='gen-row'><span>Schemes</span><span class='ufield'><input type='number' data-pref='n' value='" + P.n + "' min='3' max='8' step='1'><i></i></span></label>" +
@@ -22990,6 +23169,8 @@ GEN.regenerate = function() { GEN.prefs.seed = (GEN.prefs.seed | 0) + 1; GEN.sav
 .gen-title { font: 600 var(--fs-11) var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--d-ink); }
 .gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--sp-4); padding: var(--sp-4); align-content: start; }
 .gen-empty { grid-column: 1 / -1; padding: var(--sp-6) 0; }
+.gen-sentence { color: var(--d-ink); font-weight: 600; cursor: help; } .gen-miss-h { grid-column: 1 / -1; margin: var(--sp-2) 0 0; font: 600 var(--fs-12) var(--font-ui); color: var(--d-ink); }
+.gen-card.gen-miss { border-color: var(--st-fail, #C0392B); border-style: dashed; } .gen-fails { margin: 0 var(--sp-3) var(--sp-2); font: 600 var(--fs-12) var(--font-ui); color: var(--st-fail-ink, #B42C2C); }
 .gen-err-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }   /* Brief 29c item 3 */
 .gen-err.gen-ready p { color: var(--text-hi, inherit); }
 </style>
@@ -23035,7 +23216,8 @@ GEN.ST_KEYS = ['parking_restrictions', 'route_type', 'intersection_dist', 'slope
   'signal_box_dist', 'manhole_dist', 'fire_exit_block', 'drainage_clear', 'boulevard_clear', 'parking_setback', 'platform_gap', 'load_capacity',
   'manholes', 'curb_features', 'driveways', 'pkShape'];
 GEN.withScratch = function(ds, fn) {
-  var g0 = GEN.getG(), st0 = {}, dm0 = {}, seg0 = window.seGetSegs, pl0 = (window.FL3D && FL3D.placed) || null;
+  var g0 = GEN.getG(), st0 = {}, dm0 = {}, seg0 = window.seGetSegs, pl0 = (window.FL3D && FL3D.placed) || null, enc0 = ENCLOSURE;
+  ENCLOSURE = Object.assign({}, ENC.norm(enc0), { entries: 'seed' });   // (Brief 32 §4) a candidate's entries are its own: at its deck's ends
   GEN.ST_KEYS.forEach(function(k) { st0[k] = { has: Object.prototype.hasOwnProperty.call(state, k), v: state[k] }; });
   Object.keys(DESIGN_MODEL).forEach(function(k) { dm0[k] = DESIGN_MODEL[k]; });
   try {
@@ -23054,7 +23236,7 @@ GEN.withScratch = function(ds, fn) {
     buildDesignModel();
     return fn();
   } finally {
-    GEN._scratchPlaced = null;
+    GEN._scratchPlaced = null; ENCLOSURE = enc0;
     GEN.setG(g0);
     GEN.ST_KEYS.forEach(function(k) { if (st0[k].has) state[k] = st0[k].v; else delete state[k]; });
     Object.keys(DESIGN_MODEL).forEach(function(k) { if (!(k in dm0)) delete DESIGN_MODEL[k]; });
@@ -23070,7 +23252,8 @@ GEN.evaluate = function(ds) {
     // (Brief 30 §9) a check left open only by a site fact answered 'not known yet' does not reject a layout: the design
     // cannot decide it, and Check shows it Awaiting measurement
     var open = function(c) { return typeof SFG !== 'undefined' && SFG.active() && SFG.cardsFor(c.id).length > 0 && SFG.critDone(c.id); };
-    criteria.forEach(function(c) { var st = getCriterionStatus(c); out.status[c.id] = st; if (st === 'pass' || (st === 'unclear' && open(c))) out.pass++; });
+    out.failing = [];
+    criteria.forEach(function(c) { var st = getCriterionStatus(c); out.status[c.id] = st; if (st === 'pass' || (st === 'unclear' && open(c))) out.pass++; else out.failing.push(c.id); });
     return out;
   });
 };
@@ -23185,47 +23368,24 @@ GEN.applyDerived = function(ds, a, L, L0, reinstated) {
 // ── Footprints ───────────────────────────────────────────────────────────────────────────
 // All inside the envelope run. Shapes are pkShape polygons {x: along, y: across} in metres.
 GEN.STALL = 6.0;
-GEN.footprints = function(env, pref) {
-  var a = env.run[0], b = env.run[1], len = b - a, W = env.W, out = [];
-  function rect() { return null; }
-  out.push({ id: 'full', label: 'Full-length', a: a, L: len, shape: rect() });
-  if (len - GEN.STALL - 1.5 >= 8) out.push({ id: 'short', label: 'Shortened (parking kept)', a: a, L: len - GEN.STALL - 1.5, shape: rect(), reinstated: 'end', stalls: 1 });
-  if (pref !== 'single') {
-    var nd = Math.min(0.9, W - 1.6);
-    if (nd >= 0.4) {
-      out.push({ id: 'notch1', label: 'Notched end', a: a, L: len, notch: [[len - 1.1 - 1.5, len - 1.1]], nd: nd });
-      out.push({ id: 'notch2', label: 'Notched both ends', a: a, L: len, notch: [[1.1, 2.6], [len - 2.6, len - 1.1]], nd: nd });
-    }
-    var sd = W - 1.6;
-    if (sd >= 0.6 && len >= 12) out.push({ id: 'linked', label: 'Split (linked pair)', a: a, L: len, notch: [[len / 2 - 1.5, len / 2 + 1.5]], nd: sd });
+GEN.footprints = function(env) {
+  // (Brief 32 §2) a rectangle, full-length or shortened, and the same with 45° cuts at the traffic-side corners: the shapes
+  // the shape editor draws and the enclosure wraps; never a notch, a split or a curve
+  var a = env.run[0], b = env.run[1], len = b - a, W = env.W, out = [], c = GEN.r3(Math.min(0.6, W - 1.8));
+  out.push({ id: 'full', label: 'Full-length', a: a, L: len });
+  if (len - GEN.STALL - 1.5 >= 8) out.push({ id: 'short', label: 'Shortened (parking kept)', a: a, L: len - GEN.STALL - 1.5, reinstated: 'end', stalls: 1 });
+  if (c >= 0.3 && len >= 8) {
+    out.push({ id: 'cut2', label: 'Corner cuts at the traffic side', a: a, L: len, cut: [0, 0, c, c] });
+    out.push({ id: 'cut1', label: 'Corner cut at the far end', a: a, L: len, cut: [0, 0, c, 0] });
   }
-  // a curved traffic edge only as deep as the seating band + the 1.5 m route allow
-  var cv = Math.min(0.5, W - 2.5);
-  if (pref === 'free' && cv >= 0.12) out.push({ id: 'curved', label: 'Curved edge', a: a, L: len, curve: GEN.r3(cv) });
   out.forEach(function(f) { f.W = W; f.shape = GEN.shapeOf(f); });
   return out;
 };
+// the outline: null for the plain rectangle (the deck as it is), else the shape editor's rectangle with its cuts
+// (corner order: [start, curb], [end, curb], [end, traffic], [start, traffic])
 GEN.shapeOf = function(f) {
-  var L = GEN.r3(f.L), W = f.W;
-  if (f.notch) {
-    // traffic side (y = W) steps in by nd over each notch z-range
-    var v = [{ x: 0, y: 0 }, { x: L, y: 0 }, { x: L, y: W }];
-    f.notch.slice().sort(function(p, q) { return q[0] - p[0]; }).forEach(function(n) {
-      v.push({ x: GEN.r3(n[1]), y: W }, { x: GEN.r3(n[1]), y: GEN.r3(W - f.nd) }, { x: GEN.r3(n[0]), y: GEN.r3(W - f.nd) }, { x: GEN.r3(n[0]), y: W });
-    });
-    v.push({ x: 0, y: W });
-    return { active: true, closed: true, verts: v, segs: v.map(function() { return { arc: false, sag: 0 }; }) };
-  }
-  if (f.curve) {
-    var vc = [{ x: 0, y: 0 }, { x: L, y: 0 }, { x: L, y: W }, { x: GEN.r3(L - 1.1), y: W }, { x: 1.1, y: W }, { x: 0, y: W }];
-    var sg = vc.map(function() { return { arc: false, sag: 0 }; });
-    sg[3] = { arc: true, sag: f.curve };
-    var sh = { active: true, closed: true, verts: vc, segs: sg };
-    var w = shapeWidthAtLength(sh, L / 2);           // the arc must bow inward (toward the curb)
-    if (w && w[1] > W) sg[3].sag = -f.curve;
-    return sh;
-  }
-  return null;
+  if (!f.cut || !f.cut.some(function(v) { return v > 0; })) return null;
+  var sh = skeShapeOf({ z0: 0, z1: GEN.r3(f.L), y0: 0, y1: f.W }, f.cut); sh.active = true; return sh;
 };
 // Deck's traffic-side edge (max y) over [z0, z1], and the notch ranges it must stay 0.45 m from.
 // The enclosure (Brief 21 §12): fp.inset (its buffer and depth on the traffic side) moves this edge to the enclosure's
@@ -23242,7 +23402,8 @@ GEN.edgeAt = function(fp, z0, z1) {
 GEN.deckAt = function(fp, z0, z1) { return GEN.edgeAt(Object.assign({}, fp, { inset: 0 }), z0, z1); };
 // a footprint's enclosure fields for a deck W x L (the design's enclosure on it)
 GEN.encFields = function(W, L) {
-  var DM = { landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L, width: W } }; DM.enclosure = ENC.resolve(DM);
+  // (Brief 32 §4) a scheme's entries are its own: two at its deck's ends, the design's enclosure otherwise
+  var DM = { landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L, width: W } }; DM.enclosure = ENC.resolve(DM, Object.assign({}, ENC.norm(ENCLOSURE), { entries: 'seed' }));
   return ENC.fpFields(DM);
 };
 
@@ -23605,8 +23766,7 @@ GEN.layout = function(tpl, fp, opt) {
   var ctx = { items: [], fp: fp, r: opt.r, edge: opt.edge, planting: opt.planting, green: opt.green, access: opt.access, shade: opt.shade, target: GEN.TURN,
     plantKind: opt.planting >= 3 ? 'tree' : opt.planting >= 2 ? 'shrub' : 'grass' };
   var z0 = GEN.END + 0.1, z1 = fp.L - GEN.END - 0.1, len = z1 - z0, zones = opt.flip ? tpl.zones.slice().reverse() : tpl.zones, cur = z0;
-  // Notches: no programme within them, so the curb-side route keeps its width there.
-  var keepOut = (fp.notch || []).map(function(n) { return [n[0], n[1]]; });
+  var keepOut = (fp.entries || []).map(function(q) { return [q.z - q.w / 2 - 0.1, q.z + q.w / 2 + 0.1]; });   // (Brief 32 §4) no programme in front of an entry
   function pieces(a, b) {
     var out = [[a, b]];
     keepOut.forEach(function(k) {
@@ -23631,6 +23791,8 @@ GEN.layout = function(tpl, fp, opt) {
   });
   keepOut.forEach(function(k) { GEN.ZONES.open(Object.assign({}, ctx, { edge: ctx.edge === 'glass' ? 'glass' : 'screens' }), Math.max(z0, k[0]) + 0.05, Math.min(z1, k[1]) - 0.05); });
   GEN.infill(ctx, z0, z1, opt.fill || 0);
+  // (Brief 32 §4) a piece laid against the sidewalk edge stands off the sidewalk-side run
+  if (fp.curb > 0) ctx.items.forEach(function(it) { if (it.type === 'umbrella') return; var b = GEN.aabb(it); if (b.x0 < fp.curb && (fp.curbSpans || []).some(function(sp) { return b.z0 < sp[1] && b.z1 > sp[0]; })) it.x = GEN.r3(it.x + fp.curb - b.x0 + 0.01); });
   var lay = GEN.validate(ctx.items, fp);
   lay.patterns = used; lay.fill = opt.fill || 0;
   // the scheme's pattern: the requested one if laid over >= 30 % of the zones, else the longest
@@ -23663,7 +23825,12 @@ GEN.validate = function(items, fp) {
   var acc = reasons.length ? null : GEN.access(items, fp);
   if (acc) reasons = reasons.concat(acc.reasons);
   // E3 (Brief 21 §12, C18): two openings of 1.8 m to the sidewalk
-  if (!reasons.length && typeof ENC !== 'undefined' && ENC.openingsOf(items, fp).count < 2) reasons.push('fewer than two 1.8 m openings to the sidewalk');
+  if (Array.isArray(fp.entries)) {   // (Brief 32 §4) the scheme's own entries (C18), clear in front, and nothing on the sidewalk-side run
+    if (fp.entries.length < 2) reasons.push('fewer than two entries');
+    items.forEach(function(it) { if (it.type === 'umbrella') return; var b = GEN.aabb(it);
+      if (fp.entries.some(function(q) { return b.x0 < GEN.TURN - 0.005 && b.z0 < q.z + q.w / 2 - 0.005 && b.z1 > q.z - q.w / 2 + 0.005; })) reasons.push(it.type + ' in front of an entry');
+      if (fp.curb > 0 && b.x0 < fp.curb - 0.001 && (fp.curbSpans || []).some(function(sp) { return b.z0 < sp[1] && b.z1 > sp[0]; })) reasons.push(it.type + ' on the sidewalk-side enclosure'); });
+  } else if (!reasons.length && typeof ENC !== 'undefined' && ENC.openingsOf(items, fp).count < 2) reasons.push('fewer than two 1.8 m openings to the sidewalk');
   return { items: items, acc: acc, route: acc ? acc.route : 0, access: acc ? acc.access : 0, ok: reasons.length === 0, reasons: reasons };
 };
 
@@ -23690,6 +23857,7 @@ GEN.access = function(items, fp, opt) {
   var edge = new Float64Array(nz);
   for (j = 0; j < nz; j++) edge[j] = GEN.edgeAt(fp, j * C, Math.min(L, (j + 1) * C));
   var obs = items.filter(function(it) { return it.type !== 'umbrella'; }).map(function(it) { return GEN.aabb(it); });
+  if (fp.curb > 0) (fp.curbSpans || []).forEach(function(sp) { obs.push({ x0: -1, x1: fp.curb, z0: sp[0], z1: sp[1], curb: true }); });   // (Brief 32 §4) the sidewalk-side enclosure
   // clear width per cell (0 = not walkable)
   var wid = new Float64Array(nx * nz);
   for (j = 0; j < nz; j++) {
@@ -23734,13 +23902,19 @@ GEN.access = function(items, fp, opt) {
       }
   });
   // entries: a clear turning square against the sidewalk edge in each length of the deck
-  var need = 1 + Math.floor(L / GEN.ENTRY_PER), T = GEN.TURN, entries = [], seg = L / need;
+  var given = Array.isArray(fp.entries), need = given ? fp.entries.length : 1 + Math.floor(L / GEN.ENTRY_PER), T = GEN.TURN, entries = [], seg = L / Math.max(1, need);   // (Brief 32 §4) the design's entries when it has them
   function squareFree(zc) {
     var s0 = zc - T / 2, s1 = zc + T / 2;
     if (s0 < zA - 1e-6 || s1 > zB + 1e-6 || GEN.edgeAt(fp, s0, s1) < T - 1e-6) return false;
     return !obs.some(function(o) { return o.x0 < T - 0.005 && o.z0 < s1 - 0.005 && o.z1 > s0 + 0.005; });
   }
-  for (k = 0; k < need; k++) {
+  if (given) fp.entries.forEach(function(q) {   // the turning square inside each entry, nearest its middle
+    var sl = Math.max(0, ((q.w || ENC.OPEN_W) - T) / 2), best = null;
+    for (var zc = Math.ceil((q.z - sl) / C) * C; zc <= q.z + sl + 1e-6; zc += C) if (squareFree(zc) && (best === null || Math.abs(zc - q.z) < Math.abs(best - q.z))) best = zc;
+    if (best === null && squareFree(q.z)) best = q.z;
+    entries.push(best === null ? null : GEN.r3(best));
+  });
+  for (k = 0; !given && k < need; k++) {
     var mid = (k + 0.5) * seg, best = null;
     for (var zc = Math.ceil((k * seg) / C) * C; zc <= (k + 1) * seg + 1e-6; zc += C) {
       if (squareFree(zc) && (best === null || Math.abs(zc - mid) < Math.abs(best - mid))) best = zc;
@@ -23749,7 +23923,8 @@ GEN.access = function(items, fp, opt) {
   }
   var reasons = [], out = { need: need, entries: entries, seats: seats.length, per: [], route: 0, access: 0, seat: null, reasons: reasons, paths: [], w: RW };
   var missing = entries.filter(function(e) { return e === null; }).length;
-  if (missing) reasons.push('no entry turning space (' + (need - missing) + ' of ' + need + ': ' + T + ' x ' + T + ' m at the sidewalk edge, one per ' + GEN.ENTRY_PER + ' m)');
+  if (missing) reasons.push(given ? 'no entry turning space (' + (need - missing) + ' of ' + need + ' entries clear ' + T + ' x ' + T + ' m inside)' : 'no entry turning space (' + (need - missing) + ' of ' + need + ': ' + T + ' x ' + T + ' m at the sidewalk edge, one per ' + GEN.ENTRY_PER + ' m)');
+  if (given && !need) reasons.push('no entry');
   if (!seats.length) reasons.push('no accessible seat (bench end or table with knee clearance)');
   if (reasons.length) return out;
   // widest-path flood fill from each entry (4-connected, over cells >= ROUTE_W)
@@ -23792,7 +23967,8 @@ GEN.access = function(items, fp, opt) {
       if (goal >= 0) {
         var chain = [], n1 = 0; for (var sg = goal; sg >= 0 && n1 < NS; sg = from[sg], n1++) chain.push(sg); chain.reverse();
         var xz = function(c7) { var i7 = c7 % nx; return [GEN.r3((i7 + 0.5) * C), GEN.r3(((c7 - i7) / nx + 0.5) * C)]; };
-        var cells2 = chain.map(function(q2) { return q2 >> 2; }), pin = cells2.reduce(function(m, c8) { return wid[c8] < wid[m] ? c8 : m; }, cells2[0]);
+        var cells2 = chain.map(function(q2) { return q2 >> 2; }), onDeck = cells2.filter(function(c8) { var i8 = c8 % nx, x8 = (i8 + 0.5) * C, z8 = ((c8 - i8) / nx + 0.5) * C; return !(x8 < T && Math.abs(z8 - ez) <= T / 2 + C); });   // (Brief 32 §4) not the step onto the deck at the entry
+        var pin = (onDeck.length ? onDeck : cells2).reduce(function(m, c8) { return wid[c8] < wid[m] ? c8 : m; }, (onDeck.length ? onDeck : cells2)[0]);
         var pts = [[0, xz(cells2[0])[1]]];   // from the sidewalk edge: a corner wherever the direction changes, then the end
         for (var v3 = 0; v3 < chain.length; v3++) { var nxt = chain[v3 + 1]; if (nxt === undefined || (nxt & 3) !== (chain[v3] & 3)) pts.push(xz(cells2[v3])); }
         if (pts.length < 2) pts.push(xz(cells2[cells2.length - 1]));
@@ -23819,6 +23995,7 @@ GEN.access = function(items, fp, opt) {
     for (var v = 1; v < p.pts.length; v++) {
       var a = p.pts[v - 1], b = p.pts[v], c4 = p.pts[v + 1], end = !c4;
       if (!end) { var a1 = Math.atan2(b[1] - a[1], b[0] - a[0]), a2 = Math.atan2(c4[1] - b[1], c4[0] - b[0]), da = Math.abs(((a2 - a1 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI); if (da < Math.PI / 6) continue; }
+      if (!end && b[0] < T + 1e-6 && Math.abs(b[1] - p.pts[0][1]) < T) continue;   // (Brief 32 §4) never at the entry: the turn into the deck is the entry's own
       var t = best(b[0], b[1], 0.5) || { x: b[0], z: b[1], w: 0 }; t.end = end; t.at = [b[0], b[1]]; p.turns.push(t);
     }
   });
@@ -23844,7 +24021,7 @@ GEN.metrics = function(lay, fp) {
   });
   var endPl = fp.encPlant != null ? fp.encPlant : 2 * Math.max(0, fp.W - 0.16) * 0.94;   // the enclosure's planting (Brief 21 §12)
   m.planting = GEN.r3(m.planting + endPl);
-  m.area = GEN.r3(fp.W * fp.L - (fp.notch ? fp.notch.reduce(function(s, n) { return s + (n[1] - n[0]) * fp.nd; }, 0) : 0));
+  m.area = GEN.r3(fp.shape ? pkShapeArea(fp.shape) : fp.W * fp.L);
   m.plantingPct = GEN.r3(m.planting / m.area);
   m.shade = GEN.r3(m.shade);
   var foot = lay.items.reduce(function(s, it) { return it.type === 'umbrella' ? s : s + it.l * it.d; }, 0);
@@ -23901,7 +24078,7 @@ GEN.score = function(m, P, fp) {
 };
 // Feature vector for diversity (footprint, programme mix, pattern, palette, seats, planting %, utilisation)
 GEN.features = function(c) {
-  var fps = ['full', 'short', 'notch1', 'notch2', 'linked', 'curved'], v = [];
+  var fps = ['full', 'short', 'cut2', 'cut1'], v = [];
   fps.forEach(function(f) { v.push(c.fp.id === f ? 1 : 0); });
   GEN.TEMPLATES.forEach(function(t) { v.push(c.tpl.id === t.id ? 1 : 0); });
   GEN.PATTERN_IDS.forEach(function(p) { v.push(c.pattern === p ? 1.5 : 0); });
@@ -23927,7 +24104,7 @@ GEN.generate = function() {
   var env = GEN.envelope(S, base);
   res.envelope = env;
   if (!env.ok) { res.error = 'No compliant envelope. ' + env.why.join(' '); return GEN.finish(res, t0); }
-  var fps = GEN.footprints(env, P.footprint);
+  var fps = GEN.footprints(env);
   fps.forEach(function(f) { Object.assign(f, GEN.encFields(f.W, f.L)); });   // the design's enclosure on each (Brief 21 §12)
   // the furniture finishes follow the parklet's materials (Brief 30 §5): the preset's palette family; a custom mix, warm wood
   var curPreset = PKMAT.presetOf(), pals = GEN.PALETTES[(PKMAT.PRESETS.find(function(q) { return q.id === curPreset; }) || {}).fam] || GEN.PALETTES.warm_wood;
@@ -23936,7 +24113,7 @@ GEN.generate = function() {
     var fit = 0; Object.keys(t.fit).forEach(function(k) { fit += t.fit[k] * (P.prog[k] || 0); });
     return 0.5 + fit + 3 * ((t.char || {})[P.character] || 0);
   });
-  var N = P.n, total = N * 20, cands = [], seen = {};
+  var N = P.n, total = N * 20, cands = [], seen = {}, rejects = [];
   for (var i = 0; i < total; i++) {
     res.stats.sampled++;
     var tpl = GEN.pick(r, GEN.TEMPLATES, tw), fp = GEN.pick(r, fps), edge = GEN.pick(r, GEN.EDGES), pi = Math.floor(r() * pals.length) % pals.length, flip = r() < 0.5;
@@ -23945,6 +24122,7 @@ GEN.generate = function() {
     if (seen[key]) continue; seen[key] = 1;
     var lay = GEN.layout(tpl, fp, { r: GEN.rng(P.seed * 131 + i), edge: edge.id, planting: P.planting, green: P.prog.green, access: P.access, shade: P.prog.shade, flip: flip, pattern: pat, fill: fill });
     if (!lay.ok) {
+      if (rejects.length < 200) rejects.push({ key: key, tpl: tpl, fp: fp, edge: edge, pi: pi, flip: flip, lay: lay });   // (Brief 32 §2) a nearest miss, perhaps
       res.stats.layoutRejects++;
       lay.reasons.forEach(function(w) { w = w.split(' (')[0]; res.stats.why[w] = (res.stats.why[w] || 0) + 1; });
       continue;
@@ -23954,7 +24132,7 @@ GEN.generate = function() {
     ds.parkletMaterials = JSON.parse(JSON.stringify(PKMAT.cur));   // the scheme carries the materials it was made with (applied only when opened)
     res.stats.built++;
     var ev = GEN.evaluate(ds);
-    if (ev.pass !== criteria.length) { res.stats.checkRejects++; continue; }
+    if (ev.pass !== criteria.length) { res.stats.checkRejects++; if (rejects.length < 200) rejects.unshift({ key: key, tpl: tpl, fp: fp, edge: edge, pi: pi, flip: flip, lay: lay, ds: ds, ev: ev }); continue; }
     res.stats.passed++;
     var m = GEN.metrics(lay, fp), c = { key: key, tpl: tpl, pattern: lay.pattern, fp: fp, edge: edge, pal: pal, flip: flip, lay: lay, ds: ds, ev: ev, m: m, score: GEN.score(m, P, fp) };
     c.f = GEN.features(c);
@@ -23987,7 +24165,26 @@ GEN.generate = function() {
     sel.push(pool.splice(bi, 1)[0]);
   }
   res.schemes = sel; GEN._cands = cands;   // the scored pool (inspection)
-  if (!sel.length) res.error = 'No candidate passed every check (' + res.stats.built + ' built). ' + (env.why || []).join(' ');
+  // (Brief 32 §2) the shortfall's nearest misses: each rejected candidate built and run through the checks (a layout the
+  // access model or the enclosure turned away is checked the same way), fewest failing checks first
+  var short = N - sel.length; res.misses = [];
+  if (short > 0) {
+    var ms = [];
+    for (var ri = 0; ri < rejects.length && ms.length < Math.max(short * 4, 12); ri++) {
+      var rj = rejects[ri];
+      try {
+        if (!rj.ds) { var pal2 = Object.assign({ idx: rj.pi }, pals[rj.pi]); rj.pal = pal2; rj.ds = GEN.buildState(S, base, env, rj.fp, rj.lay, pal2); rj.ev = GEN.evaluate(rj.ds); }
+        else rj.pal = Object.assign({ idx: rj.pi }, pals[rj.pi]);
+        rj.failing = rj.ev.failing.slice(); rj.why = rj.failing.length ? '' : (rj.lay.reasons[0] || '').split(' (')[0];
+        try { rj.m = GEN.metrics(rj.lay, rj.fp); } catch (e) { rj.m = null; }
+        rj.pattern = rj.lay.pattern || 'traffic_band';
+        ms.push(rj);
+      } catch (e) { console.warn('[generate] a miss could not be built', e); }
+    }
+    ms.sort(function(a, b) { return (a.failing.length || 99) - (b.failing.length || 99) || (a.key < b.key ? -1 : 1); });
+    res.misses = ms.slice(0, short);
+  }
+  if (!sel.length && !res.misses.length) res.error = 'No candidate passed every check (' + res.stats.built + ' built). ' + (env.why || []).join(' ');
   return GEN.finish(res, t0);
 };
 GEN.finish = function(res, t0) {
@@ -24001,7 +24198,7 @@ GEN.finish = function(res, t0) {
 // session storage (they are this tab's working results, not part of the design), dropped when the site changes
 GEN.KEEP = 'pkt-gen-result';
 GEN.siteKey = function() { var sm = typeof state !== 'undefined' && state.__siteMap; return sm ? [sm.lat, sm.lon, sm.parkletSide, sm.importedAt || ''].join('|') : (state && state.__generic ? 'blank' : ''); };
-GEN.keep = function(res) { try { if (res && res.schemes && res.schemes.length) sessionStorage.setItem(GEN.KEEP, JSON.stringify({ k: GEN.siteKey(), res: res })); else sessionStorage.removeItem(GEN.KEEP); } catch (e) {} };
+GEN.keep = function(res) { try { if (res && res.schemes && res.schemes.length) sessionStorage.setItem(GEN.KEEP, JSON.stringify({ k: GEN.siteKey(), res: Object.assign({}, res, { misses: [] }) })); else sessionStorage.removeItem(GEN.KEEP); } catch (e) {} };
 GEN.kept = function() { try { var o = JSON.parse(sessionStorage.getItem(GEN.KEEP) || 'null'); return o && o.k && o.k === GEN.siteKey() ? o.res : null; } catch (e) { return null; } };
 // The candidate as a DESIGN_STATE: site skeleton at deck [a, a + L], shape, derived inputs,
 // furniture with palette materials. Deterministic: no ids, no timestamps.
@@ -24125,12 +24322,24 @@ GEN.axonThumb = function(c, W0, H0) {   // -> a Promise of the picture (an Image
   groups.forEach(function(g) { g.traverse(function(o) { if (o.geometry) o.geometry.dispose(); }); });   // flMat materials are shared: kept
   return url;
 };
+// (Brief 32 §2) what a miss fails, by the checks' own names ("C16 accessible route"), or the layout's reason when no check fails
+GEN.failName = function(id) { var c = criteria.find(function(q) { return q.id === id; }); return c ? 'C' + String(c.num).padStart(2, '0') + ' ' + ((CHECK_SHORT[id] || [c.title])[0]).toLowerCase() : id; };
+GEN.missWhy = function(m) { return m.failing && m.failing.length ? m.failing.map(GEN.failName).join(' and ') : 'its layout (' + (m.why || 'pieces do not fit') + ')'; };
+GEN.sentence = function(R) {
+  var N = R.n || (R.schemes || []).length, ok = (R.schemes || []).length, ms = R.misses || [];
+  if (ok >= N || !ms.length) return N + ' asked · ' + ok + ' passed every check';
+  var by = {}; ms.forEach(function(m) { var k = GEN.missWhy(m); by[k] = (by[k] || 0) + 1; });
+  var parts = Object.keys(by).sort(function(a, b) { return by[b] - by[a] || (a < b ? -1 : 1); }).map(function(k) { return by[k] + ' on ' + k; });
+  return N + ' asked · ' + (ok ? ok + ' passed every check' : 'none passed') + ' · ' + ms.length + ' failed: ' + parts.join(', ');
+};
 GEN.renderCards = function() {
   var R = GEN.result, bar = document.getElementById('genBar'), grid = document.getElementById('genGrid');
-  var nLock = Object.keys(GEN.locked).length;
+  var nLock = Object.keys(GEN.locked).length, ms = R.misses || [], showM = ms.length && (GEN.showMiss || !(R.schemes || []).length);
+  var tip = 'seed ' + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed every check · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.effectivePrefs()) === 'density' ? 'seat density' : 'utilisation') + (R.bias ? ' · ' + R.bias : '') +
+    (R.envelope && R.envelope.ok ? ' · envelope ' + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) : '');
   bar.innerHTML = "<span class='gen-title'>Generated schemes</span>" +
-    "<span class='gen-stat'>seed " + R.seed + ' · ' + R.stats.sampled + ' sampled · ' + R.stats.built + ' built · ' + R.stats.passed + ' passed every check · ' + R.ms + ' ms' + (nLock ? ' · ' + nLock + ' locked' : '') + ' · scored on ' + (GEN.scoreMode(GEN.effectivePrefs()) === 'density' ? 'seat density' : 'utilisation') + (R.bias ? ' · ' + GEN.esc(R.bias) : '') + '</span>' +
-    (R.envelope && R.envelope.ok ? "<span class='gen-stat'>envelope " + R.envelope.W.toFixed(2) + ' m × z ' + R.envelope.run[0].toFixed(2) + '..' + R.envelope.run[1].toFixed(2) + '</span>' : '') +
+    (R.error ? '' : "<span class='gen-stat gen-sentence' title='" + GEN.esc(tip).replace(/'/g, '&#39;') + "'>" + GEN.esc(GEN.sentence(R)) + '</span>') +
+    (ms.length && (R.schemes || []).length ? "<button type='button' class='gen-link gen-miss-tg' aria-pressed='" + !!GEN.showMiss + "' onclick='GEN.showMiss=!GEN.showMiss;GEN.renderCards()'>" + (GEN.showMiss ? 'Hide' : 'Show') + " the scheme" + (ms.length > 1 ? 's' : '') + " that didn't pass (" + ms.length + ')</button>' : '') +
     (GEN.undoSnap ? "<button class='gen-link' onclick='GEN.undoOpen()'>Restore the design you had before opening a scheme</button>" : '');
   // a refusal (Brief 29c item 3, triage F18): the Generate button stays, the reason beside it, and a link to the first fact to
   // set; once the facts are all set, the old reason gives way to that news
@@ -24142,7 +24351,7 @@ GEN.renderCards = function() {
     return;
   }
   grid.innerHTML = R.schemes.map(function(c, i) {
-    var m = c.m, locked = !!GEN.locked[c.key];
+    var m = c.m, locked = !!GEN.locked[c.key];   // (the misses follow: GEN.missCards)
     return "<article class='gen-card" + (locked ? ' locked' : '') + "' data-key='" + GEN.esc(c.key) + "'>" +
       "<div class='gen-thumbs'>" + GEN.planThumb(c) + "<canvas class='gen-axon' width='630' height='270' role='img' aria-label='Axonometric of " + GEN.esc(GEN.title(c)) + "' data-i='" + i + "'></canvas></div>" +
       "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + "</h3><span class='gen-seed'>seed " + R.seed + ' · #' + (i + 1) + '</span></div>' +
@@ -24155,6 +24364,7 @@ GEN.renderCards = function() {
         "<button class='gen-lock' aria-pressed='" + locked + "' onclick='GEN.toggleLock(" + i + ")'>" + (locked ? 'Locked' : 'Lock') + '</button>' +
         "<span class='gen-fp'>" + GEN.esc(c.pal.label) + ' · ' + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
   }).join('');
+  if (showM) grid.innerHTML += GEN.missCards(R);
   // axon thumbnails after the cards are painted: one per turn of the event loop (one offscreen renderer), each copied
   // straight onto its card's canvas (Brief 29b S4: a PNG encode of each held the page for seconds); a newer render of the
   // cards stops the queue
@@ -24169,6 +24379,18 @@ GEN.renderCards = function() {
   };
   setTimeout(function() { next(0); }, 16);
   GEN.writeRationales();
+};
+// (Brief 32 §2) the schemes that didn't pass, drawn, with their failing checks named; open one to see why in Check
+GEN.missCards = function(R) {
+  var fail = (typeof CHK !== 'undefined' ? CHK.BADGE.fail[1] : 'Fail');
+  return "<h3 class='gen-miss-h'>" + ((R.schemes || []).length ? "Didn't pass" : 'None passed: the nearest misses') + '</h3>' + (R.misses || []).map(function(c, i) {
+    var m = c.m;
+    return "<article class='gen-card gen-miss' data-key='" + GEN.esc(c.key) + "'><div class='gen-thumbs'>" + GEN.planThumb(c) + '</div>' +
+      "<div class='gen-card-hd'><h3>" + GEN.esc(GEN.title(c)) + '</h3></div>' +
+      "<p class='gen-fails'>" + (c.failing.length ? GEN.esc(fail) + ': ' + GEN.esc(c.failing.map(GEN.failName).join(', ')) : 'Not laid out: ' + GEN.esc(c.why || 'the pieces do not fit')) + '</p>' +
+      (m ? "<div class='gen-metrics'><span><b>" + m.seats + '</b>seats</span><span><b>' + m.tables + '</b>tables</span><span><b>' + m.planting.toFixed(1) + '</b>planting m²</span>' + "<span class='gen-pass'><b>" + c.ev.pass + '/' + criteria.length + '</b>checks</span></div>' : '') +
+      "<div class='gen-card-ft'><button class='gen-secondary' onclick='GEN.open(" + i + ", true)'>Open in Design</button><span class='gen-fp'>" + GEN.esc(c.fp.label) + ' · ' + c.fp.L.toFixed(1) + ' × ' + c.fp.W.toFixed(2) + ' m</span></div></article>';
+  }).join('');
 };
 // Optional: the Assistant rewrites the one-line rationale from the metrics (text only - the
 // geometry is the rules'). Without an API key or proxy the templated sentence stays.
@@ -24221,13 +24443,14 @@ GEN.openState = function(c, cur, base) {
   so.pkShape = ds.siteObjects.pkShape ? JSON.parse(JSON.stringify(ds.siteObjects.pkShape)) : null;
   out.section = JSON.parse(JSON.stringify(ds.section));
   out.furniture = JSON.parse(JSON.stringify(ds.furniture));
+  if (out.enclosure) out.enclosure = Object.assign({}, out.enclosure, { entries: 'seed' });   // (Brief 32 §4) the scheme's entries: at its deck's ends
   if (ds.parkletMaterials) out.parkletMaterials = JSON.parse(JSON.stringify(ds.parkletMaterials));   // (Brief 30 §5)
   var moved = Math.abs(a) > 1e-6 || Math.abs(L - L0) > 1e-6;
   GEN.COMMIT_KEYS.concat(moved ? GEN.DERIVED_KEYS : []).forEach(function(n) { if (ds.compliance[n] !== undefined) out.compliance[n] = ds.compliance[n]; });
   return out;
 };
-GEN.open = function(i) {
-  var c = GEN.result.schemes[i]; if (!c) return;
+GEN.open = function(i, miss) {
+  var c = (miss ? GEN.result.misses : GEN.result.schemes)[i]; if (!c) return;
   GEN.undoSnap = getDesignState();
   applyDesignState(GEN.openState(c, GEN.undoSnap, GEN._base || GEN.undoSnap));
   if (typeof pkAfterMove === 'function') pkAfterMove('generate-open');   // the clearances and C03 from the moved deck, saved
@@ -24661,6 +24884,26 @@ RPT.sources = function(d) {
 // Axon: the Brief 06 isometric camera and its own offscreen WebGL renderer (AXE.renderer), at 2x
 // the sheet's 96 dpi size; entourage and agents hidden for the frame; the scene's lit objects in
 // the schematic palette for the frame. Needs the 3D scene, not a visible 3D panel.
+// (Brief 32 §3) the cover's camera: the Street preset's line of sight (RVZ.presets), its distance set so the deck's
+// projected box spans RPT.COVER_SPAN of the sheet's width, then shifted (a view offset) so the deck sits in the middle
+RPT.COVER_SPAN = 0.6;
+RPT.coverCam = function(aspect, Wpx, Hpx) {
+  var p = RVZ.presets(aspect).street, T = new THREE.Vector3().fromArray(p.target), dir = new THREE.Vector3().fromArray(p.pos).sub(T).normalize();
+  var cam = new THREE.PerspectiveCamera(p.fov, aspect, 0.1, 1200), db = AXE.deckBox(), pts = [];
+  [db.x0, db.x1].forEach(function(x) { [0, db.y1].forEach(function(y) { [db.z0, db.z1].forEach(function(z) { pts.push(new THREE.Vector3(x, y, z)); }); }); });
+  var box = function(dist) {
+    cam.position.copy(T).addScaledVector(dir, dist); cam.lookAt(T); cam.updateMatrixWorld(true); cam.updateProjectionMatrix();
+    var lo = Infinity, hi = -Infinity, lo2 = Infinity, hi2 = -Infinity, behind = false;
+    pts.forEach(function(q) { var v = q.clone().project(cam); if (v.z > 1 || v.z < -1) behind = true; lo = Math.min(lo, v.x); hi = Math.max(hi, v.x); lo2 = Math.min(lo2, v.y); hi2 = Math.max(hi2, v.y); });
+    return { span: behind ? 9 : (hi - lo) / 2, cx: (lo + hi) / 2, cy: (lo2 + hi2) / 2 };
+  };
+  var a = 1.5, b = 300;
+  for (var i = 0; i < 48; i++) { var m = (a + b) / 2; if (box(m).span > RPT.COVER_SPAN) a = m; else b = m; }
+  var r = box(b);
+  if (Wpx && Hpx) { cam.setViewOffset(Wpx, Hpx, r.cx * Wpx / 2, -r.cy * Hpx / 2 * 0.6, Wpx, Hpx); cam.updateProjectionMatrix(); }   // the deck across the middle, a little below centre
+  cam.userData.deckSpan = +r.span.toFixed(3); cam.userData.dist = +b.toFixed(2);
+  return cam;
+};
 RPT.axonImg = function(wMm, hMm) {
   if (typeof AXE === 'undefined' || !_3d || !_3d.scene) return null;
   if (typeof _r3DRebuildPending !== 'undefined' && _r3DRebuildPending) { _r3DRebuildPending = false; renderMassView(); }
@@ -24669,9 +24912,9 @@ RPT.axonImg = function(wMm, hMm) {
   if (AXE.group && AXE.group.visible) { AXE.group.visible = false; hidden.push(AXE.group); }
   try {
     if (mode !== 'schematic') { drawingTheme.mode = 'schematic'; apply3DTheme(); }
-    var cam = AXE.camera('cover', W / H), r = AXE.renderer(W, H), undoP = AXE.present();   // Brief 25 item 23b
+    var cam = RPT.coverCam(W / H, W, H), r = AXE.renderer(W, H), undoP = AXE.present();   // Brief 25 item 23b; (Brief 32 §3) the Street view, the deck across 60 %
     try { AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0, false); AXE._cut = null; } finally { undoP(); }   // north goes in the title block
-    return { url: r.domElement.toDataURL('image/png'), w: W, h: H, north: AXE.northScreen(cam, W / H) };
+    return { url: r.domElement.toDataURL('image/png'), w: W, h: H, north: AXE.northScreen(cam, W / H), deckSpan: cam.userData.deckSpan, view: 'street' };
   } finally {
     hidden.forEach(function(m) { m.visible = true; });
     if (mode !== 'schematic') { drawingTheme.mode = mode; apply3DTheme(); }
@@ -24686,7 +24929,7 @@ RPT.drawings = async function(d) {
     if (ax) {
       var im = new Image(); im.src = ax.url; await new Promise(function(r) { im.onload = r; im.onerror = r; });
       var c = document.createElement('canvas'); c.width = ax.w; c.height = ax.h; var x = c.getContext('2d'); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, ax.w, ax.h); x.drawImage(im, 0, 0);
-      out.cover = { url: c.toDataURL('image/jpeg', 0.85), w: ax.w, h: ax.h, key: 'axon' };
+      out.cover = { url: c.toDataURL('image/jpeg', 0.85), w: ax.w, h: ax.h, key: 'axon', deckSpan: ax.deckSpan, view: ax.view };
     }
   }
   return out;
@@ -25029,6 +25272,7 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
     // (no title block to clear: Brief 25 item 22c)
   }
   P.merge(D, dy, dx);
+  var fit = { w: +(bb[2] - bb[0]).toFixed(1), h: +(bb[3] - bb[1]).toFixed(1), aw: +DAw.toFixed(1), ah: +(DA.h - stripH).toFixed(1) }; fit.ok = !isFinite(bb[0]) || (fit.w <= fit.aw + 0.01 && fit.h <= fit.ah + 0.01);   // (Brief 32 §3) the drawing as drawn, against its area
   // hex keys on the drawing (at their place, or the nearest step aside that clears the drawing's text and the other
   // keys), their notes in the column
   var n = 0, ky = AC.y + 5, w = AC.w - 8, used = [];
@@ -25077,7 +25321,7 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   var by = RPT.SH - 24;   // above the drawing label (Brief 25 item 22c)
   if (ext && ext.north) RPT.northSym(P, 10, by + 1.5, 4.5);
   if (scale) RPT.bar(P, ext && ext.north ? 26 : 0, by - 2, scale);
-  return { id: id, title: title, scale: scale, ext: ext || null, dims: D.dims || [], draw: function(Q) { Q.merge(P); } };
+  return { fit: fit,  id: id, title: title, scale: scale, ext: ext || null, dims: D.dims || [], draw: function(Q) { Q.merge(P); } };
 };
 
 // ── What every drawing reads, once per report ───────────────────────────────────────────────────
@@ -25118,7 +25362,11 @@ RPT.planBase = function(P, G, F, mode, o) {
   var FI = RPT.fills(mode), LM = G.LM, xa = F.sx(F.zB), xb = F.sx(F.zA), sx = function(z) { return F.sx(z); }, sy = function(x) { return F.sy(x); };
   // near sidewalk (frontage to curb), road segments, far curb and sidewalk (o.deckOnly, A-103: none of it, Brief 19b)
   var swL = LM.sidewalkL, fx = LM.roadRight;
-  if (!o.deckOnly) {
+  if (o.fg) {   // (Plan second pass) A-101 as the live Plan at Fit sheet: the design street two curb lines at the street weight
+    var cc = DRAW_STYLE.CTX.curb.inner, TT2 = DRAW_STYLE.t(mode);
+    [swL.x1, fx].forEach(function(x) { P.line(xa, sy(x), xb, sy(x), { w: 0.18, c: TT2[cc.c], op: cc.op, data: " data-curb='1'" }); });
+  }
+  if (!o.deckOnly && !o.fg) {
   P.rect(xa, sy(swL.x0), xb - xa, (swL.x1 - swL.x0) * F.k, { fill: FI.sidewalk, w: 0 });
   if (mode === 'technical' && o.hatchSidewalk) P.hatch("<rect x='" + xa + "' y='" + sy(swL.x0) + "' width='" + (xb - xa) + "' height='" + ((swL.x1 - swL.x0) * F.k) + "'/>", [xa, sy(swL.x0), xb, sy(swL.x1)], 'concrete');
   G.segs.forEach(function(sg) {
@@ -25280,12 +25528,22 @@ RPT.sheetSite = function(d) {
   };
   // the cross streets in the crop as surfaces, under the buildings (Brief 28 item 9; the main street is the model's)
   P.add(CTX_ROADS.svg(CTX_ROADS.world(), function(x, z) { return [F.sx(z), F.sy(x)]; }, k, DRAW_STYLE.t(d.mode), 0.18));
+  // (Plan second pass) the City's footprints, as the live Plan draws them at Fit sheet: the design block solid (technical
+  // poché, schematic the darkest grey), the host outlined heavier, the inner ring mid-grey with a hairline, the outer palest;
+  // a model building with no footprint is drawn as before
+  var TT = DRAW_STYLE.t(d.mode), CW = CTX_BLDG.world(G.DM), RGW = CTX_BLDG.rings(G.DM), mOff = RGW ? RGW.matched : {}, onPoche = !!CW.length;
+  CW.forEach(function(q) {
+    if (!q.pts.some(function(p) { return p[1] >= zA - 5 && p[1] <= zB + 5 && p[0] >= xTop - 5 && p[0] <= xBot + 5; })) return;
+    var t = DRAW_STYLE.ctxBldg(d.mode, q.cls === 'outer' ? 'outer' : q.cls === 'inner' ? 'inner' : 'block', TT);
+    P.poly(q.pts.map(function(p) { return [F.sx(p[1]), F.sy(p[0])]; }), { fill: t.fill, fop: t.op, w: t.line ? (q.host ? DRAW_STYLE.CTX.hostMm : RPT.LW.hatch) : 0, c: t.line || undefined, data: " data-ctx-bldg='" + (q.host ? 'host' : q.cls) + "'" });
+  });
   // buildings with their programme
   ['L', 'R'].forEach(function(side) {
     (G.DM.buildings[side] || []).forEach(function(b, bi) {
       var fp = b.footprint; if (!fp || !fp.visible || fp.z1 < zA || fp.z0 > zB) return;
-      var x0 = Math.min(fp.faceX, fp.backX), x1 = Math.max(fp.faceX, fp.backX);
-      if (fp.poly) P.poly(fp.poly.map(function(p) { return [F.sx(p.z), F.sy(p.x)]; }), { fill: FI.building, cls: 'edge', data: " data-bldg-poly='1'" });   // its real footprint (Brief 28 item 9)
+      var x0 = Math.min(fp.faceX, fp.backX), x1 = Math.max(fp.faceX, fp.backX), drawn = onPoche;   // with the City's footprints, no model mass
+      if (drawn) {}   // its City footprint above
+      else if (fp.poly) P.poly(fp.poly.map(function(p) { return [F.sx(p.z), F.sy(p.x)]; }), { fill: FI.building, cls: 'edge', data: " data-bldg-poly='1'" });   // its real footprint (Brief 28 item 9)
       else P.rect(F.sx(fp.z1), F.sy(x0), (fp.z1 - fp.z0) * k, (x1 - x0) * k, { fill: FI.building, cls: 'edge' });
       var z0 = Math.max(fp.z0, zA), z1 = Math.min(fp.z1, zB), cx = F.sx((z0 + z1) / 2), wmm = (z1 - z0) * k, face = F.sy(fp.faceX) + (side === 'L' ? -8 : 10);   // inside the footprint, clear of the section marker
       if (side === 'L' && G.DM.site.host && G.DM.site.host.index === bi) hostAt = [cx, F.sy((x0 + x1) / 2)];
@@ -25294,14 +25552,15 @@ RPT.sheetSite = function(d) {
       var l1 = ad || nm, l2 = ad ? [nm, use].filter(Boolean).join(', ') : use;
       var lo = F.sx(z1) + 1, hi = F.sx(z0) - 1, y1 = face - (side === 'L' ? 2.6 : 0), y2 = face + (side === 'L' ? 0 : 2.6), w1 = l1 ? RPT.tw(l1, RPT.TX.tag, true) : 0, w2 = l2 ? RPT.tw(l2, RPT.TX.tag) : 0;
       var c1 = l1 && wmm > w1 + 2 ? labelX(cx, y1, w1, lo, hi) : null, c2 = l2 && wmm > w2 + 2 ? labelX(cx, y2, w2, lo, hi) : null;
-      if (c1 != null) P.text(c1, y1, l1, RPT.TX.tag, { anchor: 'middle', bold: true, data: ad ? " data-addr='1'" : '' });
-      if (c2 != null) P.text(c2, y2, l2, RPT.TX.tag, { anchor: 'middle', c: RPT.MID });
+      var onDark = !!mOff[side + bi] && onPoche, lc = onDark ? '#FFFFFF' : undefined;   // on the design block's poché, the labels in paper
+      if (c1 != null) P.text(c1, y1, l1, RPT.TX.tag, { anchor: 'middle', bold: true, c: lc, data: ad ? " data-addr='1'" : '' });
+      if (c2 != null) P.text(c2, y2, l2, RPT.TX.tag, { anchor: 'middle', c: onDark ? '#FFFFFF' : RPT.MID });
     });
   });
   // the annotation tier from the sheet's scale (Brief 19 A): 1:250 is mid (no tree tags, no object labels), nearer is near
   var lod = lodTier(2000 / sc), near = lod === 'near';
   // the trees on the ground under the deck (Brief 28 item 5), the site objects over it
-  RPT.planBase(P, G, F, d.mode, { beforeDeck: function() { RPT.planObjects(P, G, F, { layers: ['trees'] }); } });
+  RPT.planBase(P, G, F, d.mode, { fg: onPoche, beforeDeck: function() { RPT.planObjects(P, G, F, { layers: ['trees'] }); } });
   RPT.planObjects(P, G, F, { labels: near, layers: RPT.SHEET_LAYERS.A101.filter(function(l) { return l !== 'trees'; }) });
   RPT.cityPlan(P, F, d);   // the City's wheel stops and bollards (Brief 21 §13): symbols, no note (A-102 has it)
   // genus tags last, on top, at every scale (Brief 28 item 6: grouped, they read at 1:250), clear of the section marker's tags
@@ -25460,7 +25719,7 @@ RPT.sheetLayout = function(d) {
 // equal division, with a match line on both sheets.
 RPT.DECK_SCALES = [50, 75, 100];
 // (Brief 31 §11) the standard scales, largest first: every drawing sheet takes the first that fits
-RPT.LADDER = [20, 25, 50, 75, 100, 200, 250];
+RPT.LADDER = [20, 25, 50, 75, 100, 150, 200, 250];   // (Brief 32 §3) 1:150 between 1:100 and 1:200
 RPT.ladder = function(fits, from) { var L = RPT.LADDER.filter(function(s) { return s >= (from || 0); }); for (var i = 0; i < L.length; i++) if (fits(L[i])) return L[i]; return L[L.length - 1]; };
 RPT.deckScale = function(d) {
   var cr = d.DM.site.sheets.A103.crop, fits = function(s) { return (cr.z1 - cr.z0) * 1000 / s + 30 <= RPT.SW && (cr.x1 - cr.x0) * 1000 / s + 110 <= RPT.DA.y + RPT.DA.h; };   // (Brief 31 §11) the whole width, the notes in a strip under it
@@ -25482,10 +25741,10 @@ RPT.routePaper = function(P, d, F, o) {
   (a.paths || []).forEach(function(rt) {
     var band = ACC.band(rt.pts, RW).map(o.toS); if (band.length < 3) return;
     var poly = "<polygon points='" + band.map(function(q) { return q[0].toFixed(2) + ',' + q[1].toFixed(2); }).join(' ') + "'/>";
-    P.hatch(poly, [o.xa, o.ya, o.xb, o.yb], 'stipple');
     P.poly(band, { cls: 'general', dash: 'hidden', fill: 'none', data: " data-route='" + rt.entry + "'" });
     if (!at) at = o.toS(rt.pts[Math.min(1, rt.pts.length - 1)]);
-    (rt.turns || []).concat(rt.pts.length ? [{ x: rt.pts[rt.pts.length - 1][0], z: rt.pts[rt.pts.length - 1][1] }] : []).forEach(function(t) { var q = o.toS([t.x, t.z]); P.circle(q[0], q[1], T / 2 * k, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-turn='1'" }); });
+    (rt.turns || []).forEach(function(t) {   // (Brief 32 §4) where it turns and where it ends, once each
+ var q = o.toS([t.x, t.z]); P.circle(q[0], q[1], T / 2 * k, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-turn='1'" }); });
   });
   if (!c.ok && !c.unknown && typeof ACCTAB !== 'undefined') {
     var bk = ACCTAB.analyse().blocks[0];
@@ -25494,9 +25753,8 @@ RPT.routePaper = function(P, d, F, o) {
       P.line(q0[0], q0[1], q1[0], q1[1], { cls: 'general', data: " data-pinch='1'" }); [q0, q1].forEach(function(e) { P.line(e[0] - 1.6, e[1], e[0] + 1.6, e[1], { cls: 'general' }); P.line(e[0] - 0.9, e[1] + 0.9, e[0] + 0.9, e[1] - 0.9, { cls: 'general' }); });
       P.text(Math.max(q0[0], q1[0]) + 2, (q0[1] + q1[1]) / 2 + 1, (bk.w > 0.05 ? RPT.fmt(bk.w) : 'closed') + ' · min ' + RPT.fmt(RW), RPT.TX.tag, { c: RPT.INK, bold: true, data: " data-pinch-t='1'" });
       var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(o.toS);
-      P.poly(cs, { w: 0.5, c: acc, fill: 'none', data: " data-obstruction='1'" });
       var tg = ACCTAB.tagOf(bk.it), nm = (tg ? tg + ' ' : '') + ((FL_ARCHETYPES[bk.it.type] || {}).label || 'piece').toLowerCase() + ' in the way';
-      P.line(cs[2][0], cs[2][1], cs[2][0] + 6, cs[2][1] + 5, { w: 0.25, c: acc }); P.text(cs[2][0] + 7, cs[2][1] + 6, nm, RPT.TX.tag, { c: acc, data: " data-obstruction-t='1'" });
+      P.line(cs[2][0], cs[2][1], cs[2][0] + 6, cs[2][1] + 5, { w: 0.25, c: RPT.MID }); P.text(cs[2][0] + 7, cs[2][1] + 6, nm, RPT.TX.tag, { c: RPT.INK, data: " data-obstruction-t='1'" });
     }
   }
   return at;
@@ -25579,11 +25837,27 @@ RPT.sectionScale = function(d) {
   return wFits(100) ? 100 : wFits(200) ? 200 : 250;
 };
 // every sheet's scale from one place (Brief 19b): the sheets draw at it, the drawing list prints it
+// (Brief 32 §3) a sheet's scale is measured: built at the estimate, and at each next scale on the ladder until the box of
+// everything drawn (dimension strings and labels included) fits the drawing area (RPT.dsheet's fit); cached per report
+RPT._force = {};
+RPT.measuredScale = function(d, key, est, build) {
+  if (RPT._force[key]) return RPT._force[key];
+  d._scl = d._scl || {}; if (d._scl[key]) return d._scl[key];
+  var L = RPT.LADDER.filter(function(s) { return s >= est; }), pick = L[L.length - 1], tried = [];
+  for (var i = 0; i < L.length; i++) {
+    RPT._force[key] = L[i]; var pg = null;
+    try { pg = build(d); } catch (e) { console.warn('[report] measuring ' + key + ' at 1:' + L[i], e); } finally { delete RPT._force[key]; }
+    var f = pg && pg.fit; tried.push('1:' + L[i] + (f ? ' ' + f.w + 'x' + f.h + ' of ' + f.aw + 'x' + f.ah : ''));
+    if (f && f.ok) { pick = L[i]; break; }
+  }
+  d._scl[key] = pick; (d._sclLog = d._sclLog || {})[key] = tried;
+  return pick;
+};
 RPT.SCALE_OF = {
-  site: function(d) { return RPT.fitScale(d.DM.site.sheets.A101.crop, 250, 24, 6); },
-  layout: function(d) { return RPT.fitScale(d.DM.site.sheets.A102.crop, 100, 30, 45); },
+  site: function(d) { return RPT.measuredScale(d, 'site', RPT.fitScale(d.DM.site.sheets.A101.crop, 250, 24, 6), RPT.sheetSite); },
+  layout: function(d) { return RPT.measuredScale(d, 'layout', d.DM.site.sheets.A102.scale || RPT.fitScale(d.DM.site.sheets.A102.crop, 100, 30, 45), RPT.sheetLayout); },
   // Brief 25 item 22d: the street section at 1:100 always (never smaller); the parklet section at 1:25 when it fits, else 1:50
-  deck: function(d) { return RPT.deckScale(d); }, section: function() { return 100; }, parklet: function(d) { return RPT.parkletScale(d); }, details: function() { return 10; }
+  deck: function(d) { return RPT.deckScale(d); }, section: function() { return 100; }, parklet: function(d) { return RPT.measuredScale(d, 'parklet', RPT.parkletScale(d), RPT.sheetParklet); }, details: function() { return 10; }
 };
 // the parklet section's extent across (Brief 25 item 22d): the host building's face less 0.8 m (else the sidewalk less 0.4 m)
 // to the end of the first travel lane past the deck, and its height (the deck, the enclosure, a person: 2.8 m over it)
@@ -25981,7 +26255,7 @@ RPT.sheetTitle = function(d, drw) {
     function(X, Y) { DRAW_SYMBOLS.busStop(P, X, Y); }, 'Bus stop',
     function(X, Y) { RPT.sym.grid(P, X, Y, '1'); }, 'Grid line at a railing post', function(X, Y) { RPT.sym.level(P, X, Y + 1, '', true); }, 'Level (datum: top of curb)',
     function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone',
-    function(X, Y) { P.text(X, Y - 0.5, '5.2', TX.tag, { anchor: 'middle' }); P.text(X, Y + 1.6, 'C05 ✓', TX.tag * 0.8, { anchor: 'middle', c: 'anno' }); }, 'Clearance: measured · rule · check (red: fails)'];
+    function(X, Y) { P.text(X, Y - 0.5, '5.2', TX.tag, { anchor: 'middle' }); P.text(X, Y + 1.8, 'C05 ✓', TX.tag, { anchor: 'middle', c: 'anno' }); }, 'Clearance: measured · rule · check (red: fails)'];
   if (RPT.userGroups(d).length) syms.push(function(X, Y) { var fs = TX.tag, w = RPT.tw('F1' + RPT.USER_DOT, fs, true) + 1.6; DRAW_SYMBOLS.ftag(P, { box: [X - w / 2, Y - fs / 2 - 0.6, X + w / 2, Y + fs / 2 + 0.6], cx: X, cy: Y, a: [X - w / 2 - 3, Y], e: [X - w / 2, Y], tag: 'F1' + RPT.USER_DOT }, fs); },
     'Furniture tag, S-001; a dot: user-supplied, not verified');   // Brief 22 item 9
 
@@ -26346,7 +26620,7 @@ RPT.sheetCover = function(d, drw, op) {
     if (DM.site.neighbourhood) add(DM.site.neighbourhood + ', Vancouver', TX.body, { c: RPT.MID });
     add(d.date, TX.body, { c: RPT.MID }, 5);
     var stampY = y; y += 12 + 4;
-    var ai = hero ? ['AI-assisted visualisation — indicative.'].concat(d.sample ? [RPT.SAMPLE_KEY_NOTE] : []) : ['Axonometric of the design model.'];
+    var ai = hero ? ['AI-assisted visualisation — indicative.'].concat(d.sample ? [RPT.SAMPLE_KEY_NOTE] : []) : ['The design model from the street (the Street view).'];
     RPT.wrap(ai.join(' '), iw, TX.tag).forEach(function(l) { add(l, TX.tag, { c: RPT.MID }); });
     // flush to the sheet's bottom-left corner: it also covers the caption baked into the render's corner
     var ph = y + 2 * pad - 2 + 12, py = H - ph, oy = py + pad + 3;
@@ -29030,10 +29304,11 @@ RVZP._gallery = async function() {
       <button type='submit' class='sm-btn' id='smGo'>Search</button>
       <ul class='sm-results' id='smResults' hidden></ul>
     </form>
+    <div class='sm-band-leg' id='smBandLeg' hidden></div>
     <div class='sm-keys' id='smKeys' role='group' aria-label='Streets near this place: pick one by its side' hidden></div>
     <div class='sm-body'><div id='smMap'></div><p class='sm-zoom-note' id='smZoomNote' hidden>Zoom in to see site features</p>
-      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><p class='gis-note gis-zoom' id='gisZoomNote' hidden>Zoom in to see site features (hydrants, stops, trees show from zoom 15).</p><div id='smLayersList'></div></aside></div>
-    <div class='sm-foot'><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p>
+      <aside class='sm-layers' id='smLayers' hidden aria-label='Layers'><h4>Layers</h4><p class='gis-note'>What the data around the site says, before you import it. Showing a layer changes no fact: only an import or an override does.</p><p class='gis-note gis-zoom' id='gisZoomNote' hidden>Zoom in to see site features (hydrants, stops, trees show from zoom 16).</p><div id='smLayersList'></div></aside></div>
+    <div class='sm-foot'><div class='sm-foot-t'><p class='sm-band-note' id='smBandNote' hidden></p><p class='sm-status' id='smStatus' role='status' aria-live='polite'></p></div>
       <button type='button' class='sm-btn primary' id='smUse' onclick='SM.use()' aria-describedby='smStatus' title='Click the street, then the side of it the parklet is on' disabled>Use this location</button></div>
   </div>
 </div>
@@ -29220,8 +29495,8 @@ SM.open = async function() {
     SM.status('The map library could not be loaded.'); return;
   }
   if (!SM.map) {
-    var so = SITE_ORIENT, c = so && so.lat ? [so.lon, so.lat] : [SM.VAN.lon, SM.VAN.lat], style = await SM.loadStyle();
-    SM.map = new maplibregl.Map({ container: 'smMap', center: c, zoom: 16, attributionControl: false, style: style });
+    var so = SITE_ORIENT, sited = !!(state.__siteMap && state.__siteMap.lat), c = sited && so && so.lat ? [so.lon, so.lat] : [SM.VAN.lon, SM.VAN.lat], style = await SM.loadStyle();
+    SM.map = new maplibregl.Map({ container: 'smMap', center: c, zoom: sited ? 16 : 14, attributionControl: false, style: style });   // (Brief 32 §1) Vancouver where the bands read
     // the vector style's sources name OpenFreeMap / OpenMapTiles / OpenStreetMap from their TileJSON; the raster fallback names OSM
     SM.map.addControl(new maplibregl.AttributionControl({ compact: false }), 'bottom-right');
     SM.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
@@ -29237,7 +29512,14 @@ SM.open = async function() {
     SM.map.on('mouseout', function() { SM.hoverAt(null); });
     // a click on a point of a city layer opens its popup; any other click picks the street, then the side
     // a data dot is information only while Layers is open, never during the side pick (Brief 25 item 10)
-    SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && (!GIS.inspecting || GIS.inspecting()) && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
+    SM.map.on('click', function(e) {
+      if (typeof GIS !== 'undefined') {   // (Brief 32 §1) a band that could take a parklet knows its side: one click picks both
+        var bf = GIS.bandAt(e.point), bp = bf ? GIS.bandProps(bf) : null;
+        if (bp && bp.wayId && bp.eligibility !== 'excluded') { SM.bandPick(bp, e.lngLat.lat, e.lngLat.lng); return; }
+        if ((!GIS.inspecting || GIS.inspecting()) && GIS.popupAt(e)) return;
+      }
+      SM.onClick(e.lngLat.lat, e.lngLat.lng);
+    });
   } else { SM.map.resize(); if (typeof GIS !== 'undefined') GIS.onMove(); }
 
   SM.status('Search an address or pan the map, then <b>click the street</b> where the parklet goes.');
@@ -29278,6 +29560,21 @@ SM.otherStreetAt = async function(lat, lon) {
   var nm = (near.way.tags || {}).name || '', same = near.way.id === cur.wayId || (!!nm && nm === cur.name); if (same) return null;
   var dc = SM.snap([cur.snap.way], lat, lon), dCur = dc ? dc.dist : Infinity;
   return near.dist < dCur ? near : null;
+};
+// (Brief 32 §1) a click on a green or hatched band: the way the piece lies on, snapped at the click, and the piece's side
+// (left / right of the way's drawn direction) set in the same click; an excluded face keeps the street-then-side pick
+SM.bandPick = async function(bp, lat, lon) {
+  var ways; try { ways = await GIS.waysNear(lat, lon); } catch (e) { ways = null; }
+  var w = (ways || []).find(function(q) { return String(q.id) === String(bp.wayId); }); if (!w) { SM.pick = null; return SM.onClick(lat, lon); }
+  var sn = SM.snap([w], lat, lon); if (!sn) return SM.onClick(lat, lon);
+  var t = w.tags || {}, idx = GIS._idx || {}, at = (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || new Date().toISOString();
+  SM.pick = { snap: sn, wayId: w.id, name: t.name || '', highway: t.highway || '', tags: t, fetchedAt: at, via: 'cells' };
+  SM.hoverAt(null);
+  SM.map.getSource('smWay').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: w.geometry.map(function(p) { return [p.lon, p.lat]; }) } });
+  if (SM._mk) SM._mk.remove(); if (SM._mkS) { SM._mkS.remove(); SM._mkS = null; }
+  SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([sn.lon, sn.lat]).addTo(SM.map);
+  var b = siteNorm(sn.dir + (bp.side === 'right' ? 90 : -90)) * Math.PI / 180, T = SM.enu(sn.lat, sn.lon), q = T.from(6 * Math.sin(b), 6 * Math.cos(b));
+  SM.setSide(q.lat, q.lon);
 };
 SM.onClick = async function(lat, lon) {
   if (SM.pick && SM.pick.snap) { if (!(await SM.otherStreetAt(lat, lon))) return SM.setSide(lat, lon); SM.pick = null; }   // another street: a new pick
@@ -29478,7 +29775,7 @@ var SITER = {
 // (cellId|layerId|schemaVersion), shown at once from there and refreshed in the background when index.json says the
 // layer is newer. Every request carries the viewport's generation: a response for an older generation is dropped.
 // ════════════════════════════════════════════════════════════════════════════════════════════
-var GIS = { SCHEMA: 1, MAX_CELLS: 12, LS: 'pkt_gis_layers', DB: 'pkt-gis', INDEX_TTL: 24 * 3600 * 1000,
+var GIS = { SCHEMA: 1, MAX_CELLS: 12, BAND_CELLS: 48, LS: 'pkt_gis_layers2', DB: 'pkt-gis', INDEX_TTL: 24 * 3600 * 1000,
   BASE: 'https://jennabruggeman.github.io/curbside-data/', gen: 0, genLog: [], cs: new Map(), lru: new Map(), view: [], _idx: null };
 // on a development host, ?gis=fixtures reads the vendored fixtures (tools/test/gis-fixtures/): every VERIFY runs offline
 (function() { if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && /[?&]gis=fixtures\b/.test(location.search)) { GIS.BASE = 'tools/test/gis-fixtures/'; GIS.fixtures = true; } })();
@@ -29496,9 +29793,9 @@ GIS.LAYERS = [
   // Brief 30 §2: where a parklet could go, per block face piece (curbside-data's derived blockfaces layer). A map layer
   // only: the import never reads it, and nothing in the app decides eligibility (the build does; the checks decide the site)
   { id: 'blockfaces', label: 'Where a parklet could go', group: 'Curbside', geometry: 'line', style: { colour: '#9DB58E', width: 5 }, defaultOn: true, mapOnly: true, legend: 'Estimate from City and OSM data — confirm on site', feeds: [] },
-  { id: 'buildings', label: 'Buildings', group: 'OSM', geometry: 'polygon', style: { colour: '#9AA0A6', opacity: 0.32 }, defaultOn: true, legend: 'Footprints, with the City civic address and the use', feeds: [], imports: true, live: true },
-  { id: 'streets', label: 'Streets', group: 'OSM', geometry: 'line', style: { colour: '#E8A33D', width: 2 }, defaultOn: true, legend: 'The ways the map snaps to: lanes, one-way, cycleway and parking tags', feeds: ['roadDir', 'laneCount', 'bikeLane'], imports: true, live: true },
-  { id: 'bikeways', label: 'Bikeways', group: 'City', geometry: 'line', style: { colour: '#2E9E5B', width: 3 }, defaultOn: true, legend: 'Painted, protected, shared and local-street bikeways (the side is approximate)', feeds: ['bikeLane'] },
+  { id: 'buildings', label: 'Buildings', group: 'OSM', geometry: 'polygon', style: { colour: '#9AA0A6', opacity: 0.32 }, defaultOn: false, legend: 'Footprints, with the City civic address and the use', feeds: [], imports: true, live: true },
+  { id: 'streets', label: 'Streets', group: 'OSM', geometry: 'line', style: { colour: '#E8A33D', width: 2 }, defaultOn: false, legend: 'The ways the map snaps to: lanes, one-way, cycleway and parking tags', feeds: ['roadDir', 'laneCount', 'bikeLane'], imports: true, live: true },
+  { id: 'bikeways', label: 'Bikeways', group: 'City', geometry: 'line', style: { colour: '#2E9E5B', width: 3 }, defaultOn: false, legend: 'Painted, protected, shared and local-street bikeways (the side is approximate)', feeds: ['bikeLane'] },
   { id: 'truck-routes', label: 'Truck routes', group: 'City', geometry: 'line', style: { colour: '#8E5B3F', width: 3 }, defaultOn: false, legend: 'Truck routes and restricted-access truck routes', feeds: ['routeType'] },
   { id: 'one-way', label: 'One-way streets', group: 'City', geometry: 'line', style: { colour: '#8C6BC8', width: 3 }, defaultOn: false, legend: 'The City\'s one-way street blocks', feeds: ['roadDir'] },
   { id: 'bus-routes', label: 'Bus routes', group: 'TransLink', geometry: 'line', style: { colour: '#D6453D', width: 2 }, defaultOn: false, legend: 'Bus route shapes', feeds: ['routeType'] },
@@ -29645,19 +29942,21 @@ GIS.ensure = function(lids, cells, opts) {
   opts = opts || {};
   return Promise.all([].concat.apply([], cells.map(function(c) { return lids.map(function(l) { return GIS.load(c, l, opts.gen, opts.signal, opts); }); })));
 };
-GIS.setView = function(cells) {
+GIS.setView = function(cells, band) {
   GIS.gen++; if (GIS._ctl) GIS._ctl.abort(); GIS._ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  GIS.view = cells; var now = Date.now(); cells.forEach(function(c) { GIS.lru.set(c, now); });
+  GIS.view = cells; GIS.bandView = band || []; var now = Date.now(); cells.concat(GIS.bandView).forEach(function(c) { GIS.lru.set(c, now); });
   var lids = GIS.LAYERS.filter(function(l) { return GIS.on[l.id]; }).map(function(l) { return l.id; });
+  if (lids.indexOf('streets') < 0) lids.push('streets');   // (Brief 32 §1) the pick reads the streets, drawn or not
   GIS.evict();
-  return GIS.ensure(lids, cells, { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal });
+  var o = { gen: GIS.gen, signal: GIS._ctl && GIS._ctl.signal };
+  return Promise.all([GIS.ensure(lids, cells, o), GIS.ensure(['blockfaces'], GIS.bandView.filter(function(c) { return cells.indexOf(c) < 0; }), o)]);
 };
 // at most MAX_CELLS cells resident; the least recently in view go (never one in view, never one an import holds)
 GIS.evict = function() {
   var res = new Set(); GIS.cs.forEach(function(v, k) { res.add(k.split('|')[0]); });
-  if (res.size <= GIS.MAX_CELLS) return;
-  var keep = new Set(GIS.view.concat(GIS._held || [])), out = [...res].filter(function(c) { return !keep.has(c); }).sort(function(a, b) { return (GIS.lru.get(a) || 0) - (GIS.lru.get(b) || 0); });
-  var n = res.size - GIS.MAX_CELLS, gone = {};
+  if (res.size <= Math.max(GIS.MAX_CELLS, (GIS.bandView || []).length)) return;
+  var keep = new Set(GIS.view.concat(GIS._held || [], GIS.bandView || [])), out = [...res].filter(function(c) { return !keep.has(c); }).sort(function(a, b) { return (GIS.lru.get(a) || 0) - (GIS.lru.get(b) || 0); });
+  var n = res.size - Math.max(GIS.MAX_CELLS, (GIS.bandView || []).length), gone = {};
   out.slice(0, n).forEach(function(c) { GIS.cs.forEach(function(v, k) { if (k.split('|')[0] === c) { GIS.cs.delete(k); gone[k.split('|')[1]] = 1; } }); GIS.lru.delete(c); });
   Object.keys(gone).forEach(GIS.dirty);
 };
@@ -29783,6 +30082,11 @@ GIS.mapInit = function(map) {
     var lay = { id: id, type: spec.type, source: id, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, spec.layout || {}), paint: spec.paint };
     if (spec.minzoom) lay.minzoom = spec.minzoom; if (spec.filter) lay.filter = spec.filter;
     map.addLayer(lay, map.getLayer('smHover') ? 'smHover' : map.getLayer('smWay') ? 'smWay' : undefined);
+    if (L.id === 'blockfaces') {   // (Brief 32 §1) below zoom 14, one tone per block face side
+      map.addSource(id + '-b', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' });
+      var bs = GIS.bandSpec(), bm = GIS.bandMeasureSpec(), under = map.getLayer('smHover') ? 'smHover' : undefined;
+      [[id + '-b', bs], [id + '-bm', bm]].forEach(function(q) { var sp = q[1]; sp.paint['line-width'] = 3; map.addLayer({ id: q[0], type: 'line', source: id + '-b', minzoom: DRAW_STYLE.MAP.blockMinZoom, maxzoom: DRAW_STYLE.MAP.bandMinZoom, filter: sp.filter, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, sp.layout), paint: sp.paint }, under); });
+    }
     if (L.id === 'blockfaces') { var mm = GIS.bandMeasureSpec(); map.addLayer({ id: id + '-m', type: 'line', source: id, minzoom: mm.minzoom, filter: mm.filter, layout: Object.assign({ visibility: GIS.on[L.id] ? 'visible' : 'none' }, mm.layout), paint: mm.paint }, map.getLayer('smHover') ? 'smHover' : undefined); }
   });
   // hover: one feature at a time, through feature-state (no DOM per feature); a point's type in a small label beside it
@@ -29792,7 +30096,7 @@ GIS.mapInit = function(map) {
     if (!f) f = GIS.bandAt(e.point);   // the eligibility band explains itself at any time (Brief 30 §2)
     if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; GIS.hoverLabel(null); }
     if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); GIS.hoverLabel(f, e.lngLat); }
-    map.getCanvas().style.cursor = (f && !GIS.isBand(f)) || SM.hovered ? 'pointer' : '';   // a hovered street keeps its pointer (SM.hoverAt)
+    map.getCanvas().style.cursor = (f && (!GIS.isBand(f) || GIS.bandProps(f).eligibility !== 'excluded')) || SM.hovered ? 'pointer' : '';   // (Brief 32 §1) a band it can pick in one click   // a hovered street keeps its pointer (SM.hoverAt)
   });
   map.on('mouseout', function() { if (hovered) { map.setFeatureState(hovered, { hover: false }); hovered = null; } GIS.hoverLabel(null); });
   map.on('zoomend', GIS.zoomNote);
@@ -29810,13 +30114,27 @@ GIS.mapInit = function(map) {
 GIS.bandSpec = function() {
   var M = DRAW_STYLE.MAP, ppm = function(z) { return Math.pow(2, z) * 512 / (40075016.7 * Math.cos(49.25 * Math.PI / 180)); };
   var off = ['interpolate', ['exponential', 2], ['zoom'], 13, ['*', ['get', 'offM'], ppm(13)], 22, ['*', ['get', 'offM'], ppm(22)]];
-  return { type: 'line', minzoom: M.minZoom, layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: { 'line-offset': off, 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 7, 5],
+  return { type: 'line', minzoom: M.bandMinZoom, layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: { 'line-offset': off, 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 7, 5],
     'line-color': ['match', ['get', 'eligibility'], 'eligible-estimate', M.bandOk, M.bandOut], 'line-opacity': 0.9 }, filter: ['!=', ['get', 'eligibility'], 'needs-measurement'] };
 };
 // the hatched tone: a dash pattern cannot vary per feature, so the pieces that need a measurement are a second layer on
 // the same source ('gis-blockfaces-m'), shown and hidden with the first (GIS.subLayers)
 GIS.bandMeasureSpec = function() { var b = GIS.bandSpec(); b.paint['line-color'] = DRAW_STYLE.MAP.bandMeasure; b.paint['line-dasharray'] = [1.2, 0.8]; b.filter = ['==', ['get', 'eligibility'], 'needs-measurement']; return b; };
-GIS.subLayers = function(lid) { return lid === 'blockfaces' ? [GIS.src(lid), GIS.src(lid) + '-m'] : [GIS.src(lid)]; };
+GIS.subLayers = function(lid) { return lid === 'blockfaces' ? [GIS.src(lid), GIS.src(lid) + '-m', GIS.src(lid) + '-b', GIS.src(lid) + '-bm'] : [GIS.src(lid)]; };
+// (Brief 32 §1) the block faces: the pieces of one face and side (their id less the piece number) as one feature, in the
+// tone of its best piece (could go here, else measure first, else excluded)
+GIS.BLOCK_RANK = { 'eligible-estimate': 0, 'needs-measurement': 1, excluded: 2 };
+GIS.blocks = function() {
+  var by = new Map();
+  GIS.features('blockfaces').forEach(function(f) {
+    var p = f.properties.props || {}, k = String(f.id).split(':').slice(0, 5).join(':'), o = by.get(k), ls = GIS.linesOf(f.geometry);
+    if (!o) { by.set(k, { type: 'Feature', id: k, properties: { eligibility: p.eligibility, offM: p.offM || 0, props: { wayId: p.wayId, side: p.side, name: p.name, eligibility: p.eligibility, detail: p.detail || [] } }, geometry: { type: 'MultiLineString', coordinates: ls.slice() } }); return; }
+    o.geometry.coordinates = o.geometry.coordinates.concat(ls);
+    if (GIS.BLOCK_RANK[p.eligibility] < GIS.BLOCK_RANK[o.properties.eligibility]) { o.properties.eligibility = p.eligibility; o.properties.props.eligibility = p.eligibility; o.properties.props.detail = p.detail || []; }
+  });
+  return [...by.values()];
+};
+GIS.listen(function(lids) { if (lids.indexOf('blockfaces') < 0 || !GIS.map) return; var s2 = GIS.map.getSource(GIS.src('blockfaces') + '-b'); if (s2) s2.setData({ type: 'FeatureCollection', features: GIS.blocks() }); GIS.bandUI(); });
 // a band piece's properties at the top level, where the map's expressions read them (the cells keep them under props)
 GIS.flat = function(o) {
   var p = o.properties && o.properties.props; if (!p || o.properties.layer !== 'blockfaces') return o;
@@ -29863,9 +30181,19 @@ GIS.hoverLabel = function(f, at) {
 };
 // ── The eligibility band (Brief 30 §2): what a piece says, in the build's plain words ───────────────────────────────
 GIS.bandLegend = function() {
-  var M = DRAW_STYLE.MAP, it = function(css, t) { return "<span class='gis-leg-i'><span class='gis-leg-sw' style='" + css + "'></span>" + t + '</span>'; };
-  return "<div class='gis-legend'>" + it('background:' + M.bandOk, 'could go here') + it('background:' + M.bandOut, 'excluded') + it('background:repeating-linear-gradient(90deg,' + M.bandMeasure + ' 0 4px,transparent 4px 7px)', 'measure first') +
-    "<div class='gis-leg-note'>" + SM.esc(GIS.byId('blockfaces').legend) + '. Shown from zoom 15. Hover a band for the reason.</div></div>';
+  var M = DRAW_STYLE.MAP, it = function(css, t) { return "<span class='gis-leg-i'><span class='gis-leg-sw' style='" + css + "' aria-hidden='true'></span>" + t + '</span>'; };
+  return it('background:' + M.bandOk, 'could go here') + it('background:' + M.bandOut, 'excluded') + it('background:repeating-linear-gradient(90deg,' + M.bandMeasure + ' 0 4px,transparent 4px 7px)', 'measure first');
+};
+// (Brief 32 §1) the three words under the search box while the band has pieces; when the data has no band, the footer's
+// one sentence instead (said once: the line stays, it is not repeated) and no legend
+GIS.bandUI = function() {
+  var leg = document.getElementById('smBandLeg'), note = document.getElementById('smBandNote'); if (!leg || !note) return;
+  var idx = GIS._idx, has = !!(idx && idx.layers && idx.layers.blockfaces);
+  if (idx && !has) { leg.hidden = true; if (note.hidden) { note.textContent = 'Where a parklet could go is not in this site data yet: click a street, then the side of it.'; note.hidden = false; } return; }
+  note.hidden = true;
+  var on = GIS.on.blockfaces && has && GIS.features('blockfaces').length > 0;
+  if (on && !leg.innerHTML) leg.innerHTML = GIS.bandLegend();
+  leg.hidden = !on;
 };
 GIS.isBand = function(f) { return !!f && /^gis-blockfaces/.test((f.layer && f.layer.id) || f.source || ''); };
 GIS.bandAt = function(pt) {
@@ -29903,7 +30231,7 @@ GIS.zoomNote = function() {
   var map = GIS.map; if (!map) return;
   var low = map.getZoom() < DRAW_STYLE.MAP.minZoom && GIS.LAYERS.some(function(l) { return l.geometry === 'point' && GIS.on[l.id]; });
   var n = document.getElementById('gisZoomNote'); if (n) n.hidden = !low;
-  var m = document.getElementById('smZoomNote'); if (m) m.hidden = !low;
+  var m = document.getElementById('smZoomNote'); if (m) m.hidden = !low || !!document.getElementById('smLayers').hidden;   // (Brief 32 §1) on the map only while the Layers panel is open: the base state draws the band alone
   GIS.lowZoom = low;
 };
 GIS.describe = function(lid, p) {
@@ -29931,7 +30259,10 @@ GIS.onMove = async function() {
   var cells = inView.length > GIS.MAX_CELLS ? [] : inView.slice();
   if (cells.length) GIS.cellsIn(b.getWest(), b.getSouth(), b.getEast(), b.getNorth(), 1).forEach(function(c) { if (cells.length < GIS.MAX_CELLS && cells.indexOf(c) < 0) cells.push(c); });
   GIS.zoomOut = inView.length > GIS.MAX_CELLS;
-  GIS.setView(cells);
+  // (Brief 32 §1) the band is light: its cells load to BAND_CELLS, so it reads at zoom 14 and, per block, a little further out
+  var band = GIS.on.blockfaces && map.getZoom() >= DRAW_STYLE.MAP.blockMinZoom && inView.length <= GIS.BAND_CELLS ? inView.slice() : [];
+  GIS.setView(cells, band);
+  GIS.bandUI();
   GIS.zoomNote();
   GIS.renderRows();
 };
@@ -29965,7 +30296,7 @@ GIS.buildRows = function() {
       return "<div class='gis-row' data-l='" + L.id + "'><label class='gis-lab' title='" + SM.esc(L.legend) + "'><input type='checkbox' id='gisChk_" + L.id + "' data-l='" + L.id + "'" + (GIS.on[L.id] ? ' checked' : '') + " onchange='GIS.toggle(this.dataset.l, this.checked)'>" +
         "<span class='gis-sw' style='" + sw + "'></span><span class='gis-name'>" + SM.esc(L.label) + "</span></label><span class='gis-n' id='gisN_" + L.id + "'></span>" +
         (L.live ? "<button type='button' class='gis-live' id='gisLive_" + L.id + "' onclick='GIS.live(\"" + L.id + "\")' title='Fetches this layer for the view from OpenStreetMap now (Overpass). The site facts change only when you import again.'>&#8635; live</button>" : '') +
-        "<span class='gis-src' id='gisSrc_" + L.id + "'></span>" + (L.id === 'blockfaces' ? GIS.bandLegend() : '') + '</div>';
+        "<span class='gis-src' id='gisSrc_" + L.id + "'></span>" + '</div>';
     }).join('') + '</div>';
   }).join('') + "<button type='button' class='gis-reset txt-btn' onclick='GIS.reset()'>Reset to defaults</button>";
   // keyboard: space toggles (the checkbox's own), up / down move between rows
@@ -29987,7 +30318,7 @@ GIS.renderRows = function() {
     if (!idx) txt = GIS._idxErr ? 'not cached here' : 'loading…';
     else if (!meta) txt = 'not in the published data yet';   // (Brief 31 §3B: the band before curbside-data publishes it)
     else if (!GIS.on[L.id]) txt = meta ? 'data ' + GIS.day(meta.updatedAt) : '';
-    else if (GIS.zoomOut || (GIS.lowZoom && L.geometry === 'point')) txt = 'zoom in to see this layer';
+    else if ((GIS.zoomOut && !(L.id === 'blockfaces' && (GIS.bandView || []).length)) || (GIS.lowZoom && L.geometry === 'point')) txt = 'zoom in to see this layer';
     else if (st.live) txt = 'live OSM ' + new Date(st.live).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     else if (st.loading && !st.ready) txt = 'loading…';
     else if (!st.ready && st.nodata && !st.offline) txt = 'no data for this location';
@@ -30210,7 +30541,9 @@ PKINV.apply = function() { var g = document.getElementById('pkSUInviteGrp'); if 
 // direction, the shops that name the host): only transit-stations starts unticked. state.__importLayers keeps the
 // choice with the design. ──────────────────────────────────────────────────────────────────────────────────────
 var IMP = {};
-IMP.defaultOn = function(L) { return !!(L.defaultOn || L.feeds.length || L.id === 'pois'); };
+// (Brief 32 §1) the import's own defaults, not the map's: the map now opens on the band alone, and a layer hidden on the
+// map is still read by the import (buildings, streets, bikeways, the dots); only transit-stations starts unticked, as before
+IMP.defaultOn = function(L) { return !L.mapOnly && L.id !== 'transit-stations' && !!(L.imports || L.feeds.length || L.id === 'pois'); };
 IMP.get = function() { var s = (typeof state !== 'undefined' && state.__importLayers) || null, o = {}; GIS.LAYERS.forEach(function(L) { o[L.id] = s && typeof s[L.id] === 'boolean' ? s[L.id] : IMP.defaultOn(L); }); return o; };
 IMP.on = function(lid) { return IMP.get()[lid] !== false; };
 IMP.set = function(lid, v) { var o = IMP.get(); if (lid === '*') GIS.LAYERS.forEach(function(L) { o[L.id] = !!v; }); else o[lid] = !!v; state.__importLayers = o; try { saveSettings(); } catch (e) {} IMP.render(); };
@@ -30611,6 +30944,9 @@ FLZ.hide = function() { var g = document.getElementById('_fdZonePrev'); if (g) g
 .sm-zoom-note[hidden], .gis-zoom[hidden] { display: none; }
 .sm-keys { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 12px; } .sm-keys[hidden] { display: none; } .sm-keys-h { font-size: 12px; color: var(--c-text-dim, #9AA0A6); margin-right: 4px; }
 /* Brief 30 §2: the eligibility band's legend, hover and pick-card line */
+.sm-box { display: flex; flex-direction: column; } .sm-box > .sm-body { flex: 1 1 auto; min-height: 0; } .sm-box > * { flex-shrink: 0; } .sm-box > .sm-body { flex-shrink: 1; }   /* (Brief 32 §1) the strips above the map (search, legend, keys) take what they need; the map the rest */
+.sm-band-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 4px 12px 6px; font-size: 12px; color: var(--c-text, #F2F2F0); border-bottom: 1px solid var(--c-rule, #2E3338); } .sm-band-leg[hidden] { display: none; }
+.sm-band-leg .gis-leg-sw { width: 18px; height: 5px; } .sm-foot-t { flex: 1; min-width: 0; } .sm-band-note { margin: 0 0 2px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); } .sm-band-note[hidden] { display: none; }
 .gis-legend { grid-column: 1 / -1; padding: 2px 0 2px 22px; font-size: 12px; color: var(--c-text-dim, #9AA0A6); line-height: 1.5; }
 .gis-leg-i { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; }
 .gis-leg-sw { display: inline-block; width: 16px; height: 5px; }
@@ -32798,6 +33134,12 @@ body.pk-placing #planView, body.pk-placing #threeWrap canvas, body.pk-placing #s
 .verdict-rule { margin: 6px 0 0; }
 @media (max-width: 1100px) { .chk-bar .hint { order: 5; flex-basis: 100%; min-width: 0; } }
 @media (max-width: 760px) { #criteriaList .pkc .criterion-body { padding-left: 17px; } #criteriaList .sfc-line-l { flex-basis: 100%; } #verdictBanner .verdict-act { flex-basis: 100%; margin-left: 29px; } }
+/* (Brief 32 §4) the entries in Design › Edge */
+.enc-ents { margin: 8px 0; padding: 6px 0; border-top: 1px solid var(--c-rule); border-bottom: 1px solid var(--c-rule); font-size: 12px; }
+.enc-ents-h { color: var(--c-text-dim); margin-bottom: 4px; } .enc-ents-h b { color: var(--c-text); font-weight: 600; }
+.enc-ent { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 0; } .enc-ent-n { min-width: 52px; color: var(--c-text); }
+.enc-ent input { width: 58px; background: var(--c-bg); color: var(--c-text); border: 1px solid var(--c-text-dim); border-radius: 3px; padding: 1px 4px; font: inherit; }
+.enc-curb input { margin-right: 4px; }
 /* the Cost estimate on Export (Brief 31 §9) */
 .ce { max-width: 1180px; padding: 20px 28px 64px; font: 13px/1.5 var(--font-ui); color: var(--c-text); }
 .ce-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; } .ce-state { margin: 0 0 16px; color: var(--c-text); max-width: 72ch; }
@@ -33337,6 +33679,8 @@ ENC.set = function(patch, o) {
   E.archetype = E.sides.traffic;
   if (patch.params) Object.keys(patch.params).forEach(function(id) { E.params[id] = Object.assign({}, E.params[id] || {}, patch.params[id]); });
   if (patch.mats) Object.keys(patch.mats).forEach(function(id) { E.mats[id] = patch.mats[id]; });
+  if (patch.entries) E.entries = ENC.cleanEntries(patch.entries);   // (Brief 32 §4)
+  if (typeof patch.curbOn === 'boolean') E.curbOn = patch.curbOn;
   if (typeof patch.height === 'number') E.height = o.raw ? patch.height : Math.min(ENC.H_MAX, Math.max(ENC.H_MIN, patch.height));
   if (typeof patch.bufferDepth === 'number') E.bufferDepth = o.raw ? Math.max(0, patch.bufferDepth) : Math.max(0, patch.bufferDepth);
   // (Brief 21c) the fast path clamps with the cached limit (else the geometric one); the generator's limit follows in the full sync
@@ -33470,7 +33814,13 @@ ENC.renderCard = function() {
   var DM = _dmCurrent(), EN = DM.enclosure; if (!EN) return;
   var E = ENC.norm(ENCLOSURE), side = ENC._side, id = E.sides[side], A = ENCLOSURE_ARCHETYPES[id], p = ENC.params(E, id), mx = ENC.bufMax(E, { quick: true }), esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;'); };
   var h = "<div class='enc-tabs' role='tablist' aria-label='Side'>" + ENC.SIDES.map(function(s) { return "<button type='button' role='tab' class='seg-btn" + (s === side ? ' active' : '') + "' aria-selected='" + (s === side) + "' data-enc-side='" + s + "' title='Choose the archetype for the " + ENC.SIDE_LABEL[s].toLowerCase() + "'>" + ENC.SIDE_LABEL[s] + '<small>' + esc(ENCLOSURE_ARCHETYPES[E.sides[s]].name) + '</small></button>'; }).join('') + '</div>';
+  if (side === 'curb') h += "<label class='enc-row enc-curb'><span>Enclose</span><span><input type='checkbox' id='encCurbOn'" + (E.curbOn ? ' checked' : '') + "> the sidewalk side between the entries</span></label>";   // (Brief 32 §4)
   h += "<div class='enc-grid' role='group' aria-label='Archetype for the " + ENC.SIDE_LABEL[side].toLowerCase() + "'>" + ENC.IDS.map(function(q) { return ENC.thumb(q, q === id); }).join('') + '</div>';
+  // (Brief 32 §4) the entries: where they are, how wide; one at least, two for C18
+  var ens = EN.entries || [];
+  h += "<div class='enc-ents' role='group' aria-label='Entries'><div class='enc-ents-h'><b>Entries</b> <span>two or more, each 1.8 m or wider (C18); drag them on the Plan</span></div>" + ens.map(function(q, k) {
+    return "<div class='enc-ent'><span class='enc-ent-n'>Entry " + (k + 1) + "</span><label>at <input type='number' data-ent-z='" + k + "' step='0.1' value='" + q.z.toFixed(2) + "' aria-label='Entry " + (k + 1) + " position from the deck start, m'> m</label><label>width <input type='number' data-ent-w='" + k + "' step='0.1' min='0.6' value='" + q.w.toFixed(2) + "' aria-label='Entry " + (k + 1) + " width, m'> m</label><button type='button' class='txt-btn' data-ent-x='" + k + "'" + (ens.length <= 1 ? " disabled title='A deck keeps one entry at least'" : '') + '>Remove</button></div>';
+  }).join('') + "<button type='button' class='txt-btn' data-ent-add='1'>+ Add an entry</button></div>";
   h += "<label class='enc-row' title='Height of the enclosure above the deck; a planter reads the top of its planting (Parklet Manual E2: 0.75 to 1.0 m)'><span>Height</span><input type='range' id='encH' min='0.75' max='1' step='0.01' value='" + Math.min(1, Math.max(0.75, E.height)).toFixed(2) + "'><output id='encHo'>" + E.height.toFixed(2) + ' m</output></label>';
   h += "<label class='enc-row' title='Buffer measured inward from the deck&#39;s traffic-side edge: the deck and the travel lane do not move; the buffer is unusable'><span>Buffer</span><input type='range' id='encB' min='0' max='0.6' step='0.01' value='" + E.bufferDepth.toFixed(2) + "'><output id='encBo'>" + E.bufferDepth.toFixed(2) + ' m</output></label>';
   h += "<label class='enc-row' title='Material of the " + esc(A.name.toLowerCase()) + "'><span>Material</span><select id='encMat'>" + A.mats.map(function(m) { return "<option value='" + m + "'" + (m === (PKMAT.cur.infill || PKMAT.cur.posts || ENC.mat(E, id)) ? ' selected' : '') + '>' + esc((flMatInfo(m) || {}).label || m) + '</option>'; }).join('') + '</select></label>';
@@ -33487,6 +33837,11 @@ ENC.renderCard = function() {
   host.innerHTML = h;
   var q = function(s) { return host.querySelector(s); };
   host.querySelectorAll('[data-enc-side]').forEach(function(b) { b.onclick = function() { ENC._side = b.dataset.encSide; ENC.renderCard(); }; });
+  host.querySelectorAll('[data-ent-z]').forEach(function(el) { el.onchange = function() { ENC.setEntry(+el.dataset.entZ, parseFloat(el.value), NaN); }; });
+  host.querySelectorAll('[data-ent-w]').forEach(function(el) { el.onchange = function() { ENC.setEntry(+el.dataset.entW, NaN, parseFloat(el.value)); }; });
+  host.querySelectorAll('[data-ent-x]').forEach(function(el) { el.onclick = function() { ENC.removeEntry(+el.dataset.entX); }; });
+  host.querySelectorAll('[data-ent-add]').forEach(function(el) { el.onclick = function() { if (!ENC.addEntry() && typeof pkToast === 'function') pkToast('No stretch of the sidewalk side is long enough for another 1.8 m entry.', 'info'); }; });
+  var cOn = q('#encCurbOn'); if (cOn) cOn.onchange = function() { ENC.set({ curbOn: this.checked }); };
   host.querySelectorAll('[data-enc-id]').forEach(function(b) { b.onclick = function() { var sd = {}; sd[ENC._side] = b.dataset.encId; ENC.set({ sides: sd }, { fast: true }); }; });
   q('#encH').oninput = function() { q('#encHo').textContent = (+this.value).toFixed(2) + ' m'; ENC.set({ height: +this.value }, { quiet: true, fast: true }); };
   q('#encH').onchange = function() { ENC.renderCard(); };
@@ -33736,7 +34091,7 @@ P101.cost = function() {   // the design's cost settings (saved with it as costs
   var c = (typeof state !== 'undefined' && state.__cost && typeof state.__cost === 'object') ? state.__cost : null;
   if (!c) { c = { set: 'van2026', fx: 1.35, spacing: 0.40, waste: 0.10, meters: 0, sets: [], furn: {} }; if (typeof state !== 'undefined') state.__cost = c; }
   if (c.set === 'cov2016' && !c.setChosen) c.set = 'van2026';   // (Brief 31 §9) the default, unless the Manual set was chosen
-  c.sets = c.sets || []; c.furn = c.furn || {}; if (!(c.fx > 0)) c.fx = 1.35; if (!(c.spacing > 0)) c.spacing = 0.40; if (!(c.waste >= 0)) c.waste = 0.10; if (!(c.meters >= 0)) c.meters = 0;
+  c.sets = c.sets || []; c.furn = c.furn || {}; if (!(c.fx > 0)) c.fx = 1.35; if (!(c.spacing > 0)) c.spacing = 0.40; if (!(c.pedSpacing > 0)) c.pedSpacing = 0.60; if (!(c.waste >= 0)) c.waste = 0.10; if (!(c.meters >= 0)) c.meters = 0;
   return c;
 };
 P101.poly = function(DM) {
@@ -33749,12 +34104,13 @@ P101.qty = function(DM) {
   for (var i = 0; i < P.length; i++) { var a = P[i], b = P[(i + 1) % P.length]; per += Math.hypot(b[0] - a[0], b[1] - a[1]); }
   var none = !L || (typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET);
   // joists across the deck, every spacing along it, each as long as the deck is wide there
-  var sp = C.spacing, n = none ? 0 : Math.floor(L / sp + 1e-9) + 1, run = 0, ol = DM.parklet.outline;
-  for (var k = 0; k < n; k++) { var z = Math.min(L - 1e-3, Math.max(1e-3, k * sp)), w = ol && typeof shapeWidthAtLength === 'function' ? shapeWidthAtLength(ol, z) : null; run += w ? w[1] - w[0] : W; }
+  var sp = C.spacing, n = none ? 0 : Math.floor(L / sp + 1e-9) + 1, run = 0, ol = DM.parklet.outline, ped = 0;
+  for (var k = 0; k < n; k++) { var z = Math.min(L - 1e-3, Math.max(1e-3, k * sp)), w = ol && typeof shapeWidthAtLength === 'function' ? shapeWidthAtLength(ol, z) : null, wk = w ? w[1] - w[0] : W; run += wk; ped += Math.ceil(wk / C.pedSpacing - 1e-9) + 1; }   // (Brief 32 §5, follow-up) along each joist: one at each end and as many between as keep the spacing
   var r2 = function(v) { return Math.round(v * 100) / 100; };
   q.push({ k: 'area', item: 'Deck area', n: none ? 0 : r2(A), u: 'm²', f: 'the applied outline\'s area (DESIGN_MODEL.parklet.area)' });
   q.push({ k: 'perim', item: 'Deck perimeter', n: none ? 0 : r2(per), u: 'm', f: 'the sum of the outline\'s ' + P.length + ' edges' });
   q.push({ k: 'joist', item: 'Joists / sleepers (run)', n: r2(run), u: 'm', f: n + ' joists across the deck every ' + sp.toFixed(2) + ' m along ' + L.toFixed(2) + ' m, each as long as the deck is wide there', count: n });
+  q.push({ k: 'pedestals', item: 'Levelling pedestals', n: ped, u: 'ea', f: ped + ' pedestals: under each of the ' + n + ' joists, one at each end and between them every ' + Math.round(C.pedSpacing * 1000) + ' mm or less', ped: true });
   q.push({ k: 'decking', item: 'Decking (with waste)', n: none ? 0 : r2(A * (1 + C.waste)), u: 'm²', f: r2(A) + ' m² x (1 + ' + Math.round(C.waste * 100) + ' % waste)' });
   // the enclosure: each run, its posts, by type (DESIGN_MODEL.enclosure's runs)
   var E = DM.enclosure, encRun = 0, posts = 0, planters = [], screens = 0;
@@ -33822,29 +34178,34 @@ P101.SETS = [
 // 0.7646 m³. Edge rates are installed (labour included); decking and soil are material only. No figure is guessed.
 P101.VAN = (function() {
   var b12 = 0.1445 * 3.6576, b14 = 0.1445 * 4.2672, ft = 3.2808, yd = 0.764555, r2 = function(v) { return Math.round(v * 100) / 100; };
-  var R = function(lo, hi, src) { return { low: r2(lo), high: r2(hi), src: src }; };
+  var R = function(lo, hi, src) { return { low: r2(lo), high: r2(hi), src: src, tag: 'indicative' }; }, P = function(r, src) { return { low: r.low, high: r.high, src: src, tag: 'proxy' }; };   // (Brief 32 §5) a proxy: the nearest priced line's rate, said so
   return { id: 'van2026', name: 'Vancouver indicative 2026, CAD', cur: 'CAD', date: '2026-10', shipped: true, tag: 'indicative', def: true,
     prov: 'Indicative unit rates for a Vancouver parklet, October 2026: retail material prices from Canadian suppliers\' public listings and published Canadian installed ranges, each line with its basis (retrieved 2026-10-04). A line with no credible public source shows — and is counted as not priced. Not a quote: confirm every rate with a supplier.',
     rates: [
-      { k: 'decking', item: 'Decking', per: 'deckm2', unit: 'm²', src: 'by the deck material chosen in Design', fam: {
+      { k: 'decking', item: 'Decking', per: 'deckm2', unit: 'm²', src: 'by the deck material chosen in Design', famTag: 'sourced', fam: {
         softwood: R(12.38 / b12, 13.90 / b12, 'pressure-treated 5/4 x 6 x 12 ft deck board, $12.38 (Turkstra Lumber) to $13.90 (Kent), per 0.5285 m² of board'),
         cedar: R(32.98 / b14, 28.48 / b12, 'western red cedar 5/4 x 6 deck board, $32.98 for 14 ft (BMR) and $28.48 for 12 ft (RONA), per m² of board; thermowood priced as cedar'),
         hardwood: R(12.95 * ft / 0.1445, 13.95 * ft / 0.1445, 'ipe 5/4 x 6 grooved deck board, $12.95 to $13.95 per linear foot (Patio Etc. Clôture Nationale), at 6.92 linear m per m²'),
+        mineral: P(R(12.95 * ft / 0.1445, 13.95 * ft / 0.1445), 'priced as hardwood (ipe) decking: terrazzo, concrete, granite and fibre-cement decking have no public Canadian rate per m²'),
         composite: R(29.16 / b12, 39.60 / b12, 'Trex composite 1 x 6 x 12 ft deck board, $29.16 (Home Depot Canada, Enhance Basics) to $39.60 (Patio Etc. Clôture Nationale), per 0.5285 m² of board') } },
-      { k: 'joists', item: 'Joists', per: 'joistm', unit: 'm', low: null, high: null, src: 'no Canadian public listing found for a treated 2 x 6 joist that could be checked' },
-      { k: 'pedestals', item: 'Levelling pedestals', per: 'aream', unit: 'm²', low: null, high: null, src: 'no Canadian public listing found for adjustable deck pedestals at parklet heights' },
-      { k: 'labour', item: 'Deck installation labour', per: 'aream', unit: 'm²', low: null, high: null, src: 'no Vancouver deck labour rate found from a source that could be checked' },
-      { k: 'edge', item: 'Edge', per: 'enc', unit: 'm', src: 'installed, per linear foot, Ontario installers 2026 (no Vancouver figure published)', types: {
+      // (Brief 32 §5) joists and pedestals from Canadian listings (read 2026-10-04); deck labour derived; the edge for every type
+      { k: 'joists', item: 'Joists, pressure-treated 2 x 6', per: 'joistm', unit: 'm', tag: 'sourced', low: r2(18.88 / 3.6576), high: r2(20.48 / 3.6576), src: 'pressure-treated 2 x 6 x 12 ft, $18.88 (RONA) to $20.48 (Kent, "starting at"), per 3.658 m; read from the retailers\' listings in a web search on 2026-10-04 (their product pages refuse automated reads)' },
+      { k: 'pedestals', item: 'Levelling pedestals, adjustable', per: 'ped', unit: 'each', tag: 'sourced', low: 18.14, high: 25.87, src: 'Bison Versadjust adjustable pedestal V1-V4, $18.14 (sale) to $25.87 (regular), DeckMart, Vaughan ON, a Canadian Bison seller (Level.It $21.12)' },
+      { k: 'labour', item: 'Deck installation labour', per: 'aream', unit: 'm²', tag: 'indicative', low: r2(30 * 10.7639 - (12.38 / b12 * 1.1 + 2.5 * 18.88 / 3.6576 + 4.17 * 18.14)), high: r2(50 * 10.7639 - (13.90 / b12 * 1.1 + 2.5 * 20.48 / 3.6576 + 4.17 * 25.87)),
+        src: 'derived: Decksforlife (Toronto, 23 February 2026) pressure-treated deck installed at $30-50 a square foot ($323-538 a m², materials, labour and standard stairs), less this set\'s own pressure-treated materials per m² (decking with waste, joists at 0.40 m, pedestals at 0.40 x 0.60 m: $114-151); no Canadian source found states the labour share itself' },
+      { k: 'edge', item: 'Edge', per: 'enc', unit: 'm', src: 'installed (labour included), per linear foot, Ontario installers 2026 (no Vancouver figure published)', types: {
         'steel-picket': R(70 * ft, 130 * ft, 'aluminum picket railing, installed $70-130 per linear foot (Builders Ontario 2026; DecksForLife $83-120)'),
         'horizontal-cable': R(60 * ft, 250 * ft, 'cable railing, installed $60-150 per linear foot (Builders Ontario 2026) to $180-250 (DecksForLife)'),
         'timber-slat-v': R(30 * ft, 75 * ft, 'wood railing, installed $30-75 per linear foot (Builders Ontario 2026; DecksForLife $55-75)'),
         'timber-slat-h': R(30 * ft, 75 * ft, 'wood railing, installed $30-75 per linear foot (Builders Ontario 2026; DecksForLife $55-75)'),
-        glass: R(150 * ft, 300 * ft, 'glass railing, installed $150-300 per linear foot (Builders Ontario 2026; DecksForLife frameless $190-280)') } },
-      { k: 'planterwall', item: 'Planter wall (edge)', per: 'planterm', unit: 'm', low: null, high: null, src: 'no public figure for a planter wall per metre that could be checked' },
-      { k: 'screens', item: 'Screens (edge)', per: 'screenm', unit: 'm', low: null, high: null, src: 'no public figure for a screen or knee wall per metre that could be checked' },
-      { k: 'soil', item: 'Planter soil', per: 'soilm3', unit: 'm³', low: r2(44 / 0.70 / yd), high: r2(44 / 0.60 / yd), src: 'bulk garden mix from $44 per tractor scoop of about 60-70 % of a cubic yard (Arts Nursery, Metro Vancouver), material only' },
-      { k: 'design', item: 'Design and permit drawings', per: 'once', unit: 'allowance', low: null, high: null, src: 'no published Vancouver figure for parklet drawings' },
-      { k: 'contingency', item: 'Contingency', per: 'pct', pct: 20, unit: '%', src: 'NerdWallet Canada (February 2026): budget an extra 20 % on a renovation for the unexpected' }
+        glass: R(150 * ft, 300 * ft, 'glass railing, installed $150-300 per linear foot (Builders Ontario 2026; DecksForLife frameless $190-280)'),
+        'perforated-panel': P(R(70 * ft, 130 * ft), 'priced as aluminum picket railing (installed $70-130 per linear foot): a perforated metal panel has no public installed rate'),
+        'bench-back': P(R(30 * ft, 75 * ft), 'priced as wood railing (installed $30-75 per linear foot): a bench-back edge has no public installed rate') } },
+      { k: 'planterwall', item: 'Planter wall (edge)', per: 'planterm', unit: 'm', tag: 'proxy', low: r2(70 * ft), high: r2(130 * ft), src: 'priced as aluminum picket railing, installed $70-130 per linear foot (Builders Ontario 2026): a planter wall (Corten, galvanized or timber) has no public rate per metre' },
+      { k: 'screens', item: 'Screens (edge)', per: 'screenm', unit: 'm', tag: 'proxy', low: r2(30 * ft), high: r2(75 * ft), src: 'priced as wood railing, installed $30-75 per linear foot (Builders Ontario 2026): a screen or knee wall has no public rate per metre' },
+      { k: 'soil', item: 'Planter soil', per: 'soilm3', unit: 'm³', tag: 'sourced', low: r2(44 / 0.70 / yd), high: r2(44 / 0.60 / yd), src: 'bulk garden mix from $44 per tractor scoop of about 60-70 % of a cubic yard (Arts Nursery, Metro Vancouver), material only' },
+      { k: 'design', item: 'Design and permit drawings', per: 'pct', of: 'build', pctLo: 8, pctHi: 12, unit: '% of build', tag: 'indicative', src: 'an allowance of 8-12 % of the build lines (Brief 32): no published Vancouver figure for parklet drawings' },
+      { k: 'contingency', item: 'Contingency', per: 'pct', pct: 20, unit: '%', tag: 'indicative', src: 'NerdWallet Canada (February 2026): budget an extra 20 % on a renovation for the unexpected' }
     ] };
 })();
 P101.FEE_URL = 'https://vancouver.ca/streets-transportation/parklets.aspx';
@@ -33879,12 +34240,13 @@ P101.matLabel = function(id) { if (!id) return ''; try { var i = flMatInfo(id); 
 P101.lines = function(r, Q, DM) {
   var g = function(k) { var x = Q.find(function(q) { return q.k === k; }); return x ? +x.n || 0 : 0; }, one = function(o) { return [Object.assign({ low: r.low, high: r.high, basis: r.src }, o)]; };
   var M = function(k) { return typeof PKMAT !== 'undefined' ? P101.matLabel(PKMAT.eff(k)) : ''; };
-  if (r.per === 'deckm2') { var fam = P101.deckFam(), fr = r.fam && r.fam[fam]; return [{ qty: g('decking'), unit: 'm²', f: g('decking') + ' m² of decking (the deck area plus waste)', mat: M('deck'), low: fr ? fr.low : null, high: fr ? fr.high : null, basis: fr ? fr.src : 'no sourced rate for ' + P101.FAMNAME[fam] + ' decking', item: r.item + ', ' + P101.FAMNAME[fam] }]; }
+  if (r.per === 'deckm2') { var fam = P101.deckFam(), fr = r.fam && r.fam[fam]; return [{ qty: g('decking'), unit: 'm²', f: g('decking') + ' m² of decking (the deck area plus waste)', mat: M('deck'), low: fr ? fr.low : null, high: fr ? fr.high : null, basis: fr ? fr.src : 'no sourced rate for ' + P101.FAMNAME[fam] + ' decking', item: r.item + ', ' + P101.FAMNAME[fam], tag: fr ? (fr.tag === 'proxy' ? 'proxy' : r.famTag || fr.tag) : null }]; }
+  if (r.per === 'ped') return one({ qty: g('pedestals'), unit: 'each', f: g('pedestals') + ' pedestals under the joists' });   // (Brief 32 §5)
   if (r.per === 'joistm') return one({ qty: g('joist'), unit: 'm', f: 'the joist run: ' + g('joist') + ' m' });
   if (r.per === 'aream') return one({ qty: g('area'), unit: 'm²', f: g('area') + ' m² of deck' });
   if (r.per === 'soilm3') return one({ qty: g('soil'), unit: 'm³', f: 'each planter\'s inside', mat: '' });
   if (r.per === 'once') return one({ qty: g('area') > 0 ? 1 : 0, unit: 'allowance', f: 'once' });
-  if (r.per === 'pct') return [{ qty: r.pct || 0, unit: '% of build', f: (r.pct || 0) + ' % of the build lines above', pct: true, low: null, high: null, basis: r.src }];
+  if (r.per === 'pct') return [{ qty: r.pct != null ? r.pct : r.pctLo, unit: '% of build', f: (r.pct != null ? r.pct : r.pctLo + '-' + r.pctHi) + ' % of the build lines above', pct: true, low: null, high: null, basis: r.src }];
   if (r.per === 'enc' || r.per === 'planterm' || r.per === 'screenm') {
     var E = DM.enclosure, by = {}, fam = r.per === 'planterm' ? 'planter' : r.per === 'screenm' ? 'wall' : null;
     if (E && !(typeof PK_NOSTREET !== 'undefined' && PK_NOSTREET)) E.runs.forEach(function(run) {
@@ -33895,7 +34257,7 @@ P101.lines = function(r, Q, DM) {
     });
     return Object.keys(by).map(function(key) {
       var b = by[key], t = fam ? { low: r.low, high: r.high, src: r.src } : (r.types && r.types[key]) || null, L = Math.round(b.len * 100) / 100;
-      return { sub: key, qty: L, unit: 'm', f: L + ' m of edge, the runs of ' + (b.name || (fam === 'planter' ? 'planter walls' : 'screens')), item: fam ? r.item : 'Edge: ' + String(b.name || key).toLowerCase(), mat: P101.matLabel(b.mat), low: t ? t.low : null, high: t ? t.high : null, basis: t ? t.src : 'no sourced rate for ' + String(b.name || key).toLowerCase() };
+      return { sub: key, qty: L, unit: 'm', f: L + ' m of edge, the runs of ' + (b.name || (fam === 'planter' ? 'planter walls' : 'screens')), item: fam ? r.item : 'Edge: ' + String(b.name || key).toLowerCase() + ', installed', mat: P101.matLabel(b.mat), low: t ? t.low : null, high: t ? t.high : null, basis: t ? t.src : 'no sourced rate for ' + String(b.name || key).toLowerCase(), tag: t ? (t.tag || r.tag) : null };
     });
   }
   var u = P101.units(r, Q); return [{ qty: u.n, unit: r.unit, f: u.f, city: u.city, annual: u.annual, low: r.low, high: r.high, basis: r.src }];
@@ -33922,20 +34284,28 @@ P101.estimate = function(DM) {
       if (!isFee(r) && !(L.qty > 0)) return;   // a build line the design does not take
       var f1 = r.ext ? 1 : fx, priced = L.low != null && L.high != null, l = priced ? L.qty * L.low * f1 : null, h = priced ? L.qty * L.high * f1 : null;
       if (!S.shipped && !r.ext && !r.entered) userAll = false;
-      rows.push({ sec: isFee(r) ? 'fee' : 'build', k: r.k + (L.sub ? ':' + L.sub : ''), rk: r.k, item: L.item || r.item, qty: L.qty, unit: L.unit || r.unit, rate: r, rlow: priced ? L.low * f1 : null, rhigh: priced ? L.high * f1 : null, f: L.f, lo: l, hi: h, mat: L.mat || '', src: L.basis || r.src || '', tag: r.ext ? 'Manual 2016' : !priced && !L.city ? 'not priced' : (r.tag || tag0), city: !!L.city, annual: !!L.annual, fee: isFee(r), ext: !!r.ext, priced: priced });
+      rows.push({ sec: isFee(r) ? 'fee' : 'build', k: r.k + (L.sub ? ':' + L.sub : ''), rk: r.k, item: L.item || r.item, qty: L.qty, unit: L.unit || r.unit, rate: r, rlow: priced ? L.low * f1 : null, rhigh: priced ? L.high * f1 : null, f: L.f, lo: l, hi: h, mat: L.mat || '', src: L.basis || r.src || '', tag: r.ext ? 'sourced' : !priced && !L.city ? 'not priced' : (r.entered ? 'user' : L.tag || r.tag || tag0), priced: priced, city: !!L.city, annual: !!L.annual, fee: isFee(r), ext: !!r.ext, priced: priced });
     });
   });
   var furn = P101.furniture(), unpriced = 0;
   furn.forEach(function(g) {
     var fr = C.furn[g.key], card = g.user && g.userA && g.userA.card && +g.userA.card.price > 0 ? +g.userA.card.price : null;
     var price = fr && fr.low > 0 ? fr : card ? { low: card, high: card, src: 'spec card' } : null;
-    var row = { sec: 'furn', furn: g, k: 'furn:' + g.key, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', mat: g.mats || '', tag: price ? (price.suggested ? 'suggested' : 'entered') : '', priced: !!price };
+    var row = { sec: 'furn', furn: g, k: 'furn:' + g.key, item: g.item + ' (' + g.dims + ' m)', qty: g.n, unit: 'each', mat: g.mats || '', tag: price ? (price.suggested ? 'indicative' : 'user') : 'awaiting a quote', priced: !!price };   // (Brief 32 §5) the tags: a suggestion indicative, a quote the user's
     if (!price) { unpriced += g.n; rows.push(Object.assign(row, { lo: null, hi: null, src: 'not priced: enter a quote' })); return; }
     var c = price.cur === 'USD' ? C.fx : 1, l = g.n * price.low * c, h = g.n * (price.high || price.low) * c;
     rows.push(Object.assign(row, { lo: l, hi: h, rlow: price.low * c, rhigh: (price.high || price.low) * c, price: price, suggested: !!price.suggested, src: price.src || 'entered' }));
   });
   var sum = function(sec, k) { return rows.filter(function(q) { return q.sec === sec && !q.city && !q.annual && q[k] != null; }).reduce(function(a, q) { return a + q[k]; }, 0); };
   var bLo = sum('build', 'lo') + sum('furn', 'lo'), bHi = sum('build', 'hi') + sum('furn', 'hi');
+  // (Brief 32 §5) a share of the build lines (the design allowance) first, then the contingency on everything above
+  var buildLo = sum('build', 'lo'), buildHi = sum('build', 'hi');
+  pctRates.filter(function(r) { return r.of === 'build'; }).forEach(function(r) {
+    var lo = buildLo * r.pctLo / 100, hi = buildHi * r.pctHi / 100;
+    rows.push({ sec: 'build', k: r.k, rk: r.k, item: r.item, qty: r.pctLo + '-' + r.pctHi, unit: '% of build', rate: r, f: r.pctLo + '-' + r.pctHi + ' % of the build lines', lo: lo, hi: hi, rlow: null, rhigh: null, mat: '', src: r.src, tag: r.tag || tag0, pct: true, pctLo: r.pctLo, pctHi: r.pctHi, of: 'build', priced: true });
+    bLo += lo; bHi += hi;
+  });
+  pctRates = pctRates.filter(function(r) { return r.of !== 'build'; });
   pctRates.forEach(function(r) {
     var p = (r.pct || 0) / 100, priced = r.pct != null;
     rows.push({ sec: 'build', k: r.k, rk: r.k, item: r.item, qty: r.pct, unit: '% of build', rate: r, f: r.pct + ' % of the build and furniture priced above', lo: priced ? bLo * p : null, hi: priced ? bHi * p : null, rlow: null, rhigh: null, mat: '', src: r.src, tag: r.tag || tag0, pct: true, priced: priced });
@@ -33993,7 +34363,7 @@ P101.workbook = function(X) {
   var secRows = {}, section = function(key, title, list) {
     put(r, 0, title); r++; var first = r;
     list.forEach(function(q) {
-      if (q.pct) return;   // the contingency after the subtotals
+      if (q.pct) return;   // the design allowance and the contingency after the subtotals
       put(r, 0, q.item); if (!q.pct) put(r, 1, q.qty); put(r, 2, q.unit);
       if (q.city) { put(r, 5, 'supplied by the City'); }
       else if (q.rlow != null) { put(r, 3, +q.rlow.toFixed(2), CUR); put(r, 4, +q.rhigh.toFixed(2), CUR); put(r, 5, { t: 'n', v: +(q.qty * q.rlow).toFixed(2), f: 'B' + (r + 1) + '*D' + (r + 1) }, CUR); put(r, 6, { t: 'n', v: +(q.qty * q.rhigh).toFixed(2), f: 'B' + (r + 1) + '*E' + (r + 1) }, CUR); }
@@ -34008,31 +34378,39 @@ P101.workbook = function(X) {
   };
   var B = est.rows.filter(function(q) { return q.sec === 'build'; }), FU = est.rows.filter(function(q) { return q.sec === 'furn'; }), FE = est.rows.filter(function(q) { return q.sec === 'fee'; });
   section('build', 'Build', B); section('furn', 'Furniture', FU);
-  var pc = B.find(function(q) { return q.pct; });
+  // (Brief 32 §5) the design allowance: its low and high shares (D, E) of the build subtotal
+  var dz = B.find(function(q) { return q.pct && q.of === 'build'; });
+  if (dz) {
+    var bl0 = secRows.build + 1;
+    put(r, 0, dz.item); put(r, 2, '% of build'); put(r, 3, dz.pctLo); put(r, 4, dz.pctHi);
+    put(r, 5, { t: 'n', v: +(ws[cell(secRows.build, 5)].v * dz.pctLo / 100).toFixed(2), f: 'D' + (r + 1) + '/100*F' + bl0 }, CUR); put(r, 6, { t: 'n', v: +(ws[cell(secRows.build, 6)].v * dz.pctHi / 100).toFixed(2), f: 'E' + (r + 1) + '/100*G' + bl0 }, CUR);
+    put(r, 8, dz.tag || ''); put(r, 9, dz.src || ''); secRows.design = r; r += 2;
+  }
+  var pc = B.find(function(q) { return q.pct && q.of !== 'build'; });
   if (pc) {
-    var bl = secRows.build + 1, fl = secRows.furn + 1, p = pc.qty / 100;
-    put(r, 0, pc.item); put(r, 1, pc.qty); put(r, 2, '% of build and furniture');
-    var cl = ws[cell(secRows.build, 5)].v + ws[cell(secRows.furn, 5)].v, ch = ws[cell(secRows.build, 6)].v + ws[cell(secRows.furn, 6)].v;
-    put(r, 5, { t: 'n', v: +(cl * p).toFixed(2), f: 'B' + (r + 1) + '/100*(F' + bl + '+F' + fl + ')' }, CUR); put(r, 6, { t: 'n', v: +(ch * p).toFixed(2), f: 'B' + (r + 1) + '/100*(G' + bl + '+G' + fl + ')' }, CUR);
+    var bl = secRows.build + 1, fl = secRows.furn + 1, dl = secRows.design != null ? secRows.design + 1 : null, p = pc.qty / 100;
+    put(r, 0, pc.item); put(r, 1, pc.qty); put(r, 2, '% of build, furniture' + (dl ? ' and design' : ''));
+    var cl = ws[cell(secRows.build, 5)].v + ws[cell(secRows.furn, 5)].v + (dl ? ws[cell(secRows.design, 5)].v : 0), ch = ws[cell(secRows.build, 6)].v + ws[cell(secRows.furn, 6)].v + (dl ? ws[cell(secRows.design, 6)].v : 0);
+    put(r, 5, { t: 'n', v: +(cl * p).toFixed(2), f: 'B' + (r + 1) + '/100*(F' + bl + '+F' + fl + (dl ? '+F' + dl : '') + ')' }, CUR); put(r, 6, { t: 'n', v: +(ch * p).toFixed(2), f: 'B' + (r + 1) + '/100*(G' + bl + '+G' + fl + (dl ? '+G' + dl : '') + ')' }, CUR);
     put(r, 8, pc.tag || ''); put(r, 9, pc.src || ''); secRows.cont = r; r += 2;
   }
   section('fee', 'City fees', FE);
-  var refs = function(col) { var L = String.fromCharCode(65 + col); return ['build', 'furn', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).map(function(k) { return L + (secRows[k] + 1); }); };
-  var tv = function(col) { return +['build', 'furn', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).reduce(function(a, k) { return a + ws[cell(secRows[k], col)].v; }, 0).toFixed(2); };
+  var refs = function(col) { var L = String.fromCharCode(65 + col); return ['build', 'furn', 'design', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).map(function(k) { return L + (secRows[k] + 1); }); };
+  var tv = function(col) { return +['build', 'furn', 'design', 'cont', 'fee'].filter(function(k) { return secRows[k] != null; }).reduce(function(a, k) { return a + ws[cell(secRows[k], col)].v; }, 0).toFixed(2); };
   put(r, 0, 'Total, build and fees'); put(r, 5, { t: 'n', v: tv(5), f: refs(5).join('+') }, CUR0); put(r, 6, { t: 'n', v: tv(6), f: refs(6).join('+') }, CUR0); secRows.total = r; r += 2;
   put(r, 0, 'Note'); put(r, 9, P101.rangeLine(est)); r++;
   put(r, 0, 'Note'); put(r, 9, 'What is not priced (—) is not counted as zero. An estimate to plan a budget, not a quote. City fees: the Parklet Manual\'s 2016 figures; confirm against the current schedule.'); r++;
   ws['!ref'] = 'A1:J' + r; ws['!cols'] = [{ wch: 42 }, { wch: 8 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 90 }];
   // Quantities
-  var q = [['Quantities: ' + name], [(addr ? addr + ' · ' : '') + d.toISOString().slice(0, 10)], [], ['Item', 'Qty', 'Unit', 'How it is counted (the formula)']].concat(est.Q.map(function(x) { return [x.item, x.n, x.u, x.f]; }));
+  var q = [['Quantities: ' + name], [(addr ? addr + ' · ' : '') + d.toISOString().slice(0, 10)], [], ['Item', 'Qty', 'Unit', 'How it is counted (the formula)']].concat(P101.shownQ(est.Q).map(function(x) { return [x.item, x.n, x.u, x.f]; }));
   var wq = X.utils.aoa_to_sheet(q); wq['!cols'] = [{ wch: 44 }, { wch: 10 }, { wch: 8 }, { wch: 100 }];
   // Rates
   var rr2 = [['Rates: ' + S.name], [S.prov], [], ['Line', 'For', 'Unit', 'Low, ' + S.cur, 'High, ' + S.cur, 'Tag', 'Basis']];
   S.rates.forEach(function(x) {
-    var tag = x.tag || S.tag || (S.placeholder ? 'placeholder' : S.shipped ? 'Manual 2016' : 'entered');
-    if (x.fam) Object.keys(x.fam).forEach(function(k) { var f = x.fam[k]; rr2.push([x.item, P101.FAMNAME[k] || k, x.unit, f.low, f.high, tag, f.src]); });
-    else if (x.types) Object.keys(x.types).forEach(function(k) { var f = x.types[k], A2 = ENCLOSURE_ARCHETYPES[k]; rr2.push([x.item, A2 ? A2.name : k, x.unit, f.low, f.high, tag, f.src]); });
-    else rr2.push([x.item, x.range ? 'the comparison range, not a cost line' : '', x.per === 'pct' ? '%' : x.unit, x.per === 'pct' ? x.pct : (x.low == null ? '—' : x.low), x.per === 'pct' ? x.pct : (x.high == null ? '—' : x.high), tag, x.src || '']);
+    var tag = x.entered ? 'user' : x.tag || S.tag || (S.placeholder ? 'placeholder' : S.shipped ? 'sourced' : 'user');
+    if (x.fam) Object.keys(x.fam).forEach(function(k) { var f = x.fam[k]; rr2.push([x.item, P101.FAMNAME[k] || k, x.unit, f.low, f.high, f.tag === 'proxy' ? 'proxy' : x.famTag || f.tag || tag, f.src]); });
+    else if (x.types) Object.keys(x.types).forEach(function(k) { var f = x.types[k], A2 = ENCLOSURE_ARCHETYPES[k]; rr2.push([x.item + ', installed', A2 ? A2.name : k, x.unit, f.low, f.high, f.tag || tag, f.src]); });
+    else rr2.push([x.item, x.range ? 'the comparison range, not a cost line' : '', x.per === 'pct' ? '%' : x.unit, x.per === 'pct' ? (x.pct != null ? x.pct : x.pctLo) : (x.low == null ? '—' : x.low), x.per === 'pct' ? (x.pct != null ? x.pct : x.pctHi) : (x.high == null ? '—' : x.high), tag, x.src || '']);
   });
   var wr = X.utils.aoa_to_sheet(rr2); wr['!cols'] = [{ wch: 30 }, { wch: 28 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 110 }];
   Object.keys(wr).forEach(function(k) { if (k[0] === '!') return; var c = X.utils.decode_cell(k); if (c.r >= 4 && (c.c === 3 || c.c === 4) && wr[k].t === 'n') wr[k].z = CUR; });
@@ -34067,11 +34445,20 @@ P101.xlsx = async function() {
 P101.state = function(est) {
   var S = est.set, m = P101.money, R = est.range, sp = R.n + ' parking space' + (R.n === 1 ? '' : 's');
   var how = S.placeholder ? 'Placeholder rates (not Vancouver prices)' : S.tag === 'indicative' ? 'Indicative 2026 rates' : S.shipped ? 'The Parklet Manual\'s 2016 fees only' : (est.userAll ? 'Your rates' : 'Your rates, some not entered yet');
-  var pr = est.buildLines ? (est.buildLines - est.unpricedLines) + ' of ' + est.buildLines + ' build lines priced' : 'no build lines';
-  var fu = est.unpriced ? ', ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' not priced' : '';
-  var inc = est.unpricedLines || est.unpriced, pos = !(R.n > 0) ? '' : est.cmp ? '; the priced build is ' + est.cmp + ' the Parklet Manual\'s typical range for ' + sp + (inc ? ', so far: the real build is higher' : '') : '; nothing priced yet to place against the Parklet Manual\'s typical range for ' + sp;
+  // (Brief 32 §5) the build lines counted by tag; furniture awaiting a quote said once; the position, plainly
+  var tg = P101.tagCount(est), pr = est.buildLines ? (est.unpricedLines ? (est.buildLines - est.unpricedLines) + ' of ' + est.buildLines + ' build lines priced' : 'every build line priced') + (tg ? ' (' + tg + ')' : '') : 'no build lines';
+  var fu = est.unpriced ? '; ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' await' + (est.unpriced === 1 ? 's' : '') + ' a quote' : '';
+  var pos = !(R.n > 0) ? '' : est.cmp ? '; the build is ' + est.cmp + ' the Parklet Manual\'s typical range for ' + sp + ' (' + m(R.lo) + ' – ' + m(R.hi) + ')' : '; nothing priced yet to place against the Parklet Manual\'s typical range for ' + sp;
   return how + ': ' + pr + fu + pos + '.';
 };
+// "4 sourced · 3 indicative · 2 proxy": the priced build lines by tag, in that order (user last)
+P101.TAGS = ['sourced', 'indicative', 'proxy', 'user'];
+P101.tagCount = function(est) {
+  var n = {}; est.rows.forEach(function(q) { if (q.sec !== 'build' || q.city || !q.priced) return; n[q.tag] = (n[q.tag] || 0) + 1; });
+  return P101.TAGS.filter(function(t) { return n[t]; }).map(function(t) { return n[t] + ' ' + t; }).join(' · ');
+};
+// (Brief 32 §5) the take-off as shown: without a row the design does not use (its count zero)
+P101.shownQ = function(Q) { return Q.filter(function(q) { return !(+q.n === 0); }); };
 P101.rangeLine = function(est) {
   var R = est.range, m = function(v) { return '$' + Math.round(v).toLocaleString('en-CA'); };
   return 'The Manual\'s typical range for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + ': ' + m(R.lo) + ' – ' + m(R.hi) + ' (' + m(R.per[0]) + ' – ' + m(R.per[1]) + ' a space, Manual p. 18, 2016). For comparison only, not in the total.';
@@ -34114,10 +34501,10 @@ P101.render = function() {
   var h = "<div class='ce'><header class='ce-head'><h1>Cost estimate</h1><p class='ce-state' id='ceState' role='status'>" + e(est.banner) + '</p></header>';
   // the five-second figures
   h += "<dl class='ce-sum'>" +
-    "<div><dt>Build and furniture</dt><dd>" + rg(est.build.lo, est.build.hi) + "</dd><dd class='ce-dd-n'>" + (inc ? inc + ' not priced yet' : 'every line priced') + '</dd></div>' +
+    "<div><dt>Build and furniture</dt><dd>" + rg(est.build.lo, est.build.hi) + "</dd><dd class='ce-dd-n' id='ceTags'>" + e(P101.tagCount(est) || 'no build lines') + (est.unpriced ? e('; ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' awaiting a quote') : '') + '</dd></div>' +   // (Brief 32 §5) counted by tag
     "<div><dt>City fees</dt><dd>" + rg(est.fees.lo, est.fees.hi) + "</dd><dd class='ce-dd-n'>the Manual's 2016 figures: confirm</dd></div>" +
     "<div class='ce-sum-tot'><dt>Total</dt><dd>" + rg(est.lo, est.hi) + "</dd><dd class='ce-dd-n'>" + (est.annual ? 'then ' + m(est.annual.lo) + ' a year' : '') + '</dd></div>' +
-    "<div class='ce-sum-cmp'><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) + (inc ? ', so far' : '') : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + (inc ? '; ' + inc + ' not priced' : '') : '') + '</dd></div></dl>';
+    "<div class='ce-sum-cmp'><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') : '') + '</dd></div></dl>';
   // the controls, grouped
   h += "<div class='ce-ctl' role='group' aria-label='Rates'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.cost().setChosen = true; P101.changed()'>" + sets.map(function(q) { return "<option value='" + q.id + "'" + (q.id === S.id ? ' selected' : '') + '>' + e(q.name) + '</option>'; }).join('') + '</select></label>' +
     "<button type='button' class='ctx-btn' id='ceXlsx' onclick='P101.xlsx()' title='One workbook: the estimate with live totals, the quantities with how each is counted, and the rates with their basis.'>Export to Excel (.xlsx)</button>" +
@@ -34130,14 +34517,14 @@ P101.render = function() {
     sec('b', 'Build', 'the deck, its edge and the planting, from the take-off') + B.map(line).join('') + subtot('Build lines', B.filter(function(r) { return !r.city && r.lo != null; }).reduce(function(a, r) { return a + r.lo; }, 0), B.filter(function(r) { return !r.city && r.hi != null; }).reduce(function(a, r) { return a + r.hi; }, 0)) +
     sec('f', 'Furniture', 'the schedule; a quote per piece') + (FU.length ? FU.map(line).join('') : "<tr><td colspan='7'>No furniture placed.</td></tr>") + subtot('Furniture', fsum('lo'), fsum('hi')) +
     sec('c', 'City fees', "the Parklet Manual's 2016 figures: confirm against the current schedule") + FE.map(line).join('') + subtot('City fees', est.fees.lo, est.fees.hi) +
-    "<tr class='ce-tot'><td colspan='4'>Total, build and fees</td><td class='num' id='p101Total'>" + rg(est.lo, est.hi) + "</td><td colspan='2'>" + (inc ? inc + ' not priced: the real total is higher' : '') + '</td></tr>' +
+    "<tr class='ce-tot'><td colspan='4'>Total, build and fees</td><td class='num' id='p101Total'>" + rg(est.lo, est.hi) + "</td><td colspan='2'>" + (est.unpriced ? est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' awaiting a quote, not in the total' : '') + '</td></tr>' +
     AN.map(function(a) { return "<tr class='ce-sub'><td colspan='4'>Then each year: " + e(a.item.replace(/ \(each year after\)/, '').toLowerCase()) + "</td><td class='num'>" + rg(a.lo, a.hi) + "</td><td colspan='2'>" + e(a.src || '') + '</td></tr>'; }).join('') + '</tbody></table>';
   h += "<p class='ce-range' id='p101Range'>" + e(P101.rangeLine(est)) + "</p><p class='ce-note'>" + e(P101.spacesNote(est)) + '</p>';
   h += "<p class='ce-note'>Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). City fees: <a href='" + P101.FEE_URL + "' target='_blank' rel='noopener'>vancouver.ca, parklets</a>. An estimate to plan a budget, not a quote.</p>";
   // quantities
   h += "<h2 class='ce-h2'>Quantities</h2><p class='ce-note'>A take-off from this design's model; each line says how it is counted. Joists every <input type='text' inputmode='numeric' id='p101Sp' class='ce-q' aria-label='Joist spacing, mm' value='" + Math.round(C.spacing * 1000) + "' onchange='P101.setNum(\"spacing\", this.value)'> mm; decking waste <input type='text' inputmode='numeric' id='p101Waste' class='ce-q' aria-label='Decking waste, percent' value='" + Math.round(C.waste * 100) + "' onchange='P101.setNum(\"waste\", this.value)'> %.</p>" +
     "<table class='ce-t ce-qt'><thead><tr><th scope='col'>Item</th><th scope='col' class='num'>Qty</th><th scope='col'>Unit</th><th scope='col'>How it is counted</th></tr></thead><tbody>" +
-    Q.map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + '</td></tr>'; }).join('') +
+    P101.shownQ(Q).map(function(q) { return "<tr data-q='" + q.k + "'" + (q.sub ? " class='sub'" : '') + '><td>' + e(q.item) + "</td><td class='num'>" + e(q.n) + '</td><td>' + e(q.u) + '</td><td>' + e(q.f) + (q.ped ? " <label class='ce-ped'>· spacing <input type='text' inputmode='numeric' id='p101Ped' class='ce-q' aria-label='Pedestal spacing along each joist, mm' value='" + Math.round(C.pedSpacing * 1000) + "' onchange='P101.setNum(\"pedSpacing\", this.value)'> mm</label>" : '') + '</td></tr>'; }).join('') +
     P101.city(DM).map(function(c) { return '<tr><td>' + e(c.item) + "</td><td class='num'>" + e(c.n) + '</td><td>ea</td><td>supplied by the City (Manual p. 48)</td></tr>'; }).join('') + '</tbody></table>';
   // materials
   h += "<h2 class='ce-h2'>Materials</h2><table class='ce-t'><thead><tr><th scope='col'>Family</th><th scope='col'>Material</th><th scope='col'>Durability</th><th scope='col'>Maintenance</th><th scope='col'>San Francisco (advisory)</th><th scope='col'>Vancouver Manual</th></tr></thead><tbody>" +
@@ -34148,6 +34535,7 @@ P101.GROUP = { wood: 'Timber', other: 'Composite and recycled', metal: 'Metal', 
 P101.setNum = function(k, v) {
   var q = typeof pkReadNum === 'function' ? pkReadNum(String(v), '') : { v: parseFloat(v) }, n = q && !q.err && !q.empty ? q.v : NaN, C = P101.cost(), why = '';
   if (k === 'spacing') { if (n >= 200 && n <= 800) C.spacing = n / 1000; else why = 'Joist spacing is 200 to 800 mm: ' + v + ' was not used.'; }
+  else if (k === 'pedSpacing') { if (n >= 300 && n <= 1200) C.pedSpacing = n / 1000; else why = 'Pedestal spacing is 300 to 1200 mm: ' + v + ' was not used.'; }
   else if (k === 'waste') { if (n >= 0 && n <= 40) C.waste = n / 100; else why = 'Decking waste is 0 to 40 %: ' + v + ' was not used.'; }
   else if (k === 'meters') { if (n >= 0 && n <= 12 && Math.round(n) === n) C.meters = n; else why = 'Parking meters to remove is a whole number from 0 to 12: ' + v + ' was not used.'; }
   else if (k === 'fx') { if (n > 0 && n < 5) C.fx = n; else why = 'The exchange rate is a number above 0: ' + v + ' was not used.'; }
@@ -34164,7 +34552,7 @@ RPT.sheetBudget = function(d) {
   var hdr = function(t) { return [{ t: t, b: true }, '', '', '', '', '']; };
   var rows = [hdr('Build')].concat(est.rows.filter(function(r) { return r.sec === 'build'; }).map(row), [hdr('Furniture')], est.rows.filter(function(r) { return r.sec === 'furn'; }).map(row), [hdr('City fees')], est.rows.filter(function(r) { return r.sec === 'fee'; }).map(row));
   rows.push([{ t: 'Total, build and fees', b: true }, '', '', '', { t: rg(est.lo, est.hi), b: true }, est.unpricedLines || est.unpriced ? 'what is not priced is not counted' : '']);
-  var qrows = est.Q.filter(function(q) { return !q.sub; }).map(function(q) { return [q.item, String(q.n), q.u, q.f]; });
+  var qrows = P101.shownQ(est.Q).filter(function(q) { return !q.sub; }).map(function(q) { return [q.item, String(q.n), q.u, q.f]; });
   return RPT.textSheet('G-002', 'Cost estimate', S.name, [
     { p: est.banner + ' Rate set: ' + S.name + '. ' + S.prov + (S.cur === 'USD' ? ' Converted at USD 1 = CAD ' + est.fx + '.' : '') },
     { kv: [['Build', rg(est.build.lo, est.build.hi)], ['City fees', rg(est.fees.lo, est.fees.hi)], ['Total', rg(est.lo, est.hi)], ['Against the Manual', est.range.n > 0 ? (est.cmp || 'nothing priced') + ', ' + fmt(est.range.lo) + ' - ' + fmt(est.range.hi) + ' for ' + est.range.n + ' spaces' : '-']] },
