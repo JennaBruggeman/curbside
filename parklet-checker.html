@@ -1286,8 +1286,8 @@ return n >= 2.4 ? 'pass' : null;
   }
 ,  {
     id: 'c18', num: '18', title: 'At least two unobstructed openings of 1.8 m or more to the sidewalk', requirement: 'The sidewalk side keeps at least two unobstructed openings, each at least 1.8 m wide, into the parklet (E3).', page: 65, status: 'unclear',
-    siteCondition: function() { var o = ENC.c18().o; return 'Clear runs along the sidewalk edge between the end enclosures, clear ' + (typeof GEN !== 'undefined' ? GEN.TURN : 1.5).toFixed(1) + ' m deep: ' + (o.runs.length ? o.runs.map(function(r) { return r.w.toFixed(2) + ' m'; }).join(', ') : 'none') + '.'; },
-    note: 'Openings are where the generator\'s entries fall: each clear run of w metres takes floor(w / 1.8) openings.',
+    siteCondition: function() { var es = ENC.c18().entries; return 'Entries in the sidewalk-side edge: ' + (es.length ? es.map(function(q) { return q.w.toFixed(2) + ' m at z ' + q.z.toFixed(2); }).join(', ') : 'none') + ' (Design › Edge, or drag them on the Plan).'; },
+    note: 'The entries are the design\'s own (Brief 32): placed at the deck ends for a new design, moved, added or removed in Design › Edge or on the Plan.',
     evalFn: function() { return ENC.c18().ok ? 'pass' : 'fail'; }, evalMsg: function() { return ENC.c18().msg; }
   }
 ,  {
@@ -3056,11 +3056,11 @@ ENC.BUF_MAX = 0.6; ENC.BUF_ADVISE = 0.3;     // the buffer slider; the Manual's 
 ENC.OPEN_W = 1.8;                            // E3, p. 65: an opening to the sidewalk
 ENC.OVERHEAD_H = 2.1;                        // E5, p. 65: clear above the deck
 ENC.IDS = ['steel-picket', 'horizontal-cable', 'timber-slat-v', 'timber-slat-h', 'perforated-panel', 'planter-wall', 'planter-topped-rail', 'bench-back', 'solid-wall'];
-ENC.SIDES = ['traffic', 'endA', 'endB'];
-ENC.SIDE_LABEL = { traffic: 'Traffic side', endA: 'Start end', endB: 'Far end' };
+ENC.SIDES = ['traffic', 'endA', 'endB', 'curb'];
+ENC.SIDE_LABEL = { traffic: 'Traffic side', endA: 'Start end', endB: 'Far end', curb: 'Sidewalk side' };
 // a new design; a design saved before Brief 21 §12 loads as ENC.LEGACY: the railing it had (0.90 m, at the deck edge) and
 // planter walls at the ends where its end planters stood
-ENC.DEFAULT = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0.30, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall' }, params: {}, mats: {} };
+ENC.DEFAULT = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0.30, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall', curb: 'steel-picket' }, params: {}, mats: {}, entries: 'seed', curbOn: true };   // (Brief 32 §4) two entries at the ends, the sidewalk side closed between them
 ENC.LEGACY = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall' }, params: {}, mats: {} };
 var ENCLOSURE = JSON.parse(JSON.stringify(ENC.DEFAULT));
 // ── Brief 30 §5: the parklet's own materials, one store ────────────────────────────────────────────────────────────────
@@ -3204,10 +3204,28 @@ ENC.norm = function(e) {
   var tr = ok(s.traffic || e.archetype, 'steel-picket');
   return { archetype: tr, height: typeof e.height === 'number' && isFinite(e.height) ? e.height : 0.9,
     bufferDepth: typeof e.bufferDepth === 'number' && isFinite(e.bufferDepth) ? Math.max(0, e.bufferDepth) : 0.3,
-    sides: { traffic: tr, endA: ok(s.endA, 'planter-wall'), endB: ok(s.endB, 'planter-wall') },
+    sides: { traffic: tr, endA: ok(s.endA, 'planter-wall'), endB: ok(s.endB, 'planter-wall'), curb: ok(s.curb, 'steel-picket') },
+    // (Brief 32 §4) the entries: a list, 'seed' (at the deck ends) or 'infer' (a design saved before: the tool's old entries);
+    // the sidewalk side enclosed between them unless the design was saved before entries were the design's own
+    entries: ENC.cleanEntries(e.entries), curbOn: typeof e.curbOn === 'boolean' ? e.curbOn : e.entries !== undefined,
     params: e.params && typeof e.params === 'object' ? e.params : {}, mats: e.mats && typeof e.mats === 'object' ? e.mats : {},
     // (Brief 21c) a design saved before §12: its end planters became planter walls; the note stays with the design
-    migrated: e.migrated ? String(e.migrated) : undefined };
+    migrated: e.migrated ? String(e.migrated) : undefined, entriesFrom: e.entriesFrom ? String(e.entriesFrom) : undefined };
+};
+// (Brief 32 §4) the stored entries: [{z (m from the start, or from the far end when fromEnd), w (m, 1.8 by default)}]
+ENC.cleanEntries = function(v) {
+  if (v === 'seed') return 'seed';
+  if (!Array.isArray(v)) return 'infer';
+  return v.filter(function(q) { return q && isFinite(+q.z); }).map(function(q) { return { z: +(+q.z).toFixed(3), w: isFinite(+q.w) && +q.w > 0.5 ? +(+q.w).toFixed(3) : ENC.OPEN_W, fromEnd: !!q.fromEnd }; });
+};
+// the entries on a deck of length L whose end enclosures are dA and dB deep: [{z (centre), w, z0, z1}], each kept between the
+// ends' inner faces, sorted, an overlapping one dropped; 'seed' and 'infer' (before the old ones are read) give the two at
+// the ends, against the end enclosures
+ENC.entriesOn = function(list, L, dA, dB) {
+  var w0 = ENC.OPEN_W, lo = dA, hi = L - dB, src = Array.isArray(list) ? list : [{ z: lo + w0 / 2, w: w0 }, { z: dB + w0 / 2, w: w0, fromEnd: true }];
+  var out = src.map(function(q) { var w = Math.min(q.w || w0, Math.max(0.5, hi - lo)), z = q.fromEnd ? L - q.z : q.z; z = Math.max(lo + w / 2, Math.min(hi - w / 2, z)); return { z: +z.toFixed(3), w: +w.toFixed(3), z0: +(z - w / 2).toFixed(3), z1: +(z + w / 2).toFixed(3), fromEnd: !!q.fromEnd }; });
+  out.sort(function(a, b) { return a.z - b.z; });
+  return out.filter(function(q, i) { return !out.slice(0, i).some(function(p) { return p.z1 > q.z0 + 1e-6; }); });
 };
 // the one line a migrated design carries (the Check tab, X-001 Assumptions)
 ENC.MIGRATION_NOTE = 'End planters raised to 0.90 m planter walls to meet Parklet Manual E2 (0.75–1.0 m)';
@@ -3273,6 +3291,7 @@ ENC.layout = function(DM, E) {
     var k = ((q[0] - p[0]) * t[1] - (q[1] - p[1]) * t[0]) / den; return [p[0] + r[0] * k, p[1] + r[1] * k];
   };
   var runs = [], ci = ed.findIndex(function(e) { return !e.type; }), loop = ci < 0, start = loop ? 0 : (ci + 1) % n;
+  ENC._curbEdges = ed.filter(function(e) { return e.cls === 'curb'; });   // (Brief 32 §4) read below for the sidewalk-side runs
   var seq = []; for (var k = 0; k < n; k++) seq.push(ed[(start + k) % n]);
   seq.forEach(function(e, k) {
     if (!e.type) return;
@@ -3299,6 +3318,18 @@ ENC.layout = function(DM, E) {
     g.S = [+S[0].toFixed(6), +S[1].toFixed(6)]; g.d = d; g.len = +len.toFixed(6); g.oblique = Math.abs(d[0]) > 1e-6 && Math.abs(d[1]) > 1e-6;
     runs.push(g);
   });
+  // (Brief 32 §4) the sidewalk side: along each curb-side edge, between the end enclosures' inner faces, a run in every
+  // stretch the entries leave (free ends at each gap): the gaps are the entries and nowhere else
+  if (E.curbOn) {
+    var L = DM.parklet.length, dA = depthOf('endA'), dB = depthOf('endB'), es = ENC.entriesOn(E.entries, L, dA, dB);
+    (ENC._curbEdges || []).forEach(function(e) {
+      var z0 = Math.max(Math.min(e.a[1], e.c[1]), dA), z1 = Math.min(Math.max(e.a[1], e.c[1]), L - dB), x = e.a[0], cur = z0, spans = [];
+      es.forEach(function(q) { if (q.z1 <= cur || q.z0 >= z1) return; if (q.z0 > cur) spans.push([cur, q.z0]); cur = Math.max(cur, q.z1); });
+      if (z1 > cur) spans.push([cur, z1]);
+      spans.forEach(function(sp) { var l2 = sp[1] - sp[0]; if (l2 < 0.05) return; runs.push({ type: 'curb', kind: 'main', n: [1, 0], mA: 0, mB: 0, aPost: false, bPost: false, S: [+x.toFixed(6), +sp[0].toFixed(6)], d: [0, 1], len: +l2.toFixed(6), oblique: false }); });
+    });
+  }
+  ENC._curbEdges = null;
   return runs;
 };
 ENC.pt = function(r, u, v) { return [r.S[0] + r.d[0] * u + r.n[0] * v, r.S[1] + r.d[1] * u + r.n[1] * v]; };
@@ -3333,9 +3364,13 @@ ENC.resolve = function(DM, Eo) {
   var dA = runs[1].depth, dB = runs[2].depth, flags = [];
   if (E.bufferDepth < ENC.BUF_ADVISE - 1e-9) flags.push({ k: 'buffer', t: 'Buffer ' + E.bufferDepth.toFixed(2) + ' m: a buffer of at least 0.30 m is recommended from a busy travel lane (Parklet Manual E2, advisory).' });
   if (runs.some(function(r) { return r.id === 'solid-wall' || (r.id === 'bench-back' && r.params.back === 'solid'); })) flags.push({ k: 'solid', t: 'Solid edge — confirm with City (Parklet Manual E4, G13).' });
-  return { archetype: E.archetype, height: H, bufferDepth: E.bufferDepth, sides: { traffic: E.sides.traffic, endA: E.sides.endA, endB: E.sides.endB },
+  // (Brief 32 §4) the entries on this deck; 'infer' (a design saved before) reads the tool's old entries until they are its own
+  var ents = E.entries === 'infer' && ENC.inferred ? ENC.inferred(DM, dA, dB) : ENC.entriesOn(E.entries, L, dA, dB), curb = runs.filter(function(r) { return r.side === 'curb' && r.parts.length; });
+  return { archetype: E.archetype, height: H, bufferDepth: E.bufferDepth, sides: { traffic: E.sides.traffic, endA: E.sides.endA, endB: E.sides.endB, curb: E.sides.curb },
     params: E.params, mats: E.mats, runs: runs, inset: +(E.bufferDepth + dT).toFixed(4), usableW: +(W - E.bufferDepth - dT).toFixed(4),
-    xOuter: xO, xInner: xI, zA: dA, zB: L - dB, openings: [], flags: flags, routeMaxBuffer: ENC.routeMaxBuffer(W, dT) };
+    xOuter: xO, xInner: xI, zA: dA, zB: L - dB, entries: ents, curbOn: !!E.curbOn, curbDepth: curb.length ? curb[0].depth : 0,
+    curbSpans: curb.map(function(r) { return [+r.S[1].toFixed(4), +(r.S[1] + r.len).toFixed(4)]; }),
+    openings: ents.map(function(q) { return { z0: q.z0, z1: q.z1, w: q.w }; }), flags: flags, routeMaxBuffer: ENC.routeMaxBuffer(W, dT) };
 };
 ENC.run = function(DM, side) { var e = (DM || _dmCurrent()).enclosure; return e ? e.runs.find(function(r) { return r.side === side; }) : null; };
 // a part in the model's frame; base = the height of the deck surface in the caller's frame
@@ -3390,7 +3425,7 @@ ENC.routeMaxBuffer = function(W, depthT) {
 // the generator's footprint fields for the enclosure: its inset on the traffic side, the ends' inner faces
 ENC.fpFields = function(DM) {
   DM = DM || _dmCurrent(); var E = DM.enclosure; if (!E) return { inset: 0, zA: null, zBd: null };
-  return { inset: E.inset, zA: E.runs[1].depth, zBd: E.runs[2].depth, encPlant: ENC.plantArea(DM) };
+  return { inset: E.inset, zA: E.runs[1].depth, zBd: E.runs[2].depth, encPlant: ENC.plantArea(DM), entries: (E.entries || []).map(function(q) { return { z: q.z, w: q.w }; }), curb: E.curbDepth || 0, curbSpans: E.curbSpans || [] };   // (Brief 32 §4)
 };
 ENC.plantArea = function(DM) {
   var E = DM.enclosure, a = 0; if (!E) return 0;
@@ -3419,6 +3454,21 @@ ENC.openingsOf = function(items, fp) {
   var out = runs.map(function(r) { var w = r[1] - r[0]; return { z0: +r[0].toFixed(4), z1: +r[1].toFixed(4), w: +w.toFixed(4), n: Math.floor(w / ENC.OPEN_W + 1e-6) }; });
   return { runs: out, count: out.reduce(function(s, o) { return s + o.n; }, 0) };
 };
+// (Brief 32 §4) the entries the tool used to infer (one per ENTRY_PER m, the free turning square nearest each length's middle)
+ENC.inferred = function(DM, dA, dB) {
+  if (typeof GEN === 'undefined' || !GEN.access) return ENC.entriesOn('seed', DM.parklet.length, dA, dB);
+  var fp = { id: 'infer', W: DM.parklet.width, L: DM.parklet.length, shape: DM.parklet.outline, inset: 0, zA: dA, zBd: dB };
+  try { var a = GEN.access(ENC.items(), fp); return ENC.entriesOn(a.entries.filter(function(z) { return z != null; }).map(function(z) { return { z: z, w: ENC.OPEN_W }; }), fp.L, dA, dB); }
+  catch (e) { return ENC.entriesOn('seed', DM.parklet.length, dA, dB); }
+};
+ENC.adoptInferred = function(DM) {
+  if (!ENC.items().length) return false;   // its pieces not loaded yet: the old entries depend on them
+  var list = (DM.enclosure.entries || []).map(function(q) { return { z: q.z, w: q.w }; });
+  ENCLOSURE.entries = list; ENCLOSURE.entriesFrom = 'inferred';
+  try { state.__enclosure = JSON.stringify(ENCLOSURE); } catch (e) {}
+  console.info('[entries] ' + list.length + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' the tool inferred are now the design\'s own, at z ' + list.map(function(q) { return q.z.toFixed(2); }).join(', ') + ' m (Design › Edge)');
+  return true;
+};
 ENC.fpLive = function(DM) { DM = DM || _dmCurrent(); return Object.assign({ id: 'live', W: DM.parklet.width, L: DM.parklet.length, shape: DM.parklet.outline }, ENC.fpFields(DM)); };
 ENC.openings = function(DM) { var o = ENC.openingsOf(ENC.items(), ENC.fpLive(DM)); return o; };
 // C17: the height on the traffic side and both ends (planters: the top of the planting)
@@ -3428,10 +3478,13 @@ ENC.c17 = function() {
   var f = function(v) { return (+v).toFixed(2); }, desc = 'traffic side ' + f(tops[0]) + ' m (' + E.runs[0].name.toLowerCase() + '), ends ' + f(tops[1]) + ' / ' + f(tops[2]) + ' m';
   return { ok: ok, tops: tops, msg: (ok ? '✓ ' : '✗ ') + desc + (ok ? ': within 0.75–1.0 m. Passes.' : ': outside 0.75–1.0 m. Fails.') };
 };
+// (Brief 32 §4) C18 counts the entries the design has: two or more, each at least 1.8 m wide (E3)
 ENC.c18 = function() {
-  var DM = _dmCurrent(), o = ENC.openingsOf(ENC.items(), ENC.fpLive(DM)), big = o.runs.filter(function(r) { return r.n > 0; });
-  var ws = o.runs.map(function(r) { return r.w.toFixed(2); }).join(', ');
-  return { ok: o.count >= 2, o: o, msg: (o.count >= 2 ? '✓ ' : '✗ ') + o.count + ' opening' + (o.count === 1 ? '' : 's') + ' of 1.8 m or more to the sidewalk (clear runs ' + (ws || 'none') + ' m)' + (o.count >= 2 ? '. Passes.' : '; two are needed. Fails.') };
+  var DM = _dmCurrent(), es = (DM.enclosure && DM.enclosure.entries) || [], n = es.length, narrow = es.filter(function(q) { return q.w < ENC.OPEN_W - 1e-6; }), f = function(v) { return (+v).toFixed(2); };
+  var where = es.map(function(q) { return f(q.w) + ' m at z ' + f(q.z); }).join(', '), ok = n >= 2 && !narrow.length;
+  var why = n === 0 ? 'no entry, needs two' : n === 1 ? 'one entry, needs two' : narrow.length ? narrow.map(function(q) { return 'the entry at z ' + f(q.z) + ' is ' + f(q.w) + ' m wide, needs ' + f(ENC.OPEN_W); }).join('; ') : '';
+  return { ok: ok, entries: es, o: { runs: es.map(function(q) { return { z0: q.z0, z1: q.z1, w: q.w, n: q.w >= ENC.OPEN_W - 1e-6 ? 1 : 0 }; }), count: es.filter(function(q) { return q.w >= ENC.OPEN_W - 1e-6; }).length },
+    msg: ok ? '✓ ' + n + ' entries to the sidewalk (' + where + '), each 1.8 m or more. Passes.' : '✗ ' + why + (where ? ' (' + where + ')' : '') + '. Fails.' };
 };
 // C16 (Brief 25 item 21b; the slot Brief 20 kept for accessibility): from each entry (a GEN.TURN square clear at the sidewalk
 // edge, its opening at least GEN.ROUTE_W wide) a continuous route GEN.ROUTE_W clear to an accessible seat, with GEN.TURN of
@@ -3445,10 +3498,10 @@ ENC.c16 = function() {
   if (typeof GEN === 'undefined' || !GEN.access) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'The route is checked once the layout model has loaded.' };   // the page still loading
   if (!ENC.items().length) return { ok: false, unknown: true, acc: { entries: [], paths: [], per: [] }, bad: [], msg: 'Nothing placed yet: the route is checked once there is seating on the deck.' };   // an empty deck: not a failure
   var DM = _dmCurrent(), fp = ENC.fpLive(DM), items = ENC.items(), a = GEN.access(items, fp, { paths: true }), RW = GEN.ROUTE_W, T = GEN.TURN, f = function(v) { return (+v).toFixed(2); }, bad = [];
-  var op = ENC.openingsOf(items, fp).runs;
+  var ents = fp.entries || [];   // (Brief 32 §4) the design's entries
   a.entries.forEach(function(ez, k) {
-    if (ez === null) { bad.push('entry ' + (k + 1) + ': no ' + f(T) + ' m turning space clear at the sidewalk edge'); return; }
-    var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }); if (r && r.w < RW - 1e-9) bad.push('entry ' + (k + 1) + ': opening ' + f(r.w) + ' m, under ' + f(RW));
+    if (ez === null) { bad.push('entry ' + (k + 1) + (ents[k] ? ' (z ' + f(ents[k].z) + ')' : '') + ': no ' + f(T) + ' m turning space clear inside it'); return; }
+    var r = ents[k]; if (r && r.w < RW - 1e-9) bad.push('entry ' + (k + 1) + ': ' + f(r.w) + ' m wide, under ' + f(RW));
   });
   if (!a.seats) return { ok: false, unknown: true, acc: a, bad: [], msg: 'No accessible seat on the deck yet (a bench end, or a table 0.70–0.80 m high): the route is checked once there is one.' };   // not entered, never a fail (Brief 29 item 7)
   var loose = null;
@@ -4247,6 +4300,9 @@ function buildDesignModel() {
     // the deck levels every view and the report's drawings read; the enclosure (Brief 21 §12), resolved on this deck
     DESIGN_MODEL.parklet.levels = Object.assign({}, PARKLET_LEVELS);
     DESIGN_MODEL.enclosure = ENC.resolve(DESIGN_MODEL);
+    // (Brief 32 §4) a design saved before: once its pieces are on the deck, the entries the tool inferred become its own (once)
+    if (ENCLOSURE.entries === 'infer' && typeof ENC.adoptInferred === 'function' && ENC.adoptInferred(DESIGN_MODEL)) DESIGN_MODEL.enclosure = ENC.resolve(DESIGN_MODEL);
+    DESIGN_MODEL.parklet.entries = DESIGN_MODEL.enclosure.entries;
     // Section A-A (Brief 08): the resolved cut every view reads.
     if (typeof sectionResolve === 'function') DESIGN_MODEL.section = sectionResolve(L, LM.sceneMinZ, LM.sceneMaxZ, null, LM);
   })();
@@ -23049,7 +23105,8 @@ GEN.ST_KEYS = ['parking_restrictions', 'route_type', 'intersection_dist', 'slope
   'signal_box_dist', 'manhole_dist', 'fire_exit_block', 'drainage_clear', 'boulevard_clear', 'parking_setback', 'platform_gap', 'load_capacity',
   'manholes', 'curb_features', 'driveways', 'pkShape'];
 GEN.withScratch = function(ds, fn) {
-  var g0 = GEN.getG(), st0 = {}, dm0 = {}, seg0 = window.seGetSegs, pl0 = (window.FL3D && FL3D.placed) || null;
+  var g0 = GEN.getG(), st0 = {}, dm0 = {}, seg0 = window.seGetSegs, pl0 = (window.FL3D && FL3D.placed) || null, enc0 = ENCLOSURE;
+  ENCLOSURE = Object.assign({}, ENC.norm(enc0), { entries: 'seed' });   // (Brief 32 §4) a candidate's entries are its own: at its deck's ends
   GEN.ST_KEYS.forEach(function(k) { st0[k] = { has: Object.prototype.hasOwnProperty.call(state, k), v: state[k] }; });
   Object.keys(DESIGN_MODEL).forEach(function(k) { dm0[k] = DESIGN_MODEL[k]; });
   try {
@@ -23068,7 +23125,7 @@ GEN.withScratch = function(ds, fn) {
     buildDesignModel();
     return fn();
   } finally {
-    GEN._scratchPlaced = null;
+    GEN._scratchPlaced = null; ENCLOSURE = enc0;
     GEN.setG(g0);
     GEN.ST_KEYS.forEach(function(k) { if (st0[k].has) state[k] = st0[k].v; else delete state[k]; });
     Object.keys(DESIGN_MODEL).forEach(function(k) { if (!(k in dm0)) delete DESIGN_MODEL[k]; });
@@ -23234,7 +23291,8 @@ GEN.edgeAt = function(fp, z0, z1) {
 GEN.deckAt = function(fp, z0, z1) { return GEN.edgeAt(Object.assign({}, fp, { inset: 0 }), z0, z1); };
 // a footprint's enclosure fields for a deck W x L (the design's enclosure on it)
 GEN.encFields = function(W, L) {
-  var DM = { landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L, width: W } }; DM.enclosure = ENC.resolve(DM);
+  // (Brief 32 §4) a scheme's entries are its own: two at its deck's ends, the design's enclosure otherwise
+  var DM = { landmarks: { deckX0: 0, deckX1: W }, parklet: { length: L, width: W } }; DM.enclosure = ENC.resolve(DM, Object.assign({}, ENC.norm(ENCLOSURE), { entries: 'seed' }));
   return ENC.fpFields(DM);
 };
 
@@ -23597,7 +23655,7 @@ GEN.layout = function(tpl, fp, opt) {
   var ctx = { items: [], fp: fp, r: opt.r, edge: opt.edge, planting: opt.planting, green: opt.green, access: opt.access, shade: opt.shade, target: GEN.TURN,
     plantKind: opt.planting >= 3 ? 'tree' : opt.planting >= 2 ? 'shrub' : 'grass' };
   var z0 = GEN.END + 0.1, z1 = fp.L - GEN.END - 0.1, len = z1 - z0, zones = opt.flip ? tpl.zones.slice().reverse() : tpl.zones, cur = z0;
-  var keepOut = [];   // (the notched decks are gone: Brief 32 §2)
+  var keepOut = (fp.entries || []).map(function(q) { return [q.z - q.w / 2 - 0.1, q.z + q.w / 2 + 0.1]; });   // (Brief 32 §4) no programme in front of an entry
   function pieces(a, b) {
     var out = [[a, b]];
     keepOut.forEach(function(k) {
@@ -23622,6 +23680,8 @@ GEN.layout = function(tpl, fp, opt) {
   });
   keepOut.forEach(function(k) { GEN.ZONES.open(Object.assign({}, ctx, { edge: ctx.edge === 'glass' ? 'glass' : 'screens' }), Math.max(z0, k[0]) + 0.05, Math.min(z1, k[1]) - 0.05); });
   GEN.infill(ctx, z0, z1, opt.fill || 0);
+  // (Brief 32 §4) a piece laid against the sidewalk edge stands off the sidewalk-side run
+  if (fp.curb > 0) ctx.items.forEach(function(it) { if (it.type === 'umbrella') return; var b = GEN.aabb(it); if (b.x0 < fp.curb && (fp.curbSpans || []).some(function(sp) { return b.z0 < sp[1] && b.z1 > sp[0]; })) it.x = GEN.r3(it.x + fp.curb - b.x0 + 0.01); });
   var lay = GEN.validate(ctx.items, fp);
   lay.patterns = used; lay.fill = opt.fill || 0;
   // the scheme's pattern: the requested one if laid over >= 30 % of the zones, else the longest
@@ -23654,7 +23714,12 @@ GEN.validate = function(items, fp) {
   var acc = reasons.length ? null : GEN.access(items, fp);
   if (acc) reasons = reasons.concat(acc.reasons);
   // E3 (Brief 21 §12, C18): two openings of 1.8 m to the sidewalk
-  if (!reasons.length && typeof ENC !== 'undefined' && ENC.openingsOf(items, fp).count < 2) reasons.push('fewer than two 1.8 m openings to the sidewalk');
+  if (Array.isArray(fp.entries)) {   // (Brief 32 §4) the scheme's own entries (C18), clear in front, and nothing on the sidewalk-side run
+    if (fp.entries.length < 2) reasons.push('fewer than two entries');
+    items.forEach(function(it) { if (it.type === 'umbrella') return; var b = GEN.aabb(it);
+      if (fp.entries.some(function(q) { return b.x0 < GEN.TURN - 0.005 && b.z0 < q.z + q.w / 2 - 0.005 && b.z1 > q.z - q.w / 2 + 0.005; })) reasons.push(it.type + ' in front of an entry');
+      if (fp.curb > 0 && b.x0 < fp.curb - 0.001 && (fp.curbSpans || []).some(function(sp) { return b.z0 < sp[1] && b.z1 > sp[0]; })) reasons.push(it.type + ' on the sidewalk-side enclosure'); });
+  } else if (!reasons.length && typeof ENC !== 'undefined' && ENC.openingsOf(items, fp).count < 2) reasons.push('fewer than two 1.8 m openings to the sidewalk');
   return { items: items, acc: acc, route: acc ? acc.route : 0, access: acc ? acc.access : 0, ok: reasons.length === 0, reasons: reasons };
 };
 
@@ -23681,6 +23746,7 @@ GEN.access = function(items, fp, opt) {
   var edge = new Float64Array(nz);
   for (j = 0; j < nz; j++) edge[j] = GEN.edgeAt(fp, j * C, Math.min(L, (j + 1) * C));
   var obs = items.filter(function(it) { return it.type !== 'umbrella'; }).map(function(it) { return GEN.aabb(it); });
+  if (fp.curb > 0) (fp.curbSpans || []).forEach(function(sp) { obs.push({ x0: -1, x1: fp.curb, z0: sp[0], z1: sp[1], curb: true }); });   // (Brief 32 §4) the sidewalk-side enclosure
   // clear width per cell (0 = not walkable)
   var wid = new Float64Array(nx * nz);
   for (j = 0; j < nz; j++) {
@@ -23725,13 +23791,19 @@ GEN.access = function(items, fp, opt) {
       }
   });
   // entries: a clear turning square against the sidewalk edge in each length of the deck
-  var need = 1 + Math.floor(L / GEN.ENTRY_PER), T = GEN.TURN, entries = [], seg = L / need;
+  var given = Array.isArray(fp.entries), need = given ? fp.entries.length : 1 + Math.floor(L / GEN.ENTRY_PER), T = GEN.TURN, entries = [], seg = L / Math.max(1, need);   // (Brief 32 §4) the design's entries when it has them
   function squareFree(zc) {
     var s0 = zc - T / 2, s1 = zc + T / 2;
     if (s0 < zA - 1e-6 || s1 > zB + 1e-6 || GEN.edgeAt(fp, s0, s1) < T - 1e-6) return false;
     return !obs.some(function(o) { return o.x0 < T - 0.005 && o.z0 < s1 - 0.005 && o.z1 > s0 + 0.005; });
   }
-  for (k = 0; k < need; k++) {
+  if (given) fp.entries.forEach(function(q) {   // the turning square inside each entry, nearest its middle
+    var sl = Math.max(0, ((q.w || ENC.OPEN_W) - T) / 2), best = null;
+    for (var zc = Math.ceil((q.z - sl) / C) * C; zc <= q.z + sl + 1e-6; zc += C) if (squareFree(zc) && (best === null || Math.abs(zc - q.z) < Math.abs(best - q.z))) best = zc;
+    if (best === null && squareFree(q.z)) best = q.z;
+    entries.push(best === null ? null : GEN.r3(best));
+  });
+  for (k = 0; !given && k < need; k++) {
     var mid = (k + 0.5) * seg, best = null;
     for (var zc = Math.ceil((k * seg) / C) * C; zc <= (k + 1) * seg + 1e-6; zc += C) {
       if (squareFree(zc) && (best === null || Math.abs(zc - mid) < Math.abs(best - mid))) best = zc;
@@ -23740,7 +23812,8 @@ GEN.access = function(items, fp, opt) {
   }
   var reasons = [], out = { need: need, entries: entries, seats: seats.length, per: [], route: 0, access: 0, seat: null, reasons: reasons, paths: [], w: RW };
   var missing = entries.filter(function(e) { return e === null; }).length;
-  if (missing) reasons.push('no entry turning space (' + (need - missing) + ' of ' + need + ': ' + T + ' x ' + T + ' m at the sidewalk edge, one per ' + GEN.ENTRY_PER + ' m)');
+  if (missing) reasons.push(given ? 'no entry turning space (' + (need - missing) + ' of ' + need + ' entries clear ' + T + ' x ' + T + ' m inside)' : 'no entry turning space (' + (need - missing) + ' of ' + need + ': ' + T + ' x ' + T + ' m at the sidewalk edge, one per ' + GEN.ENTRY_PER + ' m)');
+  if (given && !need) reasons.push('no entry');
   if (!seats.length) reasons.push('no accessible seat (bench end or table with knee clearance)');
   if (reasons.length) return out;
   // widest-path flood fill from each entry (4-connected, over cells >= ROUTE_W)
@@ -23810,6 +23883,7 @@ GEN.access = function(items, fp, opt) {
     for (var v = 1; v < p.pts.length; v++) {
       var a = p.pts[v - 1], b = p.pts[v], c4 = p.pts[v + 1], end = !c4;
       if (!end) { var a1 = Math.atan2(b[1] - a[1], b[0] - a[0]), a2 = Math.atan2(c4[1] - b[1], c4[0] - b[0]), da = Math.abs(((a2 - a1 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI); if (da < Math.PI / 6) continue; }
+      if (!end && b[0] < T + 1e-6 && Math.abs(b[1] - p.pts[0][1]) < T) continue;   // (Brief 32 §4) never at the entry: the turn into the deck is the entry's own
       var t = best(b[0], b[1], 0.5) || { x: b[0], z: b[1], w: 0 }; t.end = end; t.at = [b[0], b[1]]; p.turns.push(t);
     }
   });
@@ -24257,6 +24331,7 @@ GEN.openState = function(c, cur, base) {
   so.pkShape = ds.siteObjects.pkShape ? JSON.parse(JSON.stringify(ds.siteObjects.pkShape)) : null;
   out.section = JSON.parse(JSON.stringify(ds.section));
   out.furniture = JSON.parse(JSON.stringify(ds.furniture));
+  if (out.enclosure) out.enclosure = Object.assign({}, out.enclosure, { entries: 'seed' });   // (Brief 32 §4) the scheme's entries: at its deck's ends
   if (ds.parkletMaterials) out.parkletMaterials = JSON.parse(JSON.stringify(ds.parkletMaterials));   // (Brief 30 §5)
   var moved = Math.abs(a) > 1e-6 || Math.abs(L - L0) > 1e-6;
   GEN.COMMIT_KEYS.concat(moved ? GEN.DERIVED_KEYS : []).forEach(function(n) { if (ds.compliance[n] !== undefined) out.compliance[n] = ds.compliance[n]; });
@@ -33472,6 +33547,8 @@ ENC.set = function(patch, o) {
   E.archetype = E.sides.traffic;
   if (patch.params) Object.keys(patch.params).forEach(function(id) { E.params[id] = Object.assign({}, E.params[id] || {}, patch.params[id]); });
   if (patch.mats) Object.keys(patch.mats).forEach(function(id) { E.mats[id] = patch.mats[id]; });
+  if (patch.entries) E.entries = ENC.cleanEntries(patch.entries);   // (Brief 32 §4)
+  if (typeof patch.curbOn === 'boolean') E.curbOn = patch.curbOn;
   if (typeof patch.height === 'number') E.height = o.raw ? patch.height : Math.min(ENC.H_MAX, Math.max(ENC.H_MIN, patch.height));
   if (typeof patch.bufferDepth === 'number') E.bufferDepth = o.raw ? Math.max(0, patch.bufferDepth) : Math.max(0, patch.bufferDepth);
   // (Brief 21c) the fast path clamps with the cached limit (else the geometric one); the generator's limit follows in the full sync
