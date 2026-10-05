@@ -115,6 +115,9 @@ Ninety seconds on the live site, captions and no sound ([MP4](demo/walkthrough.m
 located and imported, the curb-to-curb estimate, Generate refusing until the site facts are set; a saved design (West
 Georgia Street) opened from My designs, generated and opened in Design; one Check value saved; the technical report
 downloaded and paged through: cover, What to do next, layout plan, deck plan, both sections, C-001 and sources.
+The clip was recorded on v0.17. Since v0.18 the same work runs through seven numbered steps (Site, Site facts, Design,
+Access, Check, Visualize, Export), the picker opens on the eligibility bands, and the report's cover is the Street
+view; the [sample report](https://jennabruggeman.github.io/curbside/demo/sample-technical.pdf) is current (v0.18, 19 pages).
 
 ## Skill and limits
 
@@ -172,9 +175,10 @@ data build) need:
 `node tools/build-sample-pdfs.js` rebuilds the two sample reports (`demo/sample-schematic.pdf` and
 `demo/sample-technical.pdf`, with their counts in the matching `.json`) from `demo/sample-design.json`, with the
 local server running. Run it after any change to the report or to the sample design: `sample.html` shows these files
-as they are (without them it builds the sample in the browser, which takes several seconds).
+as they are (without them it builds the sample in the browser, which takes several seconds). It uses Playwright's own
+Chromium when it is installed and the system's Edge otherwise (`PW_CHANNEL=msedge` or `chrome` chooses).
 
-`node tools/bump-version.js v0.17` bumps the version in one step, with the local server running. It sets the
+`node tools/bump-version.js v0.18` bumps the version in one step, with the local server running. It sets the
 sheets' stamp in `parklet-checker.html` and the landing page's version, then rebuilds both sample reports at that
 version. The pre-push hook refuses a push whose sample reports carry a different version from the app.
 
