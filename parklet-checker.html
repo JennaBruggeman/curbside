@@ -29239,7 +29239,14 @@ SM.open = async function() {
     SM.map.on('mouseout', function() { SM.hoverAt(null); });
     // a click on a point of a city layer opens its popup; any other click picks the street, then the side
     // a data dot is information only while Layers is open, never during the side pick (Brief 25 item 10)
-    SM.map.on('click', function(e) { if (typeof GIS !== 'undefined' && (!GIS.inspecting || GIS.inspecting()) && GIS.popupAt(e)) return; SM.onClick(e.lngLat.lat, e.lngLat.lng); });
+    SM.map.on('click', function(e) {
+      if (typeof GIS !== 'undefined') {   // (Brief 32 §1) a band that could take a parklet knows its side: one click picks both
+        var bf = GIS.bandAt(e.point), bp = bf ? GIS.bandProps(bf) : null;
+        if (bp && bp.wayId && bp.eligibility !== 'excluded') { SM.bandPick(bp, e.lngLat.lat, e.lngLat.lng); return; }
+        if ((!GIS.inspecting || GIS.inspecting()) && GIS.popupAt(e)) return;
+      }
+      SM.onClick(e.lngLat.lat, e.lngLat.lng);
+    });
   } else { SM.map.resize(); if (typeof GIS !== 'undefined') GIS.onMove(); }
 
   SM.status('Search an address or pan the map, then <b>click the street</b> where the parklet goes.');
@@ -29280,6 +29287,21 @@ SM.otherStreetAt = async function(lat, lon) {
   var nm = (near.way.tags || {}).name || '', same = near.way.id === cur.wayId || (!!nm && nm === cur.name); if (same) return null;
   var dc = SM.snap([cur.snap.way], lat, lon), dCur = dc ? dc.dist : Infinity;
   return near.dist < dCur ? near : null;
+};
+// (Brief 32 §1) a click on a green or hatched band: the way the piece lies on, snapped at the click, and the piece's side
+// (left / right of the way's drawn direction) set in the same click; an excluded face keeps the street-then-side pick
+SM.bandPick = async function(bp, lat, lon) {
+  var ways; try { ways = await GIS.waysNear(lat, lon); } catch (e) { ways = null; }
+  var w = (ways || []).find(function(q) { return String(q.id) === String(bp.wayId); }); if (!w) { SM.pick = null; return SM.onClick(lat, lon); }
+  var sn = SM.snap([w], lat, lon); if (!sn) return SM.onClick(lat, lon);
+  var t = w.tags || {}, idx = GIS._idx || {}, at = (idx.sources && idx.sources.osm && idx.sources.osm.dataAt) || new Date().toISOString();
+  SM.pick = { snap: sn, wayId: w.id, name: t.name || '', highway: t.highway || '', tags: t, fetchedAt: at, via: 'cells' };
+  SM.hoverAt(null);
+  SM.map.getSource('smWay').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: w.geometry.map(function(p) { return [p.lon, p.lat]; }) } });
+  if (SM._mk) SM._mk.remove(); if (SM._mkS) { SM._mkS.remove(); SM._mkS = null; }
+  SM._mk = new maplibregl.Marker({ color: '#3AA8E4' }).setLngLat([sn.lon, sn.lat]).addTo(SM.map);
+  var b = siteNorm(sn.dir + (bp.side === 'right' ? 90 : -90)) * Math.PI / 180, T = SM.enu(sn.lat, sn.lon), q = T.from(6 * Math.sin(b), 6 * Math.cos(b));
+  SM.setSide(q.lat, q.lon);
 };
 SM.onClick = async function(lat, lon) {
   if (SM.pick && SM.pick.snap) { if (!(await SM.otherStreetAt(lat, lon))) return SM.setSide(lat, lon); SM.pick = null; }   // another street: a new pick
@@ -29801,7 +29823,7 @@ GIS.mapInit = function(map) {
     if (!f) f = GIS.bandAt(e.point);   // the eligibility band explains itself at any time (Brief 30 §2)
     if (hovered && (!f || f.id !== hovered.id || f.source !== hovered.source)) { map.setFeatureState(hovered, { hover: false }); hovered = null; GIS.hoverLabel(null); }
     if (f && !hovered) { hovered = { source: f.source, id: f.id }; map.setFeatureState(hovered, { hover: true }); GIS.hoverLabel(f, e.lngLat); }
-    map.getCanvas().style.cursor = (f && !GIS.isBand(f)) || SM.hovered ? 'pointer' : '';   // a hovered street keeps its pointer (SM.hoverAt)
+    map.getCanvas().style.cursor = (f && (!GIS.isBand(f) || GIS.bandProps(f).eligibility !== 'excluded')) || SM.hovered ? 'pointer' : '';   // (Brief 32 §1) a band it can pick in one click   // a hovered street keeps its pointer (SM.hoverAt)
   });
   map.on('mouseout', function() { if (hovered) { map.setFeatureState(hovered, { hover: false }); hovered = null; } GIS.hoverLabel(null); });
   map.on('zoomend', GIS.zoomNote);
