@@ -24684,6 +24684,26 @@ RPT.sources = function(d) {
 // Axon: the Brief 06 isometric camera and its own offscreen WebGL renderer (AXE.renderer), at 2x
 // the sheet's 96 dpi size; entourage and agents hidden for the frame; the scene's lit objects in
 // the schematic palette for the frame. Needs the 3D scene, not a visible 3D panel.
+// (Brief 32 §3) the cover's camera: the Street preset's line of sight (RVZ.presets), its distance set so the deck's
+// projected box spans RPT.COVER_SPAN of the sheet's width, then shifted (a view offset) so the deck sits in the middle
+RPT.COVER_SPAN = 0.6;
+RPT.coverCam = function(aspect, Wpx, Hpx) {
+  var p = RVZ.presets(aspect).street, T = new THREE.Vector3().fromArray(p.target), dir = new THREE.Vector3().fromArray(p.pos).sub(T).normalize();
+  var cam = new THREE.PerspectiveCamera(p.fov, aspect, 0.1, 1200), db = AXE.deckBox(), pts = [];
+  [db.x0, db.x1].forEach(function(x) { [0, db.y1].forEach(function(y) { [db.z0, db.z1].forEach(function(z) { pts.push(new THREE.Vector3(x, y, z)); }); }); });
+  var box = function(dist) {
+    cam.position.copy(T).addScaledVector(dir, dist); cam.lookAt(T); cam.updateMatrixWorld(true); cam.updateProjectionMatrix();
+    var lo = Infinity, hi = -Infinity, lo2 = Infinity, hi2 = -Infinity, behind = false;
+    pts.forEach(function(q) { var v = q.clone().project(cam); if (v.z > 1 || v.z < -1) behind = true; lo = Math.min(lo, v.x); hi = Math.max(hi, v.x); lo2 = Math.min(lo2, v.y); hi2 = Math.max(hi2, v.y); });
+    return { span: behind ? 9 : (hi - lo) / 2, cx: (lo + hi) / 2, cy: (lo2 + hi2) / 2 };
+  };
+  var a = 1.5, b = 300;
+  for (var i = 0; i < 48; i++) { var m = (a + b) / 2; if (box(m).span > RPT.COVER_SPAN) a = m; else b = m; }
+  var r = box(b);
+  if (Wpx && Hpx) { cam.setViewOffset(Wpx, Hpx, r.cx * Wpx / 2, -r.cy * Hpx / 2 * 0.6, Wpx, Hpx); cam.updateProjectionMatrix(); }   // the deck across the middle, a little below centre
+  cam.userData.deckSpan = +r.span.toFixed(3); cam.userData.dist = +b.toFixed(2);
+  return cam;
+};
 RPT.axonImg = function(wMm, hMm) {
   if (typeof AXE === 'undefined' || !_3d || !_3d.scene) return null;
   if (typeof _r3DRebuildPending !== 'undefined' && _r3DRebuildPending) { _r3DRebuildPending = false; renderMassView(); }
@@ -24692,9 +24712,9 @@ RPT.axonImg = function(wMm, hMm) {
   if (AXE.group && AXE.group.visible) { AXE.group.visible = false; hidden.push(AXE.group); }
   try {
     if (mode !== 'schematic') { drawingTheme.mode = 'schematic'; apply3DTheme(); }
-    var cam = AXE.camera('cover', W / H), r = AXE.renderer(W, H), undoP = AXE.present();   // Brief 25 item 23b
+    var cam = RPT.coverCam(W / H, W, H), r = AXE.renderer(W, H), undoP = AXE.present();   // Brief 25 item 23b; (Brief 32 §3) the Street view, the deck across 60 %
     try { AXE._cut = AXE.cutaway(); AXE.draw(r, cam, 0, false); AXE._cut = null; } finally { undoP(); }   // north goes in the title block
-    return { url: r.domElement.toDataURL('image/png'), w: W, h: H, north: AXE.northScreen(cam, W / H) };
+    return { url: r.domElement.toDataURL('image/png'), w: W, h: H, north: AXE.northScreen(cam, W / H), deckSpan: cam.userData.deckSpan, view: 'street' };
   } finally {
     hidden.forEach(function(m) { m.visible = true; });
     if (mode !== 'schematic') { drawingTheme.mode = mode; apply3DTheme(); }
@@ -24709,7 +24729,7 @@ RPT.drawings = async function(d) {
     if (ax) {
       var im = new Image(); im.src = ax.url; await new Promise(function(r) { im.onload = r; im.onerror = r; });
       var c = document.createElement('canvas'); c.width = ax.w; c.height = ax.h; var x = c.getContext('2d'); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, ax.w, ax.h); x.drawImage(im, 0, 0);
-      out.cover = { url: c.toDataURL('image/jpeg', 0.85), w: ax.w, h: ax.h, key: 'axon' };
+      out.cover = { url: c.toDataURL('image/jpeg', 0.85), w: ax.w, h: ax.h, key: 'axon', deckSpan: ax.deckSpan, view: ax.view };
     }
   }
   return out;
@@ -26369,7 +26389,7 @@ RPT.sheetCover = function(d, drw, op) {
     if (DM.site.neighbourhood) add(DM.site.neighbourhood + ', Vancouver', TX.body, { c: RPT.MID });
     add(d.date, TX.body, { c: RPT.MID }, 5);
     var stampY = y; y += 12 + 4;
-    var ai = hero ? ['AI-assisted visualisation — indicative.'].concat(d.sample ? [RPT.SAMPLE_KEY_NOTE] : []) : ['Axonometric of the design model.'];
+    var ai = hero ? ['AI-assisted visualisation — indicative.'].concat(d.sample ? [RPT.SAMPLE_KEY_NOTE] : []) : ['The design model from the street (the Street view).'];
     RPT.wrap(ai.join(' '), iw, TX.tag).forEach(function(l) { add(l, TX.tag, { c: RPT.MID }); });
     // flush to the sheet's bottom-left corner: it also covers the caption baked into the render's corner
     var ph = y + 2 * pad - 2 + 12, py = H - ph, oy = py + pad + 3;
