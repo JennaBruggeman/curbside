@@ -34351,10 +34351,17 @@ P101.xlsx = async function() {
 P101.state = function(est) {
   var S = est.set, m = P101.money, R = est.range, sp = R.n + ' parking space' + (R.n === 1 ? '' : 's');
   var how = S.placeholder ? 'Placeholder rates (not Vancouver prices)' : S.tag === 'indicative' ? 'Indicative 2026 rates' : S.shipped ? 'The Parklet Manual\'s 2016 fees only' : (est.userAll ? 'Your rates' : 'Your rates, some not entered yet');
-  var pr = est.buildLines ? (est.buildLines - est.unpricedLines) + ' of ' + est.buildLines + ' build lines priced' : 'no build lines';
-  var fu = est.unpriced ? ', ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' not priced' : '';
-  var inc = est.unpricedLines || est.unpriced, pos = !(R.n > 0) ? '' : est.cmp ? '; the priced build is ' + est.cmp + ' the Parklet Manual\'s typical range for ' + sp + (inc ? ', so far: the real build is higher' : '') : '; nothing priced yet to place against the Parklet Manual\'s typical range for ' + sp;
+  // (Brief 32 §5) the build lines counted by tag; furniture awaiting a quote said once; the position, plainly
+  var tg = P101.tagCount(est), pr = est.buildLines ? (est.unpricedLines ? (est.buildLines - est.unpricedLines) + ' of ' + est.buildLines + ' build lines priced' : 'every build line priced') + (tg ? ' (' + tg + ')' : '') : 'no build lines';
+  var fu = est.unpriced ? '; ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' await' + (est.unpriced === 1 ? 's' : '') + ' a quote' : '';
+  var pos = !(R.n > 0) ? '' : est.cmp ? '; the build is ' + est.cmp + ' the Parklet Manual\'s typical range for ' + sp + ' (' + m(R.lo) + ' – ' + m(R.hi) + ')' : '; nothing priced yet to place against the Parklet Manual\'s typical range for ' + sp;
   return how + ': ' + pr + fu + pos + '.';
+};
+// "4 sourced · 3 indicative · 2 proxy": the priced build lines by tag, in that order (user last)
+P101.TAGS = ['sourced', 'indicative', 'proxy', 'user'];
+P101.tagCount = function(est) {
+  var n = {}; est.rows.forEach(function(q) { if (q.sec !== 'build' || q.city || !q.priced) return; n[q.tag] = (n[q.tag] || 0) + 1; });
+  return P101.TAGS.filter(function(t) { return n[t]; }).map(function(t) { return n[t] + ' ' + t; }).join(' · ');
 };
 P101.rangeLine = function(est) {
   var R = est.range, m = function(v) { return '$' + Math.round(v).toLocaleString('en-CA'); };
@@ -34398,10 +34405,10 @@ P101.render = function() {
   var h = "<div class='ce'><header class='ce-head'><h1>Cost estimate</h1><p class='ce-state' id='ceState' role='status'>" + e(est.banner) + '</p></header>';
   // the five-second figures
   h += "<dl class='ce-sum'>" +
-    "<div><dt>Build and furniture</dt><dd>" + rg(est.build.lo, est.build.hi) + "</dd><dd class='ce-dd-n'>" + (inc ? inc + ' not priced yet' : 'every line priced') + '</dd></div>' +
+    "<div><dt>Build and furniture</dt><dd>" + rg(est.build.lo, est.build.hi) + "</dd><dd class='ce-dd-n' id='ceTags'>" + e(P101.tagCount(est) || 'no build lines') + (est.unpriced ? e('; ' + est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' awaiting a quote') : '') + '</dd></div>' +   // (Brief 32 §5) counted by tag
     "<div><dt>City fees</dt><dd>" + rg(est.fees.lo, est.fees.hi) + "</dd><dd class='ce-dd-n'>the Manual's 2016 figures: confirm</dd></div>" +
     "<div class='ce-sum-tot'><dt>Total</dt><dd>" + rg(est.lo, est.hi) + "</dd><dd class='ce-dd-n'>" + (est.annual ? 'then ' + m(est.annual.lo) + ' a year' : '') + '</dd></div>' +
-    "<div class='ce-sum-cmp'><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) + (inc ? ', so far' : '') : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') + (inc ? '; ' + inc + ' not priced' : '') : '') + '</dd></div></dl>';
+    "<div class='ce-sum-cmp'><dt>Against the Manual</dt><dd>" + (R.n > 0 ? (est.cmp ? est.cmp.charAt(0).toUpperCase() + est.cmp.slice(1) : 'Nothing priced yet') : '—') + "</dd><dd class='ce-dd-n'>" + (R.n > 0 ? m(R.lo) + ' – ' + m(R.hi) + ' for ' + R.n + ' parking space' + (R.n === 1 ? '' : 's') : '') + '</dd></div></dl>';
   // the controls, grouped
   h += "<div class='ce-ctl' role='group' aria-label='Rates'><label>Rate set <select id='p101Set' onchange='P101.cost().set = this.value; P101.cost().setChosen = true; P101.changed()'>" + sets.map(function(q) { return "<option value='" + q.id + "'" + (q.id === S.id ? ' selected' : '') + '>' + e(q.name) + '</option>'; }).join('') + '</select></label>' +
     "<button type='button' class='ctx-btn' id='ceXlsx' onclick='P101.xlsx()' title='One workbook: the estimate with live totals, the quantities with how each is counted, and the rates with their basis.'>Export to Excel (.xlsx)</button>" +
@@ -34414,7 +34421,7 @@ P101.render = function() {
     sec('b', 'Build', 'the deck, its edge and the planting, from the take-off') + B.map(line).join('') + subtot('Build lines', B.filter(function(r) { return !r.city && r.lo != null; }).reduce(function(a, r) { return a + r.lo; }, 0), B.filter(function(r) { return !r.city && r.hi != null; }).reduce(function(a, r) { return a + r.hi; }, 0)) +
     sec('f', 'Furniture', 'the schedule; a quote per piece') + (FU.length ? FU.map(line).join('') : "<tr><td colspan='7'>No furniture placed.</td></tr>") + subtot('Furniture', fsum('lo'), fsum('hi')) +
     sec('c', 'City fees', "the Parklet Manual's 2016 figures: confirm against the current schedule") + FE.map(line).join('') + subtot('City fees', est.fees.lo, est.fees.hi) +
-    "<tr class='ce-tot'><td colspan='4'>Total, build and fees</td><td class='num' id='p101Total'>" + rg(est.lo, est.hi) + "</td><td colspan='2'>" + (inc ? inc + ' not priced: the real total is higher' : '') + '</td></tr>' +
+    "<tr class='ce-tot'><td colspan='4'>Total, build and fees</td><td class='num' id='p101Total'>" + rg(est.lo, est.hi) + "</td><td colspan='2'>" + (est.unpriced ? est.unpriced + ' furniture piece' + (est.unpriced === 1 ? '' : 's') + ' awaiting a quote, not in the total' : '') + '</td></tr>' +
     AN.map(function(a) { return "<tr class='ce-sub'><td colspan='4'>Then each year: " + e(a.item.replace(/ \(each year after\)/, '').toLowerCase()) + "</td><td class='num'>" + rg(a.lo, a.hi) + "</td><td colspan='2'>" + e(a.src || '') + '</td></tr>'; }).join('') + '</tbody></table>';
   h += "<p class='ce-range' id='p101Range'>" + e(P101.rangeLine(est)) + "</p><p class='ce-note'>" + e(P101.spacesNote(est)) + '</p>';
   h += "<p class='ce-note'>Wheel stops, bollards, no-stopping signs and the parklet sign are supplied by the City (Manual p. 48). City fees: <a href='" + P101.FEE_URL + "' target='_blank' rel='noopener'>vancouver.ca, parklets</a>. An estimate to plan a budget, not a quote.</p>";
