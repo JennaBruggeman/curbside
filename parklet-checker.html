@@ -3060,7 +3060,7 @@ ENC.SIDES = ['traffic', 'endA', 'endB', 'curb'];
 ENC.SIDE_LABEL = { traffic: 'Traffic side', endA: 'Start end', endB: 'Far end', curb: 'Sidewalk side' };
 // a new design; a design saved before Brief 21 §12 loads as ENC.LEGACY: the railing it had (0.90 m, at the deck edge) and
 // planter walls at the ends where its end planters stood
-ENC.DEFAULT = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0.30, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall', curb: 'steel-picket' }, params: {}, mats: {}, entries: 'seed', curbOn: true };   // (Brief 32 §4) two entries at the ends, the sidewalk side closed between them
+ENC.DEFAULT = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0.30, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall', curb: 'steel-picket' }, params: {}, mats: {}, entries: 'seed', curbOn: false };   // (Brief 32 §4, follow-up) two entries at the ends, the sidewalk side open (the user may enclose it)
 ENC.LEGACY = { archetype: 'steel-picket', height: 0.90, bufferDepth: 0, sides: { traffic: 'steel-picket', endA: 'planter-wall', endB: 'planter-wall' }, params: {}, mats: {} };
 var ENCLOSURE = JSON.parse(JSON.stringify(ENC.DEFAULT));
 // ── Brief 30 §5: the parklet's own materials, one store ────────────────────────────────────────────────────────────────
@@ -3207,7 +3207,7 @@ ENC.norm = function(e) {
     sides: { traffic: tr, endA: ok(s.endA, 'planter-wall'), endB: ok(s.endB, 'planter-wall'), curb: ok(s.curb, 'steel-picket') },
     // (Brief 32 §4) the entries: a list, 'seed' (at the deck ends) or 'infer' (a design saved before: the tool's old entries);
     // the sidewalk side enclosed between them unless the design was saved before entries were the design's own
-    entries: ENC.cleanEntries(e.entries), curbOn: typeof e.curbOn === 'boolean' ? e.curbOn : e.entries !== undefined,
+    entries: ENC.cleanEntries(e.entries), curbOn: e.curbOn === true,   // open unless the design encloses it
     params: e.params && typeof e.params === 'object' ? e.params : {}, mats: e.mats && typeof e.mats === 'object' ? e.mats : {},
     // (Brief 21c) a design saved before §12: its end planters became planter walls; the note stays with the design
     migrated: e.migrated ? String(e.migrated) : undefined, entriesFrom: e.entriesFrom ? String(e.entriesFrom) : undefined };
