@@ -3590,20 +3590,19 @@ ACC.planSVG = function(DK, U, ann) {
   var blocked = !c.ok && !c.unknown, ink = DRAW_STYLE.c(DK, 'ink'), mid = DRAW_STYLE.c(DK, 'mid'), acc = DRAW_STYLE.UI.accent;
   var line = blocked ? ink : mid, pts2 = function(poly) { return poly.map(function(q) { return f(q[0]) + ',' + f(q[1]); }).join(' '); };
   ACC._drawn = { route: 0, entry: 0, pinch: 0, turn: 0, blocked: blocked };
-  // (Brief 31 §8) the dotted hatch: dots every 6 px, faint
-  out += "<defs><pattern id='accDots' patternUnits='userSpaceOnUse' width='" + f(6 * U) + "' height='" + f(6 * U) + "'><circle cx='" + f(1.5 * U) + "' cy='" + f(1.5 * U) + "' r='" + (0.7 * U).toFixed(2) + "' fill='" + line + "' fill-opacity='0.45'/></pattern></defs>";
+  // (Brief 32 §4) no fill: the corridor is its dashed outline
   // a corridor: the route's centre line offset by half the required width, its outline dashed, the hatch inside
   var corridor = function(pts, w, colr, entry, tip) {
     if (!pts || pts.length < 2) return '';
     var poly = ACC.band(pts, w).map(P); if (poly.length < 3) return '';
     ACC._drawn.route++;
-    return "<g data-route='" + entry + "'><title>" + tip + "</title><polygon points='" + pts2(poly) + "' fill='url(#accDots)'" + DRAW_STYLE.ui(DK, 1, colr, { dash: [5, 3], join: 'round' }) + " data-corridor='" + w.toFixed(2) + "'/></g>";
+    return "<g data-route='" + entry + "'><title>" + tip + "</title><polygon points='" + pts2(poly) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, colr, { dash: [5, 3], join: 'round' }) + " data-corridor='" + w.toFixed(2) + "'/></g>";
   };
   // a turning space: a dashed circle of the turning width (an ellipse where the Plan's axes differ in scale)
   var turn = function(x, z, w) {
     var p0 = P([x, z]), px = P([x + T / 2, z]), pz = P([x, z + T / 2]), rx = Math.hypot(px[0] - p0[0], px[1] - p0[1]), ry = Math.hypot(pz[0] - p0[0], pz[1] - p0[1]);
     ACC._drawn.turn++;
-    return "<ellipse cx='" + f(p0[0]) + "' cy='" + f(p0[1]) + "' rx='" + f(rx) + "' ry='" + f(ry) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, w != null && w < T - 1e-9 ? acc : line, { dash: [3, 3] }) + " data-turn='" + T.toFixed(2) + "'><title>Turning space, " + T.toFixed(2) + ' m' + (w != null ? ' (' + w.toFixed(2) + ' m clear)' : '') + '</title></ellipse>';
+    return "<ellipse cx='" + f(p0[0]) + "' cy='" + f(p0[1]) + "' rx='" + f(rx) + "' ry='" + f(ry) + "' fill='none'" + DRAW_STYLE.ui(DK, 1, w != null && w < T - 1e-9 ? ink : line, { dash: [3, 3] }) + " data-turn='" + T.toFixed(2) + "'><title>Turning space, " + T.toFixed(2) + ' m' + (w != null ? ' (' + w.toFixed(2) + ' m clear)' : '') + '</title></ellipse>';
   };
   // a dimension across the route at a point (deck frame), w wide along n (the unit normal), the text beside it
   var dimAcross = function(x, z, nx, nz, w, txt, colr, data) {
@@ -3618,8 +3617,7 @@ ACC.planSVG = function(DK, U, ann) {
   };
   (a.paths || []).forEach(function(rt) {
     out += corridor(rt.pts, RW, line, rt.entry, 'Accessible route (C16) from the entry at z ' + rt.entry.toFixed(2) + ' to the ' + rt.seat + ': ' + rt.w.toFixed(2) + ' m clear at its narrowest, ' + RW.toFixed(2) + ' m needed');
-    (rt.turns || []).forEach(function(t) { out += turn(t.x, t.z, t.w); });
-    var e = rt.pts[rt.pts.length - 1]; if (e) out += turn(e[0], e[1], null);   // the turning space at the seat
+    (rt.turns || []).forEach(function(t) { out += turn(t.x, t.z, t.w); });   // (Brief 32 §4) where it turns and where it ends (the seat): once each
   });
   // an entry with no route at C16's width: the narrower path that exists, its outline in the accent
   var loose = null;
@@ -3629,7 +3627,7 @@ ACC.planSVG = function(DK, U, ann) {
     loose = loose || GEN.access(its, fp, { w: 0.3 });
     var lw = ((loose.per || []).find(function(q) { return q.entry === p.entry; }) || {}).route || 0; if (!(lw >= 0.3)) return;
     var wide = GEN.access(its, fp, { w: lw - 1e-3, paths: true }), lp = (wide.paths || []).find(function(q) { return q.entry === p.entry; }); if (!lp) return;
-    out += corridor(lp.pts, Math.max(0.3, lp.pinch.w), acc, p.entry, 'No ' + RW.toFixed(2) + ' m route from the entry at z ' + p.entry.toFixed(2) + ': ' + lp.pinch.w.toFixed(2) + ' m at its narrowest');
+    out += corridor(lp.pts, Math.max(0.3, lp.pinch.w), ink, p.entry, 'No ' + RW.toFixed(2) + ' m route from the entry at z ' + p.entry.toFixed(2) + ': ' + lp.pinch.w.toFixed(2) + ' m at its narrowest');
   });
   var over = '';
   if (blocked && typeof ACCTAB !== 'undefined') {
@@ -3639,12 +3637,11 @@ ACC.planSVG = function(DK, U, ann) {
       ACC._drawn.pinch++;
       var lbl = (bk.w > 0.05 ? bk.w.toFixed(2) + ' m' : 'closed') + ' · min ' + RW.toFixed(2) + ' m';
       over += dimAcross(bk.x, bk.z, 1, 0, Math.max(bk.w, 0.05), lbl, ink, "data-pinch='1'");
-      var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(P);
-      over += "<polygon points='" + pts2(cs) + "' fill='none'" + DRAW_STYLE.ui(DK, 2, acc, { join: 'miter' }) + " data-obstruction='1'/>";
+      var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(P);   // (Brief 32 §4) named, no rectangle round it
       var tag = ACCTAB.tagOf(bk.it), nm = (tag ? tag + ' ' : '') + ((FL_ARCHETYPES[bk.it.type] || {}).label || 'piece').toLowerCase(), cr = cs[2], lx = cr[0] + 18 * U, ly = cr[1] + 14 * U;
-      over += "<line x1='" + f(cr[0]) + "' y1='" + f(cr[1]) + "' x2='" + f(lx) + "' y2='" + f(ly) + "'" + DRAW_STYLE.ui(DK, 1, acc) + " data-leader='1'/>";
-      if (ann) ann.text('object', nm + ' in the way', lx + 3 * U, ly + 4 * U, { role: 'body', c: 'accent', bold: true, axis: 'x', tier: 'mid', at: [lx, ly], data: " data-obstruction-t='1'" });
-      else over += "<text x='" + f(lx + 3 * U) + "' y='" + f(ly + 4 * U) + "' font-size='" + f(DRAW_STYLE.fs(DK, 'body')) + "' font-weight='600' fill='" + acc + "' data-obstruction-t='1'>" + nm + ' in the way</text>';
+      over += "<line x1='" + f(cr[0]) + "' y1='" + f(cr[1]) + "' x2='" + f(lx) + "' y2='" + f(ly) + "'" + DRAW_STYLE.ui(DK, 1, mid) + " data-leader='1'/>";
+      if (ann) ann.text('object', nm + ' in the way', lx + 3 * U, ly + 4 * U, { role: 'body', c: 'ink', bold: true, axis: 'x', tier: 'mid', at: [lx, ly], data: " data-obstruction-t='1'" });
+      else over += "<text x='" + f(lx + 3 * U) + "' y='" + f(ly + 4 * U) + "' font-size='" + f(DRAW_STYLE.fs(DK, 'body')) + "' font-weight='600' fill='" + ink + "' data-obstruction-t='1'>" + nm + ' in the way</text>';
     }
   } else if (!c.unknown && (a.paths || []).length) {
     // a clear route: its narrowest clear width, dimensioned once (the legs inside the deck; the first leg comes in from the edge)
@@ -3653,23 +3650,7 @@ ACC.planSVG = function(DK, U, ann) {
     if (best) { var dx2 = best.b[0] - best.a[0], dz2 = best.b[1] - best.a[1], ll = Math.hypot(dx2, dz2) || 1; ACC._drawn.narrowest = best.w;
       over += dimAcross((best.a[0] + best.b[0]) / 2, (best.a[1] + best.b[1]) / 2, -dz2 / ll, dx2 / ll, best.w, best.w.toFixed(2) + ' m clear', mid, "data-narrowest='1'"); }
   }
-  // the entries: the opening in the enclosure line at the sidewalk edge (1.8 m, C18's least, within its clear run), "Entry"
-  var op = ENC.openingsOf(ENC.items(), ENC.fpLive(_dmCurrent())).runs;
-  (a.entries || []).forEach(function(ez) {
-    if (ez == null) return; ACC._drawn.entry++;
-    var r = op.find(function(q) { return ez >= q.z0 - 1e-6 && ez <= q.z1 + 1e-6; }), z0 = Math.max(r ? r.z0 : -Infinity, ez - 0.9), z1 = Math.min(r ? r.z1 : Infinity, ez + 0.9);
-    var e0 = P([0, z0]), e1 = P([0, z1]), m = P([0, ez]), inn = P([0.3, ez]), dx = inn[0] - m[0], dy = inn[1] - m[1], dl = Math.hypot(dx, dy) || 1;
-    var tx = dx / dl * 4 * U, ty = dy / dl * 4 * U;   // a tick into the deck at each side of the opening
-    over += "<g data-entry='" + ez + "'><title>Entry at z " + ez.toFixed(2) + ': ' + (z1 - z0).toFixed(2) + ' m opening in the enclosure (C16, C18)</title>' +
-      "<line x1='" + f(e0[0]) + "' y1='" + f(e0[1]) + "' x2='" + f(e1[0]) + "' y2='" + f(e1[1]) + "'" + DRAW_STYLE.ui(DK, 3, 'accent', { cap: 'butt' }) + '/>' +
-      [e0, e1].map(function(q) { return "<line x1='" + f(q[0] - tx) + "' y1='" + f(q[1] - ty) + "' x2='" + f(q[0] + tx) + "' y2='" + f(q[1] + ty) + "'" + DRAW_STYLE.ui(DK, 1.6, 'accent') + '/>'; }).join('') + '</g>';
-    // the label outside the deck, on the sidewalk side
-    var fs = DRAW_STYLE.TYPE.screen.body * U, ox = -dx / dl, oy = -dy / dl;   // outward: toward the sidewalk
-    var lx = m[0] + ox * (6 * U + (Math.abs(ox) > 0.5 ? fs : 0)), ly = m[1] + oy * 6 * U + (oy > 0.5 ? 0.8 * fs : Math.abs(oy) <= 0.5 ? 0.35 * fs : 0);
-    if (ann) { ann.obst(Math.min(e0[0], e1[0]) - 2 * U, Math.min(e0[1], e1[1]) - 3 * U, Math.max(e0[0], e1[0]) + 2 * U, Math.max(e0[1], e1[1]) + 3 * U);
-      ann.text('object', 'Entry', lx, ly, { role: 'body', c: 'ink', bold: true, anchor: 'middle', axis: 'x', tier: 'mid', at: m, slide: true, lo: Math.min(e0[0], e1[0]) - 40 * U, hi: Math.max(e0[0], e1[0]) + 40 * U, data: " data-acc-entry='1'" }); }
-    else over += "<text x='" + f(lx) + "' y='" + f(ly) + "' text-anchor='middle' font-size='" + f(fs) + "' font-weight='600' data-acc-entry='1'>Entry</text>";
-  });
+  ACC._drawn.entry = (a.entries || []).filter(function(z) { return z != null; }).length;   // (Brief 32 §4) drawn as the Plan's entry handles
   ACC._over = "<g data-layer='route-marks' pointer-events='none'>" + over + '</g>';   // (renderPlanView adds it over the enclosure)
   return "<g data-layer='route' data-state='" + (c.unknown ? 'unknown' : c.ok ? 'clear' : 'blocked') + "' pointer-events='none'>" + out + '</g>';
 };
@@ -23907,7 +23888,8 @@ GEN.access = function(items, fp, opt) {
       if (goal >= 0) {
         var chain = [], n1 = 0; for (var sg = goal; sg >= 0 && n1 < NS; sg = from[sg], n1++) chain.push(sg); chain.reverse();
         var xz = function(c7) { var i7 = c7 % nx; return [GEN.r3((i7 + 0.5) * C), GEN.r3(((c7 - i7) / nx + 0.5) * C)]; };
-        var cells2 = chain.map(function(q2) { return q2 >> 2; }), pin = cells2.reduce(function(m, c8) { return wid[c8] < wid[m] ? c8 : m; }, cells2[0]);
+        var cells2 = chain.map(function(q2) { return q2 >> 2; }), onDeck = cells2.filter(function(c8) { var i8 = c8 % nx, x8 = (i8 + 0.5) * C, z8 = ((c8 - i8) / nx + 0.5) * C; return !(x8 < T && Math.abs(z8 - ez) <= T / 2 + C); });   // (Brief 32 §4) not the step onto the deck at the entry
+        var pin = (onDeck.length ? onDeck : cells2).reduce(function(m, c8) { return wid[c8] < wid[m] ? c8 : m; }, (onDeck.length ? onDeck : cells2)[0]);
         var pts = [[0, xz(cells2[0])[1]]];   // from the sidewalk edge: a corner wherever the direction changes, then the end
         for (var v3 = 0; v3 < chain.length; v3++) { var nxt = chain[v3 + 1]; if (nxt === undefined || (nxt & 3) !== (chain[v3] & 3)) pts.push(xz(cells2[v3])); }
         if (pts.length < 2) pts.push(xz(cells2[cells2.length - 1]));
@@ -25665,10 +25647,10 @@ RPT.routePaper = function(P, d, F, o) {
   (a.paths || []).forEach(function(rt) {
     var band = ACC.band(rt.pts, RW).map(o.toS); if (band.length < 3) return;
     var poly = "<polygon points='" + band.map(function(q) { return q[0].toFixed(2) + ',' + q[1].toFixed(2); }).join(' ') + "'/>";
-    P.hatch(poly, [o.xa, o.ya, o.xb, o.yb], 'stipple');
     P.poly(band, { cls: 'general', dash: 'hidden', fill: 'none', data: " data-route='" + rt.entry + "'" });
     if (!at) at = o.toS(rt.pts[Math.min(1, rt.pts.length - 1)]);
-    (rt.turns || []).concat(rt.pts.length ? [{ x: rt.pts[rt.pts.length - 1][0], z: rt.pts[rt.pts.length - 1][1] }] : []).forEach(function(t) { var q = o.toS([t.x, t.z]); P.circle(q[0], q[1], T / 2 * k, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-turn='1'" }); });
+    (rt.turns || []).forEach(function(t) {   // (Brief 32 §4) where it turns and where it ends, once each
+ var q = o.toS([t.x, t.z]); P.circle(q[0], q[1], T / 2 * k, { cls: 'fine', dash: 'hidden', fill: 'none', data: " data-turn='1'" }); });
   });
   if (!c.ok && !c.unknown && typeof ACCTAB !== 'undefined') {
     var bk = ACCTAB.analyse().blocks[0];
@@ -25677,9 +25659,8 @@ RPT.routePaper = function(P, d, F, o) {
       P.line(q0[0], q0[1], q1[0], q1[1], { cls: 'general', data: " data-pinch='1'" }); [q0, q1].forEach(function(e) { P.line(e[0] - 1.6, e[1], e[0] + 1.6, e[1], { cls: 'general' }); P.line(e[0] - 0.9, e[1] + 0.9, e[0] + 0.9, e[1] - 0.9, { cls: 'general' }); });
       P.text(Math.max(q0[0], q1[0]) + 2, (q0[1] + q1[1]) / 2 + 1, (bk.w > 0.05 ? RPT.fmt(bk.w) : 'closed') + ' · min ' + RPT.fmt(RW), RPT.TX.tag, { c: RPT.INK, bold: true, data: " data-pinch-t='1'" });
       var bb = GEN.aabb(bk.it), cs = [[bb.x0, bb.z0], [bb.x1, bb.z0], [bb.x1, bb.z1], [bb.x0, bb.z1]].map(o.toS);
-      P.poly(cs, { w: 0.5, c: acc, fill: 'none', data: " data-obstruction='1'" });
       var tg = ACCTAB.tagOf(bk.it), nm = (tg ? tg + ' ' : '') + ((FL_ARCHETYPES[bk.it.type] || {}).label || 'piece').toLowerCase() + ' in the way';
-      P.line(cs[2][0], cs[2][1], cs[2][0] + 6, cs[2][1] + 5, { w: 0.25, c: acc }); P.text(cs[2][0] + 7, cs[2][1] + 6, nm, RPT.TX.tag, { c: acc, data: " data-obstruction-t='1'" });
+      P.line(cs[2][0], cs[2][1], cs[2][0] + 6, cs[2][1] + 5, { w: 0.25, c: RPT.MID }); P.text(cs[2][0] + 7, cs[2][1] + 6, nm, RPT.TX.tag, { c: RPT.INK, data: " data-obstruction-t='1'" });
     }
   }
   return at;
