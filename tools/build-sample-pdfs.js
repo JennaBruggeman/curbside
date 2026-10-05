@@ -4,12 +4,18 @@
 // Run after a change to the report or to demo/sample-design.json, with the local server up (tools/serve.ps1):
 //   node tools/build-sample-pdfs.js [http://localhost:8766]
 // The build page runs on in-memory storage and never signs in (parklet-checker.html?sample=<mode>&build=1).
+// The browser: Playwright's own Chromium when it is installed, otherwise the system's Edge (channel msedge), the way the
+// headless tests run; set PW_CHANNEL=msedge (or chrome, chromium) to choose. The one used is printed.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const BASE = (process.argv[2] || 'http://localhost:8766').replace(/\/$/, '');
 const OUT = path.join(__dirname, '..', 'demo');
 (async () => {
-  const b = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--use-gl=swiftshader'] });
+  const args = ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--use-gl=swiftshader'], ch = process.env.PW_CHANNEL;
+  let b, used = ch || 'Playwright Chromium';
+  if (ch) b = await chromium.launch({ args, channel: ch === 'chromium' ? undefined : ch });
+  else { try { b = await chromium.launch({ args }); } catch (e) { if (!/Executable doesn't exist/.test(e.message)) throw e; b = await chromium.launch({ args, channel: 'msedge' }); used = 'msedge (Playwright Chromium is not installed)'; } }
+  console.log('build-sample-pdfs: browser ' + used + ', ' + b.version());
   try {
     for (const mode of ['schematic', 'technical']) {
       const p = await (await b.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
