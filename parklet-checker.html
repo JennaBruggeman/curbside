@@ -22757,10 +22757,9 @@ GEN.PROG = [
   ['green', 'Planting / green'], ['shade', 'Shade'], ['play', 'Kids / play'], ['open', 'Event / open']
 ];
 GEN.CHARACTER = [['quiet_green', 'Quiet / green'], ['social', 'Social'], ['cafe', 'Cafe'], ['urban', 'Urban / minimal']];
-GEN.FOOTPRINT = [['single', 'Single'], ['split', 'Split'], ['free', 'Notches + curves']];
 GEN.defaultPrefs = function() {
   return { prog: { seating: 2, dining: 1, lounging: 1, bike: 1, green: 2, shade: 1, play: 0, open: 1 },
-    character: 'social', footprint: 'free', access: 2, planting: 2, n: 6, seed: 1 };
+    character: 'social', access: 2, planting: 2, n: 6, seed: 1 };
 };
 // The Site tab, as generator constraints (all metres; frontage in world z, default the
 // current deck span, so typed distances measured from the current deck ends stay valid).
@@ -22893,11 +22892,10 @@ GEN.renderDock = function() {
     weight('access', 'Accessibility priority', P.access, 'data-pref') + weight('planting', 'Planting intensity', P.planting, 'data-pref') +
     "<div class='gen-hint' id='genBias'>Host bias: " + GEN.esc(GEN.biasText()) + (P._hostBias ? '. Clicking a weight makes these weights yours.' : '') + '</div>' +
     (GEN.prefs.progUserSet && GEN.hostBias() ? "<button class='txt-btn' onclick='GEN.resetProg()'>Use the host defaults</button>" : '');
-  // character, materials, footprint
+  // character, materials (every deck a rectangle, with or without 45° corner cuts: Brief 32 §2)
   document.getElementById('genChar').innerHTML =
     "<label class='gen-row'><span>Character</span>" + select('data-pref', 'character', P.character, GEN.CHARACTER) + '</label>' +
-    "<label class='gen-row'><span>Materials</span><span id='genMatPick'>" + GEN.matPickHTML() + '</span></label>' +
-    "<label class='gen-row'><span>Deck shape</span>" + select('data-pref', 'footprint', P.footprint, GEN.FOOTPRINT) + '</label>';
+    "<label class='gen-row'><span>Materials</span><span id='genMatPick'>" + GEN.matPickHTML() + '</span></label>';
   // output
   document.getElementById('genOut').innerHTML =
     "<label class='gen-row'><span>Schemes</span><span class='ufield'><input type='number' data-pref='n' value='" + P.n + "' min='3' max='8' step='1'><i></i></span></label>" +
@@ -23186,47 +23184,24 @@ GEN.applyDerived = function(ds, a, L, L0, reinstated) {
 // ── Footprints ───────────────────────────────────────────────────────────────────────────
 // All inside the envelope run. Shapes are pkShape polygons {x: along, y: across} in metres.
 GEN.STALL = 6.0;
-GEN.footprints = function(env, pref) {
-  var a = env.run[0], b = env.run[1], len = b - a, W = env.W, out = [];
-  function rect() { return null; }
-  out.push({ id: 'full', label: 'Full-length', a: a, L: len, shape: rect() });
-  if (len - GEN.STALL - 1.5 >= 8) out.push({ id: 'short', label: 'Shortened (parking kept)', a: a, L: len - GEN.STALL - 1.5, shape: rect(), reinstated: 'end', stalls: 1 });
-  if (pref !== 'single') {
-    var nd = Math.min(0.9, W - 1.6);
-    if (nd >= 0.4) {
-      out.push({ id: 'notch1', label: 'Notched end', a: a, L: len, notch: [[len - 1.1 - 1.5, len - 1.1]], nd: nd });
-      out.push({ id: 'notch2', label: 'Notched both ends', a: a, L: len, notch: [[1.1, 2.6], [len - 2.6, len - 1.1]], nd: nd });
-    }
-    var sd = W - 1.6;
-    if (sd >= 0.6 && len >= 12) out.push({ id: 'linked', label: 'Split (linked pair)', a: a, L: len, notch: [[len / 2 - 1.5, len / 2 + 1.5]], nd: sd });
+GEN.footprints = function(env) {
+  // (Brief 32 §2) a rectangle, full-length or shortened, and the same with 45° cuts at the traffic-side corners: the shapes
+  // the shape editor draws and the enclosure wraps; never a notch, a split or a curve
+  var a = env.run[0], b = env.run[1], len = b - a, W = env.W, out = [], c = GEN.r3(Math.min(0.6, W - 1.8));
+  out.push({ id: 'full', label: 'Full-length', a: a, L: len });
+  if (len - GEN.STALL - 1.5 >= 8) out.push({ id: 'short', label: 'Shortened (parking kept)', a: a, L: len - GEN.STALL - 1.5, reinstated: 'end', stalls: 1 });
+  if (c >= 0.3 && len >= 8) {
+    out.push({ id: 'cut2', label: 'Corner cuts at the traffic side', a: a, L: len, cut: [0, 0, c, c] });
+    out.push({ id: 'cut1', label: 'Corner cut at the far end', a: a, L: len, cut: [0, 0, c, 0] });
   }
-  // a curved traffic edge only as deep as the seating band + the 1.5 m route allow
-  var cv = Math.min(0.5, W - 2.5);
-  if (pref === 'free' && cv >= 0.12) out.push({ id: 'curved', label: 'Curved edge', a: a, L: len, curve: GEN.r3(cv) });
   out.forEach(function(f) { f.W = W; f.shape = GEN.shapeOf(f); });
   return out;
 };
+// the outline: null for the plain rectangle (the deck as it is), else the shape editor's rectangle with its cuts
+// (corner order: [start, curb], [end, curb], [end, traffic], [start, traffic])
 GEN.shapeOf = function(f) {
-  var L = GEN.r3(f.L), W = f.W;
-  if (f.notch) {
-    // traffic side (y = W) steps in by nd over each notch z-range
-    var v = [{ x: 0, y: 0 }, { x: L, y: 0 }, { x: L, y: W }];
-    f.notch.slice().sort(function(p, q) { return q[0] - p[0]; }).forEach(function(n) {
-      v.push({ x: GEN.r3(n[1]), y: W }, { x: GEN.r3(n[1]), y: GEN.r3(W - f.nd) }, { x: GEN.r3(n[0]), y: GEN.r3(W - f.nd) }, { x: GEN.r3(n[0]), y: W });
-    });
-    v.push({ x: 0, y: W });
-    return { active: true, closed: true, verts: v, segs: v.map(function() { return { arc: false, sag: 0 }; }) };
-  }
-  if (f.curve) {
-    var vc = [{ x: 0, y: 0 }, { x: L, y: 0 }, { x: L, y: W }, { x: GEN.r3(L - 1.1), y: W }, { x: 1.1, y: W }, { x: 0, y: W }];
-    var sg = vc.map(function() { return { arc: false, sag: 0 }; });
-    sg[3] = { arc: true, sag: f.curve };
-    var sh = { active: true, closed: true, verts: vc, segs: sg };
-    var w = shapeWidthAtLength(sh, L / 2);           // the arc must bow inward (toward the curb)
-    if (w && w[1] > W) sg[3].sag = -f.curve;
-    return sh;
-  }
-  return null;
+  if (!f.cut || !f.cut.some(function(v) { return v > 0; })) return null;
+  var sh = skeShapeOf({ z0: 0, z1: GEN.r3(f.L), y0: 0, y1: f.W }, f.cut); sh.active = true; return sh;
 };
 // Deck's traffic-side edge (max y) over [z0, z1], and the notch ranges it must stay 0.45 m from.
 // The enclosure (Brief 21 §12): fp.inset (its buffer and depth on the traffic side) moves this edge to the enclosure's
@@ -23606,8 +23581,7 @@ GEN.layout = function(tpl, fp, opt) {
   var ctx = { items: [], fp: fp, r: opt.r, edge: opt.edge, planting: opt.planting, green: opt.green, access: opt.access, shade: opt.shade, target: GEN.TURN,
     plantKind: opt.planting >= 3 ? 'tree' : opt.planting >= 2 ? 'shrub' : 'grass' };
   var z0 = GEN.END + 0.1, z1 = fp.L - GEN.END - 0.1, len = z1 - z0, zones = opt.flip ? tpl.zones.slice().reverse() : tpl.zones, cur = z0;
-  // Notches: no programme within them, so the curb-side route keeps its width there.
-  var keepOut = (fp.notch || []).map(function(n) { return [n[0], n[1]]; });
+  var keepOut = [];   // (the notched decks are gone: Brief 32 §2)
   function pieces(a, b) {
     var out = [[a, b]];
     keepOut.forEach(function(k) {
@@ -23845,7 +23819,7 @@ GEN.metrics = function(lay, fp) {
   });
   var endPl = fp.encPlant != null ? fp.encPlant : 2 * Math.max(0, fp.W - 0.16) * 0.94;   // the enclosure's planting (Brief 21 §12)
   m.planting = GEN.r3(m.planting + endPl);
-  m.area = GEN.r3(fp.W * fp.L - (fp.notch ? fp.notch.reduce(function(s, n) { return s + (n[1] - n[0]) * fp.nd; }, 0) : 0));
+  m.area = GEN.r3(fp.shape ? pkShapeArea(fp.shape) : fp.W * fp.L);
   m.plantingPct = GEN.r3(m.planting / m.area);
   m.shade = GEN.r3(m.shade);
   var foot = lay.items.reduce(function(s, it) { return it.type === 'umbrella' ? s : s + it.l * it.d; }, 0);
@@ -23902,7 +23876,7 @@ GEN.score = function(m, P, fp) {
 };
 // Feature vector for diversity (footprint, programme mix, pattern, palette, seats, planting %, utilisation)
 GEN.features = function(c) {
-  var fps = ['full', 'short', 'notch1', 'notch2', 'linked', 'curved'], v = [];
+  var fps = ['full', 'short', 'cut2', 'cut1'], v = [];
   fps.forEach(function(f) { v.push(c.fp.id === f ? 1 : 0); });
   GEN.TEMPLATES.forEach(function(t) { v.push(c.tpl.id === t.id ? 1 : 0); });
   GEN.PATTERN_IDS.forEach(function(p) { v.push(c.pattern === p ? 1.5 : 0); });
@@ -23928,7 +23902,7 @@ GEN.generate = function() {
   var env = GEN.envelope(S, base);
   res.envelope = env;
   if (!env.ok) { res.error = 'No compliant envelope. ' + env.why.join(' '); return GEN.finish(res, t0); }
-  var fps = GEN.footprints(env, P.footprint);
+  var fps = GEN.footprints(env);
   fps.forEach(function(f) { Object.assign(f, GEN.encFields(f.W, f.L)); });   // the design's enclosure on each (Brief 21 §12)
   // the furniture finishes follow the parklet's materials (Brief 30 §5): the preset's palette family; a custom mix, warm wood
   var curPreset = PKMAT.presetOf(), pals = GEN.PALETTES[(PKMAT.PRESETS.find(function(q) { return q.id === curPreset; }) || {}).fam] || GEN.PALETTES.warm_wood;
