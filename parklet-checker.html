@@ -2219,11 +2219,23 @@ function sheetAlong(DM, maxW, minW) {
 // A-102's scale and extent (Brief 28 item 11): 1:200 when the block face fits it along the street, else 1:250; across, the
 // street and 10 m into each side's buildings, as far as the sheet holds
 function sheetLayoutCrop(DM) {
-  var LM = DM.landmarks, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, DA = sheetDA(), bf = sheetBlockFace(DM);
-  var x0 = LM.sidewalkL.x0 - 10, x1 = far + 10, xc = (x0 + x1) / 2, mW = function(s) { return (DA.w - 30) * s / 1000; }, mH = function(s) { return (DA.h - 45) * s / 1000; };
-  var blockW = bf.z0 != null && bf.z1 != null ? bf.z1 - bf.z0 + 4 : Infinity, s = blockW <= mW(200) ? 200 : 250;   // across, it is cut to fit
-  var al = sheetAlong(DM, mW(s) - 0.5, 0.85 * mW(s)), h = Math.min(mH(s) - 0.5, x1 - x0);
-  return { scale: s, crop: { z0: al.z0, z1: al.z1, x0: sheetSnap(xc - h / 2), x1: sheetSnap(xc + h / 2) } };
+  // (Brief 32 §3) what A-102 dimensions decides its crop: along, the deck with its C13 and C03 runs at both ends and the
+  // hydrants, poles and signal boxes within 15 m of an end (2 m past each); across, the frontage and 3 m of the buildings
+  // to the end of the first travel lane past the centreline. The scale is the largest on the ladder the content fits (its
+  // dimension rows and chain allowed for; the report then measures the sheet as drawn), and the along run is filled to
+  // the drawing area at that scale
+  var LM = DM.landmarks, L = DM.parklet.length, DA = sheetDA(), num = function(k, d0) { var v = typeof state !== 'undefined' ? parseFloat(state[k]) : NaN; return isNaN(v) ? d0 : v; };
+  // the C03 run to 8 m past the setback at most (the rule is 6 m; a longer measured distance is dimensioned to the crop's
+  // edge with its value), so a deck far from the corner still lands at a readable scale
+  var c13 = Math.min(Math.max(num('parking_setback', 1.5), 0), 15), c03 = Math.min(Math.max(num('intersection_dist', 6), 0), 8);
+  var z0 = -(c13 + c03) - 2, z1 = L + c13 + c03 + 2;
+  ((typeof state !== 'undefined' && state.curb_features) || []).forEach(function(o) { var z = +o.xM; if (!isFinite(z)) return; if (z < 0 && z > -15) z0 = Math.min(z0, z - 2); if (z > L && z < L + 15) z1 = Math.max(z1, z + 2); });
+  var lanes = (DM.crossSection || []).filter(function(sg) { return sg.type === 'travel-lane'; }).sort(function(a, b) { return a.x0 - b.x0; });
+  var past = lanes.find(function(sg) { return sg.x0 >= LM.roadCenterX - 0.01; }), x0 = LM.sidewalkL.x0 - 3, x1 = past ? past.x1 : LM.roadRight;
+  var D = { first: 10, step: 8 }, padW = 46 + 12, padH = 22 + D.first + 3 * D.step + 12;
+  var s = [100, 150, 200, 250].find(function(sc) { var k = 1000 / sc; return (z1 - z0) * k + padW <= DA.w && (x1 - x0) * k + padH <= DA.h; }) || 250;
+  var k = 1000 / s, aw = (DA.w - padW) / k, extra = Math.max(0, aw - (z1 - z0)) / 2;
+  return { scale: s, crop: { z0: sheetSnap(z0 - extra), z1: sheetSnap(z1 + extra), x0: sheetSnap(x0), x1: sheetSnap(x1) } };
 }
 function sheetCrops(DM) {
   var LM = DM.landmarks, L = DM.parklet.length, far = LM.sidewalkR ? LM.sidewalkR.x1 : LM.roadRight, sx = (LM.sidewalkL.x0 + far) / 2;
@@ -2232,7 +2244,7 @@ function sheetCrops(DM) {
   // A-103: 3 m round the deck, its ends' margin trimmed (never under 2 m) where that lets the next larger scale hold it, so
   // the deck fills its sheet (RPT.deckScale: 1:50, 1:75, 1:100, the dimension rows' 30 mm along and 90 mm across)
   var DA = sheetDA(), Hm = (LM.deckX1 - LM.deckX0 + 2 * M) * 1000, Mz = M, SWw = typeof RPT !== 'undefined' && RPT.SW ? RPT.SW : 407.8;
-  [20, 25, 50, 75, 100, 200, 250].some(function(s) { var mw = (SWw - 30) * s / 1000; if (L + 4 <= mw && Hm / s + 110 <= DA.y + DA.h) { Mz = Math.min(M, Math.floor(((mw - L) / 2) * 2) / 2); return true; } return false; });   // (Brief 31 §11) the ladder, the whole width
+  [20, 25, 50, 75, 100, 150, 200, 250].some(function(s) { var mw = (SWw - 30) * s / 1000; if (L + 4 <= mw && Hm / s + 110 <= DA.y + DA.h) { Mz = Math.min(M, Math.floor(((mw - L) / 2) * 2) / 2); return true; } return false; });   // (Brief 31 §11) the ladder, the whole width
   var dflt = { A101: { z0: a1.z0, z1: a1.z1, x0: sheetSnap(sx - SHEET_CROP.A101.h / 2), x1: sheetSnap(sx + SHEET_CROP.A101.h / 2) }, A102: lay.crop,
     A103: { z0: sheetSnap(-Mz), z1: sheetSnap(L + Mz), x0: sheetSnap(LM.deckX0 - M), x1: sheetSnap(LM.deckX1 + M) } };
   var out = {};
@@ -7618,7 +7630,8 @@ WM.rebuildAll = function() { syncDesignModel('rebuildAll'); };
 var DRAW_STYLE = {
   W: { cut: 0.70, object: 0.50, edge: 0.35, general: 0.25, context: 0.18, fine: 0.13 },
   DASH: { hidden: [2, 1], centre: [8, 1, 1, 1], property: [12, 2, 2, 2], zone: [1.5, 1.5], short: [0.8, 0.8] },
-  TYPE: { sheet: { body: 2.5, tag: 1.8, head: 3.5 }, screen: { body: 12, tag: 9, head: 16 } },
+  TYPE: { sheet: { body: 2.5, tag: 2.0, head: 3.5 },   // (Brief 32 §3) 2.0 mm the smallest text on paper
+          screen: { body: 12, tag: 9, head: 16 } },
   FONT: 'DM Sans, Helvetica Neue, Arial, sans-serif',
   // screen: a class's px = its sheet mm x base x sqrt(px per metre / ref), held to [min, max]; text and
   // symbols are annotation: pxPerMm screen px per sheet mm at every zoom
@@ -7985,7 +7998,7 @@ var DRAW_SYMBOLS = {
   // hydrant (Brief 18): one circle, 0.3 m across at model size (o.r, user units) and never under 2.4 mm, with an H
   // (o.noText, the far and mid tiers: the circle alone)
   hydrant: function(P, x, y, o) {
-    o = o || {}; var k = P.ctx.k, r = Math.max(1.5 * k, o.r || 0);   // its H at 1.9 mm: never under the least text size
+    o = o || {}; var k = P.ctx.k, r = Math.max(1.6 * k, o.r || 0);   // its H at 2.0 mm: never under the least text size (Brief 32 §3)
     P.circle(x, y, r, { cls: 'edge', fill: 'paper', c: o.c, data: o.data });
     if (!o.noText) P.text(x, y + 0.35 * 1.25 * r, 'H', 1.25 * r, { anchor: 'middle', bold: true, c: o.c || 'ink' });
   },
@@ -25072,6 +25085,7 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
     // (no title block to clear: Brief 25 item 22c)
   }
   P.merge(D, dy, dx);
+  var fit = { w: +(bb[2] - bb[0]).toFixed(1), h: +(bb[3] - bb[1]).toFixed(1), aw: +DAw.toFixed(1), ah: +(DA.h - stripH).toFixed(1) }; fit.ok = !isFinite(bb[0]) || (fit.w <= fit.aw + 0.01 && fit.h <= fit.ah + 0.01);   // (Brief 32 §3) the drawing as drawn, against its area
   // hex keys on the drawing (at their place, or the nearest step aside that clears the drawing's text and the other
   // keys), their notes in the column
   var n = 0, ky = AC.y + 5, w = AC.w - 8, used = [];
@@ -25120,7 +25134,7 @@ RPT.dsheet = function(d, id, title, scale, D, keys, ext) {
   var by = RPT.SH - 24;   // above the drawing label (Brief 25 item 22c)
   if (ext && ext.north) RPT.northSym(P, 10, by + 1.5, 4.5);
   if (scale) RPT.bar(P, ext && ext.north ? 26 : 0, by - 2, scale);
-  return { id: id, title: title, scale: scale, ext: ext || null, dims: D.dims || [], draw: function(Q) { Q.merge(P); } };
+  return { fit: fit,  id: id, title: title, scale: scale, ext: ext || null, dims: D.dims || [], draw: function(Q) { Q.merge(P); } };
 };
 
 // ── What every drawing reads, once per report ───────────────────────────────────────────────────
@@ -25503,7 +25517,7 @@ RPT.sheetLayout = function(d) {
 // equal division, with a match line on both sheets.
 RPT.DECK_SCALES = [50, 75, 100];
 // (Brief 31 §11) the standard scales, largest first: every drawing sheet takes the first that fits
-RPT.LADDER = [20, 25, 50, 75, 100, 200, 250];
+RPT.LADDER = [20, 25, 50, 75, 100, 150, 200, 250];   // (Brief 32 §3) 1:150 between 1:100 and 1:200
 RPT.ladder = function(fits, from) { var L = RPT.LADDER.filter(function(s) { return s >= (from || 0); }); for (var i = 0; i < L.length; i++) if (fits(L[i])) return L[i]; return L[L.length - 1]; };
 RPT.deckScale = function(d) {
   var cr = d.DM.site.sheets.A103.crop, fits = function(s) { return (cr.z1 - cr.z0) * 1000 / s + 30 <= RPT.SW && (cr.x1 - cr.x0) * 1000 / s + 110 <= RPT.DA.y + RPT.DA.h; };   // (Brief 31 §11) the whole width, the notes in a strip under it
@@ -25622,11 +25636,27 @@ RPT.sectionScale = function(d) {
   return wFits(100) ? 100 : wFits(200) ? 200 : 250;
 };
 // every sheet's scale from one place (Brief 19b): the sheets draw at it, the drawing list prints it
+// (Brief 32 §3) a sheet's scale is measured: built at the estimate, and at each next scale on the ladder until the box of
+// everything drawn (dimension strings and labels included) fits the drawing area (RPT.dsheet's fit); cached per report
+RPT._force = {};
+RPT.measuredScale = function(d, key, est, build) {
+  if (RPT._force[key]) return RPT._force[key];
+  d._scl = d._scl || {}; if (d._scl[key]) return d._scl[key];
+  var L = RPT.LADDER.filter(function(s) { return s >= est; }), pick = L[L.length - 1], tried = [];
+  for (var i = 0; i < L.length; i++) {
+    RPT._force[key] = L[i]; var pg = null;
+    try { pg = build(d); } catch (e) { console.warn('[report] measuring ' + key + ' at 1:' + L[i], e); } finally { delete RPT._force[key]; }
+    var f = pg && pg.fit; tried.push('1:' + L[i] + (f ? ' ' + f.w + 'x' + f.h + ' of ' + f.aw + 'x' + f.ah : ''));
+    if (f && f.ok) { pick = L[i]; break; }
+  }
+  d._scl[key] = pick; (d._sclLog = d._sclLog || {})[key] = tried;
+  return pick;
+};
 RPT.SCALE_OF = {
-  site: function(d) { return RPT.fitScale(d.DM.site.sheets.A101.crop, 250, 24, 6); },
-  layout: function(d) { return RPT.fitScale(d.DM.site.sheets.A102.crop, 100, 30, 45); },
+  site: function(d) { return RPT.measuredScale(d, 'site', RPT.fitScale(d.DM.site.sheets.A101.crop, 250, 24, 6), RPT.sheetSite); },
+  layout: function(d) { return RPT.measuredScale(d, 'layout', d.DM.site.sheets.A102.scale || RPT.fitScale(d.DM.site.sheets.A102.crop, 100, 30, 45), RPT.sheetLayout); },
   // Brief 25 item 22d: the street section at 1:100 always (never smaller); the parklet section at 1:25 when it fits, else 1:50
-  deck: function(d) { return RPT.deckScale(d); }, section: function() { return 100; }, parklet: function(d) { return RPT.parkletScale(d); }, details: function() { return 10; }
+  deck: function(d) { return RPT.deckScale(d); }, section: function() { return 100; }, parklet: function(d) { return RPT.measuredScale(d, 'parklet', RPT.parkletScale(d), RPT.sheetParklet); }, details: function() { return 10; }
 };
 // the parklet section's extent across (Brief 25 item 22d): the host building's face less 0.8 m (else the sidewalk less 0.4 m)
 // to the end of the first travel lane past the deck, and its height (the deck, the enclosure, a person: 2.8 m over it)
@@ -26024,7 +26054,7 @@ RPT.sheetTitle = function(d, drw) {
     function(X, Y) { DRAW_SYMBOLS.busStop(P, X, Y); }, 'Bus stop',
     function(X, Y) { RPT.sym.grid(P, X, Y, '1'); }, 'Grid line at a railing post', function(X, Y) { RPT.sym.level(P, X, Y + 1, '', true); }, 'Level (datum: top of curb)',
     function(X, Y) { DRAW_SYMBOLS.hexKey(P, X, Y, 1); }, 'Key: its note in the sheet\'s notes', function(X, Y) { DRAW_SYMBOLS.lozenge(P, X, Y, 'C13', 'pass'); }, 'Rule of a clearance zone',
-    function(X, Y) { P.text(X, Y - 0.5, '5.2', TX.tag, { anchor: 'middle' }); P.text(X, Y + 1.6, 'C05 ✓', TX.tag * 0.8, { anchor: 'middle', c: 'anno' }); }, 'Clearance: measured · rule · check (red: fails)'];
+    function(X, Y) { P.text(X, Y - 0.5, '5.2', TX.tag, { anchor: 'middle' }); P.text(X, Y + 1.8, 'C05 ✓', TX.tag, { anchor: 'middle', c: 'anno' }); }, 'Clearance: measured · rule · check (red: fails)'];
   if (RPT.userGroups(d).length) syms.push(function(X, Y) { var fs = TX.tag, w = RPT.tw('F1' + RPT.USER_DOT, fs, true) + 1.6; DRAW_SYMBOLS.ftag(P, { box: [X - w / 2, Y - fs / 2 - 0.6, X + w / 2, Y + fs / 2 + 0.6], cx: X, cy: Y, a: [X - w / 2 - 3, Y], e: [X - w / 2, Y], tag: 'F1' + RPT.USER_DOT }, fs); },
     'Furniture tag, S-001; a dot: user-supplied, not verified');   // Brief 22 item 9
 
